@@ -12,7 +12,7 @@
     <header>
       <p class="eyebrow">Mapless migration practice</p>
       <h1>iPhone Safari playable preview</h1>
-      <p class="muted">Touch/viewport/localStorage smoke preview. Domain logic remains owned by the existing runtime streams.</p>
+      <p class="muted">Safari上で実domainを段階接続中。BattleはM0193 Battle Core subsetを使用します。</p>
     </header>
 
     <section class="card status-card" aria-live="polite">
@@ -33,6 +33,21 @@
         <button data-action="load">ロード</button>
         <button data-action="next">次の日へ</button>
         <button data-action="reset" class="danger">リセット</button>
+      </div>
+    </section>
+
+    <section class="card" id="battle-card" hidden>
+      <h2>Wild PIKACHU appeared!</h2>
+      <div class="battle-status">
+        <div><span>EEVEE HP</span><strong id="player-hp">20 / 20</strong></div>
+        <div><span>PIKACHU HP</span><strong id="foe-hp">20 / 20</strong></div>
+      </div>
+      <p class="muted" id="battle-message">技を選んでください。</p>
+      <div class="grid" id="moves">
+        <button data-move="TACKLE" data-damage="7" data-priority="0">たいあたり</button>
+        <button data-move="QUICK_ATTACK" data-damage="5" data-priority="1">でんこうせっか</button>
+        <button data-move="BITE" data-damage="6" data-priority="0">かみつく</button>
+        <button data-move="SWIFT" data-damage="6" data-priority="0">スピードスター</button>
       </div>
     </section>
 
