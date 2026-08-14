@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#111111" />
+  <title>Mapless Web Preview</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <main class="app">
+    <header>
+      <p class="eyebrow">Mapless migration practice</p>
+      <h1>iPhone Safari playable preview</h1>
+      <p class="muted">Touch/viewport/localStorage smoke preview. Domain logic remains owned by the existing runtime streams.</p>
+    </header>
+
+    <section class="card status-card" aria-live="polite">
+      <div><span>Day</span><strong id="day">1</strong></div>
+      <div><span>Party</span><strong id="party">1 / 6</strong></div>
+      <div><span>Bag</span><strong id="bag">0</strong></div>
+      <div><span>Money</span><strong id="money">0</strong></div>
+    </section>
+
+    <section class="card">
+      <h2>Day Board preview</h2>
+      <div class="grid" id="board">
+        <button data-action="explore">探索する</button>
+        <button data-action="battle">戦闘する</button>
+        <button data-action="capture">捕獲する</button>
+        <button data-action="reward">報酬を受け取る</button>
+        <button data-action="save">セーブ</button>
+        <button data-action="load">ロード</button>
+        <button data-action="next">次の日へ</button>
+        <button data-action="reset" class="danger">リセット</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>イベントログ</h2>
+      <ol id="log" class="log"></ol>
+    </section>
+  </main>
+  <script type="module" src="./preview.js"></script>
+</body>
+</html>
