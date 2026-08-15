@@ -39,6 +39,15 @@ function storedCount() {
 function note(message) {
   logLines.unshift(message);
   logLines = logLines.slice(0, 20);
+  renderLog();
+}
+
+function renderLog() {
+  byId("log").replaceChildren(...logLines.map((line) => {
+    const item = document.createElement("li");
+    item.textContent = line;
+    return item;
+  }));
 }
 
 function percent(hp, maxHp) {
@@ -72,18 +81,20 @@ function renderMoves(player, battle) {
     return;
   }
   const buttons = player.moves
-    .map(moveId)
-    .filter((id) => SAFARI_MOVE_PRESENTATION[id])
-    .map((id) => {
+    .map((move) => ({ move, id: moveId(move) }))
+    .filter(({ id }) => SAFARI_MOVE_PRESENTATION[id])
+    .map(({ move, id }) => {
       const details = SAFARI_MOVE_PRESENTATION[id];
+      const pp = typeof move === "string" ? details.totalPp : move.pp;
       const button = document.createElement("button");
       button.type = "button";
       button.dataset.moveId = id;
-      button.disabled = busy;
+      button.disabled = busy || pp <= 0;
       const name = document.createElement("strong");
       name.textContent = details.name;
       const meta = document.createElement("small");
-      meta.textContent = "威力入力 " + details.damage + (details.priority ? " / 優先度 +" + details.priority : "");
+      meta.textContent = "威力 " + details.power + " / PP " + pp
+        + (details.priority ? " / 優先度 +" + details.priority : "");
       button.append(name, meta);
       return button;
     });
@@ -134,11 +145,7 @@ function render() {
   byId("save-run").disabled = busy;
   renderBoard();
   renderBattle();
-  byId("log").replaceChildren(...logLines.map((line) => {
-    const item = document.createElement("li");
-    item.textContent = line;
-    return item;
-  }));
+  renderLog();
 }
 
 async function playPresentation(events) {
@@ -151,13 +158,19 @@ async function playPresentation(events) {
       note((SAFARI_MOVE_PRESENTATION[event.moveId]?.name ?? event.moveId) + "！");
     } else if (event.type === "damage_applied") {
       const target = byId(event.target + "-combatant");
+      const pokemon = event.target === "player" ? runtime.player.party[0] : mapless().battle.foe;
+      byId(event.target + "-hp").textContent = event.hpAfter + " / " + pokemon.max_hp;
+      byId(event.target + "-hp-bar").style.width = percent(event.hpAfter, pokemon.max_hp) + "%";
       target.classList.add("hit");
-      render();
       await sleep(180);
       target.classList.remove("hit");
       note(event.target + " HP " + event.hpBefore + " → " + event.hpAfter);
+    } else if (event.type === "miss") {
+      note(event.actor + "の攻撃は外れた。");
     } else if (event.type === "faint") {
       note(event.target + " faint");
+    } else if (event.type === "turn_end") {
+      note("Turn " + event.turn + " end");
     } else if (event.type === "battle_result") {
       note("Battle result: decision " + event.decision);
       if (event.expGained) note("EXP +" + event.expGained);
@@ -190,7 +203,6 @@ byId("moves").addEventListener("click", async (event) => {
   render();
   try {
     const result = resolveSafariBattleRound(runtime, button.dataset.moveId);
-    render();
     await playPresentation(result.presentation);
   } catch (error) {
     note("Battle error: " + (error?.message ?? error));
@@ -260,4 +272,3 @@ byId("new-run").addEventListener("click", () => {
 
 window.addEventListener("pageshow", render);
 render();
-
