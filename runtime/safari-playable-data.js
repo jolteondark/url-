@@ -43,6 +43,24 @@ export const SAFARI_SPECIES_MASTERS = Object.freeze({
   }),
 });
 
+// Generated browser input for the external General Type Encounter selection
+// seam. The private-main request/clamp/launch domains consume this projection;
+// it is not a second implementation of species-pool or EnemyScaling rules.
+export const SAFARI_WILD_ENCOUNTER_PROJECTIONS = Object.freeze({
+  ELECTRIC: Object.freeze({
+    required_type: "ELECTRIC",
+    species_id: "PIKACHU",
+    species_name: "ピカチュウ",
+    move_ids: Object.freeze(["THUNDERSHOCK"]),
+    base_level_day_offset: 4,
+    min_projected_base_level: 5,
+    max_projected_base_level: 8,
+    variance: 0,
+    min_level: 1,
+    max_level: 100,
+  }),
+});
+
 export const SAFARI_MOVE_MASTERS = Object.freeze({
   TACKLE: Object.freeze({
     id: "TACKLE", name: "Tackle", type: "NORMAL", category: "Physical",

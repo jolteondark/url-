@@ -3,6 +3,7 @@ import { resolveDayBoardCellDispatch } from "./mapless-day-board-cell-dispatch.j
 import { resolveDayBoardPlayableTurn } from "./mapless-day-board-playable-turn.js";
 import { projectDayBoardEventName } from "./mapless-day-board-event-name-projection.js";
 import { resolveBrowserBattleRound } from "./browser-battle-round-runtime.js";
+import { resolveBrowserMaplessWildEncounter } from "./browser-mapless-wild-encounter-runtime.js";
 import { resolveBattleStartCore } from "./battle-core-start-handoff.js";
 import { resolveCaptureFlow } from "./battle-capture-flow.js";
 import { routeCaughtQueueToPartyStorage } from "./caught-queue-party-storage.js";
@@ -16,6 +17,7 @@ import {
   SAFARI_MOVE_MASTERS,
   SAFARI_NATURE_MASTERS,
   SAFARI_SPECIES_MASTERS,
+  SAFARI_WILD_ENCOUNTER_PROJECTIONS,
   SAFARI_ZERO_STAT_VALUES,
 } from "./safari-playable-data.js";
 
@@ -92,29 +94,36 @@ function createStarter() {
   });
 }
 
-function createOpponent(kind, day) {
-  if (kind === "trainer") {
-    return materializeSafariPokemon({
-      species: "RATTATA",
-      level: Math.max(5, Math.min(8, Number(day) + 4)),
-      hp: 1,
-      nature_id: "HARDY",
-      iv: { ...SAFARI_ZERO_STAT_VALUES },
-      ev: { ...SAFARI_ZERO_STAT_VALUES },
-      status: "NONE",
-      moves: ["TACKLE"],
-    });
-  }
+function createTrainerOpponent(day) {
   return materializeSafariPokemon({
-    species: "PIKACHU",
+    species: "RATTATA",
     level: Math.max(5, Math.min(8, Number(day) + 4)),
     hp: 1,
     nature_id: "HARDY",
     iv: { ...SAFARI_ZERO_STAT_VALUES },
     ev: { ...SAFARI_ZERO_STAT_VALUES },
     status: "NONE",
-    moves: ["THUNDERSHOCK"],
+    moves: ["TACKLE"],
   });
+}
+
+function projectSafariGeneratedWildEncounter(day, type) {
+  const projection = SAFARI_WILD_ENCOUNTER_PROJECTIONS[type];
+  if (!projection) throw new RangeError(`wild type is outside the Safari projection: ${type}`);
+  const projectedDay = Math.max(Number.isFinite(Number(day)) ? Math.trunc(Number(day)) : 1, 1);
+  return {
+    required_type: projection.required_type,
+    species_id: projection.species_id,
+    species_name: projection.species_name,
+    base_level: Math.max(
+      projection.min_projected_base_level,
+      Math.min(projection.max_projected_base_level, projectedDay + projection.base_level_day_offset),
+    ),
+    move_ids: [...projection.move_ids],
+    variance: projection.variance,
+    min_level: projection.min_level,
+    max_level: projection.max_level,
+  };
 }
 
 function materializeBoardEvents(boardKinds, day) {
@@ -123,9 +132,6 @@ function materializeBoardEvents(boardKinds, day) {
       return {
         kind,
         type: "ELECTRIC",
-        species_id: "PIKACHU",
-        species_name: "ピカチュウ",
-        level: Math.max(5, Math.min(8, Number(day) + 4)),
         slot: index,
       };
     }
@@ -260,7 +266,36 @@ export function boardCellPresentation(runtime, index) {
 
 function startBattle(runtime, event, index, dispatchOperations) {
   const state = maplessState(runtime);
-  const opponent = createOpponent(event.kind, state.day);
+  let opponent;
+  let encounterResolution = null;
+  const startOperations = [...dispatchOperations];
+  if (event.kind === "wild") {
+    const generated = projectSafariGeneratedWildEncounter(state.day, event.type);
+    encounterResolution = resolveBrowserMaplessWildEncounter({
+      day: state.day,
+      event,
+      boardIndex: index,
+      generated,
+      variance: generated.variance,
+      minLevel: generated.min_level,
+      maxLevel: generated.max_level,
+      gameTempPresent: true,
+    });
+    const encounter = encounterResolution.encounter;
+    opponent = materializeSafariPokemon({
+      species: encounter.species_id,
+      level: encounter.level,
+      hp: 1,
+      nature_id: "HARDY",
+      iv: { ...SAFARI_ZERO_STAT_VALUES },
+      ev: { ...SAFARI_ZERO_STAT_VALUES },
+      status: "NONE",
+      moves: encounter.move_ids,
+    });
+    startOperations.push(...encounterResolution.operations);
+  } else {
+    opponent = createTrainerOpponent(state.day);
+  }
   const battleStart = resolveBattleStartCore({
     sendOuts: [[0, runtime.player.party[0]], [1, opponent]],
   });
@@ -272,7 +307,10 @@ function startBattle(runtime, event, index, dispatchOperations) {
     completed: false,
     captured: false,
     foe: opponent,
-    last_operations: [...dispatchOperations, ...battleStart.operations],
+    encounter_request: encounterResolution?.request ?? null,
+    encounter: encounterResolution?.encounter ?? null,
+    encounter_cleanup: encounterResolution?.cleanup ?? [],
+    last_operations: [...startOperations, ...battleStart.operations],
     presentation: [{
       type: "battle_started",
       actor: "foe",
@@ -282,7 +320,7 @@ function startBattle(runtime, event, index, dispatchOperations) {
   };
   state.notice = event.kind === "trainer"
     ? event.trainer_full_name + "が勝負を仕掛けてきた！"
-    : "野生の" + event.species_name + "が現れた！";
+    : "野生の" + encounterResolution.encounter.species_name + "が現れた！";
   state.last_operations = state.battle.last_operations;
 }
 
@@ -415,11 +453,16 @@ function finalizeBattle(runtime) {
   const event = state.board_events[battle.board_index];
   const input = baseTurnInput(state, battle.board_index);
   if (battle.kind === "wild") {
+    const encounter = battle.encounter ?? {
+      species_id: event.species_id,
+      species_name: event.species_name,
+      level: event.level,
+    };
     input.wild = {
       can_battle: true,
-      encounter: { species_id: event.species_id, level: event.level },
+      encounter: { species_id: encounter.species_id, level: encounter.level },
       species_exists: true,
-      species_name: event.species_name,
+      species_name: encounter.species_name,
       outcome: battle.decision,
       run_end_pending: false,
       old_consumed: false,
@@ -452,10 +495,11 @@ function finalizeBattle(runtime) {
     },
   ];
   state.last_operations = completionOperations;
+  const wildSpeciesName = battle.encounter?.species_name ?? event.species_name;
   state.notice = battle.captured
-    ? event.species_name + "を捕まえました。"
+    ? wildSpeciesName + "を捕まえました。"
     : battle.decision === 1
-      ? (battle.kind === "trainer" ? event.trainer_full_name : event.species_name) + "に勝利しました。"
+      ? (battle.kind === "trainer" ? event.trainer_full_name : wildSpeciesName) + "に勝利しました。"
       : "戦闘に敗北しました。";
 }
 
