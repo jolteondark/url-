@@ -1,6 +1,7 @@
 import { updatePokemonRuntime } from "./pokemon-runtime.js";
 import { resolveBattleStartCore } from "./battle-core-start-handoff.js";
 import { resolveGenericTurnVerticalSlice } from "./battle-core-turn-vertical-slice.js";
+import { resolveBattleLoopCanonical } from "./battle-core-battle-loop.js";
 import { resolveAttackPhaseMovesCanonical, resolvePlayableMoveRoundCanonical } from "./battle-core-attack-phase-moves.js";
 import { prepareCombatTurnInputCanonical } from "./battle-core-combat-turn.js";
 import { resolvePostBattlePersistence } from "./battle-post-battle-persistence-flow.js";
@@ -100,6 +101,12 @@ export function prepareBattleRuntimeScheduledCombat({ battleInput: rawBattleInpu
   return { ppPrepared, scheduling, preparedBattleInput };
 }
 
+function resolveRuntimeLoop(preparedBattleInput, allowIncompleteBattle) {
+  return allowIncompleteBattle
+    ? resolveGenericTurnVerticalSlice(preparedBattleInput, { allowIncomplete: true })
+    : resolveBattleLoopCanonical(preparedBattleInput);
+}
+
 export function resolveBattleRuntimeIntegration({ pokemon, sendOuts = [], battleInput: rawBattleInput = {}, preparedBattleInputTransform = null, ppActionIndexes = null, reflectedActionIndex = 0, reflectedTryUseMoveActionIndex = reflectedActionIndex, reflectedPartyIndex = 0, postBattlePersistenceInput = null, allowIncompleteBattle = true, weatherAnimation = null, terrainAnimation = null }) {
   const start = resolveBattleStartCore({ sendOuts, weatherAnimation, terrainAnimation });
   const useAttackPhaseScheduler = rawBattleInput?.useAttackPhaseScheduler === true;
@@ -116,7 +123,7 @@ export function resolveBattleRuntimeIntegration({ pokemon, sendOuts = [], battle
       preparedBattleInput = preparedBattleInputTransform(preparedBattleInput);
     }
     attackPhaseScheduling = resolved.scheduling;
-    turn = resolveGenericTurnVerticalSlice(preparedBattleInput, { allowIncomplete: allowIncompleteBattle });
+    turn = resolveRuntimeLoop(preparedBattleInput, allowIncompleteBattle);
   } else {
     ppPrepared = prepareBattleSystemsPpRuntime({ battleInput: rawBattleInput });
     battleInput = ppPrepared.battleInput;
@@ -132,8 +139,8 @@ export function resolveBattleRuntimeIntegration({ pokemon, sendOuts = [], battle
       if (typeof preparedBattleInputTransform === "function") {
         preparedBattleInput = preparedBattleInputTransform(preparedBattleInput);
       }
-      turn = resolveGenericTurnVerticalSlice(preparedBattleInput, { allowIncomplete: allowIncompleteBattle });
-    } else turn = resolveGenericTurnVerticalSlice(battleInput, { allowIncomplete: allowIncompleteBattle });
+      turn = resolveRuntimeLoop(preparedBattleInput, allowIncompleteBattle);
+    } else turn = resolveRuntimeLoop(battleInput, allowIncompleteBattle);
   }
   const reflected = commitBattleRuntimePokemonRound({
     battleInput: preparedBattleInput,

@@ -9,6 +9,8 @@ import {
   returnSafariToDayBoard,
   saveSafariPlayableRun,
 } from "../runtime/safari-playable-integration.js";
+import { createPokemonRuntime } from "../runtime/pokemon-runtime.js";
+import { resolveBattleRuntimeIntegration } from "../runtime/battle-runtime-integration.js";
 
 class MemoryStorage {
   constructor() { this.values = new Map(); }
@@ -20,6 +22,21 @@ class MemoryStorage {
 function state(runtime) {
   return runtime.variables.mapless;
 }
+
+const wholeBattle = resolveBattleRuntimeIntegration({
+  pokemon: createPokemonRuntime({ species: "RATTATA", level: 5, hp: 20, max_hp: 20, moves: [] }),
+  allowIncompleteBattle: false,
+  battleInput: {
+    useCanonicalAccuracyDamage: true,
+    rounds: [{
+      priorityOrder: [0],
+      actions: [{ kind: "move", accuracyHit: true, calculatedDamage: 7, hpBefore: 7, totalHp: 7, fainted: true, judgeState: { foeAllFainted: true } }],
+    }],
+  },
+});
+assert.equal(wholeBattle.turn.decision, 1);
+assert.equal(wholeBattle.turn.aborted, false);
+assert.equal(wholeBattle.turn.operations.at(-1).op, "end_of_battle");
 
 let runtime = createSafariPlayableRuntime();
 assert.equal(state(runtime).day, 1);

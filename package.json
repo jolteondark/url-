@@ -4,6 +4,6 @@
   "type": "module",
   "scripts": {
     "test": "node tests/runtime-smoke.mjs",
-    "check": "node --check preview.js && node --check runtime/browser-mapless-wild-encounter-runtime.js && node --check runtime/browser-battle-round-runtime.js && node --check runtime/battle-runtime-integration.js && node --check runtime/battle-core-try-use-move.js && node --check runtime/safari-playable-data.js && node --check runtime/safari-playable-integration.js"
+    "check": "node --check preview.js && node --check runtime/browser-mapless-wild-encounter-runtime.js && node --check runtime/browser-battle-round-runtime.js && node --check runtime/battle-runtime-integration.js && node --check runtime/battle-core-battle-loop.js && node --check runtime/battle-core-try-use-move.js && node --check runtime/safari-playable-data.js && node --check runtime/safari-playable-integration.js"
   }
 }
