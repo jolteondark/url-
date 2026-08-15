@@ -125,15 +125,15 @@ assert.equal(state(runtime).board_revealed[firstWild], true);
 assert.equal(state(runtime).board_consumed[firstWild], false);
 assert.equal("species_id" in state(runtime).board_events[firstWild], false);
 assert.deepEqual(state(runtime).battle.encounter_request, {
-  required_type: "ELECTRIC",
+  required_type: "BUG",
   day: 1,
   enemy_rank: "NORMAL",
   extra_modifier: 0,
   use_variance: true,
 });
 assert.equal(state(runtime).battle.encounter.source, "generated_browser_projection");
-assert.equal(state(runtime).battle.encounter.species_id, "PIKACHU");
-assert.equal(state(runtime).battle.encounter.level, 5);
+assert.equal(state(runtime).battle.encounter.species_id, "PINSIR");
+assert.equal(state(runtime).battle.encounter.level, 3);
 assert.ok(started.operations.some((operation) => operation.op === "create_general_type_encounter"));
 assert.ok(started.operations.some((operation) => operation.op === "start_wild_battle"));
 assert.deepEqual(state(runtime).battle.encounter_cleanup, [{ op: "clear_battle_rules" }]);
