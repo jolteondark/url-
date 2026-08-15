@@ -32,6 +32,7 @@ function ensureStyle() {
   style.textContent = `
     .party-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
     .party-slot{min-width:0;border:1px solid #31445f;border-radius:14px;background:#111c2b;padding:11px}
+    .party-slot.lead{border-color:#557bb0;background:linear-gradient(145deg,#172b43,#111c2b)}
     .party-slot.empty{display:grid;place-items:center;min-height:92px;color:#667991;border-style:dashed;background:#0d1521}
     .party-slot-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
     .party-slot-head strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.9rem}
@@ -42,6 +43,10 @@ function ensureStyle() {
     .party-moves li{display:flex;justify-content:space-between;gap:7px;color:#c9d7ea;font-size:.68rem;line-height:1.35}
     .party-moves li span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .party-moves li span:last-child{flex:0 0 auto;color:#879ab4}
+    .party-lead-row{display:flex;justify-content:flex-end;margin-top:9px}
+    .party-lead-badge{display:inline-flex;align-items:center;border:1px solid #557bb0;border-radius:999px;padding:5px 9px;color:#c9dcf5;font-size:.69rem;font-weight:750}
+    .party-lead-button{min-height:34px;border-radius:10px;padding:6px 10px;background:#253f61;color:#e8f1ff;font-size:.72rem;font-weight:750}
+    .party-lead-button:disabled{opacity:.45}
     @media(max-width:520px){.party-detail-grid{grid-template-columns:1fr}}
   `;
   document.head.append(style);
@@ -79,9 +84,14 @@ function liveLeadSnapshot(pokemon) {
   };
 }
 
+function battleActive() {
+  const battleCard = byId("battle-card");
+  return Boolean(battleCard && !battleCard.hidden);
+}
+
 function pokemonSlot(pokemon, index) {
   const article = document.createElement("article");
-  article.className = "party-slot";
+  article.className = "party-slot" + (index === 0 && pokemon ? " lead" : "");
   if (!pokemon) {
     article.classList.add("empty");
     article.textContent = `${index + 1}. EMPTY`;
@@ -132,7 +142,24 @@ function pokemonSlot(pokemon, index) {
     moveList.append(item);
   }
 
-  article.append(head, hpMeta, track, statusLine, moveList);
+  const leadRow = document.createElement("div");
+  leadRow.className = "party-lead-row";
+  if (index === 0) {
+    const badge = document.createElement("span");
+    badge.className = "party-lead-badge";
+    badge.textContent = "先頭";
+    leadRow.append(badge);
+  } else {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "party-lead-button";
+    button.dataset.partyLeadIndex = String(index);
+    button.textContent = battleActive() ? "戦闘中は変更不可" : "先頭にする";
+    button.disabled = battleActive();
+    leadRow.append(button);
+  }
+
+  article.append(head, hpMeta, track, statusLine, moveList, leadRow);
   return article;
 }
 
@@ -158,9 +185,18 @@ ensurePanel();
 ensureStyle();
 renderPartyPanel();
 
+byId("party-detail-grid")?.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-party-lead-index]");
+  if (!button || button.disabled) return;
+  window.dispatchEvent(new CustomEvent("safari-party-lead-request", {
+    detail: { index: Number(button.dataset.partyLeadIndex) },
+  }));
+});
+
 for (const id of ["party", "battle-card", "player-name", "player-level", "player-hp", "log"]) {
   const node = byId(id);
   if (node) new MutationObserver(scheduleRender).observe(node, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["hidden"] });
 }
 window.addEventListener("pageshow", scheduleRender);
 window.addEventListener("storage", scheduleRender);
+window.addEventListener("safari-runtime-changed", scheduleRender);
