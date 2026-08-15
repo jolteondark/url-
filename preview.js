@@ -17,6 +17,7 @@ import {
   safariShopPresentation,
   safariVillagePresentation,
   saveSafariPlayableRun,
+  setSafariPartyLead,
   startSafariVillageBounty,
 } from "./runtime/safari-playable-integration.js";
 
@@ -436,6 +437,20 @@ byId("new-run").addEventListener("click", () => {
   runtime = createSafariPlayableRuntime();
   logLines = ["新規ランを開始しました。"];
   render();
+  window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
+});
+
+window.addEventListener("safari-party-lead-request", (event) => {
+  if (busy) return;
+  try {
+    const result = setSafariPartyLead(runtime, Number(event.detail?.index));
+    const saved = saveSafariPlayableRun(window.localStorage, runtime);
+    note(`${result.notice} / auto-save: ${saved.key}`);
+  } catch (error) {
+    note("Party error: " + (error?.message ?? error));
+  }
+  render();
+  window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
 });
 
 window.addEventListener("pageshow", render);
