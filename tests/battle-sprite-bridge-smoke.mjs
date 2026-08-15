@@ -1,0 +1,21 @@
+import assert from "node:assert/strict";
+import { resolveSafariBattleSpriteAsset, SAFARI_BATTLE_SPRITE_ASSET_ROWS } from "../runtime/safari-battle-sprite-asset-subset.js";
+import { projectSafariBattleSpriteImage } from "../runtime/safari-battle-sprite-image-presentation.js";
+
+assert.equal(SAFARI_BATTLE_SPRITE_ASSET_ROWS.length, 4);
+const eevee = resolveSafariBattleSpriteAsset({ species: "EEVEE", form: 0, battlerIndex: 0 });
+assert.equal(eevee.canonical_path, "Graphics/Pokemon/Back/EEVEE.png");
+assert.equal(eevee.offset_y, 96);
+assert.equal(eevee.shadow_size, 1);
+const pinsir = resolveSafariBattleSpriteAsset({ species: "PINSIR", form: 0, battlerIndex: 1 });
+assert.equal(pinsir.offset_x, 12);
+assert.equal(pinsir.shadow_size, 2);
+const bombirdier = resolveSafariBattleSpriteAsset({ species: "BOMBIRDIER", form: 0, battlerIndex: 1 });
+assert.equal(bombirdier.offset_y, -24);
+const rattata = resolveSafariBattleSpriteAsset({ species: "RATTATA", form: 0, battlerIndex: 1 });
+assert.equal(rattata.shadow_size, 1);
+assert.equal(resolveSafariBattleSpriteAsset({ species: "EEVEE", form: 0, battlerIndex: 1 }), null);
+const image = projectSafariBattleSpriteImage(eevee);
+assert.equal(image.src, "./Graphics/Pokemon/Back/EEVEE.png");
+assert.equal(projectSafariBattleSpriteImage(null), null);
+console.log("battle sprite bridge smoke: PASS");
