@@ -80,9 +80,12 @@ function scheduleRender() {
 
 ensureStyle();
 renderAll();
-for (const id of ["battle-card", "party-detail-grid", "storage-detail-boxes", "player-name", "foe-name"]) {
-  const node = document.getElementById(id);
-  if (node) new MutationObserver(scheduleRender).observe(node, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["hidden"] });
-}
+new MutationObserver(scheduleRender).observe(document.body, {
+  subtree: true,
+  childList: true,
+  characterData: true,
+  attributes: true,
+  attributeFilter: ["hidden"],
+});
 window.addEventListener("pageshow", scheduleRender);
 window.addEventListener("storage", scheduleRender);
