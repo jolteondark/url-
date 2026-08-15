@@ -1,5 +1,6 @@
 import { reduceHpCanonical, judgeCanonical, resolveMoveCommandPhaseCanonical, calculatePriorityCanonical } from "./battle-core-turn-vertical-slice.js";
 import { resolveEndOfRoundPhaseCanonical } from "./battle-core-end-of-round.js";
+import { resolveEndOfBattleCanonical } from "./battle-core-end-of-battle.js";
 
 export function resolveBattleLoopCanonical(input = {}) {
   const rounds = Array.isArray(input.rounds) ? input.rounds : [];
@@ -83,6 +84,12 @@ export function resolveBattleLoopCanonical(input = {}) {
     if (decision > 0) break;
     turnCount += 1;
   }
+  let endOfBattleResolution = null;
+  if (input.endOfBattleInput) {
+    endOfBattleResolution = resolveEndOfBattleCanonical({ ...input.endOfBattleInput, decision });
+    decision = Number(endOfBattleResolution.decision);
+    operations.push(...endOfBattleResolution.operations);
+  }
   operations.push({ op: "end_of_battle", decision });
-  return { decision, turnCount, aborted: false, operations };
+  return { decision, turnCount, aborted: false, operations, ...(endOfBattleResolution ? { endOfBattleResolution } : {}) };
 }
