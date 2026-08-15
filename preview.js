@@ -20,6 +20,7 @@ import {
   setSafariPartyLead,
   startSafariVillageBounty,
 } from "./runtime/safari-playable-integration.js";
+import { attemptSafariFlee } from "./runtime/safari-flee-command.js";
 
 let runtime = createSafariPlayableRuntime();
 let busy = false;
@@ -191,6 +192,11 @@ function renderBattle() {
   renderMoves(player, battle);
   byId("capture").hidden = battle.kind !== "wild" || battle.completed;
   byId("capture").disabled = busy;
+  const flee = byId("flee");
+  const canFlee = battle.kind === "wild" && battle.origin !== "village_bounty" && !battle.completed;
+  flee.hidden = battle.completed;
+  flee.disabled = busy || !canFlee;
+  flee.textContent = canFlee ? "にげる" : "にげられない";
   byId("return-board").hidden = !battle.completed;
   byId("return-board").disabled = busy;
   byId("return-board").textContent = battle.return_target === "village" ? "村へ戻る" : "Day Boardへ戻る";
@@ -393,6 +399,25 @@ byId("capture").addEventListener("click", async () => {
     busy = false;
     render();
   }
+});
+
+byId("flee").addEventListener("click", () => {
+  if (busy) return;
+  busy = true;
+  render();
+  let escaped = false;
+  try {
+    const result = attemptSafariFlee(runtime);
+    escaped = result.escaped;
+    note(result.escaped ? "Battle: escaped" : "Battle: escape blocked");
+    autoSaveIfRequested(result, "Battle flee auto-save");
+  } catch (error) {
+    note("Flee error: " + (error?.message ?? error));
+  } finally {
+    busy = false;
+    render();
+  }
+  if (escaped) byId("board-card").scrollIntoView({ behavior: "smooth", block: "start" });
 });
 
 byId("return-board").addEventListener("click", () => {
