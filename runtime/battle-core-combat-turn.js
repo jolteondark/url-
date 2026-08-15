@@ -1,5 +1,5 @@
 import { resolveBattleLoopCanonical } from "./battle-core-battle-loop.js";
-import { resolveAccuracyDamageActionCanonical } from "./battle-core-accuracy-damage.js";
+import { resolveAccuracyDamageVerticalCanonical } from "./battle-core-accuracy-damage-vertical.js";
 import { resolveHpFaintActionCanonical } from "./battle-core-hp-faint.js";
 import { tryUseMoveCanonical } from "./battle-core-try-use-move.js";
 import { resolveUseMovePreflightCanonical } from "./battle-core-use-move-preflight.js";
@@ -50,7 +50,7 @@ function resolveCombatActionCanonical(action) {
   if (effectsGated.moveSkipped) return effectsGated;
   const targetChecked = resolveInitialTargetChecksCanonical(effectsGated);
   const hitLooped = resolveUseMoveHitLoopCanonical(targetChecked);
-  const hpResolved = resolveHpFaintActionCanonical(resolveAccuracyDamageActionCanonical(hitLooped));
+  const hpResolved = resolveHpFaintActionCanonical(resolveAccuracyDamageVerticalCanonical(hitLooped));
   const postHitResolved = resolveUseMovePostHitCanonical(hpResolved);
   const instructed = resolveUseMoveInstructCanonical(postHitResolved);
   if (instructed.instructResolution?.terminated) return instructed;
