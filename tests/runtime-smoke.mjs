@@ -4,9 +4,12 @@ import {
   attemptSafariCapture,
   boardCellPresentation,
   createSafariPlayableRuntime,
+  leaveSafariShop,
   loadSafariPlayableRun,
+  purchaseSafariShopItem,
   resolveSafariBattleRound,
   returnSafariToDayBoard,
+  safariShopPresentation,
   saveSafariPlayableRun,
 } from "../runtime/safari-playable-integration.js";
 import { createPokemonRuntime } from "../runtime/pokemon-runtime.js";
@@ -37,6 +40,56 @@ const wholeBattle = resolveBattleRuntimeIntegration({
 assert.equal(wholeBattle.turn.decision, 1);
 assert.equal(wholeBattle.turn.aborted, false);
 assert.equal(wholeBattle.turn.operations.at(-1).op, "end_of_battle");
+
+let shopRuntime = createSafariPlayableRuntime();
+const shopIndex = state(shopRuntime).board_events.findIndex((event) => event.kind === "shop");
+assert.equal(shopRuntime.bag.money, 1000);
+const shopOpened = activateSafariDayBoardCell(shopRuntime, shopIndex);
+assert.equal(shopOpened.result, "shop_opened");
+assert.equal(shopOpened.turn_result, "completed");
+assert.equal(state(shopRuntime).board_consumed[shopIndex], false);
+assert.deepEqual(safariShopPresentation(shopRuntime), {
+  facilityId: "normal_shop",
+  boardIndex: shopIndex,
+  money: 1000,
+  lastTransactionResult: null,
+  items: [{ id: "POTION", name: "Potion", label: "キズぐすり", pocket: "MEDICINE", price: 200, sell_price: 50, quantity: 0 }],
+});
+const cancelledPurchase = purchaseSafariShopItem(shopRuntime, { itemId: "POTION", quantity: 2, confirmed: false });
+assert.equal(cancelledPurchase.result, false);
+assert.equal(cancelledPurchase.transaction_result, "cancelled");
+assert.equal(shopRuntime.bag.money, 1000);
+assert.deepEqual(shopRuntime.bag.slots, []);
+assert.ok(state(shopRuntime).shop);
+const purchased = purchaseSafariShopItem(shopRuntime, { itemId: "POTION", quantity: 2, confirmed: true });
+assert.equal(purchased.result, true);
+assert.equal(purchased.phase, "return_to_village");
+assert.equal(purchased.transaction_result, "bought");
+assert.deepEqual(shopRuntime.bag.slots, [["POTION", 2]]);
+assert.equal(shopRuntime.bag.money, 600);
+assert.equal(state(shopRuntime).shop, null);
+assert.ok(purchased.operations.some((operation) => operation.op === "request_consume_village_action"));
+assert.ok(purchased.operations.some((operation) => operation.op === "request_save"));
+
+const shopStorage = new MemoryStorage();
+saveSafariPlayableRun(shopStorage, shopRuntime);
+shopRuntime.bag.money = 0;
+shopRuntime.bag.slots = [];
+shopRuntime = loadSafariPlayableRun(shopStorage, shopRuntime).state;
+assert.equal(shopRuntime.bag.money, 600);
+assert.deepEqual(shopRuntime.bag.slots, [["POTION", 2]]);
+
+const poorRuntime = createSafariPlayableRuntime();
+poorRuntime.bag.money = 100;
+activateSafariDayBoardCell(poorRuntime, state(poorRuntime).board_events.findIndex((event) => event.kind === "shop"));
+const rejected = purchaseSafariShopItem(poorRuntime, { itemId: "POTION", quantity: 1, confirmed: true });
+assert.equal(rejected.result, false);
+assert.equal(rejected.transaction_result, "not_enough_money");
+assert.equal(poorRuntime.bag.money, 100);
+assert.deepEqual(poorRuntime.bag.slots, []);
+assert.ok(state(poorRuntime).shop);
+assert.equal(leaveSafariShop(poorRuntime).result, "returned");
+assert.equal(state(poorRuntime).shop, null);
 
 let runtime = createSafariPlayableRuntime();
 assert.equal(state(runtime).day, 1);
@@ -148,5 +201,6 @@ console.log(JSON.stringify({
   party: runtime.player.party.length,
   boxed: runtime.storage_system.boxes[0].slots.filter(Boolean).length,
   potion: runtime.bag.slots[0][1],
-  vertical: "day_board_wild_request_encounter_launch_battle_result_persistence_return",
+  shop: "m0289_purchase_money_bag_persistence_return",
+  vertical: "day_board_shop_battle_result_persistence_return",
 }));

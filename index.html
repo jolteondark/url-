@@ -15,8 +15,8 @@
     <header class="hero">
       <p class="eyebrow">Mapless v0.9.108 browser integration</p>
       <h1>Safari Playable</h1>
-      <p class="muted">Day Board・Battle・EXP・捕獲・Party/Storage・Bag・Persistenceを既存Web domainから接続した縦線です。</p>
-      <p class="muted">Runtime: private main 41ed328</p>
+      <p class="muted">Day Board・Shop/Money・Battle・EXP・捕獲・Party/Storage・Bag・Persistenceを既存Web domainから接続した縦線です。</p>
+      <p class="muted">Runtime: private main 6262678</p>
     </header>
 
     <section class="card status-card" aria-live="polite">
@@ -24,6 +24,7 @@
       <div><span>Party</span><strong id="party">1 / 6</strong></div>
       <div><span>Storage</span><strong id="storage">0</strong></div>
       <div><span>POTION</span><strong id="bag">0</strong></div>
+      <div><span>Money</span><strong id="money">0円</strong></div>
     </section>
 
     <section class="card save-actions">
@@ -39,6 +40,28 @@
       </div>
       <p id="notice" class="notice" aria-live="polite">読み込み中です。</p>
       <div class="board-grid" id="board" aria-label="Day Board"></div>
+    </section>
+
+    <section class="card shop-card" id="shop-card" hidden>
+      <div class="section-heading">
+        <h2>フレンドリィショップ</h2>
+        <span class="pill" id="shop-money">0円</span>
+      </div>
+      <p class="notice" id="shop-message" aria-live="polite">商品と数量を選んでください。</p>
+      <div class="shop-form">
+        <label class="field">
+          <span>商品</span>
+          <select id="shop-item"></select>
+        </label>
+        <label class="field">
+          <span>数量</span>
+          <input id="shop-quantity" type="number" inputmode="numeric" min="1" max="99" step="1" value="1" />
+        </label>
+      </div>
+      <div class="shop-actions">
+        <button id="shop-confirm">購入を確定</button>
+        <button id="shop-cancel" class="secondary">買わずに戻る</button>
+      </div>
     </section>
 
     <section class="card battle-card" id="battle-card" hidden>
