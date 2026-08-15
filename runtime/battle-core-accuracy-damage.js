@@ -3,6 +3,7 @@ const STAT_STAGE_MULTIPLIERS = [2, 2, 2, 2, 2, 2, 2, 3, 4, 5, 6, 7, 8];
 const STAT_STAGE_DIVISORS = [8, 7, 6, 5, 4, 3, 2, 2, 2, 2, 2, 2, 2];
 const ACC_EVA_STAGE_MULTIPLIERS = [3, 3, 3, 3, 3, 3, 3, 4, 5, 6, 7, 8, 9];
 const ACC_EVA_STAGE_DIVISORS = [9, 8, 7, 6, 5, 4, 3, 3, 3, 3, 3, 3, 3];
+const CALC_ACCURACY_MODIFIERS_BODY_SHA256 = "c6e812650f0f00711c9884aa3e14fd82b53ab3eec370dfc673446eb09c26868e";
 const CALC_DAMAGE_MULTIPLIERS_BODY_SHA256 = "d4c7c2e7dd7237f911b20f61ca809a6e08087695d17a2dc335ae197b4b327b39";
 
 function rubyRound(value) {
@@ -12,6 +13,31 @@ function rubyRound(value) {
 
 function clampStage(stage) {
   return Math.max(-STAT_STAGE_MAXIMUM, Math.min(STAT_STAGE_MAXIMUM, Number(stage ?? 0)));
+}
+
+export function calcAccuracyModifiersCanonical(input = {}) {
+  let baseAccuracy = Number(input.externalBaseAccuracy ?? input.baseAccuracy ?? 0);
+  let accuracyStage = Number(input.externalAccuracyStage ?? input.accuracyStage ?? 0);
+  let evasionStage = Number(input.externalEvasionStage ?? input.evasionStage ?? 0);
+  let accuracyMultiplier = Number(input.externalAccuracyMultiplier ?? input.accuracyMultiplier ?? 1);
+  let evasionMultiplier = Number(input.externalEvasionMultiplier ?? input.evasionMultiplier ?? 1);
+
+  if (Number(input.gravityTurns ?? 0) > 0) accuracyMultiplier *= 5 / 3;
+  const micleBerryConsumed = Boolean(input.micleBerry);
+  if (micleBerryConsumed) accuracyMultiplier *= 1.2;
+  if ((Boolean(input.foresight) || Boolean(input.miracleEye)) && evasionStage > 0) evasionStage = 0;
+
+  return {
+    baseAccuracy,
+    accuracyStage,
+    evasionStage,
+    accuracyMultiplier,
+    evasionMultiplier,
+    micleBerryConsumed,
+    sourceComplete: true,
+    sourceSymbol: "Battle::Move#pbCalcAccuracyModifiers",
+    sourceBodySha256: CALC_ACCURACY_MODIFIERS_BODY_SHA256,
+  };
 }
 
 export function accuracyCheckCanonical(input = {}) {
@@ -25,17 +51,31 @@ export function accuracyCheckCanonical(input = {}) {
   if (baseAccuracy === 0) {
     return { hit: true, alwaysHitReason: "base_accuracy_zero", affectionMissed: false };
   }
-  const modifiedBaseAccuracy = Number(input.modifiedBaseAccuracy ?? baseAccuracy);
+
+  const modifierResolution = input.accuracyModifierInput
+    ? calcAccuracyModifiersCanonical({
+        baseAccuracy,
+        accuracyStage: Number(input.accuracyStage ?? 0),
+        evasionStage: Number(input.evasionStage ?? 0),
+        ...input.accuracyModifierInput,
+      })
+    : null;
+  const modifiedBaseAccuracy = modifierResolution?.baseAccuracy ?? Number(input.modifiedBaseAccuracy ?? baseAccuracy);
   if (modifiedBaseAccuracy === 0) {
-    return { hit: true, alwaysHitReason: "modified_base_accuracy_zero", affectionMissed: false };
+    return {
+      hit: true,
+      alwaysHitReason: "modified_base_accuracy_zero",
+      affectionMissed: false,
+      ...(modifierResolution ? { accuracyModifierResolution: modifierResolution } : {}),
+    };
   }
 
-  const accStage = clampStage(input.modifiedAccuracyStage ?? input.accuracyStage ?? 0) + STAT_STAGE_MAXIMUM;
-  const evaStage = clampStage(input.modifiedEvasionStage ?? input.evasionStage ?? 0) + STAT_STAGE_MAXIMUM;
+  const accStage = clampStage(modifierResolution?.accuracyStage ?? input.modifiedAccuracyStage ?? input.accuracyStage ?? 0) + STAT_STAGE_MAXIMUM;
+  const evaStage = clampStage(modifierResolution?.evasionStage ?? input.modifiedEvasionStage ?? input.evasionStage ?? 0) + STAT_STAGE_MAXIMUM;
   let accuracy = 100.0 * ACC_EVA_STAGE_MULTIPLIERS[accStage] / ACC_EVA_STAGE_DIVISORS[accStage];
   let evasion = 100.0 * ACC_EVA_STAGE_MULTIPLIERS[evaStage] / ACC_EVA_STAGE_DIVISORS[evaStage];
-  accuracy = rubyRound(accuracy * Number(input.accuracyMultiplier ?? 1));
-  evasion = rubyRound(evasion * Number(input.evasionMultiplier ?? 1));
+  accuracy = rubyRound(accuracy * Number(modifierResolution?.accuracyMultiplier ?? input.accuracyMultiplier ?? 1));
+  evasion = rubyRound(evasion * Number(modifierResolution?.evasionMultiplier ?? input.evasionMultiplier ?? 1));
   if (evasion < 1) evasion = 1;
   const threshold = modifiedBaseAccuracy * accuracy / evasion;
   const randomRoll = Number(input.randomRoll ?? 0);
@@ -44,10 +84,10 @@ export function accuracyCheckCanonical(input = {}) {
     Boolean(input.targetOwnedByPlayer) && Number(input.targetAffectionLevel ?? 0) === 5 &&
     !Boolean(input.targetMega);
   if (affection) {
-    if (randomRoll < threshold - 10) return { hit: true, threshold, randomRoll, affectionMissed: false };
-    if (randomRoll < threshold) return { hit: false, threshold, randomRoll, affectionMissed: true };
+    if (randomRoll < threshold - 10) return { hit: true, threshold, randomRoll, affectionMissed: false, ...(modifierResolution ? { accuracyModifierResolution: modifierResolution } : {}) };
+    if (randomRoll < threshold) return { hit: false, threshold, randomRoll, affectionMissed: true, ...(modifierResolution ? { accuracyModifierResolution: modifierResolution } : {}) };
   }
-  return { hit: randomRoll < threshold, threshold, randomRoll, affectionMissed: false };
+  return { hit: randomRoll < threshold, threshold, randomRoll, affectionMissed: false, ...(modifierResolution ? { accuracyModifierResolution: modifierResolution } : {}) };
 }
 
 export function calcDamageMultipliersCanonical(input = {}) {
