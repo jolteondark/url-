@@ -1,4 +1,4 @@
-// Generated browser entrypoint from private main 6262678d19eaa3459e141e5ea68c32d74430f8be.
+// Generated browser entrypoint from private main f753934d2ea484c6bfac89efcff189b161eaf5f6.
 // Runtime bodies remain split under runtime/ so imports preserve private-main module boundaries.
 export * from "./runtime/battle-capture-flow.js";
 export * from "./runtime/party-storage-handoff.js";

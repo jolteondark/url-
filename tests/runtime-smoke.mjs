@@ -41,6 +41,24 @@ assert.equal(wholeBattle.turn.decision, 1);
 assert.equal(wholeBattle.turn.aborted, false);
 assert.equal(wholeBattle.turn.operations.at(-1).op, "end_of_battle");
 
+const incrementalEndOfRound = resolveBattleRuntimeIntegration({
+  pokemon: createPokemonRuntime({ species: "RATTATA", level: 5, hp: 20, max_hp: 20, moves: [] }),
+  sendOuts: [[0, "RATTATA"]],
+  battleInput: {
+    useCanonicalAccuracyDamage: true,
+    rounds: [{ actions: [], priorityOrder: [], endOfRoundInput: { priority: [1, 0], positions: [0, 1] } }],
+  },
+  allowIncompleteBattle: true,
+});
+assert.equal(incrementalEndOfRound.turn.decision, 0);
+assert.equal(incrementalEndOfRound.turn.awaitingNextRound, true);
+assert.ok(incrementalEndOfRound.turn.operations.some((operation) => operation.op === "end_weather_request" && operation.round === 1));
+assert.ok(incrementalEndOfRound.turn.operations.some((operation) => operation.op === "eor_switch_request" && operation.round === 1));
+assert.ok(incrementalEndOfRound.turn.operations.some((operation) => operation.op === "end_of_round_complete" && operation.round === 1));
+assert.ok(!incrementalEndOfRound.turn.operations.some((operation) => operation.op === "end_of_battle"));
+assert.deepEqual(incrementalEndOfRound.combatTrace.rounds[0].endOfRoundInput.priority, [1, 0]);
+assert.equal(incrementalEndOfRound.pokemon.hp, 20);
+
 let shopRuntime = createSafariPlayableRuntime();
 const shopIndex = state(shopRuntime).board_events.findIndex((event) => event.kind === "shop");
 assert.equal(shopRuntime.bag.money, 1000);

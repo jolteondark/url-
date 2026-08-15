@@ -1,3 +1,5 @@
+import { resolveEndOfRoundPhaseCanonical } from "./battle-core-end-of-round.js";
+
 function rubyRound(value) {
   const n = Number(value ?? 0);
   return n >= 0 ? Math.floor(n + 0.5) : Math.ceil(n - 0.5);
@@ -197,6 +199,12 @@ export function resolveGenericTurnVerticalSlice(input = {}, { allowIncomplete = 
     decision = Number(round.attackDecision ?? decision);
     if (decision > 0) break;
     operations.push({ op: "end_of_round_phase", round: roundNo });
+    if (round.endOfRoundInput) {
+      const eor = resolveEndOfRoundPhaseCanonical({ initialDecision: decision, ...round.endOfRoundInput });
+      for (const operation of eor.operations) operations.push({ ...operation, round: roundNo });
+      decision = Number(eor.decision);
+      if (decision > 0) break;
+    }
     const endDecision = judgeCanonical(round.endJudgeState ?? {});
     operations.push({ op: "judge", round: roundNo, scope: "end_of_round", decision: endDecision });
     if (round.endJudgeState) decision = endDecision;
