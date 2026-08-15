@@ -1,3 +1,4 @@
+import "./party-storage-controls-bridge.js";
 import { applySafariSpeciesSprite } from "./runtime/safari-species-sprite-atlas.js";
 
 let scheduled = false;
