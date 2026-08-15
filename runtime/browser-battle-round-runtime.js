@@ -1,12 +1,6 @@
 import { resolveBattleFightMenu } from "./battle-command-selection.js";
-import { prepareCombatTurnInputCanonical } from "./battle-core-combat-turn.js";
-import { resolveAttackPhaseMovesCanonical } from "./battle-core-attack-phase-moves.js";
-import { judgeCanonical } from "./battle-core-turn-vertical-slice.js";
-import {
-  commitBattleSystemsPpRuntime,
-  prepareBattleSystemsPpRuntime,
-} from "./battle-move-pp-integration.js";
-import { pokemonMoveTotalPp, updatePokemonRuntime } from "./pokemon-runtime.js";
+import { resolveBattleRuntimeIntegration } from "./battle-runtime-integration.js";
+import { pokemonMoveTotalPp } from "./pokemon-runtime.js";
 
 function moveId(move) {
   return typeof move === "string" ? move : move?.id;
@@ -75,19 +69,40 @@ function actionInput({ actor, target, move, moveIndex, battlerIndex, randomRoll,
   return action;
 }
 
-function operationForHp(actionIndex, action) {
-  const hp = action.hpReductionResolution;
-  return {
-    op: "reduce_hp",
-    round: 1,
-    action: actionIndex,
-    amount: Number(hp.amount),
-    hpBefore: Number(action.hpBefore),
-    hpAfter: Number(action.hpAfter),
-    droppedBelowHalfHP: Boolean(hp.droppedBelowHalfHP),
-    tookDamageThisRound: Boolean(hp.tookDamageThisRound),
-    tookMoveDamageThisRound: Boolean(hp.tookMoveDamageThisRound),
+function annotateRuntimeOperation(operation, preparedRound) {
+  if (!Number.isInteger(operation?.action)) return operation;
+  const actionIndex = Number(operation.action);
+  const action = preparedRound.actions[actionIndex];
+  const actor = actionIndex === 0 ? "player" : "foe";
+  const target = actionIndex === 0 ? "foe" : "player";
+  const annotated = { ...operation, actor, target, moveId: action?.moveId ?? null };
+  if (operation.op === "faint") annotated.target = target;
+  return annotated;
+}
+
+function presentationOperations(turnOperations, preparedRound, selection) {
+  const operations = [];
+  for (const operation of turnOperations) {
+    operations.push(annotateRuntimeOperation(operation, preparedRound));
+    if (operation.op === "command_phase") {
+      operations.push(...selection.operations.map((entry) => ({ ...entry, round: operation.round })));
+    }
+  }
+  return operations;
+}
+
+function attachBrowserJudgeStates(input) {
+  const prepared = structuredClone(input);
+  const round = prepared.rounds[0];
+  round.actions[0].judgeState = {
+    playerAllFainted: false,
+    foeAllFainted: Boolean(round.actions[0].fainted),
   };
+  round.actions[1].judgeState = {
+    playerAllFainted: Boolean(round.actions[1].fainted),
+    foeAllFainted: false,
+  };
+  return prepared;
 }
 
 /**
@@ -163,109 +178,60 @@ export function resolveBrowserBattleRound({
     ],
   };
 
-  const ppPrepared = prepareBattleSystemsPpRuntime({ battleInput: { rounds: [round] } });
-  const ppPreparedRound = ppPrepared.battleInput.rounds[0];
-  const scheduling = resolveAttackPhaseMovesCanonical({
-    commandEntries: ppPreparedRound.commandEntries,
-    actions: ppPreparedRound.actions,
-    priorityEntries: ppPreparedRound.priorityEntries,
-    mechanicsGeneration: 9,
+  const battleInput = {
+    useAttackPhaseScheduler: true,
+    useCanonicalAccuracyDamage: true,
+    rounds: [round],
+  };
+  const playerRuntime = resolveBattleRuntimeIntegration({
+    pokemon: player,
+    sendOuts: [[0, player.species], [1, foe.species]],
+    battleInput,
+    preparedBattleInputTransform: attachBrowserJudgeStates,
+    ppActionIndexes: [0],
+    reflectedActionIndex: 1,
+    reflectedTryUseMoveActionIndex: 0,
+    allowIncompleteBattle: true,
   });
-  const combat = prepareCombatTurnInputCanonical(ppPrepared.battleInput);
+  const foeRuntime = resolveBattleRuntimeIntegration({
+    pokemon: foe,
+    sendOuts: [[0, player.species], [1, foe.species]],
+    battleInput,
+    preparedBattleInputTransform: attachBrowserJudgeStates,
+    ppActionIndexes: [1],
+    reflectedActionIndex: 0,
+    reflectedTryUseMoveActionIndex: 1,
+    allowIncompleteBattle: true,
+  });
+  const scheduling = playerRuntime.attackPhaseScheduling;
+  const combat = playerRuntime.combatTrace;
   const preparedRound = combat.rounds[0];
-  preparedRound.actions[0].judgeState = {
-    playerAllFainted: false,
-    foeAllFainted: Boolean(preparedRound.actions[0].fainted),
-  };
-  preparedRound.actions[1].judgeState = {
-    playerAllFainted: Boolean(preparedRound.actions[1].fainted),
-    foeAllFainted: false,
-  };
 
-  let playerAfter = updatePokemonRuntime(player, {});
-  let foeAfter = updatePokemonRuntime(foe, {});
-  let decision = 0;
-  const operations = [
-    { op: "round_header", round: 1 },
-    { op: "command_phase", round: 1 },
-    ...selection.operations.map((operation) => ({ ...operation, round: 1 })),
-    { op: "attack_phase", round: 1 },
-    ...scheduling.operations.map((operation) => ({ ...operation, round: 1 })),
-  ];
-
-  for (const actionIndex of scheduling.processOrder) {
-    const action = preparedRound.actions[actionIndex];
-    const actor = actionIndex === 0 ? "player" : "foe";
-    const target = actionIndex === 0 ? "foe" : "player";
-    operations.push({
-      op: "use_move", round: 1, action: actionIndex,
-      actor, target, moveId: action.moveId,
-    });
-    if (action.moveSkipped) continue;
-    operations.push({
-      op: "accuracy_check", round: 1, action: actionIndex,
-      actor, target, moveId: action.moveId, hit: Boolean(action.accuracyHit),
-    });
-    if (action.accuracyHit) {
-      operations.push({
-        op: "calc_damage", round: 1, action: actionIndex,
-        actor, target, moveId: action.moveId,
-        damage: Number(action.calculatedDamage),
-      });
-      if (action.hpReductionResolution) {
-        operations.push({
-          ...operationForHp(actionIndex, action),
-          actor, target, moveId: action.moveId,
-        });
-        if (target === "player") playerAfter = updatePokemonRuntime(playerAfter, { hp: action.hpAfter });
-        else foeAfter = updatePokemonRuntime(foeAfter, { hp: action.hpAfter });
-      }
-      if (action.fainted) operations.push({ op: "faint", round: 1, action: actionIndex, target });
-    }
-    decision = judgeCanonical(action.judgeState);
-    operations.push({ op: "judge", round: 1, action: actionIndex, actor, decision });
-    if (decision > 0) break;
-  }
-
-  if (decision === 0) {
-    operations.push({ op: "end_of_round_phase", round: 1 });
-    operations.push({ op: "judge", round: 1, scope: "end_of_round", decision: 0 });
-  } else {
-    operations.push({ op: "end_of_battle", decision });
-  }
-
-  const playerPpCommitted = commitBattleSystemsPpRuntime({
-    battleInput: combat,
-    turn: {
-      decision,
-      operations: operations.filter((operation) => operation.op !== "use_move" || operation.action === 0),
-    },
-    pokemon: playerAfter,
-  });
-  const foePpCommitted = commitBattleSystemsPpRuntime({
-    battleInput: combat,
-    turn: {
-      decision,
-      operations: operations.filter((operation) => operation.op !== "use_move" || operation.action === 1),
-    },
-    pokemon: foeAfter,
-  });
-  playerAfter = playerPpCommitted.pokemon;
-  foeAfter = foePpCommitted.pokemon;
+  const decision = Number(playerRuntime.turn.decision);
+  const operations = presentationOperations(playerRuntime.turn.operations, preparedRound, selection);
+  const playerPp = playerRuntime.battlePpIntegration ?? { prepared: [], commits: [] };
+  const foePp = foeRuntime.battlePpIntegration ?? { prepared: [], commits: [] };
 
   return {
-    player: playerAfter,
-    foe: foeAfter,
+    player: playerRuntime.pokemon,
+    foe: foeRuntime.pokemon,
     decision,
     operations,
     selection,
     scheduling,
     ppIntegration: {
-      prepared: ppPrepared.operations,
+      prepared: playerPp.prepared,
       commits: [
-        ...playerPpCommitted.commits.map((commit) => ({ ...commit, actor: "player" })),
-        ...foePpCommitted.commits.map((commit) => ({ ...commit, actor: "foe" })),
+        ...playerPp.commits.map((commit) => ({ ...commit, actor: "player" })),
+        ...foePp.commits.map((commit) => ({ ...commit, actor: "foe" })),
       ],
+    },
+    battleRuntimeIntegration: {
+      start: playerRuntime.start,
+      combatTrace: combat,
+      awaitingNextRound: Boolean(playerRuntime.turn.awaitingNextRound),
+      playerPpCommits: playerPp.commits.length,
+      foePpCommits: foePp.commits.length,
     },
   };
 }

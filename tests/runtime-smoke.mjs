@@ -50,6 +50,15 @@ assert.ok(started.operations.some((operation) => operation.op === "create_genera
 assert.ok(started.operations.some((operation) => operation.op === "start_wild_battle"));
 assert.deepEqual(state(runtime).battle.encounter_cleanup, [{ op: "clear_battle_rules" }]);
 
+const continuationRuntime = structuredClone(runtime);
+continuationRuntime.player.party[0].hp = continuationRuntime.player.party[0].max_hp;
+continuationRuntime.variables.mapless.battle.foe.hp = continuationRuntime.variables.mapless.battle.foe.max_hp;
+const continuationRound = resolveSafariBattleRound(continuationRuntime, "TACKLE");
+assert.equal(continuationRound.decision, 0);
+assert.equal(state(continuationRuntime).battle.completed, false);
+assert.ok(continuationRound.operations.every((operation) => operation.op !== "end_of_battle"));
+assert.ok(continuationRound.operations.some((operation) => operation.op === "calculate_priority" && operation.resolvedAdapter));
+
 let lastRound;
 for (let turn = 0; turn < 10 && !state(runtime).battle.completed; turn += 1) {
   lastRound = resolveSafariBattleRound(runtime, "TACKLE");
@@ -70,6 +79,7 @@ assert.deepEqual(
 );
 assert.ok(lastRound.operations.some((operation) => operation.op === "calc_damage"));
 assert.deepEqual(lastRound.ppIntegration.commits.map((commit) => commit.actor), ["player"]);
+assert.ok(lastRound.operations.some((operation) => operation.op === "end_of_battle"));
 assert.ok(lastRound.presentation.some((event) => event.type === "damage_applied"));
 assert.ok(lastRound.presentation.some((event) => event.type === "battle_result"));
 
