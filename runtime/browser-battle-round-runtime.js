@@ -144,6 +144,12 @@ export function resolveBrowserBattleRound({
   });
 
   const round = {
+    attackPhaseInput: {
+      battlers: [
+        { battlerIndex: 0, choiceKind: "UseMove", fainted: player.hp <= 0, choseRageFunction: false },
+        { battlerIndex: 1, choiceKind: "UseMove", fainted: foe.hp <= 0, choseRageFunction: false },
+      ],
+    },
     commandEntries: [
       {
         battlerIndex: 0, ownedByPlayer: true,

@@ -2,6 +2,7 @@ import { updatePokemonRuntime } from "./pokemon-runtime.js";
 import { resolveBattleStartCore } from "./battle-core-start-handoff.js";
 import { resolveGenericTurnVerticalSlice } from "./battle-core-turn-vertical-slice.js";
 import { resolveBattleLoopCanonical } from "./battle-core-battle-loop.js";
+import { resolveAttackPhaseCanonical } from "./battle-core-attack-phase.js";
 import { resolveAttackPhaseMovesCanonical, resolvePlayableMoveRoundCanonical } from "./battle-core-attack-phase-moves.js";
 import { prepareCombatTurnInputCanonical } from "./battle-core-combat-turn.js";
 import { resolvePostBattlePersistence } from "./battle-post-battle-persistence-flow.js";
@@ -94,9 +95,17 @@ export function prepareBattleRuntimeScheduledCombat({ battleInput: rawBattleInpu
   const rounds = Array.isArray(battleInput?.rounds) ? battleInput.rounds : [];
   if (rounds.length !== 1) throw new Error("attack-phase integration adapter requires exactly one round");
   const round = rounds[0];
-  const scheduling = resolveAttackPhaseMovesCanonical({ commandEntries: round.commandEntries ?? [], actions: round.actions ?? [], priorityEntries: round.priorityEntries ?? [], priorityEntriesByLoop: round.priorityEntriesByLoop ?? null, trickRoom: Boolean(round.trickRoom), mechanicsGeneration: Number(round.mechanicsGeneration ?? 9) });
+  const schedulerInput = {
+    commandEntries: round.commandEntries ?? [], actions: round.actions ?? [],
+    priorityEntries: round.priorityEntries ?? [], priorityEntriesByLoop: round.priorityEntriesByLoop ?? null,
+    trickRoom: Boolean(round.trickRoom), mechanicsGeneration: Number(round.mechanicsGeneration ?? 9),
+  };
+  const scheduling = round.attackPhaseInput
+    ? resolveAttackPhaseCanonical({ ...schedulerInput, ...round.attackPhaseInput })
+    : resolveAttackPhaseMovesCanonical(schedulerInput);
   const turnRound = structuredClone(round);
   delete turnRound.priorityEntries; delete turnRound.priorityEntriesByLoop; turnRound.priorityOrder = scheduling.processOrder;
+  if (round.attackPhaseInput && Number(scheduling.decision ?? 0) > 0) turnRound.attackDecision = Number(scheduling.decision);
   const preparedBattleInput = prepareCombatTurnInputCanonical({ initialDecision: Number(battleInput.initialDecision ?? 0), rounds: [turnRound] });
   return { ppPrepared, scheduling, preparedBattleInput };
 }

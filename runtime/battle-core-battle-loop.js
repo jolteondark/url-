@@ -1,4 +1,6 @@
 import { reduceHpCanonical, judgeCanonical, resolveMoveCommandPhaseCanonical, calculatePriorityCanonical } from "./battle-core-turn-vertical-slice.js";
+import { resolveCommandPhaseCanonical } from "./battle-core-command-phase.js";
+import { resolveAttackPhaseCanonical } from "./battle-core-attack-phase.js";
 import { resolveEndOfRoundPhaseCanonical } from "./battle-core-end-of-round.js";
 import { resolveEndOfBattleCanonical } from "./battle-core-end-of-battle.js";
 
@@ -20,7 +22,13 @@ export function resolveBattleLoopCanonical(input = {}) {
     operations.push({ op: "round_header", round: roundNo });
     operations.push({ op: "command_phase", round: roundNo });
     let commandChoices = null;
-    if (Array.isArray(round.commandEntries)) {
+    if (round.commandPhaseInput) {
+      const phase = resolveCommandPhaseCanonical({ ...round.commandPhaseInput, commandEntries: round.commandEntries ?? round.commandPhaseInput.commandEntries ?? [], initialDecision: decision });
+      commandChoices = phase.choices;
+      for (const operation of phase.operations) operations.push({ ...operation, round: roundNo });
+      decision = Number(phase.decision);
+      if (decision > 0) break;
+    } else if (Array.isArray(round.commandEntries)) {
       const command = resolveMoveCommandPhaseCanonical(round.commandEntries);
       commandChoices = command.choices;
       for (const operation of command.operations) operations.push({ ...operation, round: roundNo });
@@ -40,7 +48,13 @@ export function resolveBattleLoopCanonical(input = {}) {
       return true;
     };
     let order;
-    if (Array.isArray(round.priorityEntries)) {
+    if (round.attackPhaseInput) {
+      const phase = resolveAttackPhaseCanonical({ ...round, ...round.attackPhaseInput, initialDecision: decision });
+      for (const operation of phase.operations) operations.push({ ...operation, round: roundNo });
+      decision = Number(phase.decision);
+      if (decision > 0) break;
+      order = phase.processOrder;
+    } else if (Array.isArray(round.priorityEntries)) {
       const entries = round.priorityEntries.filter((entry) => isSelected(actions[Number(entry.actionIndex)]));
       const priority = calculatePriorityCanonical(entries, { trickRoom: Boolean(round.trickRoom), onlySpeedSort: Boolean(round.onlySpeedSort) });
       order = priority.order;
