@@ -1,6 +1,7 @@
 import { resolveGenericTurnVerticalSlice } from "./battle-core-turn-vertical-slice.js";
 import { resolveAccuracyDamageActionCanonical } from "./battle-core-accuracy-damage.js";
 import { resolveHpFaintActionCanonical } from "./battle-core-hp-faint.js";
+import { tryUseMoveCanonical } from "./battle-core-try-use-move.js";
 import { resolveUseMovePreflightCanonical } from "./battle-core-use-move-preflight.js";
 import { resolveUseMoveTargetingCanonical } from "./battle-core-use-move-targeting.js";
 import { resolveUseMoveEffectsGateCanonical } from "./battle-core-use-move-effects-gate.js";
@@ -10,9 +11,39 @@ import { resolveUseMovePostHitCanonical } from "./battle-core-use-move-post-hit.
 import { resolveUseMoveInstructCanonical } from "./battle-core-use-move-instruct.js";
 import { resolveUseMoveDancerCanonical } from "./battle-core-use-move-dancer.js";
 
+function resolveTryUseMoveInputCanonical(action) {
+  if (action?.kind !== "move" || !action.useMoveInput?.tryUseMoveInput) return { action, resolution: null };
+  const input = action.useMoveInput;
+  const skipAccuracyCheck = input.tryUseMoveInput.skipAccuracyCheck === undefined
+    ? Boolean((input.specialUsage ?? action.specialUsage) && !input.isStruggle)
+    : Boolean(input.tryUseMoveInput.skipAccuracyCheck);
+  const resolution = tryUseMoveCanonical({ ...input.tryUseMoveInput, skipAccuracyCheck });
+  const prepared = structuredClone(action);
+  prepared.useMoveInput = { ...prepared.useMoveInput, tryUseMoveSuccess: resolution.success };
+  prepared.tryUseMoveResolution = resolution;
+  if (resolution.confusionDamageResolution?.resolved) {
+    prepared.hpAfter = resolution.confusionDamageResolution.hpAfter;
+    prepared.hpReductionResolution = resolution.confusionDamageResolution.hpReductionResolution;
+    prepared.faintResolution = resolution.confusionDamageResolution.faintResolution;
+    prepared.fainted = resolution.confusionDamageResolution.fainted;
+  }
+  return { action: prepared, resolution };
+}
+
 function resolveCombatActionCanonical(action) {
   if (action?.kind !== "move") return action;
-  const preflighted = resolveUseMovePreflightCanonical(action);
+  const tried = resolveTryUseMoveInputCanonical(action);
+  const preflighted = resolveUseMovePreflightCanonical(tried.action);
+  if (tried.resolution) {
+    preflighted.tryUseMoveResolution = tried.resolution;
+    preflighted.lastMoveFailed = Boolean(preflighted.lastMoveFailed || tried.resolution.lastMoveFailed);
+    if (tried.resolution.confusionDamageResolution?.resolved) {
+      preflighted.hpAfter = tried.resolution.confusionDamageResolution.hpAfter;
+      preflighted.hpReductionResolution = tried.resolution.confusionDamageResolution.hpReductionResolution;
+      preflighted.faintResolution = tried.resolution.confusionDamageResolution.faintResolution;
+      preflighted.fainted = tried.resolution.confusionDamageResolution.fainted;
+    }
+  }
   if (preflighted.moveSkipped) return preflighted;
   const targeted = resolveUseMoveTargetingCanonical(preflighted);
   const effectsGated = resolveUseMoveEffectsGateCanonical(targeted);

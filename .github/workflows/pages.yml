@@ -28,7 +28,9 @@ jobs:
       - name: Check browser modules
         run: |
           node --check preview.js
+          node --check runtime/browser-mapless-wild-encounter-runtime.js
           node --check runtime/browser-battle-round-runtime.js
+          node --check runtime/battle-core-try-use-move.js
           node --check runtime/safari-playable-data.js
           node --check runtime/safari-playable-integration.js
       - name: Run playable vertical smoke
