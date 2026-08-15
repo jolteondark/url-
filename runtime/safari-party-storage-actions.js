@@ -20,14 +20,32 @@ function battleActive(runtime) {
   return Boolean(runtime?.variables?.mapless?.battle);
 }
 
-export function depositSafariPartyPokemon(runtime, partyIndex, { boxIndex = 0 } = {}) {
+function boxCapacity(box) {
+  const value = Number(box?.capacity ?? 30);
+  return Number.isInteger(value) && value >= 0 ? value : 30;
+}
+
+function firstBoxWithSpace(runtime) {
+  for (let boxIndex = 0; boxIndex < runtime.storage_system.boxes.length; boxIndex += 1) {
+    const box = runtime.storage_system.boxes[boxIndex];
+    const slots = Array.isArray(box?.slots) ? box.slots : [];
+    const capacity = boxCapacity(box);
+    for (let slotIndex = 0; slotIndex < capacity; slotIndex += 1) {
+      if (slots[slotIndex] == null) return boxIndex;
+    }
+  }
+  return -1;
+}
+
+export function depositSafariPartyPokemon(runtime, partyIndex, { boxIndex = null } = {}) {
   validateRuntime(runtime);
   if (battleActive(runtime)) return { result: false, reason: "battle_active", operations: [] };
   if (!Number.isInteger(partyIndex) || partyIndex < 0 || partyIndex >= runtime.player.party.length) {
     return { result: false, reason: "index", operations: [] };
   }
-  if (!Number.isInteger(boxIndex) || boxIndex < 0 || boxIndex >= runtime.storage_system.boxes.length) {
-    return { result: false, reason: "box", operations: [] };
+  const destinationBox = boxIndex == null ? firstBoxWithSpace(runtime) : boxIndex;
+  if (!Number.isInteger(destinationBox) || destinationBox < 0 || destinationBox >= runtime.storage_system.boxes.length) {
+    return { result: false, reason: destinationBox < 0 ? "no_destination" : "box", operations: [] };
   }
   const pokemon = runtime.player.party[partyIndex];
   const otherAble = runtime.player.party.some((entry, index) => index !== partyIndex && pokemonAble(entry));
@@ -37,7 +55,7 @@ export function depositSafariPartyPokemon(runtime, partyIndex, { boxIndex = 0 } 
   const moved = moveStoredPokemon(stateFromRuntime(runtime), {
     boxSrc: -1,
     indexSrc: partyIndex,
-    boxDst: boxIndex,
+    boxDst: destinationBox,
     indexDst: -1,
     maxPartySize: 6,
     defaultBoxCapacity: 30,
@@ -45,14 +63,15 @@ export function depositSafariPartyPokemon(runtime, partyIndex, { boxIndex = 0 } 
   if (!moved.result) return { ...moved, reason: moved.operations?.[0]?.reason ?? "rejected", pokemon };
   applyState(runtime, moved.state);
   const mapless = runtime.variables?.mapless;
-  if (mapless) mapless.notice = `${pokemon.species}をStorageへ預けました。`;
+  const boxLabel = runtime.storage_system.boxes[destinationBox]?.name ?? `Box ${destinationBox + 1}`;
+  if (mapless) mapless.notice = `${pokemon.species}を${boxLabel}へ預けました。`;
   return {
     result: true,
     pokemon,
     destination: moved.destination,
     operations: [...moved.operations, { op: "request_save", reason: "party_storage_deposit" }],
     persistenceRequested: true,
-    notice: mapless?.notice ?? `${pokemon.species}をStorageへ預けました。`,
+    notice: mapless?.notice ?? `${pokemon.species}を${boxLabel}へ預けました。`,
   };
 }
 
