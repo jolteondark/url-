@@ -1,0 +1,9 @@
+{
+  "name": "mapless-safari-playable",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/runtime-smoke.mjs",
+    "check": "node --check preview.js && node --check runtime/safari-playable-integration.js"
+  }
+}
