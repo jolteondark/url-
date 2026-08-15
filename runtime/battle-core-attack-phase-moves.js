@@ -110,6 +110,9 @@ export function resolvePlayableMoveRoundCanonical(input = {}) {
   });
   delete round.priorityEntries;
   round.priorityOrder = scheduling.processOrder;
-  const vertical = resolveGenericTurnVerticalSlice({ initialDecision: Number(input.initialDecision ?? 0), rounds: [round] });
+  const vertical = resolveGenericTurnVerticalSlice(
+    { initialDecision: Number(input.initialDecision ?? 0), rounds: [round] },
+    { allowIncomplete: Boolean(input.allowIncomplete) },
+  );
   return { scheduling, vertical };
 }

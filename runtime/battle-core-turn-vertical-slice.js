@@ -123,14 +123,21 @@ export function calculatePriorityCanonical(entries = [], { trickRoom = false, on
   return { order: sorted.filter((entry) => onlySpeedSort || !entry.fainted).map((entry) => entry.actionIndex), entries: normalized };
 }
 
-export function resolveGenericTurnVerticalSlice(input = {}) {
+export function resolveGenericTurnVerticalSlice(input = {}, { allowIncomplete = false } = {}) {
   const rounds = Array.isArray(input.rounds) ? input.rounds : [];
   let decision = Number(input.initialDecision ?? 0);
   let turnCount = 0;
+  let awaitingNextRound = false;
   const operations = [];
   while (decision <= 0) {
     const round = rounds[turnCount];
-    if (!round) throw new Error(`missing vertical outcomes for round ${turnCount + 1}`);
+    if (!round) {
+      if (allowIncomplete) {
+        awaitingNextRound = true;
+        break;
+      }
+      throw new Error(`missing vertical outcomes for round ${turnCount + 1}`);
+    }
     const roundNo = turnCount + 1;
     operations.push({ op: "round_header", round: roundNo });
     operations.push({ op: "command_phase", round: roundNo });
@@ -196,6 +203,11 @@ export function resolveGenericTurnVerticalSlice(input = {}) {
     if (decision > 0) break;
     turnCount += 1;
   }
-  operations.push({ op: "end_of_battle", decision });
-  return { decision, turnCount, operations };
+  if (decision > 0) operations.push({ op: "end_of_battle", decision });
+  return {
+    decision,
+    turnCount,
+    operations,
+    ...(awaitingNextRound ? { awaitingNextRound: true } : {}),
+  };
 }
