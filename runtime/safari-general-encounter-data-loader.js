@@ -1,14 +1,26 @@
 import { projectGeneralEncounterSpeciesPools } from "./general-encounter-species-pools.js";
 
 const chunks = await Promise.all([
-  import("./generated/safari-general-encounter-data-00.js"),
-  import("./generated/safari-general-encounter-data-01.js"),
-  import("./generated/safari-general-encounter-data-02.js"),
-  import("./generated/safari-general-encounter-data-03.js"),
-  import("./generated/safari-general-encounter-data-04.js"),
-  import("./generated/safari-general-encounter-data-05.js"),
-  import("./generated/safari-general-encounter-data-06.js"),
-  import("./generated/safari-general-encounter-data-07.js"),
+  import("./generated/safari-general-encounter-data-v2-00.js"),
+  import("./generated/safari-general-encounter-data-v2-01.js"),
+  import("./generated/safari-general-encounter-data-v2-02.js"),
+  import("./generated/safari-general-encounter-data-v2-03.js"),
+  import("./generated/safari-general-encounter-data-v2-04.js"),
+  import("./generated/safari-general-encounter-data-v2-05.js"),
+  import("./generated/safari-general-encounter-data-v2-06.js"),
+  import("./generated/safari-general-encounter-data-v2-07.js"),
+  import("./generated/safari-general-encounter-data-v2-08.js"),
+  import("./generated/safari-general-encounter-data-v2-09.js"),
+  import("./generated/safari-general-encounter-data-v2-10.js"),
+  import("./generated/safari-general-encounter-data-v2-11.js"),
+  import("./generated/safari-general-encounter-data-v2-12.js"),
+  import("./generated/safari-general-encounter-data-v2-13.js"),
+  import("./generated/safari-general-encounter-data-v2-14.js"),
+  import("./generated/safari-general-encounter-data-v2-15.js"),
+  import("./generated/safari-general-encounter-data-v2-16.js"),
+  import("./generated/safari-general-encounter-data-v2-17.js"),
+  import("./generated/safari-general-encounter-data-v2-18.js"),
+  import("./generated/safari-general-encounter-data-v2-19.js"),
 ]);
 
 const encoded = chunks.map((chunk) => chunk.default).join("");
@@ -74,7 +86,7 @@ export const SAFARI_GENERAL_MOVE_MASTERS = Object.freeze(Object.fromEntries(
 export const SAFARI_GENERAL_DATA_METADATA = Object.freeze({
   speciesCount: speciesIds.length,
   moveCount: payload.moveIds.length,
-  projectionSha256: "76ee8a13129a9ca840d87dd8b98becc8cd98457b4dd952598a5dd6465ab1a5e3",
+  projectionSha256: "1203433d0aa6e07dfe4e71065bd23d03adb2499df8837e2e7c032df4f2a5fe09",
   canonicalFilteredCoreSha256: "e35eecadc21535e57a4cd9946abfea9a52ed9268b12456e2934e0ef7eeabb1ab",
 });
 
