@@ -32,6 +32,8 @@ jobs:
           node --check runtime/browser-battle-round-runtime.js
           node --check runtime/battle-core-try-use-move.js
           node --check runtime/safari-playable-data.js
+          node --check runtime/mapless-dynamic-trainer-master.js
+          node --check runtime/mapless-dynamic-trainer-generator.js
           node --check runtime/safari-playable-integration-core.js
           node --check runtime/safari-playable-integration.js
           node --check runtime/facility-reward-return.js
