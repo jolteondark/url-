@@ -96,6 +96,21 @@ export const SAFARI_MOVE_LABELS = Object.freeze({
   THUNDERSHOCK: "でんきショック",
 });
 
+// Minimal distributable shop projection. Item mutation, capacity checks and
+// Money commits remain owned by the private-main Bag/Economy runtime.
+export const SAFARI_SHOP_ITEM_MASTERS = Object.freeze({
+  POTION: Object.freeze({
+    id: "POTION",
+    name: "Potion",
+    label: "キズぐすり",
+    pocket: "MEDICINE",
+    price: 200,
+    sell_price: 50,
+  }),
+});
+
+export const SAFARI_NORMAL_SHOP_STOCK = Object.freeze(["POTION"]);
+
 export const SAFARI_ZERO_STAT_VALUES = Object.freeze({
   HP: 0,
   ATTACK: 0,

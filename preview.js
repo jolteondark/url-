@@ -6,9 +6,12 @@ import {
   clearSafariPlayableRun,
   createSafariPlayableRuntime,
   hasSafariPlayableRun,
+  leaveSafariShop,
   loadSafariPlayableRun,
+  purchaseSafariShopItem,
   resolveSafariBattleRound,
   returnSafariToDayBoard,
+  safariShopPresentation,
   saveSafariPlayableRun,
 } from "./runtime/safari-playable-integration.js";
 
@@ -18,6 +21,7 @@ let logLines = ["real domain縦線を開始しました。"];
 const byId = (id) => document.getElementById(id);
 const sleep = (milliseconds) => new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 const moveId = (move) => typeof move === "string" ? move : move.id;
+const moneyFormat = new Intl.NumberFormat("ja-JP");
 
 function mapless() {
   return runtime.variables.mapless;
@@ -57,13 +61,14 @@ function percent(hp, maxHp) {
 
 function renderBoard() {
   const battle = mapless().battle;
+  const shop = mapless().shop;
   const buttons = Array.from({ length: 8 }, (_, index) => {
     const cell = boardCellPresentation(runtime, index);
     const button = document.createElement("button");
     button.type = "button";
     button.dataset.boardIndex = String(index);
     button.className = "board-cell" + (cell.revealed ? " revealed" : "") + (cell.consumed ? " consumed" : "");
-    button.disabled = busy || Boolean(battle) || cell.disabled;
+    button.disabled = busy || Boolean(battle) || Boolean(shop) || cell.disabled;
     const number = document.createElement("span");
     number.className = "cell-number";
     number.textContent = String(index + 1);
@@ -73,6 +78,29 @@ function renderBoard() {
     return button;
   });
   byId("board").replaceChildren(...buttons);
+}
+
+function renderShop() {
+  const shop = safariShopPresentation(runtime);
+  const card = byId("shop-card");
+  card.hidden = !shop;
+  if (!shop) return;
+  byId("shop-money").textContent = moneyFormat.format(shop.money) + "円";
+  const select = byId("shop-item");
+  const selected = select.value;
+  const options = shop.items.map((item) => {
+    const option = document.createElement("option");
+    option.value = item.id;
+    option.textContent = item.label + " / " + moneyFormat.format(item.price) + "円 / 所持 " + item.quantity;
+    return option;
+  });
+  select.replaceChildren(...options);
+  if (shop.items.some((item) => item.id === selected)) select.value = selected;
+  select.disabled = busy;
+  byId("shop-quantity").disabled = busy;
+  byId("shop-confirm").disabled = busy;
+  byId("shop-cancel").disabled = busy;
+  byId("shop-message").textContent = mapless().notice;
 }
 
 function renderMoves(player, battle) {
@@ -134,8 +162,9 @@ function render() {
   byId("party").textContent = runtime.player.party.length + " / 6";
   byId("storage").textContent = String(storedCount());
   byId("bag").textContent = String(potionQuantity());
+  byId("money").textContent = moneyFormat.format(Number(runtime.bag.money ?? 0)) + "円";
   byId("notice").textContent = state.notice;
-  byId("mode").textContent = state.battle ? "戦闘" : "探索";
+  byId("mode").textContent = state.battle ? "戦闘" : state.shop ? "ショップ" : "探索";
   try {
     byId("continue-run").disabled = busy || !hasSafariPlayableRun(window.localStorage);
   } catch (_) {
@@ -144,6 +173,7 @@ function render() {
   byId("new-run").disabled = busy;
   byId("save-run").disabled = busy;
   renderBoard();
+  renderShop();
   renderBattle();
   renderLog();
 }
@@ -189,11 +219,47 @@ byId("board").addEventListener("click", (event) => {
     note(result.boundary + ": " + result.result);
     if (mapless().battle) {
       window.setTimeout(() => byId("battle-card").scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+    } else if (mapless().shop) {
+      window.setTimeout(() => byId("shop-card").scrollIntoView({ behavior: "smooth", block: "start" }), 0);
     }
   } catch (error) {
     note("Day Board error: " + (error?.message ?? error));
   }
   render();
+});
+
+byId("shop-confirm").addEventListener("click", () => {
+  if (busy) return;
+  const itemId = byId("shop-item").value;
+  const quantity = Number(byId("shop-quantity").value);
+  busy = true;
+  render();
+  try {
+    const result = purchaseSafariShopItem(runtime, { itemId, quantity, confirmed: true });
+    note("Shop transaction: " + result.transaction_result);
+    if (result.result && result.operations.some((operation) => operation.op === "request_save")) {
+      const saved = saveSafariPlayableRun(window.localStorage, runtime);
+      note("Persistence auto-save: " + saved.key);
+    }
+  } catch (error) {
+    note("Shop error: " + (error?.message ?? error));
+  } finally {
+    busy = false;
+    render();
+  }
+  if (!mapless().shop) byId("board-card").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+
+byId("shop-cancel").addEventListener("click", () => {
+  if (busy) return;
+  try {
+    const result = leaveSafariShop(runtime);
+    note("Shop: " + result.result);
+  } catch (error) {
+    note("Shop return error: " + (error?.message ?? error));
+  }
+  render();
+  byId("board-card").scrollIntoView({ behavior: "smooth", block: "start" });
 });
 
 byId("moves").addEventListener("click", async (event) => {
