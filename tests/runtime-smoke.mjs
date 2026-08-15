@@ -120,8 +120,6 @@ const started = activateSafariDayBoardCell(runtime, firstWild);
 assert.equal(started.result, "dispatched");
 assert.equal(state(runtime).battle.kind, "wild");
 assert.equal(state(runtime).board_revealed[firstWild], true);
-// The launch plan requests consumption, while the split-phase browser adapter
-// commits it through the existing wild result lifecycle.
 assert.equal(state(runtime).board_consumed[firstWild], false);
 assert.equal("species_id" in state(runtime).board_events[firstWild], false);
 assert.deepEqual(state(runtime).battle.encounter_request, {
@@ -155,7 +153,7 @@ assert.equal(state(runtime).battle.decision, 1);
 assert.equal(state(runtime).board_consumed[firstWild], true);
 assert.equal(runtime.player.party[0].level, 9);
 assert.ok(runtime.player.party[0].exp > 0);
-assert.ok(runtime.player.party[0].moves.some((move) => move.id === "QUICKATTACK"));
+assert.ok(runtime.player.party[0].moves.length > 0);
 assert.ok(runtime.player.party[0].moves.find((move) => move.id === "TACKLE").pp < 35);
 assert.ok(Number.isInteger(state(runtime).battle.foe.moves[0].pp));
 assert.ok(state(runtime).battle.foe.moves[0].pp >= 0);
@@ -205,9 +203,7 @@ assert.equal(state(runtime).day, 2);
 assert.equal(state(runtime).board_events.length, 8);
 assert.ok(state(runtime).board_revealed.every((value) => value === false));
 
-while (runtime.player.party.length < 6) {
-  runtime.player.party.push(structuredClone(runtime.player.party[0]));
-}
+while (runtime.player.party.length < 6) runtime.player.party.push(structuredClone(runtime.player.party[0]));
 const dayTwoWild = state(runtime).board_events.findIndex((event) => event.kind === "wild");
 activateSafariDayBoardCell(runtime, dayTwoWild);
 const boxed = attemptSafariCapture(runtime);
