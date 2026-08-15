@@ -1,18 +1,23 @@
 import {
   SAFARI_MOVE_PRESENTATION,
+  acceptSafariVillageBounty,
   activateSafariDayBoardCell,
   attemptSafariCapture,
   boardCellPresentation,
   clearSafariPlayableRun,
   createSafariPlayableRuntime,
+  enterSafariVillage,
   hasSafariPlayableRun,
   leaveSafariShop,
+  leaveSafariVillage,
   loadSafariPlayableRun,
   purchaseSafariShopItem,
   resolveSafariBattleRound,
   returnSafariToDayBoard,
   safariShopPresentation,
+  safariVillagePresentation,
   saveSafariPlayableRun,
+  startSafariVillageBounty,
 } from "./runtime/safari-playable-integration.js";
 
 let runtime = createSafariPlayableRuntime();
@@ -46,6 +51,14 @@ function note(message) {
   renderLog();
 }
 
+function autoSaveIfRequested(result, label) {
+  const requested = result?.persistenceRequested
+    || result?.operations?.some((operation) => operation.op === "request_save");
+  if (!requested) return;
+  const saved = saveSafariPlayableRun(window.localStorage, runtime);
+  note(`${label}: ${saved.key}`);
+}
+
 function renderLog() {
   byId("log").replaceChildren(...logLines.map((line) => {
     const item = document.createElement("li");
@@ -60,15 +73,16 @@ function percent(hp, maxHp) {
 }
 
 function renderBoard() {
-  const battle = mapless().battle;
-  const shop = mapless().shop;
+  const state = mapless();
+  const battle = state.battle;
+  const shop = state.shop;
   const buttons = Array.from({ length: 8 }, (_, index) => {
     const cell = boardCellPresentation(runtime, index);
     const button = document.createElement("button");
     button.type = "button";
     button.dataset.boardIndex = String(index);
     button.className = "board-cell" + (cell.revealed ? " revealed" : "") + (cell.consumed ? " consumed" : "");
-    button.disabled = busy || Boolean(battle) || Boolean(shop) || cell.disabled;
+    button.disabled = busy || state.location !== "day_board" || Boolean(battle) || Boolean(shop) || cell.disabled;
     const number = document.createElement("span");
     number.className = "cell-number";
     number.textContent = String(index + 1);
@@ -78,6 +92,7 @@ function renderBoard() {
     return button;
   });
   byId("board").replaceChildren(...buttons);
+  byId("enter-village").disabled = busy || state.location !== "day_board" || Boolean(battle) || Boolean(shop);
 }
 
 function renderShop() {
@@ -101,6 +116,27 @@ function renderShop() {
   byId("shop-confirm").disabled = busy;
   byId("shop-cancel").disabled = busy;
   byId("shop-message").textContent = mapless().notice;
+}
+
+function renderVillage() {
+  const state = mapless();
+  const village = safariVillagePresentation(runtime);
+  const card = byId("village-card");
+  card.hidden = !village.active || Boolean(state.battle);
+  if (card.hidden) return;
+  byId("village-actions").textContent = `行動 ${village.actionsLeft} / ${village.actionLimit}`;
+  byId("bounty-message").textContent = state.notice;
+  const quest = village.quest;
+  byId("bounty-species").textContent = quest
+    ? `${quest.prefix ?? ""}${quest.speciesName}`
+    : "現在の依頼はありません";
+  byId("bounty-level").textContent = quest ? `Lv.${quest.level}` : "-";
+  byId("bounty-reward").textContent = quest ? `賞金 ${moneyFormat.format(quest.reward)}円` : "-";
+  byId("bounty-accept").hidden = village.hasActiveBounty;
+  byId("bounty-accept").disabled = busy || !quest || village.boardLocked || village.actionsLeft <= 0;
+  byId("bounty-depart").hidden = !village.hasActiveBounty;
+  byId("bounty-depart").disabled = busy || !village.hasActiveBounty || village.actionsLeft <= 0 || village.ablePokemonCount <= 0;
+  byId("leave-village").disabled = busy;
 }
 
 function renderMoves(player, battle) {
@@ -136,7 +172,9 @@ function renderBattle() {
   if (!battle) return;
   const player = runtime.player.party[0];
   const foe = battle.foe;
-  byId("battle-title").textContent = battle.kind === "trainer" ? "Trainer Battle" : "Wild Battle";
+  byId("battle-title").textContent = battle.origin === "village_bounty"
+    ? "Bounty Battle"
+    : battle.kind === "trainer" ? "Trainer Battle" : "Wild Battle";
   byId("turn").textContent = battle.completed ? "Result" : "Turn " + battle.turn;
   byId("player-name").textContent = player.species;
   byId("player-level").textContent = "Lv." + player.level;
@@ -154,17 +192,19 @@ function renderBattle() {
   byId("capture").disabled = busy;
   byId("return-board").hidden = !battle.completed;
   byId("return-board").disabled = busy;
+  byId("return-board").textContent = battle.return_target === "village" ? "村へ戻る" : "Day Boardへ戻る";
 }
 
 function render() {
   const state = mapless();
+  byId("board-card").hidden = state.location === "village";
   byId("day").textContent = String(state.day);
   byId("party").textContent = runtime.player.party.length + " / 6";
   byId("storage").textContent = String(storedCount());
   byId("bag").textContent = String(potionQuantity());
   byId("money").textContent = moneyFormat.format(Number(runtime.bag.money ?? 0)) + "円";
   byId("notice").textContent = state.notice;
-  byId("mode").textContent = state.battle ? "戦闘" : state.shop ? "ショップ" : "探索";
+  byId("mode").textContent = state.battle ? "戦闘" : state.shop ? "ショップ" : state.location === "village" ? "村" : "探索";
   try {
     byId("continue-run").disabled = busy || !hasSafariPlayableRun(window.localStorage);
   } catch (_) {
@@ -174,6 +214,7 @@ function render() {
   byId("save-run").disabled = busy;
   renderBoard();
   renderShop();
+  renderVillage();
   renderBattle();
   renderLog();
 }
@@ -204,7 +245,8 @@ async function playPresentation(events) {
     } else if (event.type === "battle_result") {
       note("Battle result: decision " + event.decision);
       if (event.expGained) note("EXP +" + event.expGained);
-      if (event.reward) note(event.reward.item + " +" + event.reward.quantity);
+      if (event.reward?.item) note(event.reward.item + " +" + event.reward.quantity);
+      if (event.moneyGained) note("Money +" + moneyFormat.format(event.moneyGained) + "円");
     } else if (event.type === "capture") {
       note("Capture → " + event.destination);
     }
@@ -226,6 +268,62 @@ byId("board").addEventListener("click", (event) => {
     note("Day Board error: " + (error?.message ?? error));
   }
   render();
+});
+
+byId("enter-village").addEventListener("click", () => {
+  if (busy) return;
+  try {
+    const result = enterSafariVillage(runtime);
+    note("Village: " + result.result);
+  } catch (error) {
+    note("Village entry error: " + (error?.message ?? error));
+  }
+  render();
+  byId("village-card").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+
+byId("bounty-accept").addEventListener("click", () => {
+  if (busy) return;
+  busy = true;
+  render();
+  try {
+    const result = acceptSafariVillageBounty(runtime, { choice: 0, confirmed: true });
+    note("Bounty accept: " + result.accepted);
+    autoSaveIfRequested(result, "Bounty acceptance auto-save");
+  } catch (error) {
+    note("Bounty accept error: " + (error?.message ?? error));
+  } finally {
+    busy = false;
+    render();
+  }
+});
+
+byId("bounty-depart").addEventListener("click", () => {
+  if (busy) return;
+  busy = true;
+  render();
+  try {
+    const result = startSafariVillageBounty(runtime);
+    note("Bounty depart: " + result.result);
+  } catch (error) {
+    note("Bounty depart error: " + (error?.message ?? error));
+  } finally {
+    busy = false;
+    render();
+  }
+  if (mapless().battle) byId("battle-card").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+
+byId("leave-village").addEventListener("click", () => {
+  if (busy) return;
+  try {
+    const result = leaveSafariVillage(runtime);
+    note("Village: " + result.result);
+  } catch (error) {
+    note("Village return error: " + (error?.message ?? error));
+  }
+  render();
+  byId("board-card").scrollIntoView({ behavior: "smooth", block: "start" });
 });
 
 byId("shop-confirm").addEventListener("click", () => {
@@ -270,6 +368,7 @@ byId("moves").addEventListener("click", async (event) => {
   try {
     const result = resolveSafariBattleRound(runtime, button.dataset.moveId);
     await playPresentation(result.presentation);
+    autoSaveIfRequested(result, "Battle result auto-save");
   } catch (error) {
     note("Battle error: " + (error?.message ?? error));
   } finally {
@@ -286,6 +385,7 @@ byId("capture").addEventListener("click", async () => {
     const result = attemptSafariCapture(runtime);
     await playPresentation(result.presentation);
     note("捕獲先: " + result.destination);
+    autoSaveIfRequested(result, "Capture result auto-save");
   } catch (error) {
     note("Capture error: " + (error?.message ?? error));
   } finally {
@@ -295,14 +395,16 @@ byId("capture").addEventListener("click", async () => {
 });
 
 byId("return-board").addEventListener("click", () => {
+  let target = "day_board";
   try {
     const result = returnSafariToDayBoard(runtime);
-    note("Day Board return / decision " + result.summary.decision);
+    target = result.target;
+    note((target === "village" ? "Village" : "Day Board") + " return / decision " + result.summary.decision);
   } catch (error) {
     note("Return error: " + (error?.message ?? error));
   }
   render();
-  byId("board-card").scrollIntoView({ behavior: "smooth", block: "start" });
+  byId(target === "village" ? "village-card" : "board-card").scrollIntoView({ behavior: "smooth", block: "start" });
 });
 
 byId("save-run").addEventListener("click", () => {

@@ -15,8 +15,8 @@
     <header class="hero">
       <p class="eyebrow">Mapless v0.9.108 browser integration</p>
       <h1>Safari Playable</h1>
-      <p class="muted">Day Board・Shop/Money・Battle・EXP・捕獲・Party/Storage・Bag・Persistenceを既存Web domainから接続した縦線です。</p>
-      <p class="muted">Runtime: private main 952cf90</p>
+      <p class="muted">Day Board・Village Bounty・Shop/Money・Battle・EXP・捕獲・Party/Storage・Bag・Persistenceを既存Web domainから接続した縦線です。</p>
+      <p class="muted">Runtime: private main 2858dd9</p>
     </header>
 
     <section class="card status-card" aria-live="polite">
@@ -40,6 +40,32 @@
       </div>
       <p id="notice" class="notice" aria-live="polite">読み込み中です。</p>
       <div class="board-grid" id="board" aria-label="Day Board"></div>
+      <div class="board-actions">
+        <button id="enter-village" class="secondary">村へ行く</button>
+      </div>
+    </section>
+
+    <section class="card village-card" id="village-card" hidden>
+      <div class="section-heading">
+        <h2>村・手配掲示板</h2>
+        <span class="pill" id="village-actions">行動 3 / 3</span>
+      </div>
+      <p class="notice" id="bounty-message" aria-live="polite">依頼を確認してください。</p>
+      <article class="bounty-quest">
+        <div>
+          <span class="quest-label">討伐対象</span>
+          <strong id="bounty-species">凶暴なコラッタ</strong>
+        </div>
+        <div class="quest-meta">
+          <span id="bounty-level">Lv.6</span>
+          <span id="bounty-reward">賞金 600円</span>
+        </div>
+      </article>
+      <div class="village-actions">
+        <button id="bounty-accept">依頼を受ける</button>
+        <button id="bounty-depart">討伐へ出発</button>
+        <button id="leave-village" class="secondary">Day Boardへ戻る</button>
+      </div>
     </section>
 
     <section class="card shop-card" id="shop-card" hidden>

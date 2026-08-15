@@ -11,6 +11,9 @@ import { resolveItemReceipt } from "./bag-economy-item-receipt.js";
 import { quantity } from "./bag-economy-mart-flow.js";
 import { clearStoredRun, hasStoredRun, persistRunState, restoreRunState } from "./browser-run-storage.js";
 import { resolveVillageShopEconomySlice } from "./mapless-village-shop-economy-slice.js";
+import { buildBountyBattlePrelaunch } from "./mapless-bounty-battle-prelaunch.js";
+import { resolveVillageBountyAccept } from "./mapless-village-bounty-lifecycle.js";
+import { resolveVillageBountyMoneyIntegration } from "./mapless-village-bounty-money-integration.js";
 import { resolveExpLevelMoveFlow } from "./battle-exp-level-move-flow.js";
 import { resolvePokemonRuntimeMasters } from "./pokemon-runtime-masters.js";
 import { updatePokemonRuntime } from "./pokemon-runtime.js";
@@ -18,6 +21,7 @@ import {
   SAFARI_MOVE_LABELS,
   SAFARI_MOVE_MASTERS,
   SAFARI_NATURE_MASTERS,
+  SAFARI_BOUNTY_PROJECTION,
   SAFARI_NORMAL_SHOP_STOCK,
   SAFARI_SHOP_ITEM_MASTERS,
   SAFARI_SPECIES_MASTERS,
@@ -50,6 +54,38 @@ export const SAFARI_MOVE_PRESENTATION = Object.freeze(Object.fromEntries(
 ));
 
 const TYPE_NAMES = Object.freeze({ ELECTRIC: "でんき" });
+
+function createVillageState() {
+  return {
+    actions_left: 3,
+    action_limit: 3,
+    bounties: [structuredClone(SAFARI_BOUNTY_PROJECTION)],
+    active_bounty: null,
+    bounty_board_locked: false,
+  };
+}
+
+function ensureVillageState(state) {
+  const defaults = createVillageState();
+  const village = state.village && typeof state.village === "object" && !Array.isArray(state.village)
+    ? state.village
+    : {};
+  state.village = {
+    ...defaults,
+    ...village,
+    bounties: Array.isArray(village.bounties) ? village.bounties : defaults.bounties,
+    active_bounty: village.active_bounty ?? null,
+  };
+  return state.village;
+}
+
+function ablePokemonCount(runtime) {
+  return runtime.player.party.filter((pokemon) => Number(pokemon?.hp ?? 0) > 0).length;
+}
+
+function requestsSave(operations = []) {
+  return operations.some((operation) => operation.op === "request_save");
+}
 
 function generationForDay(day) {
   const decisions = GENERATION_DECISIONS[(Math.max(Number(day), 1) - 1) % GENERATION_DECISIONS.length];
@@ -233,12 +269,14 @@ export function createSafariPlayableRuntime() {
     player: { party: [createStarter()] },
     variables: {
       mapless: {
-        schema_version: 1,
+        schema_version: 2,
         day: 1,
         ...board,
         notice: "Day Boardからマスを選んでください。",
+        location: "day_board",
         battle: null,
         shop: null,
+        village: createVillageState(),
         last_operations: [],
       },
     },
@@ -498,7 +536,165 @@ export function leaveSafariShop(runtime) {
   return { runtime, result: "returned", operations: state.last_operations };
 }
 
-function awardWin(runtime, battle) {
+export function enterSafariVillage(runtime) {
+  const state = maplessState(runtime);
+  if (state.battle) return { runtime, result: "battle_active", operations: [] };
+  if (state.shop) return { runtime, result: "shop_active", operations: [] };
+  ensureVillageState(state);
+  state.location = "village";
+  state.notice = "村の手配掲示板です。依頼の確認または出発ができます。";
+  state.last_operations = [{ op: "browser_navigate", target: "village" }];
+  return { runtime, result: "entered", operations: state.last_operations };
+}
+
+export function leaveSafariVillage(runtime) {
+  const state = maplessState(runtime);
+  if (state.battle) throw new Error("active battle must be completed first");
+  state.location = "day_board";
+  state.notice = "村からDay Boardへ戻りました。";
+  state.last_operations = [{ op: "browser_navigate", target: "day_board" }];
+  return { runtime, result: "returned", operations: state.last_operations };
+}
+
+export function safariVillagePresentation(runtime) {
+  const state = maplessState(runtime);
+  const village = ensureVillageState(state);
+  const quest = village.active_bounty ?? village.bounties[0] ?? null;
+  return {
+    active: state.location === "village",
+    actionsLeft: Number(village.actions_left ?? 0),
+    actionLimit: Number(village.action_limit ?? 3),
+    boardLocked: Boolean(village.bounty_board_locked),
+    hasActiveBounty: Boolean(village.active_bounty),
+    ablePokemonCount: ablePokemonCount(runtime),
+    quest: quest == null ? null : {
+      species: quest.species,
+      speciesName: quest.species_name ?? quest.species,
+      prefix: quest.prefix ?? null,
+      level: Number(quest.level ?? 0),
+      reward: Number(quest.reward ?? 0),
+    },
+  };
+}
+
+export function acceptSafariVillageBounty(runtime, input = {}) {
+  const state = maplessState(runtime);
+  const village = ensureVillageState(state);
+  const choice = Number(input.choice ?? 0);
+  const selected = village.bounties[choice] ?? null;
+  const resolved = resolveVillageBountyAccept({
+    facility_id: "bounty_board",
+    village,
+    repaired_bounties: village.bounties,
+    choice,
+    species_name: selected?.species_name ?? selected?.species ?? null,
+    accept_confirmed: input.confirmed === true,
+  });
+  state.village = resolved.state;
+  state.last_operations = resolved.operations;
+  state.notice = resolved.accepted
+    ? `${selected.prefix ?? ""}${selected.species_name ?? selected.species}の討伐依頼を受けました。`
+    : "討伐依頼は受注されませんでした。";
+  return {
+    runtime,
+    ...resolved,
+    persistenceRequested: requestsSave(resolved.operations),
+  };
+}
+
+export function startSafariVillageBounty(runtime) {
+  const state = maplessState(runtime);
+  if (state.battle) throw new Error("battle is already active");
+  if (state.shop) throw new Error("shop must be closed before bounty departure");
+  const village = ensureVillageState(state);
+  const quest = village.active_bounty;
+  if (!quest) throw new Error("active bounty is required");
+  const ableCount = ablePokemonCount(runtime);
+  const preflight = resolveVillageBountyMoneyIntegration({
+    village,
+    able_pokemon_count: ableCount,
+    confirmed: false,
+    money: runtime.bag.money,
+    maxMoney: 999999,
+  });
+  if (!preflight.depart.operations.some((operation) => operation.op === "confirm_bounty_depart")) {
+    state.last_operations = preflight.depart.operations;
+    state.notice = preflight.depart.operations.some((operation) => operation.key === "no_able_pokemon")
+      ? "戦えるポケモンがいません。"
+      : "村で使える行動が残っていません。";
+    return { runtime, result: false, operations: state.last_operations };
+  }
+  const speciesName = quest.species_name ?? quest.species;
+  const prelaunch = buildBountyBattlePrelaunch({
+    species_name: speciesName,
+    confirmed: true,
+    quest,
+    capabilities: {
+      sound_feedback: true,
+      form_setter: true,
+      personal_id_setter: true,
+      gender_setter: true,
+    },
+    battle_outcome: 0,
+    carryover: { defined: true, run_end_pending: false },
+  });
+  const target = prelaunch.operations.find((operation) => operation.op === "construct_target")?.target;
+  if (!target) throw new Error("bounty prelaunch did not construct a target");
+  const opponent = materializeSafariPokemon({
+    ...target,
+    hp: 1,
+    nature_id: "HARDY",
+    iv: { ...SAFARI_ZERO_STAT_VALUES },
+    ev: { ...SAFARI_ZERO_STAT_VALUES },
+    status: "NONE",
+    moves: quest.move_ids ?? ["TACKLE"],
+  });
+  const battleStart = resolveBattleStartCore({
+    sendOuts: [[0, runtime.player.party[0]], [1, opponent]],
+  });
+  const startOperations = [
+    ...preflight.depart.operations,
+    ...prelaunch.operations,
+    ...battleStart.operations,
+  ];
+  state.battle = {
+    kind: "wild",
+    origin: "village_bounty",
+    return_target: preflight.return_target,
+    board_index: null,
+    turn: 1,
+    decision: 0,
+    completed: false,
+    captured: false,
+    foe: opponent,
+    encounter: {
+      species_id: opponent.species,
+      species_name: speciesName,
+      level: opponent.level,
+    },
+    bounty_snapshot: structuredClone(quest),
+    able_pokemon_count: ableCount,
+    last_operations: startOperations,
+    presentation: [{
+      type: "battle_started",
+      actor: "foe",
+      species: opponent.species,
+      bounty: true,
+    }],
+  };
+  state.notice = `${speciesName}の討伐へ出発しました。`;
+  state.last_operations = startOperations;
+  return {
+    runtime,
+    result: "battle_started",
+    operations: startOperations,
+    presentation: state.battle.presentation,
+    preflight,
+    prelaunch,
+  };
+}
+
+function awardWin(runtime, battle, { includeItemReward = true } = {}) {
   const player = runtime.player.party[0];
   const foeMaster = SAFARI_SPECIES_MASTERS[battle.foe.species];
   const expFlow = resolveExpLevelMoveFlow({
@@ -540,6 +736,9 @@ function awardWin(runtime, battle) {
     level: expFlow.pokemon.level,
     moves: resolvedMoves,
   });
+  battle.exp_gained = expFlow.expGained;
+  const expOperations = expFlow.operations.map((operation) => ({ ...operation, scope: "exp" }));
+  if (!includeItemReward) return expOperations;
   const receipt = resolveItemReceipt({
     slots: runtime.bag.slots,
     maxSlots: 20,
@@ -551,17 +750,67 @@ function awardWin(runtime, battle) {
     pocket: "MEDICINE",
   });
   runtime.bag.slots = receipt.slots;
-  battle.exp_gained = expFlow.expGained;
   battle.reward = receipt.success ? { item: "POTION", quantity: 1 } : null;
   return [
-    ...expFlow.operations.map((operation) => ({ ...operation, scope: "exp" })),
+    ...expOperations,
     ...receipt.operations.map((operation) => ({ ...operation, scope: "reward" })),
   ];
+}
+
+function finalizeBountyBattle(runtime) {
+  const state = maplessState(runtime);
+  const battle = state.battle;
+  const completionOperations = [];
+  if (battle.decision === 1) {
+    completionOperations.push(...awardWin(runtime, battle, { includeItemReward: false }));
+  }
+  const resolved = resolveVillageBountyMoneyIntegration({
+    village: ensureVillageState(state),
+    able_pokemon_count: battle.able_pokemon_count,
+    confirmed: true,
+    consume_action_success: true,
+    outcome: battle.decision,
+    money_gained: battle.bounty_snapshot?.reward ?? 0,
+    money: runtime.bag.money,
+    maxMoney: 999999,
+    action_limit: state.village.action_limit ?? 3,
+  });
+  state.village = resolved.state;
+  runtime.bag.money = resolved.money;
+  completionOperations.push(...resolved.depart.operations, ...resolved.moneyOperations);
+  battle.money_gained = resolved.moneyDelta;
+  battle.reward = resolved.moneyDelta > 0 ? { money: resolved.moneyDelta } : null;
+  battle.return_target = resolved.return_target;
+  battle.completed = true;
+  battle.last_operations = [...battle.last_operations, ...completionOperations];
+  battle.presentation = [
+    ...battle.presentation,
+    {
+      type: "battle_result",
+      decision: battle.decision,
+      captured: battle.captured,
+      expGained: battle.exp_gained ?? 0,
+      reward: battle.reward,
+      moneyGained: battle.money_gained,
+      returnTarget: battle.return_target,
+    },
+  ];
+  state.last_operations = completionOperations;
+  const speciesName = battle.encounter?.species_name ?? battle.foe.species;
+  state.notice = battle.captured
+    ? `${speciesName}を捕獲し、賞金${resolved.moneyDelta}円を受け取りました。`
+    : battle.decision === 1
+      ? `${speciesName}を討伐し、賞金${resolved.moneyDelta}円を受け取りました。`
+      : "討伐は終了しました。村へ戻ります。";
 }
 
 function finalizeBattle(runtime) {
   const state = maplessState(runtime);
   const battle = state.battle;
+  if (battle.origin === "village_bounty") {
+    finalizeBountyBattle(runtime);
+    return;
+  }
   const event = state.board_events[battle.board_index];
   const input = baseTurnInput(state, battle.board_index);
   if (battle.kind === "wild") {
@@ -604,6 +853,8 @@ function finalizeBattle(runtime) {
       captured: battle.captured,
       expGained: battle.exp_gained ?? 0,
       reward: battle.reward ?? null,
+      moneyGained: 0,
+      returnTarget: "day_board",
     },
   ];
   state.last_operations = completionOperations;
@@ -649,14 +900,16 @@ export function resolveSafariBattleRound(runtime, selectedMoveId) {
   battle.presentation = battlePresentation(operations);
   state.last_operations = operations;
   if (battle.decision > 0) finalizeBattle(runtime);
+  const resultOperations = battle.decision > 0 ? battle.last_operations : operations;
   return {
     runtime,
     decision: battle.decision,
-    operations,
+    operations: resultOperations,
     presentation: battle.presentation,
     scheduling: resolved.scheduling,
     ppIntegration: resolved.ppIntegration,
     battleRuntimeIntegration: resolved.battleRuntimeIntegration,
+    persistenceRequested: requestsSave(resultOperations),
   };
 }
 
@@ -713,21 +966,28 @@ export function attemptSafariCapture(runtime) {
     operations: battle.last_operations,
     presentation: battle.presentation,
     calculation: capture.capture,
+    persistenceRequested: requestsSave(battle.last_operations),
   };
 }
 
 export function returnSafariToDayBoard(runtime) {
   const state = maplessState(runtime);
   if (!state.battle?.completed) throw new Error("completed battle is required");
+  const target = state.battle.return_target ?? "day_board";
   const summary = {
     decision: state.battle.decision,
     captured: state.battle.captured,
     expGained: state.battle.exp_gained ?? 0,
     reward: state.battle.reward ?? null,
+    moneyGained: state.battle.money_gained ?? 0,
+    returnTarget: target,
   };
   state.battle = null;
-  state.notice = "Day Boardへ戻りました。";
-  return { runtime, summary, operations: [{ op: "return_to_day_board" }] };
+  state.location = target;
+  state.notice = target === "village" ? "討伐を終えて村へ戻りました。" : "Day Boardへ戻りました。";
+  const operations = [{ op: target === "village" ? "return_to_village" : "return_to_day_board" }];
+  state.last_operations = operations;
+  return { runtime, target, summary, operations };
 }
 
 function persistenceOptions() {
@@ -746,15 +1006,20 @@ export function saveSafariPlayableRun(storage, runtime) {
 export function loadSafariPlayableRun(storage, currentRuntime = createSafariPlayableRuntime()) {
   const loaded = restoreRunState(storage, currentRuntime, persistenceOptions());
   if (!loaded.found) return loaded;
-  if (!("shop" in maplessState(loaded.state))) maplessState(loaded.state).shop = null;
+  const state = maplessState(loaded.state);
+  if (!("shop" in state)) state.shop = null;
+  if (!("location" in state)) state.location = "day_board";
+  ensureVillageState(state);
+  state.schema_version = 2;
   loaded.state.bag.money = Number(loaded.state.bag.money ?? 0);
   loaded.state.player.party = loaded.state.player.party.map(materializeSafariPokemon);
   loaded.state.storage_system.boxes = loaded.state.storage_system.boxes.map((box) => ({
     ...box,
     slots: box.slots.map((pokemon) => pokemon == null ? pokemon : materializeSafariPokemon(pokemon)),
   }));
-  const battle = maplessState(loaded.state).battle;
+  const battle = state.battle;
   if (battle?.foe) battle.foe = materializeSafariPokemon(battle.foe);
+  if (battle && !("return_target" in battle)) battle.return_target = "day_board";
   return loaded;
 }
 

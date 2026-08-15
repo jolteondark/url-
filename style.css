@@ -16,8 +16,8 @@ h2{font-size:1.05rem;margin:0}
 .status-card div{min-width:0;background:#0d1521;border:1px solid #223147;border-radius:13px;padding:10px 5px;text-align:center}
 .status-card span{display:block;color:#8295af;font-size:.68rem;overflow:hidden;text-overflow:ellipsis}
 .status-card strong{display:block;margin-top:4px;font-size:1rem}
-.save-actions,.battle-actions,.shop-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
-.save-actions button,.battle-actions button,.shop-actions button,.move-grid button{min-height:50px;border-radius:13px;padding:10px;background:linear-gradient(180deg,#3d80ef,#2864ce);font-weight:750;box-shadow:inset 0 1px rgba(255,255,255,.18)}
+.save-actions,.battle-actions,.shop-actions,.village-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.save-actions button,.battle-actions button,.shop-actions button,.village-actions button,.board-actions button,.move-grid button{min-height:50px;border-radius:13px;padding:10px;background:linear-gradient(180deg,#3d80ef,#2864ce);font-weight:750;box-shadow:inset 0 1px rgba(255,255,255,.18)}
 button.secondary{background:#25344a}
 button.capture{background:linear-gradient(180deg,#da4e58,#ab2e3c)}
 button:active:not(:disabled){transform:scale(.975);filter:brightness(.92)}
@@ -30,6 +30,11 @@ button:active:not(:disabled){transform:scale(.975);filter:brightness(.92)}
 .board-cell.consumed{background:#18202d;color:#8290a4;text-decoration:line-through}
 .cell-number{display:grid;place-items:center;flex:0 0 27px;width:27px;height:27px;border-radius:9px;background:#0e1724;color:#8ba8cf;font-size:.75rem;text-decoration:none}
 .board-cell strong{font-size:.88rem;line-height:1.25}
+.board-actions{display:grid;margin-top:10px}
+.bounty-quest{display:grid;gap:10px;padding:13px;margin:2px 0 12px;border:1px solid #3b4d66;border-radius:15px;background:linear-gradient(145deg,#2b2530,#171d2a)}
+.bounty-quest>div{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.quest-label{color:#9eb0c8;font-size:.72rem;font-weight:700}
+.quest-meta{color:#d9c4a1;font-size:.78rem}
 .shop-form{display:grid;grid-template-columns:minmax(0,2fr) minmax(100px,1fr);gap:10px;margin:2px 0 12px}
 .field{display:grid;gap:6px;color:#9eb0c8;font-size:.75rem;font-weight:700}
 .field select,.field input{width:100%;min-height:50px;border:1px solid #31445f;border-radius:13px;background:#0d1724;color:#eef4ff;padding:10px 12px;font:inherit;font-size:16px;appearance:none;-webkit-appearance:none}
@@ -59,5 +64,5 @@ button:active:not(:disabled){transform:scale(.975);filter:brightness(.92)}
 .log li{padding:4px 0;color:#b9c8dc;font-size:.82rem;line-height:1.4}
 .log li:first-child{color:#f1f6ff;font-weight:700}
 [hidden]{display:none!important}
-@media(max-width:520px){.status-card{grid-template-columns:repeat(2,1fr)}.shop-form{grid-template-columns:1fr}.save-actions{grid-template-columns:1fr}.board-cell{min-height:60px}.card{padding:13px}}
+@media(max-width:520px){.status-card{grid-template-columns:repeat(2,1fr)}.shop-form{grid-template-columns:1fr}.save-actions,.village-actions{grid-template-columns:1fr}.board-cell{min-height:60px}.card{padding:13px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
