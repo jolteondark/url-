@@ -1,100 +1,263 @@
-import { resolveCaptureFlow, routeCaughtQueueToPartyStorage, add, quantity, saveRunState, loadRunState } from "./domain-runtime.js";
-import { resolveOneTurn } from "./battle-runtime.js";
+import {
+  SAFARI_MOVE_PRESENTATION,
+  activateSafariDayBoardCell,
+  attemptSafariCapture,
+  boardCellPresentation,
+  clearSafariPlayableRun,
+  createSafariPlayableRuntime,
+  hasSafariPlayableRun,
+  loadSafariPlayableRun,
+  resolveSafariBattleRound,
+  returnSafariToDayBoard,
+  saveSafariPlayableRun,
+} from "./runtime/safari-playable-integration.js";
 
-const STORAGE_KEY = "mapless-web-preview-v3";
-const SAVE_OPTIONS = { valueIds: ["player", "variables", "bag", "storage_system"] };
-const starter = () => ({ species: "EEVEE", level: 5, hp: 20, status: "NONE", moves: ["TACKLE","QUICK_ATTACK","BITE","SWIFT"] });
-const initialRuntime = () => ({
-  player: { party: [starter()] },
-  variables: { mapless: { day: 1, capture_result: null, battle: null } },
-  bag: { slots: [], money: 0 },
-  storage_system: { boxes: [{ name: "Box 1", capacity: 30, slots: [] }], currentBox: 0 },
-});
-let runtime = initialRuntime();
-let logLines = ["実domain接続版です。BattleはM0193 Battle Core subset、捕獲/Party・Storage/Bag/Save・Loadも実domain由来です。"];
-const $ = (id) => document.getElementById(id);
-function render() {
-  $("day").textContent = String(runtime.variables.mapless.day);
-  $("party").textContent = `${runtime.player.party.length} / 6`;
-  $("bag").textContent = String(quantity(runtime.bag.slots, "POTION"));
-  $("money").textContent = String(runtime.bag.money);
-  const battle = runtime.variables.mapless.battle;
-  $("battle-card").hidden = !battle;
-  if (battle) {
-    $("player-hp").textContent = `${battle.playerHp} / 20`;
-    $("foe-hp").textContent = `${battle.foeHp} / 20`;
-    $("battle-message").textContent = battle.decision === 1 ? "PIKACHUを倒した！" : battle.decision === 2 ? "EEVEEは倒れた…" : `Turn ${battle.turn}: 技を選んでください。`;
-    for (const button of document.querySelectorAll("#moves button")) button.disabled = battle.decision > 0;
-  }
-  $("log").replaceChildren(...logLines.slice(0, 12).map((line) => { const li = document.createElement("li"); li.textContent = line; return li; }));
+let runtime = createSafariPlayableRuntime();
+let busy = false;
+let logLines = ["real domain縦線を開始しました。"];
+const byId = (id) => document.getElementById(id);
+const sleep = (milliseconds) => new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+const moveId = (move) => typeof move === "string" ? move : move.id;
+
+function mapless() {
+  return runtime.variables.mapless;
 }
-function note(message) { logLines.unshift(message); render(); }
-function startBattle() {
-  runtime.variables.mapless.battle = { playerHp: runtime.player.party[0]?.hp ?? 20, foeHp: 20, turn: 1, decision: 0 };
-  note("野生のPIKACHUとのBattle Core戦闘を開始しました。");
-  $("battle-card").scrollIntoView({ behavior: "smooth", block: "center" });
+
+function potionQuantity() {
+  return runtime.bag.slots
+    .filter((slot) => slot && slot[0] === "POTION")
+    .reduce((total, slot) => total + Number(slot[1]), 0);
 }
-function useMove(button) {
-  const battle = runtime.variables.mapless.battle;
-  if (!battle || battle.decision > 0) return;
-  const moveId = button.dataset.move;
-  const damage = Number(button.dataset.damage);
-  const priority = Number(button.dataset.priority);
-  const foeDamage = 4;
-  const turn = resolveOneTurn({
-    playerHp: battle.playerHp,
-    foeHp: battle.foeHp,
-    actions: [
-      { moveId, target: "foe", targetMaxHp: 20, calculatedDamage: damage, accuracyHit: true },
-      { moveId: "THUNDERSHOCK", target: "player", targetMaxHp: 20, calculatedDamage: foeDamage, accuracyHit: true },
-    ],
-    priorityEntries: [
-      { actionIndex: 0, speed: 12, movePriority: priority, tieBreaker: 1 },
-      { actionIndex: 1, speed: 10, movePriority: 0, tieBreaker: 0 },
-    ],
+
+function storedCount() {
+  return runtime.storage_system.boxes.reduce(
+    (total, box) => total + box.slots.filter(Boolean).length,
+    0,
+  );
+}
+
+function note(message) {
+  logLines.unshift(message);
+  logLines = logLines.slice(0, 20);
+}
+
+function percent(hp, maxHp) {
+  if (!maxHp) return 0;
+  return Math.max(0, Math.min(100, (Number(hp) / Number(maxHp)) * 100));
+}
+
+function renderBoard() {
+  const battle = mapless().battle;
+  const buttons = Array.from({ length: 8 }, (_, index) => {
+    const cell = boardCellPresentation(runtime, index);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.boardIndex = String(index);
+    button.className = "board-cell" + (cell.revealed ? " revealed" : "") + (cell.consumed ? " consumed" : "");
+    button.disabled = busy || Boolean(battle) || cell.disabled;
+    const number = document.createElement("span");
+    number.className = "cell-number";
+    number.textContent = String(index + 1);
+    const label = document.createElement("strong");
+    label.textContent = cell.label;
+    button.append(number, label);
+    return button;
   });
-  battle.playerHp = turn.playerHp; battle.foeHp = turn.foeHp; battle.decision = turn.decision; battle.turn += 1;
-  if (runtime.player.party[0]) runtime.player.party[0].hp = battle.playerHp;
-  const order = turn.operations.find((op) => op.op === "calculate_priority")?.order?.join("→") ?? "?";
-  note(`Battle Core: ${moveId} / priority ${order} / HP ${battle.playerHp}-${battle.foeHp}${battle.decision===1?" / WIN":battle.decision===2?" / LOSE":""}`);
+  byId("board").replaceChildren(...buttons);
 }
-function capturePokemon() {
-  const caught = { species: "PIKACHU", level: 5, hp: 20, status: "NONE", moves: ["THUNDERSHOCK"] };
-  const currentBattle = runtime.variables.mapless.battle;
-  const foeHp = currentBattle?.foeHp ?? 1;
-  const capture = resolveCaptureFlow({ targetFainted: foeHp <= 0, trainerBattle: false, ball: "POKEBALL", gainExpForCapture: false, allFaintedAfterCapture: false, capture: { totalHp: 20, hp: Math.max(1, foeHp), catchRate: 255, status: "SLEEP", ball: "POKEBALL", unconditional: true } });
-  if (capture.result !== "caught") return note(`捕獲結果: ${capture.result}`);
-  const routed = routeCaughtQueueToPartyStorage({ party: runtime.player.party, boxes: runtime.storage_system.boxes, currentBox: runtime.storage_system.currentBox }, [caught]);
-  runtime.player.party = routed.state.party; runtime.storage_system.boxes = routed.state.boxes; runtime.storage_system.currentBox = routed.state.currentBox; runtime.variables.mapless.capture_result = capture.result;
-  if (currentBattle) runtime.variables.mapless.battle = null;
-  note(`実capture→Party/Storage routing: PIKACHU → ${routed.routed[0]?.result ?? "full"}`);
+
+function renderMoves(player, battle) {
+  if (!battle || battle.completed) {
+    byId("moves").replaceChildren();
+    return;
+  }
+  const buttons = player.moves
+    .map(moveId)
+    .filter((id) => SAFARI_MOVE_PRESENTATION[id])
+    .map((id) => {
+      const details = SAFARI_MOVE_PRESENTATION[id];
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.moveId = id;
+      button.disabled = busy;
+      const name = document.createElement("strong");
+      name.textContent = details.name;
+      const meta = document.createElement("small");
+      meta.textContent = "威力入力 " + details.damage + (details.priority ? " / 優先度 +" + details.priority : "");
+      button.append(name, meta);
+      return button;
+    });
+  byId("moves").replaceChildren(...buttons);
 }
-function reward() {
-  if (!add(runtime.bag.slots, 20, 99, "POTION", 1)) return note("実Bag add: POTIONを追加できませんでした。");
-  runtime.bag.money += 100; note("実Bag mutation: POTION +1 / Money +100");
+
+function renderBattle() {
+  const battle = mapless().battle;
+  const card = byId("battle-card");
+  card.hidden = !battle;
+  if (!battle) return;
+  const player = runtime.player.party[0];
+  const foe = battle.foe;
+  byId("battle-title").textContent = battle.kind === "trainer" ? "Trainer Battle" : "Wild Battle";
+  byId("turn").textContent = battle.completed ? "Result" : "Turn " + battle.turn;
+  byId("player-name").textContent = player.species;
+  byId("player-level").textContent = "Lv." + player.level;
+  byId("player-hp").textContent = player.hp + " / " + player.max_hp;
+  byId("player-hp-bar").style.width = percent(player.hp, player.max_hp) + "%";
+  byId("foe-name").textContent = foe.species;
+  byId("foe-level").textContent = "Lv." + foe.level;
+  byId("foe-hp").textContent = foe.hp + " / " + foe.max_hp;
+  byId("foe-hp-bar").style.width = percent(foe.hp, foe.max_hp) + "%";
+  byId("battle-message").textContent = battle.completed
+    ? mapless().notice
+    : "技を選んでください。";
+  renderMoves(player, battle);
+  byId("capture").hidden = battle.kind !== "wild" || battle.completed;
+  byId("capture").disabled = busy;
+  byId("return-board").hidden = !battle.completed;
+  byId("return-board").disabled = busy;
 }
-function save() {
-  try { const saved = saveRunState(runtime, SAVE_OPTIONS); localStorage.setItem(STORAGE_KEY, saved.payload); note("実Persistence save payloadをlocalStorageへ保存しました。"); }
-  catch (error) { note(`保存失敗: ${error?.name || "Error"}`); }
+
+function render() {
+  const state = mapless();
+  byId("day").textContent = String(state.day);
+  byId("party").textContent = runtime.player.party.length + " / 6";
+  byId("storage").textContent = String(storedCount());
+  byId("bag").textContent = String(potionQuantity());
+  byId("notice").textContent = state.notice;
+  byId("mode").textContent = state.battle ? "戦闘" : "探索";
+  try {
+    byId("continue-run").disabled = busy || !hasSafariPlayableRun(window.localStorage);
+  } catch (_) {
+    byId("continue-run").disabled = true;
+  }
+  byId("new-run").disabled = busy;
+  byId("save-run").disabled = busy;
+  renderBoard();
+  renderBattle();
+  byId("log").replaceChildren(...logLines.map((line) => {
+    const item = document.createElement("li");
+    item.textContent = line;
+    return item;
+  }));
 }
-function load() {
-  try { const payload = localStorage.getItem(STORAGE_KEY); if (!payload) return note("保存データはまだありません。"); runtime = loadRunState(payload, initialRuntime(), SAVE_OPTIONS).state; note("実Persistence loadでruntime stateを復元しました。"); }
-  catch (error) { note(`読込失敗: ${error?.name || "Error"}`); }
+
+async function playPresentation(events) {
+  for (const event of events) {
+    if (event.type === "move_started") {
+      const actor = byId(event.actor + "-combatant");
+      actor.classList.add("lunge");
+      await sleep(150);
+      actor.classList.remove("lunge");
+      note((SAFARI_MOVE_PRESENTATION[event.moveId]?.name ?? event.moveId) + "！");
+    } else if (event.type === "damage_applied") {
+      const target = byId(event.target + "-combatant");
+      target.classList.add("hit");
+      render();
+      await sleep(180);
+      target.classList.remove("hit");
+      note(event.target + " HP " + event.hpBefore + " → " + event.hpAfter);
+    } else if (event.type === "faint") {
+      note(event.target + " faint");
+    } else if (event.type === "battle_result") {
+      note("Battle result: decision " + event.decision);
+      if (event.expGained) note("EXP +" + event.expGained);
+      if (event.reward) note(event.reward.item + " +" + event.reward.quantity);
+    } else if (event.type === "capture") {
+      note("Capture → " + event.destination);
+    }
+  }
 }
-function act(action) {
-  switch (action) {
-    case "explore": note("探索はまだSafari shellです。"); break;
-    case "battle": startBattle(); break;
-    case "capture": capturePokemon(); break;
-    case "reward": reward(); break;
-    case "save": save(); break;
-    case "load": load(); break;
-    case "next": runtime.variables.mapless.day += 1; note(`Day ${runtime.variables.mapless.day}へ進みました（day advanceは暫定shell）。`); break;
-    case "reset": runtime = initialRuntime(); logLines = []; try { localStorage.removeItem(STORAGE_KEY); } catch (_) {} note("実domain preview状態をリセットしました。"); break;
+
+byId("board").addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-board-index]");
+  if (!button || busy) return;
+  try {
+    const result = activateSafariDayBoardCell(runtime, Number(button.dataset.boardIndex));
+    note(result.boundary + ": " + result.result);
+    if (mapless().battle) {
+      window.setTimeout(() => byId("battle-card").scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+    }
+  } catch (error) {
+    note("Day Board error: " + (error?.message ?? error));
   }
   render();
-}
-document.getElementById("board").addEventListener("click", (event) => { const button = event.target.closest("button[data-action]"); if (button) act(button.dataset.action); });
-document.getElementById("moves").addEventListener("click", (event) => { const button = event.target.closest("button[data-move]"); if (button) useMove(button); });
+});
+
+byId("moves").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-move-id]");
+  if (!button || busy) return;
+  busy = true;
+  render();
+  try {
+    const result = resolveSafariBattleRound(runtime, button.dataset.moveId);
+    render();
+    await playPresentation(result.presentation);
+  } catch (error) {
+    note("Battle error: " + (error?.message ?? error));
+  } finally {
+    busy = false;
+    render();
+  }
+});
+
+byId("capture").addEventListener("click", async () => {
+  if (busy) return;
+  busy = true;
+  render();
+  try {
+    const result = attemptSafariCapture(runtime);
+    await playPresentation(result.presentation);
+    note("捕獲先: " + result.destination);
+  } catch (error) {
+    note("Capture error: " + (error?.message ?? error));
+  } finally {
+    busy = false;
+    render();
+  }
+});
+
+byId("return-board").addEventListener("click", () => {
+  try {
+    const result = returnSafariToDayBoard(runtime);
+    note("Day Board return / decision " + result.summary.decision);
+  } catch (error) {
+    note("Return error: " + (error?.message ?? error));
+  }
+  render();
+  byId("board-card").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+
+byId("save-run").addEventListener("click", () => {
+  try {
+    const saved = saveSafariPlayableRun(window.localStorage, runtime);
+    note("Persistence save: " + saved.key);
+  } catch (error) {
+    note("Save error: " + (error?.name ?? "Error"));
+  }
+  render();
+});
+
+byId("continue-run").addEventListener("click", () => {
+  try {
+    const loaded = loadSafariPlayableRun(window.localStorage, runtime);
+    if (!loaded.found) note("保存データはありません。");
+    else {
+      runtime = loaded.state;
+      note("Persistence load: " + loaded.key);
+    }
+  } catch (error) {
+    note("Load error: " + (error?.name ?? "Error"));
+  }
+  render();
+});
+
+byId("new-run").addEventListener("click", () => {
+  try { clearSafariPlayableRun(window.localStorage); } catch (_) {}
+  runtime = createSafariPlayableRuntime();
+  logLines = ["新規ランを開始しました。"];
+  render();
+});
+
 window.addEventListener("pageshow", render);
 render();
+

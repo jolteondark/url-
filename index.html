@@ -3,59 +3,76 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#111111" />
-  <title>Mapless Web Preview</title>
+  <meta name="theme-color" content="#0d1117" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Mapless Safari Playable</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
   <main class="app">
-    <header>
-      <p class="eyebrow">Mapless migration practice</p>
-      <h1>iPhone Safari playable preview</h1>
-      <p class="muted">Safari上で実domainを段階接続中。BattleはM0193 Battle Core subsetを使用します。</p>
+    <header class="hero">
+      <p class="eyebrow">Mapless v0.9.108 browser integration</p>
+      <h1>Safari Playable</h1>
+      <p class="muted">Day Board・Battle・EXP・捕獲・Party/Storage・Bag・Persistenceを既存Web domainから接続した縦線です。</p>
     </header>
 
     <section class="card status-card" aria-live="polite">
       <div><span>Day</span><strong id="day">1</strong></div>
       <div><span>Party</span><strong id="party">1 / 6</strong></div>
-      <div><span>Bag</span><strong id="bag">0</strong></div>
-      <div><span>Money</span><strong id="money">0</strong></div>
+      <div><span>Storage</span><strong id="storage">0</strong></div>
+      <div><span>POTION</span><strong id="bag">0</strong></div>
+    </section>
+
+    <section class="card save-actions">
+      <button id="new-run" class="secondary">新規ラン</button>
+      <button id="continue-run" class="secondary">つづきから</button>
+      <button id="save-run">セーブ</button>
+    </section>
+
+    <section class="card" id="board-card">
+      <div class="section-heading">
+        <h2>Day Board</h2>
+        <span class="pill" id="mode">探索</span>
+      </div>
+      <p id="notice" class="notice" aria-live="polite">読み込み中です。</p>
+      <div class="board-grid" id="board" aria-label="Day Board"></div>
+    </section>
+
+    <section class="card battle-card" id="battle-card" hidden>
+      <div class="section-heading">
+        <h2 id="battle-title">Battle</h2>
+        <span class="pill" id="turn">Turn 1</span>
+      </div>
+      <div class="arena">
+        <article class="combatant foe" id="foe-combatant">
+          <div class="pokemon-name"><strong id="foe-name">PIKACHU</strong><span id="foe-level">Lv.5</span></div>
+          <div class="hp-track" aria-label="foe HP"><span id="foe-hp-bar"></span></div>
+          <small id="foe-hp">20 / 20</small>
+          <div class="text-mon" aria-hidden="true">◆</div>
+        </article>
+        <article class="combatant player" id="player-combatant">
+          <div class="text-mon" aria-hidden="true">●</div>
+          <div class="pokemon-name"><strong id="player-name">EEVEE</strong><span id="player-level">Lv.5</span></div>
+          <div class="hp-track" aria-label="player HP"><span id="player-hp-bar"></span></div>
+          <small id="player-hp">20 / 20</small>
+        </article>
+      </div>
+      <p class="notice" id="battle-message" aria-live="polite">技を選んでください。</p>
+      <div class="move-grid" id="moves"></div>
+      <div class="battle-actions">
+        <button id="capture" class="capture">モンスターボール</button>
+        <button id="return-board" class="secondary" hidden>Day Boardへ戻る</button>
+      </div>
     </section>
 
     <section class="card">
-      <h2>Day Board preview</h2>
-      <div class="grid" id="board">
-        <button data-action="explore">探索する</button>
-        <button data-action="battle">戦闘する</button>
-        <button data-action="capture">捕獲する</button>
-        <button data-action="reward">報酬を受け取る</button>
-        <button data-action="save">セーブ</button>
-        <button data-action="load">ロード</button>
-        <button data-action="next">次の日へ</button>
-        <button data-action="reset" class="danger">リセット</button>
-      </div>
-    </section>
-
-    <section class="card" id="battle-card" hidden>
-      <h2>Wild PIKACHU appeared!</h2>
-      <div class="battle-status">
-        <div><span>EEVEE HP</span><strong id="player-hp">20 / 20</strong></div>
-        <div><span>PIKACHU HP</span><strong id="foe-hp">20 / 20</strong></div>
-      </div>
-      <p class="muted" id="battle-message">技を選んでください。</p>
-      <div class="grid" id="moves">
-        <button data-move="TACKLE" data-damage="7" data-priority="0">たいあたり</button>
-        <button data-move="QUICK_ATTACK" data-damage="5" data-priority="1">でんこうせっか</button>
-        <button data-move="BITE" data-damage="6" data-priority="0">かみつく</button>
-        <button data-move="SWIFT" data-damage="6" data-priority="0">スピードスター</button>
-      </div>
-    </section>
-
-    <section class="card">
-      <h2>イベントログ</h2>
+      <h2>Operation log</h2>
       <ol id="log" class="log"></ol>
     </section>
   </main>
   <script type="module" src="./preview.js"></script>
 </body>
 </html>
+

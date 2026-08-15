@@ -1,1 +1,58 @@
-*{box-sizing:border-box}html{background:#0c0c0d;color:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-text-size-adjust:100%}body{margin:0;min-height:100vh;background:linear-gradient(#121214,#09090a);padding:max(18px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}.app{max-width:720px;margin:0 auto}header{padding:8px 2px 14px}.eyebrow{margin:0 0 6px;color:#9aa0a6;font-size:.82rem;text-transform:uppercase;letter-spacing:.08em}h1{font-size:clamp(1.55rem,7vw,2.5rem);line-height:1.08;margin:0 0 10px}h2{font-size:1.05rem;margin:0 0 12px}.muted{color:#b8bcc2;line-height:1.5}.card{background:#171719;border:1px solid #2a2a2e;border-radius:18px;padding:16px;margin:12px 0;box-shadow:0 10px 30px rgba(0,0,0,.18)}.status-card{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.status-card div{background:#101012;border-radius:12px;padding:10px 8px;text-align:center}.status-card span{display:block;color:#9aa0a6;font-size:.72rem}.status-card strong{display:block;margin-top:4px;font-size:1.05rem}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}button{appearance:none;-webkit-appearance:none;border:0;border-radius:14px;min-height:52px;padding:12px 10px;background:#2d6cdf;color:#fff;font:inherit;font-weight:700;touch-action:manipulation}button:active{transform:scale(.985);filter:brightness(.9)}button.danger{background:#7e2b32}.log{margin:0;padding-left:1.5rem}.log li{padding:5px 0;color:#e4e5e7;line-height:1.4}.log li:first-child{font-weight:700}@media(max-width:390px){.status-card{grid-template-columns:repeat(2,1fr)}}
+*{box-sizing:border-box}
+:root{color-scheme:dark;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic UI","Segoe UI",sans-serif;background:#090c11;color:#eef4ff}
+html{-webkit-text-size-adjust:100%;background:#090c11}
+body{margin:0;min-height:100vh;background:radial-gradient(circle at 50% -20%,#253652 0,#0d1420 35%,#090c11 72%);padding:max(18px,env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) max(28px,env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left))}
+button{appearance:none;-webkit-appearance:none;border:0;font:inherit;color:inherit;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+button:focus-visible{outline:3px solid #86b7ff;outline-offset:2px}
+button:disabled{opacity:.48;filter:saturate(.55)}
+.app{width:min(100%,760px);margin:0 auto}
+.hero{padding:6px 4px 10px}
+.eyebrow{margin:0 0 7px;color:#91a7c5;font-size:.76rem;font-weight:750;text-transform:uppercase;letter-spacing:.1em}
+h1{font-size:clamp(2rem,9vw,3.7rem);letter-spacing:-.045em;line-height:1;margin:0 0 12px}
+h2{font-size:1.05rem;margin:0}
+.muted{color:#afbdd0;line-height:1.55;margin:0}
+.card{background:rgba(19,27,40,.93);border:1px solid #2a3a50;border-radius:20px;padding:15px;margin:12px 0;box-shadow:0 18px 48px rgba(0,0,0,.26);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.status-card{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.status-card div{min-width:0;background:#0d1521;border:1px solid #223147;border-radius:13px;padding:10px 5px;text-align:center}
+.status-card span{display:block;color:#8295af;font-size:.68rem;overflow:hidden;text-overflow:ellipsis}
+.status-card strong{display:block;margin-top:4px;font-size:1rem}
+.save-actions,.battle-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.save-actions button,.battle-actions button,.move-grid button{min-height:50px;border-radius:13px;padding:10px;background:linear-gradient(180deg,#3d80ef,#2864ce);font-weight:750;box-shadow:inset 0 1px rgba(255,255,255,.18)}
+button.secondary{background:#25344a}
+button.capture{background:linear-gradient(180deg,#da4e58,#ab2e3c)}
+button:active:not(:disabled){transform:scale(.975);filter:brightness(.92)}
+.section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.pill{display:inline-flex;align-items:center;border:1px solid #3a4d69;border-radius:999px;padding:4px 9px;color:#b8cae3;font-size:.72rem}
+.notice{min-height:1.5em;margin:8px 0 13px;color:#dce8f8;line-height:1.45}
+.board-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.board-cell{display:flex;align-items:center;gap:10px;min-height:64px;padding:10px 12px;border:1px solid #31445f;border-radius:14px;background:#172336;text-align:left}
+.board-cell.revealed{background:linear-gradient(145deg,#24466f,#18304e)}
+.board-cell.consumed{background:#18202d;color:#8290a4;text-decoration:line-through}
+.cell-number{display:grid;place-items:center;flex:0 0 27px;width:27px;height:27px;border-radius:9px;background:#0e1724;color:#8ba8cf;font-size:.75rem;text-decoration:none}
+.board-cell strong{font-size:.88rem;line-height:1.25}
+.battle-card{overflow:hidden}
+.arena{display:grid;grid-template-columns:1fr;gap:12px;padding:4px 0 10px}
+.combatant{position:relative;width:82%;border:1px solid #31435d;border-radius:17px;padding:11px 13px;background:linear-gradient(145deg,#18263a,#101a28);transition:transform .18s ease,filter .18s ease}
+.combatant.foe{justify-self:end}
+.combatant.player{justify-self:start}
+.pokemon-name{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.pokemon-name span,.combatant small{color:#a9bad0;font-size:.75rem}
+.hp-track{height:9px;margin:8px 0 5px;border-radius:999px;background:#09101a;overflow:hidden;box-shadow:inset 0 1px 3px rgba(0,0,0,.7)}
+.hp-track span{display:block;height:100%;width:100%;border-radius:inherit;background:linear-gradient(90deg,#3ed382,#88eb78);transition:width .38s cubic-bezier(.22,.75,.25,1),background .2s}
+.text-mon{position:absolute;color:#6f98cc;opacity:.33;font-size:2.1rem;line-height:1}
+.foe .text-mon{right:13px;bottom:9px}
+.player .text-mon{right:13px;top:32px}
+.combatant.lunge.player{transform:translateX(18px)}
+.combatant.lunge.foe{transform:translateX(-18px)}
+.combatant.hit{animation:hit-flash .28s ease}
+@keyframes hit-flash{0%,100%{filter:none}35%{filter:brightness(2.2) saturate(.4);transform:translateX(-5px)}65%{transform:translateX(5px)}}
+.move-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.move-grid button{display:flex;flex-direction:column;align-items:flex-start;text-align:left}
+.move-grid small{margin-top:3px;color:#d4e2f6;font-size:.67rem;font-weight:500}
+.battle-actions{grid-template-columns:1fr 1fr;margin-top:10px}
+.log{margin:10px 0 0;padding-left:1.35rem;max-height:260px;overflow:auto}
+.log li{padding:4px 0;color:#b9c8dc;font-size:.82rem;line-height:1.4}
+.log li:first-child{color:#f1f6ff;font-weight:700}
+[hidden]{display:none!important}
+@media(max-width:420px){.status-card{grid-template-columns:repeat(2,1fr)}.save-actions{grid-template-columns:1fr}.board-cell{min-height:60px}.card{padding:13px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
