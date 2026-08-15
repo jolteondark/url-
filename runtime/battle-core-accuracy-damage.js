@@ -3,6 +3,7 @@ const STAT_STAGE_MULTIPLIERS = [2, 2, 2, 2, 2, 2, 2, 3, 4, 5, 6, 7, 8];
 const STAT_STAGE_DIVISORS = [8, 7, 6, 5, 4, 3, 2, 2, 2, 2, 2, 2, 2];
 const ACC_EVA_STAGE_MULTIPLIERS = [3, 3, 3, 3, 3, 3, 3, 4, 5, 6, 7, 8, 9];
 const ACC_EVA_STAGE_DIVISORS = [9, 8, 7, 6, 5, 4, 3, 3, 3, 3, 3, 3, 3];
+const CALC_DAMAGE_MULTIPLIERS_BODY_SHA256 = "d4c7c2e7dd7237f911b20f61ca809a6e08087695d17a2dc335ae197b4b327b39";
 
 function rubyRound(value) {
   const n = Number(value ?? 0);
@@ -49,6 +50,91 @@ export function accuracyCheckCanonical(input = {}) {
   return { hit: randomRoll < threshold, threshold, randomRoll, affectionMissed: false };
 }
 
+export function calcDamageMultipliersCanonical(input = {}) {
+  let powerMultiplier = Number(input.externalPowerMultiplier ?? 1);
+  let attackMultiplier = Number(input.externalAttackMultiplier ?? 1);
+  let defenseMultiplier = Number(input.externalDefenseMultiplier ?? 1);
+  let finalDamageMultiplier = Number(input.externalFinalDamageMultiplier ?? 1);
+  const type = input.type ?? null;
+  const mechanicsGeneration = Number(input.mechanicsGeneration ?? 9);
+
+  if ((Boolean(input.darkAura) && type === "DARK") || (Boolean(input.fairyAura) && type === "FAIRY")) {
+    powerMultiplier *= Boolean(input.auraBreak) ? 3 / 4 : 4 / 3;
+  }
+  if (Number(input.parentalBond ?? 0) === 1) powerMultiplier /= mechanicsGeneration >= 7 ? 4 : 2;
+  if (Boolean(input.meFirst)) powerMultiplier *= 1.5;
+  if (Boolean(input.helpingHand) && !Boolean(input.confusionMove)) powerMultiplier *= 1.5;
+  if (Number(input.chargeTurns ?? 0) > 0 && type === "ELECTRIC") powerMultiplier *= 2;
+  if (type === "ELECTRIC") {
+    if (Boolean(input.mudSportBattlerActive)) powerMultiplier /= 3;
+    if (Number(input.mudSportFieldTurns ?? 0) > 0) powerMultiplier /= 3;
+  }
+  if (type === "FIRE") {
+    if (Boolean(input.waterSportBattlerActive)) powerMultiplier /= 3;
+    if (Number(input.waterSportFieldTurns ?? 0) > 0) powerMultiplier /= 3;
+  }
+
+  const terrainMultiplier = mechanicsGeneration >= 8 ? 1.3 : 1.5;
+  if (input.terrain === "Electric" && type === "ELECTRIC" && Boolean(input.userAffectedByTerrain)) powerMultiplier *= terrainMultiplier;
+  if (input.terrain === "Grassy" && type === "GRASS" && Boolean(input.userAffectedByTerrain)) powerMultiplier *= terrainMultiplier;
+  if (input.terrain === "Psychic" && type === "PSYCHIC" && Boolean(input.userAffectedByTerrain)) powerMultiplier *= terrainMultiplier;
+  if (input.terrain === "Misty" && type === "DRAGON" && Boolean(input.targetAffectedByTerrain)) powerMultiplier /= 2;
+
+  if (Boolean(input.internalBattle)) {
+    const badgeCount = Number(input.badgeCount ?? 0);
+    if (Boolean(input.userOwnedByPlayer)) {
+      if (Boolean(input.physicalMove) && badgeCount >= Number(input.badgesBoostAttack ?? Infinity)) attackMultiplier *= 1.1;
+      else if (Boolean(input.specialMove) && badgeCount >= Number(input.badgesBoostSpAtk ?? Infinity)) attackMultiplier *= 1.1;
+    }
+    if (Boolean(input.targetOwnedByPlayer)) {
+      if (Boolean(input.physicalMove) && badgeCount >= Number(input.badgesBoostDefense ?? Infinity)) defenseMultiplier *= 1.1;
+      else if (Boolean(input.specialMove) && badgeCount >= Number(input.badgesBoostSpDef ?? Infinity)) defenseMultiplier *= 1.1;
+    }
+  }
+
+  if (Number(input.numTargets ?? 1) > 1) finalDamageMultiplier *= 0.75;
+  switch (input.effectiveWeather) {
+    case "Sun": case "HarshSun":
+      if (type === "FIRE") finalDamageMultiplier *= 1.5;
+      if (type === "WATER") finalDamageMultiplier /= 2;
+      break;
+    case "Rain": case "HeavyRain":
+      if (type === "FIRE") finalDamageMultiplier /= 2;
+      if (type === "WATER") finalDamageMultiplier *= 1.5;
+      break;
+    case "Sandstorm":
+      if (Boolean(input.targetRockType) && Boolean(input.specialMove) && input.functionCode !== "UseTargetDefenseInsteadOfTargetSpDef") defenseMultiplier *= 1.5;
+      break;
+    case "ShadowSky":
+      if (type === "SHADOW") finalDamageMultiplier *= 1.5;
+      break;
+  }
+
+  if (Boolean(input.critical)) finalDamageMultiplier *= Boolean(input.newCriticalHitRateMechanics ?? true) ? 1.5 : 2;
+  if (!Boolean(input.confusionMove)) finalDamageMultiplier *= (85 + Number(input.randomRoll ?? 0)) / 100;
+  if (type && Boolean(input.userHasType)) finalDamageMultiplier *= Boolean(input.adaptability) ? 2 : 1.5;
+  finalDamageMultiplier *= Number(input.typeMod ?? 1);
+  if (input.userStatus === "BURN" && Boolean(input.physicalMove) && Boolean(input.damageReducedByBurn ?? true) && !Boolean(input.guts)) finalDamageMultiplier /= 2;
+
+  if (!Boolean(input.ignoresReflect) && !Boolean(input.critical) && !Boolean(input.infiltrator)) {
+    const sideCount = Number(input.sideBattlerCount ?? 1);
+    const screenMultiplier = sideCount > 1 ? 2 / 3 : 1 / 2;
+    if (Number(input.auroraVeilTurns ?? 0) > 0) finalDamageMultiplier *= screenMultiplier;
+    else if (Number(input.reflectTurns ?? 0) > 0 && Boolean(input.physicalMove)) finalDamageMultiplier *= screenMultiplier;
+    else if (Number(input.lightScreenTurns ?? 0) > 0 && Boolean(input.specialMove)) finalDamageMultiplier *= screenMultiplier;
+  }
+  if (Boolean(input.targetMinimized) && Boolean(input.tramplesMinimize)) finalDamageMultiplier *= 2;
+
+  powerMultiplier *= Number(input.movePowerMultiplier ?? 1);
+  finalDamageMultiplier *= Number(input.moveFinalDamageMultiplier ?? 1);
+  return {
+    powerMultiplier, attackMultiplier, defenseMultiplier, finalDamageMultiplier,
+    sourceComplete: true,
+    sourceSymbol: "Battle::Move#pbCalcDamageMultipliers",
+    sourceBodySha256: CALC_DAMAGE_MULTIPLIERS_BODY_SHA256,
+  };
+}
+
 export function calcDamageCanonical(input = {}) {
   if (Boolean(input.statusMove)) return { damage: null, skipped: "status_move" };
   if (Boolean(input.disguise) || Boolean(input.iceFace)) {
@@ -72,13 +158,24 @@ export function calcDamageCanonical(input = {}) {
     defense = Math.floor(defense * STAT_STAGE_MULTIPLIERS[defenseStageIndex] / STAT_STAGE_DIVISORS[defenseStageIndex]);
   }
 
-  baseDamage = Math.max(rubyRound(baseDamage * Number(input.powerMultiplier ?? 1)), 1);
-  attack = Math.max(rubyRound(attack * Number(input.attackMultiplier ?? 1)), 1);
-  defense = Math.max(rubyRound(defense * Number(input.defenseMultiplier ?? 1)), 1);
+  const multiplierResolution = input.damageMultiplierInput
+    ? calcDamageMultipliersCanonical({ ...input.damageMultiplierInput, critical: input.damageMultiplierInput.critical ?? critical })
+    : null;
+  const powerMultiplier = multiplierResolution?.powerMultiplier ?? Number(input.powerMultiplier ?? 1);
+  const attackMultiplier = multiplierResolution?.attackMultiplier ?? Number(input.attackMultiplier ?? 1);
+  const defenseMultiplier = multiplierResolution?.defenseMultiplier ?? Number(input.defenseMultiplier ?? 1);
+  const finalDamageMultiplier = multiplierResolution?.finalDamageMultiplier ?? Number(input.finalDamageMultiplier ?? 1);
+
+  baseDamage = Math.max(rubyRound(baseDamage * powerMultiplier), 1);
+  attack = Math.max(rubyRound(attack * attackMultiplier), 1);
+  defense = Math.max(rubyRound(defense * defenseMultiplier), 1);
   const level = Number(input.level ?? 1);
   let damage = Math.floor(Math.floor(Math.floor((2.0 * level / 5) + 2) * baseDamage * attack / defense) / 50) + 2;
-  damage = Math.max(rubyRound(damage * Number(input.finalDamageMultiplier ?? 1)), 1);
-  return { damage, critical, baseDamage, attack, defense, attackStageIndex, defenseStageIndex };
+  damage = Math.max(rubyRound(damage * finalDamageMultiplier), 1);
+  return {
+    damage, critical, baseDamage, attack, defense, attackStageIndex, defenseStageIndex,
+    ...(multiplierResolution ? { damageMultiplierResolution: multiplierResolution } : {}),
+  };
 }
 
 export function resolveAccuracyDamageActionCanonical(action = {}) {
