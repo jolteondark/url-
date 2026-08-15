@@ -5,6 +5,7 @@ import { resolveBrowserMaplessWildEncounter } from "./browser-mapless-wild-encou
 import { resolveBattleStartCore } from "./battle-core-start-handoff.js";
 import { resolvePokemonRuntimeMasters } from "./pokemon-runtime-masters.js";
 import { movePartyPokemonToLead } from "./party-order-management.js";
+import { ensureSafariEncounterSeed, nextSafariEncounterSpeciesIndex } from "./safari-encounter-randomization.js";
 import {
   SAFARI_MOVE_MASTERS,
   SAFARI_NATURE_MASTERS,
@@ -92,7 +93,7 @@ function startFullWildBattle(runtime, event, index, dispatchOperations) {
     requiredType: event.type,
     enemyRank: "NORMAL",
     extraModifier: 0,
-    speciesIndex: (state.day - 1) * 8 + index,
+    speciesIndex: nextSafariEncounterSpeciesIndex(state, { day: state.day, boardIndex: index }),
     varianceIndex: 1,
   });
   const encounterResolution = resolveBrowserMaplessWildEncounter({
@@ -150,7 +151,9 @@ function startFullWildBattle(runtime, event, index, dispatchOperations) {
 
 export function createSafariPlayableRuntime() {
   const runtime = base.createSafariPlayableRuntime();
-  assignFullWildTypes(stateOf(runtime));
+  const state = stateOf(runtime);
+  ensureSafariEncounterSeed(state);
+  assignFullWildTypes(state);
   return runtime;
 }
 
@@ -218,6 +221,10 @@ export function setSafariPartyLead(runtime, index) {
 
 export function loadSafariPlayableRun(storage, currentRuntime = createSafariPlayableRuntime()) {
   const loaded = base.loadSafariPlayableRun(storage, currentRuntime);
-  if (loaded.found) assignFullWildTypes(stateOf(loaded.state));
+  if (loaded.found) {
+    const state = stateOf(loaded.state);
+    ensureSafariEncounterSeed(state);
+    assignFullWildTypes(state);
+  }
   return loaded;
 }
