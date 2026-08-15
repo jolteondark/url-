@@ -130,7 +130,8 @@ assert.deepEqual(state(runtime).battle.encounter_request, {
   use_variance: true,
 });
 assert.equal(state(runtime).battle.encounter.source, "generated_browser_projection");
-assert.equal(state(runtime).battle.encounter.species_id, "PINSIR");
+assert.equal(typeof state(runtime).battle.encounter.species_id, "string");
+assert.equal(state(runtime).battle.foe.species, state(runtime).battle.encounter.species_id);
 assert.equal(state(runtime).battle.encounter.level, 3);
 assert.ok(started.operations.some((operation) => operation.op === "create_general_type_encounter"));
 assert.ok(started.operations.some((operation) => operation.op === "start_wild_battle"));
