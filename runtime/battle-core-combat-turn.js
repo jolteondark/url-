@@ -1,4 +1,4 @@
-import { resolveGenericTurnVerticalSlice } from "./battle-core-turn-vertical-slice.js";
+import { resolveBattleLoopCanonical } from "./battle-core-battle-loop.js";
 import { resolveAccuracyDamageActionCanonical } from "./battle-core-accuracy-damage.js";
 import { resolveHpFaintActionCanonical } from "./battle-core-hp-faint.js";
 import { tryUseMoveCanonical } from "./battle-core-try-use-move.js";
@@ -66,5 +66,5 @@ export function prepareCombatTurnInputCanonical(input = {}) {
 }
 
 export function resolveCombatTurnVerticalSlice(input = {}) {
-  return resolveGenericTurnVerticalSlice(prepareCombatTurnInputCanonical(input));
+  return resolveBattleLoopCanonical(prepareCombatTurnInputCanonical(input));
 }
