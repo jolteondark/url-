@@ -2,13 +2,22 @@ import { assembleDayBoard } from "./mapless-day-board-generation.js";
 import { resolveDayBoardCellDispatch } from "./mapless-day-board-cell-dispatch.js";
 import { resolveDayBoardPlayableTurn } from "./mapless-day-board-playable-turn.js";
 import { projectDayBoardEventName } from "./mapless-day-board-event-name-projection.js";
-import { calculatePriorityCanonical, judgeCanonical, reduceHpCanonical } from "./battle-core-turn-vertical-slice.js";
+import { resolveBrowserBattleRound } from "./browser-battle-round-runtime.js";
+import { resolveBattleStartCore } from "./battle-core-start-handoff.js";
 import { resolveCaptureFlow } from "./battle-capture-flow.js";
 import { routeCaughtQueueToPartyStorage } from "./caught-queue-party-storage.js";
 import { resolveItemReceipt } from "./bag-economy-item-receipt.js";
 import { clearStoredRun, hasStoredRun, persistRunState, restoreRunState } from "./browser-run-storage.js";
 import { resolveExpLevelMoveFlow } from "./battle-exp-level-move-flow.js";
-import { createPokemonRuntime, updatePokemonRuntime } from "./pokemon-runtime.js";
+import { resolvePokemonRuntimeMasters } from "./pokemon-runtime-masters.js";
+import { updatePokemonRuntime } from "./pokemon-runtime.js";
+import {
+  SAFARI_MOVE_LABELS,
+  SAFARI_MOVE_MASTERS,
+  SAFARI_NATURE_MASTERS,
+  SAFARI_SPECIES_MASTERS,
+  SAFARI_ZERO_STAT_VALUES,
+} from "./safari-playable-data.js";
 
 export const SAFARI_PLAYABLE_SAVE_KEY = "mapless.safari.playable.v4";
 export const SAFARI_PLAYABLE_VALUE_IDS = Object.freeze(["player", "variables", "bag", "storage_system"]);
@@ -21,13 +30,15 @@ const GENERATION_DECISIONS = Object.freeze([
   { shuffle_order: [4, 1, 6, 2, 5, 0, 3], next_day_index: 0 },
 ]);
 
-export const SAFARI_MOVE_PRESENTATION = Object.freeze({
-  TACKLE: Object.freeze({ name: "たいあたり", damage: 7, priority: 0 }),
-  QUICK_ATTACK: Object.freeze({ name: "でんこうせっか", damage: 5, priority: 1 }),
-  BITE: Object.freeze({ name: "かみつく", damage: 6, priority: 0 }),
-  SWIFT: Object.freeze({ name: "スピードスター", damage: 6, priority: 0 }),
-  THUNDERSHOCK: Object.freeze({ name: "でんきショック", damage: 4, priority: 0 }),
-});
+export const SAFARI_MOVE_PRESENTATION = Object.freeze(Object.fromEntries(
+  Object.entries(SAFARI_MOVE_MASTERS).map(([id, master]) => [id, Object.freeze({
+    name: SAFARI_MOVE_LABELS[id] ?? master.name,
+    power: master.power,
+    accuracy: master.accuracy,
+    priority: master.priority,
+    totalPp: master.total_pp,
+  })]),
+));
 
 const TYPE_NAMES = Object.freeze({ ELECTRIC: "でんき" });
 
@@ -40,38 +51,67 @@ function generationForDay(day) {
   };
 }
 
+function normalizeSafariMoveId(id) {
+  return id === "QUICK_ATTACK" ? "QUICKATTACK" : id;
+}
+
+function materializeSafariPokemon(input) {
+  const speciesMaster = SAFARI_SPECIES_MASTERS[input?.species];
+  if (!speciesMaster) throw new RangeError(`species is outside the Safari projection: ${input?.species}`);
+  const moves = (input.moves ?? []).map((move) => {
+    const id = normalizeSafariMoveId(moveId(move));
+    if (!SAFARI_MOVE_MASTERS[id]) throw new RangeError(`move is outside the Safari projection: ${id}`);
+    return typeof move === "string" ? id : { ...move, id };
+  });
+  const natureId = input.nature_for_stats_id ?? input.nature_id ?? "HARDY";
+  return resolvePokemonRuntimeMasters({
+    ...input,
+    hp: input.hp ?? 1,
+    nature_id: input.nature_id ?? natureId,
+    iv: input.iv ?? { ...SAFARI_ZERO_STAT_VALUES },
+    ev: input.ev ?? { ...SAFARI_ZERO_STAT_VALUES },
+    moves,
+  }, {
+    species_master: speciesMaster,
+    nature_master: SAFARI_NATURE_MASTERS[natureId],
+    move_masters: SAFARI_MOVE_MASTERS,
+  });
+}
+
 function createStarter() {
-  return createPokemonRuntime({
+  return materializeSafariPokemon({
     species: "EEVEE",
-    level: 5,
-    exp: 125,
-    hp: 20,
-    max_hp: 20,
+    level: 9,
+    exp: 990,
     personal_id: 1,
     gender: 0,
     status: "NONE",
     ability_id: "RUNAWAY",
     nature_id: "HARDY",
-    moves: ["TACKLE", "QUICK_ATTACK", "BITE"],
+    moves: ["TACKLE"],
   });
 }
 
 function createOpponent(kind, day) {
   if (kind === "trainer") {
-    return createPokemonRuntime({
+    return materializeSafariPokemon({
       species: "RATTATA",
       level: Math.max(5, Math.min(8, Number(day) + 4)),
-      hp: 18,
-      max_hp: 18,
+      hp: 1,
+      nature_id: "HARDY",
+      iv: { ...SAFARI_ZERO_STAT_VALUES },
+      ev: { ...SAFARI_ZERO_STAT_VALUES },
       status: "NONE",
       moves: ["TACKLE"],
     });
   }
-  return createPokemonRuntime({
+  return materializeSafariPokemon({
     species: "PIKACHU",
     level: Math.max(5, Math.min(8, Number(day) + 4)),
-    hp: 20,
-    max_hp: 20,
+    hp: 1,
+    nature_id: "HARDY",
+    iv: { ...SAFARI_ZERO_STAT_VALUES },
+    ev: { ...SAFARI_ZERO_STAT_VALUES },
     status: "NONE",
     moves: ["THUNDERSHOCK"],
   });
@@ -167,8 +207,8 @@ function battlePresentation(operations) {
       });
     } else if (operation.op === "faint") {
       events.push({ type: "faint", target: operation.target });
-    } else if (operation.op === "end_of_round") {
-      events.push({ type: "turn_end", turn: operation.turn });
+    } else if (operation.op === "end_of_round" || operation.op === "end_of_round_phase") {
+      events.push({ type: "turn_end", turn: operation.battleTurn ?? operation.turn ?? operation.round });
     }
   }
   return events;
@@ -221,6 +261,9 @@ export function boardCellPresentation(runtime, index) {
 function startBattle(runtime, event, index, dispatchOperations) {
   const state = maplessState(runtime);
   const opponent = createOpponent(event.kind, state.day);
+  const battleStart = resolveBattleStartCore({
+    sendOuts: [[0, runtime.player.party[0]], [1, opponent]],
+  });
   state.battle = {
     kind: event.kind,
     board_index: index,
@@ -229,7 +272,7 @@ function startBattle(runtime, event, index, dispatchOperations) {
     completed: false,
     captured: false,
     foe: opponent,
-    last_operations: dispatchOperations,
+    last_operations: [...dispatchOperations, ...battleStart.operations],
     presentation: [{
       type: "battle_started",
       actor: "foe",
@@ -240,6 +283,7 @@ function startBattle(runtime, event, index, dispatchOperations) {
   state.notice = event.kind === "trainer"
     ? event.trainer_full_name + "が勝負を仕掛けてきた！"
     : "野生の" + event.species_name + "が現れた！";
+  state.last_operations = state.battle.last_operations;
 }
 
 function applyFacilityEffects(runtime, operations) {
@@ -270,7 +314,7 @@ export function activateSafariDayBoardCell(runtime, index) {
       result: dispatch.result,
       boundary: event.kind,
       notice: state.notice,
-      operations: dispatch.operations,
+      operations: state.battle?.last_operations ?? dispatch.operations,
       presentation: state.battle?.presentation ?? [],
     };
   }
@@ -306,6 +350,7 @@ export function activateSafariDayBoardCell(runtime, index) {
 
 function awardWin(runtime, battle) {
   const player = runtime.player.party[0];
+  const foeMaster = SAFARI_SPECIES_MASTERS[battle.foe.species];
   const expFlow = resolveExpLevelMoveFlow({
     pokemon: {
       exp: player.exp ?? 0,
@@ -316,7 +361,7 @@ function awardWin(runtime, battle) {
     maxMoves: 4,
     expContext: {
       defeatedLevel: battle.foe.level,
-      baseExp: 140,
+      baseExp: foeMaster.base_exp,
       numParticipants: 1,
       expShareCount: 0,
       participant: true,
@@ -329,13 +374,21 @@ function awardWin(runtime, battle) {
       outsiderMultiplier: 1,
     },
     levelThresholds: { 6: 216, 7: 343, 8: 512, 9: 729, 10: 1000 },
-    movesByLevel: { 6: ["SWIFT"] },
+    movesByLevel: { 10: ["QUICKATTACK"] },
     moveDecisions: {},
   });
-  runtime.player.party[0] = updatePokemonRuntime(player, {
+  const currentMoves = new Map(player.moves.map((move) => [moveId(move), move]));
+  const resolvedMoves = expFlow.pokemon.moves.map((id) => {
+    const canonicalId = normalizeSafariMoveId(id);
+    return currentMoves.has(canonicalId)
+      ? structuredClone(currentMoves.get(canonicalId))
+      : canonicalId;
+  });
+  runtime.player.party[0] = materializeSafariPokemon({
+    ...player,
     exp: expFlow.pokemon.exp,
     level: expFlow.pokemon.level,
-    moves: expFlow.pokemon.moves,
+    moves: resolvedMoves,
   });
   const receipt = resolveItemReceipt({
     slots: runtime.bag.slots,
@@ -411,60 +464,43 @@ export function resolveSafariBattleRound(runtime, selectedMoveId) {
   const battle = state.battle;
   if (!battle || battle.completed) throw new Error("active battle is required");
   const player = runtime.player.party[0];
-  if (!player || !player.moves.some((move) => moveId(move) === selectedMoveId)) {
+  const canonicalMoveId = normalizeSafariMoveId(selectedMoveId);
+  if (!player || !player.moves.some((move) => moveId(move) === canonicalMoveId)) {
     throw new RangeError("selected move is not known by the active Pokemon");
   }
-  const selected = SAFARI_MOVE_PRESENTATION[selectedMoveId];
-  if (!selected) throw new RangeError("selected move is outside the Safari fixture");
-  const foeMove = SAFARI_MOVE_PRESENTATION.THUNDERSHOCK;
-  const priority = calculatePriorityCanonical([
-    { actionIndex: 0, speed: 12, movePriority: selected.priority, tieBreaker: 1 },
-    { actionIndex: 1, speed: 10, movePriority: foeMove.priority, tieBreaker: 0 },
-  ]);
-  const operations = [{ op: "calculate_priority", order: priority.order, entries: priority.entries }];
-  let currentPlayer = player;
-  let currentFoe = battle.foe;
-
-  for (const actionIndex of priority.order) {
-    const actor = actionIndex === 0 ? "player" : "foe";
-    const target = actor === "player" ? "foe" : "player";
-    const move = actor === "player" ? selected : foeMove;
-    const id = actor === "player" ? selectedMoveId : "THUNDERSHOCK";
-    operations.push({ op: "use_move", actor, target, moveId: id });
-    operations.push({ op: "accuracy_check", actor, target, hit: true });
-    const targetPokemon = target === "player" ? currentPlayer : currentFoe;
-    const reduced = reduceHpCanonical({
-      hp: targetPokemon.hp,
-      totalHp: targetPokemon.max_hp,
-      amount: move.damage,
-      fainted: targetPokemon.hp <= 0,
-      registerDamage: true,
-    });
-    operations.push({ op: "reduce_hp", actor, target, ...reduced });
-    if (target === "player") currentPlayer = updatePokemonRuntime(currentPlayer, { hp: reduced.hpAfter });
-    else currentFoe = updatePokemonRuntime(currentFoe, { hp: reduced.hpAfter });
-    if (reduced.hpAfter <= 0) operations.push({ op: "faint", target });
-    const decision = judgeCanonical({
-      playerAllFainted: currentPlayer.hp <= 0,
-      foeAllFainted: currentFoe.hp <= 0,
-      drawDecision: 0,
-    });
-    operations.push({ op: "judge", actor, decision });
-    if (decision > 0) {
-      battle.decision = decision;
-      break;
-    }
+  if (!SAFARI_MOVE_PRESENTATION[canonicalMoveId]) {
+    throw new RangeError("selected move is outside the Safari projection");
   }
-
-  runtime.player.party[0] = currentPlayer;
-  battle.foe = currentFoe;
-  operations.push({ op: "end_of_round", turn: battle.turn });
+  const foeMoveId = moveId(battle.foe.moves[0]);
+  const resolved = resolveBrowserBattleRound({
+    player,
+    foe: battle.foe,
+    selectedMoveId: canonicalMoveId,
+    foeMoveId,
+    moveMasters: SAFARI_MOVE_MASTERS,
+    playerRandomRoll: 0,
+    foeRandomRoll: 0,
+  });
+  const operations = resolved.operations.map((operation) => ({
+    ...operation,
+    battleTurn: battle.turn,
+  }));
+  runtime.player.party[0] = resolved.player;
+  battle.foe = resolved.foe;
+  battle.decision = resolved.decision;
   battle.turn += 1;
   battle.last_operations = operations;
   battle.presentation = battlePresentation(operations);
   state.last_operations = operations;
   if (battle.decision > 0) finalizeBattle(runtime);
-  return { runtime, decision: battle.decision, operations, presentation: battle.presentation };
+  return {
+    runtime,
+    decision: battle.decision,
+    operations,
+    presentation: battle.presentation,
+    scheduling: resolved.scheduling,
+    ppIntegration: resolved.ppIntegration,
+  };
 }
 
 export function attemptSafariCapture(runtime) {
@@ -481,15 +517,23 @@ export function attemptSafariCapture(runtime) {
     capture: {
       totalHp: battle.foe.max_hp,
       hp: Math.max(1, battle.foe.hp),
-      catchRate: 255,
-      status: "SLEEP",
+      catchRate: SAFARI_SPECIES_MASTERS[battle.foe.species].catch_rate,
+      status: battle.foe.status ?? "NONE",
       ball: "POKEBALL",
-      unconditional: true,
+      unconditional: false,
+      enableCriticalCaptures: false,
+      randomValues: [0, 0, 0, 0],
     },
   });
   if (capture.result !== "caught") {
     state.notice = "捕獲結果: " + capture.result;
-    return { runtime, result: capture.result, operations: capture.operations, presentation: [] };
+    return {
+      runtime,
+      result: capture.result,
+      operations: capture.operations,
+      presentation: [],
+      calculation: capture.capture,
+    };
   }
   const routed = routeCaughtQueueToPartyStorage({
     party: runtime.player.party,
@@ -511,6 +555,7 @@ export function attemptSafariCapture(runtime) {
     destination: battle.capture_destination,
     operations: battle.last_operations,
     presentation: battle.presentation,
+    calculation: capture.capture,
   };
 }
 
@@ -544,13 +589,16 @@ export function saveSafariPlayableRun(storage, runtime) {
 export function loadSafariPlayableRun(storage, currentRuntime = createSafariPlayableRuntime()) {
   const loaded = restoreRunState(storage, currentRuntime, persistenceOptions());
   if (!loaded.found) return loaded;
-  loaded.state.player.party = loaded.state.player.party.map(createPokemonRuntime);
+  loaded.state.player.party = loaded.state.player.party.map(materializeSafariPokemon);
+  loaded.state.storage_system.boxes = loaded.state.storage_system.boxes.map((box) => ({
+    ...box,
+    slots: box.slots.map((pokemon) => pokemon == null ? pokemon : materializeSafariPokemon(pokemon)),
+  }));
   const battle = maplessState(loaded.state).battle;
-  if (battle?.foe) battle.foe = createPokemonRuntime(battle.foe);
+  if (battle?.foe) battle.foe = materializeSafariPokemon(battle.foe);
   return loaded;
 }
 
 export function clearSafariPlayableRun(storage) {
   return clearStoredRun(storage, SAFARI_PLAYABLE_SAVE_KEY);
 }
-

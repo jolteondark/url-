@@ -39,10 +39,14 @@ for (let turn = 0; turn < 10 && !state(runtime).battle.completed; turn += 1) {
 }
 assert.equal(state(runtime).battle.decision, 1);
 assert.equal(state(runtime).board_consumed[firstWild], true);
-assert.equal(runtime.player.party[0].level, 6);
-assert.equal(runtime.player.party[0].exp, 225);
-assert.ok(runtime.player.party[0].moves.includes("SWIFT"));
+assert.equal(runtime.player.party[0].level, 10);
+assert.equal(runtime.player.party[0].exp, 1070);
+assert.ok(runtime.player.party[0].moves.some((move) => move.id === "QUICKATTACK"));
+assert.equal(runtime.player.party[0].moves.find((move) => move.id === "TACKLE").pp, 32);
+assert.equal(state(runtime).battle.foe.moves[0].pp, 28);
 assert.deepEqual(runtime.bag.slots, [["POTION", 1]]);
+assert.ok(lastRound.operations.some((operation) => operation.op === "calc_damage"));
+assert.deepEqual(lastRound.ppIntegration.commits.map((commit) => commit.actor), ["player"]);
 assert.ok(lastRound.presentation.some((event) => event.type === "damage_applied"));
 assert.ok(lastRound.presentation.some((event) => event.type === "battle_result"));
 
@@ -54,6 +58,9 @@ activateSafariDayBoardCell(runtime, secondWild);
 const captured = attemptSafariCapture(runtime);
 assert.equal(captured.result, "caught");
 assert.equal(captured.destination, "party");
+assert.equal(captured.calculation.numShakes, 4);
+assert.equal(captured.calculation.randomUsed, 4);
+assert.ok(captured.calculation.x < 255);
 assert.equal(runtime.player.party.length, 2);
 assert.equal(state(runtime).board_consumed[secondWild], true);
 returnSafariToDayBoard(runtime);
@@ -67,6 +74,7 @@ assert.equal(loaded.found, true);
 runtime = loaded.state;
 assert.equal(state(runtime).day, 1);
 assert.equal(runtime.player.party.length, 2);
+assert.ok(runtime.player.party[0].moves.find((move) => move.id === "TACKLE").pp < 35);
 
 const nextDay = state(runtime).board_events.findIndex((event) => event.kind === "next_day");
 const advanced = activateSafariDayBoardCell(runtime, nextDay);
