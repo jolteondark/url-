@@ -3,6 +3,7 @@ import { resolveCommandPhaseCanonical } from "./battle-core-command-phase.js";
 import { resolveAttackPhaseCanonical } from "./battle-core-attack-phase.js";
 import { resolveEndOfRoundPhaseCanonical } from "./battle-core-end-of-round.js";
 import { resolveEndOfBattleCanonical } from "./battle-core-end-of-battle.js";
+import { resolveJudgeCanonical } from "./battle-core-judge.js";
 
 export function resolveBattleLoopCanonical(input = {}) {
   const rounds = Array.isArray(input.rounds) ? input.rounds : [];
@@ -92,8 +93,20 @@ export function resolveBattleLoopCanonical(input = {}) {
       decision = Number(eor.decision);
       if (decision > 0) break;
     }
-    const endDecision = judgeCanonical(round.endJudgeState ?? {});
-    operations.push({ op: "judge", round: roundNo, scope: "end_of_round", decision: endDecision });
+    const judgeResolution = round.endJudgeState
+      ? resolveJudgeCanonical(round.endJudgeState)
+      : null;
+    const endDecision = judgeResolution ? Number(judgeResolution.decision) : judgeCanonical({});
+    operations.push({
+      op: "judge", round: roundNo, scope: "end_of_round", decision: endDecision,
+      sourceComplete: Boolean(judgeResolution?.sourceComplete),
+      ...(judgeResolution ? {
+        playerAllFainted: judgeResolution.playerAllFainted,
+        foeAllFainted: judgeResolution.foeAllFainted,
+        sourceSymbol: judgeResolution.sourceSymbol,
+        sourceBodySha256: judgeResolution.sourceBodySha256,
+      } : {}),
+    });
     if (round.endJudgeState) decision = endDecision;
     if (decision > 0) break;
     turnCount += 1;
