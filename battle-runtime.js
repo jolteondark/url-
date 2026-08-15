@@ -1,4 +1,4 @@
-// Generated browser entrypoint from private main 22733fc81f041d00fc54bf87c583319a47c328c8.
+// Generated browser entrypoint from private main 2858dd91e9f84aa715377c4b9fa7b76f190e94d9.
 export * from "./runtime/battle-core-battle-loop.js";
 export * from "./runtime/battle-core-command-phase.js";
 export * from "./runtime/battle-core-attack-phase.js";

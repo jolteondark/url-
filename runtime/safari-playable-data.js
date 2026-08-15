@@ -111,6 +111,20 @@ export const SAFARI_SHOP_ITEM_MASTERS = Object.freeze({
 
 export const SAFARI_NORMAL_SHOP_STOCK = Object.freeze(["POTION"]);
 
+// Minimal distributable Village Bounty input. Acceptance, action consumption,
+// battle outcome handling and Money mutation remain owned by private-main
+// Facilities and Bag/Economy modules.
+export const SAFARI_BOUNTY_PROJECTION = Object.freeze({
+  species: "RATTATA",
+  species_name: "コラッタ",
+  form: 0,
+  level: 6,
+  reward: 600,
+  prefix: "凶暴な",
+  gender: 2,
+  move_ids: Object.freeze(["TACKLE"]),
+});
+
 export const SAFARI_ZERO_STAT_VALUES = Object.freeze({
   HP: 0,
   ATTACK: 0,
