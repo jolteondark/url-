@@ -4,6 +4,7 @@ import { projectDayBoardEventName } from "./mapless-day-board-event-name-project
 import { resolveBrowserMaplessWildEncounter } from "./browser-mapless-wild-encounter-runtime.js";
 import { resolveBattleStartCore } from "./battle-core-start-handoff.js";
 import { resolvePokemonRuntimeMasters } from "./pokemon-runtime-masters.js";
+import { movePartyPokemonToLead } from "./party-order-management.js";
 import {
   SAFARI_MOVE_MASTERS,
   SAFARI_NATURE_MASTERS,
@@ -91,8 +92,6 @@ function startFullWildBattle(runtime, event, index, dispatchOperations) {
     requiredType: event.type,
     enemyRank: "NORMAL",
     extraModifier: 0,
-    // The canonical species pool and scaling are authoritative. Preview-only
-    // deterministic indices replace only the unavailable random draws.
     speciesIndex: (state.day - 1) * 8 + index,
     varianceIndex: 1,
   });
@@ -202,6 +201,19 @@ export function activateSafariDayBoardCell(runtime, index) {
     operations: state.battle?.last_operations ?? dispatch.operations,
     presentation: state.battle?.presentation ?? [],
   };
+}
+
+export function setSafariPartyLead(runtime, index) {
+  const state = stateOf(runtime);
+  if (state.battle) throw new Error("戦闘中は先頭を変更できません。");
+  if (!runtime?.player || !Array.isArray(runtime.player.party)) {
+    throw new TypeError("runtime player.party is required");
+  }
+  const result = movePartyPokemonToLead(runtime.player.party, index);
+  state.notice = result.changed
+    ? `${result.pokemon.species}を先頭にしました。`
+    : `${result.pokemon.species}はすでに先頭です。`;
+  return { ...result, runtime, notice: state.notice };
 }
 
 export function loadSafariPlayableRun(storage, currentRuntime = createSafariPlayableRuntime()) {
