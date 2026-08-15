@@ -33,8 +33,12 @@ jobs:
           node --check runtime/battle-core-try-use-move.js
           node --check runtime/safari-playable-data.js
           node --check runtime/safari-playable-integration.js
+          node --check runtime/facility-reward-return.js
+          node --check runtime/facility-reward-bag-money-integration.js
       - name: Run playable vertical smoke
-        run: node tests/runtime-smoke.mjs
+        run: |
+          node tests/runtime-smoke.mjs
+          node tests/facility-reward-smoke.mjs
 
   deploy:
     needs: validate
