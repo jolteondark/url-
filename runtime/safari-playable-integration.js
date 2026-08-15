@@ -656,6 +656,7 @@ export function resolveSafariBattleRound(runtime, selectedMoveId) {
     presentation: battle.presentation,
     scheduling: resolved.scheduling,
     ppIntegration: resolved.ppIntegration,
+    battleRuntimeIntegration: resolved.battleRuntimeIntegration,
   };
 }
 
