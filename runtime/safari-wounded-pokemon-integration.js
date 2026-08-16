@@ -4,6 +4,12 @@ import { resolveWoundedTreatmentRuntime } from "./wounded-treatment-runtime-inte
 import { prepareWoundedPokemonSnapshot, scaledWoundedNormalLevel } from "./wounded-pokemon-preparation-runtime.js";
 import { safariWoundedGeneralSpeciesPoolV108 } from "./safari-wounded-general-species-pool-v108.js";
 import { createResolvedWoundedPokemonIndividualV108 } from "./wounded-pokemon-resolved-individual.js";
+import { resolvePokemonRuntimeMasters } from "./pokemon-runtime-masters.js";
+import { POKEMON_NATURE_MASTERS_V108 } from "./pokemon-nature-masters-v108.js";
+import { resolvePokemonNewCreationFormSpeciesMasterV108 } from "./pokemon-new-creation-form-v108.js";
+import { SAFARI_GENERAL_MOVE_MASTERS, SAFARI_GENERAL_SPECIES_MASTERS } from "./safari-general-encounter-data-loader.js";
+
+const ZERO_STATS = Object.freeze({ HP:0, ATTACK:0, DEFENSE:0, SPECIAL_ATTACK:0, SPECIAL_DEFENSE:0, SPEED:0 });
 
 function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
@@ -38,6 +44,40 @@ function explicitCreationFormContext(input) {
   return { ...input };
 }
 
+function materializePreparedWoundedPokemon(event) {
+  const data = event?.normal_data;
+  const fixed = data?.pokemon_data;
+  if (!data?.species || !fixed) throw new Error("prepared wounded Pokemon data is required");
+  const baseMaster = SAFARI_GENERAL_SPECIES_MASTERS[data.species];
+  if (!baseMaster) throw new RangeError(`species is outside the canonical GENERAL pool: ${data.species}`);
+  const form = Number.isInteger(Number(fixed.form)) ? Math.max(0, Number(fixed.form)) : 0;
+  const speciesMaster = resolvePokemonNewCreationFormSpeciesMasterV108(baseMaster, form);
+  const natureId = String(fixed.nature ?? "");
+  const natureMaster = POKEMON_NATURE_MASTERS_V108[natureId];
+  if (!natureMaster) throw new RangeError(`unknown wounded Pokemon nature: ${natureId}`);
+  const runtime = resolvePokemonRuntimeMasters({
+    species: data.species,
+    level: Number(data.level),
+    form,
+    personal_id: Number(fixed.personal_id ?? data.personal_id),
+    ability_index: Number(fixed.ability_index ?? 0),
+    gender: fixed.gender,
+    nature_id: natureId,
+    iv: structuredClone(fixed.iv ?? {}),
+    ev: { ...ZERO_STATS },
+    moves: [...(fixed.moves ?? [])],
+    hp: 1,
+    status: "NONE",
+    item: null,
+    mapless_bonus_stats: { ...ZERO_STATS },
+  }, {
+    species_master: speciesMaster,
+    nature_master: natureMaster,
+    move_masters: SAFARI_GENERAL_MOVE_MASTERS,
+  });
+  return { ...runtime, hp: 1, item: null, held_item: null };
+}
+
 function canonicalLocalPreparation(event, day, randomInt, creationFormContext) {
   const seed = Number.parseInt(event.normal_seed ?? event.normal_data?.normal_seed, 10);
   if (!Number.isInteger(seed)) throw new TypeError("normal_seed is required");
@@ -64,9 +104,18 @@ function canonicalLocalPreparation(event, day, randomInt, creationFormContext) {
       resolvedPokemon,
       validGeneralSpeciesPool: pool,
     });
-    return { event: prepared.event, pokemon: resolvedPokemon, species: prepared.species, level: prepared.level };
+    // M0391's browser snapshot predates creation-form ownership. Preserve the
+    // already-resolved form as adapter metadata so re-entry materializes the
+    // same individual rather than rerolling Pokemon.new.
+    prepared.event.normal_data.pokemon_data.form = Number(resolvedPokemon.form ?? 0);
+    return {
+      event: prepared.event,
+      pokemon: materializePreparedWoundedPokemon(prepared.event),
+      species: prepared.species,
+      level: prepared.level,
+    };
   }
-  return { event: current, pokemon: null, species: data.species, level: data.level };
+  return { event: current, pokemon: materializePreparedWoundedPokemon(current), species: data.species, level: data.level };
 }
 
 export function safariWoundedHealingInventory(runtime) {
@@ -83,16 +132,6 @@ export function safariWoundedHealingInventory(runtime) {
 export function prepareSafariWoundedPokemonCandidate(runtime, index, options = {}) {
   const { state, event } = requireWoundedEvent(runtime, index);
   const day = Math.max(1, Math.trunc(Number(state.day) || 1));
-  if (event.normal_data?.pokemon_data) {
-    return {
-      runtime,
-      result: "already_prepared",
-      event,
-      pokemon: options.materializedPokemon ?? null,
-      species: event.normal_data.species,
-      level: event.normal_data.level,
-    };
-  }
   const prepared = canonicalLocalPreparation(
     event,
     day,
@@ -102,7 +141,7 @@ export function prepareSafariWoundedPokemonCandidate(runtime, index, options = {
   state.board_events[index] = prepared.event;
   state.board_revealed[index] = true;
   state.notice = `傷ついた${prepared.species} Lv.${prepared.level}がいます。`;
-  return { runtime, result: "prepared", ...prepared };
+  return { runtime, result: event.normal_data?.pokemon_data ? "already_prepared" : "prepared", ...prepared };
 }
 
 function commitResolution(runtime, index, resolved, extraOperations = []) {
@@ -136,10 +175,6 @@ export function resolveSafariWoundedPokemonDecision(runtime, index, input = {}) 
   }
 
   const pokemon = input.pokemon ?? prepared.pokemon;
-  if (!pokemon) {
-    state.notice = "傷ついたポケモンの個体情報を再構築できません。イベントを開き直してください。";
-    return { runtime, result: "pokemon_unresolved", outcome: "pokemon_unresolved", operations: [], notice: state.notice };
-  }
   const itemId = String(input.itemId ?? "").toUpperCase();
   const resolved = resolveWoundedTreatmentRuntime({
     event,
