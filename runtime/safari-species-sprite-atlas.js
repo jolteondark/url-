@@ -15,7 +15,15 @@ export const SAFARI_GENERAL_SPRITE_ATLAS = Object.freeze({
   sha256: "54b813b01a47cb14e5564608bb8fa246b07ab984d6c0e0afd7ee253507a38a4d",
 });
 
-const INDEX = new Map(SAFARI_GENERAL_SPRITE_SPECIES.map((species, index) => [species, index]));
+// The first public atlas manifest predated the private canonical M0365 owner and
+// carried one transcription typo (GHOLDENGOUL). The atlas pixel at that ordinal
+// was generated from canonical GHOLDENGO. Canonicalize only that legacy manifest
+// label while preserving atlas order/bytes.
+function canonicalSpeciesId(species) {
+  return species === "GHOLDENGOUL" ? "GHOLDENGO" : species;
+}
+
+const INDEX = new Map(SAFARI_GENERAL_SPRITE_SPECIES.map((species, index) => [canonicalSpeciesId(species), index]));
 let objectUrl = null;
 
 function decodeAtlas() {
@@ -29,10 +37,11 @@ function decodeAtlas() {
 }
 
 export function resolveSafariSpeciesSprite(species) {
-  const index = INDEX.get(species);
+  const canonical = canonicalSpeciesId(species);
+  const index = INDEX.get(canonical);
   if (!Number.isInteger(index)) return null;
   return Object.freeze({
-    species,
+    species: canonical,
     index,
     column: index % SAFARI_GENERAL_SPRITE_ATLAS.columns,
     row: Math.floor(index / SAFARI_GENERAL_SPRITE_ATLAS.columns),
@@ -43,10 +52,14 @@ export function resolveSafariSpeciesSprite(species) {
 export function applySafariSpeciesSprite(element, species, { size = 48 } = {}) {
   if (!(element instanceof HTMLElement)) return false;
   const sprite = resolveSafariSpeciesSprite(species);
-  if (!sprite) return false;
+  if (!sprite) {
+    element.dataset.spriteFallback = "missing-canonical-sprite";
+    return false;
+  }
   const columns = SAFARI_GENERAL_SPRITE_ATLAS.columns;
   const rows = SAFARI_GENERAL_SPRITE_ATLAS.rows;
-  element.dataset.spriteSpecies = species;
+  element.dataset.spriteSpecies = sprite.species;
+  delete element.dataset.spriteFallback;
   element.style.width = `${size}px`;
   element.style.height = `${size}px`;
   element.style.backgroundImage = `url("${sprite.url}")`;
