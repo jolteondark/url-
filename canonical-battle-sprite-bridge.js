@@ -2,8 +2,8 @@ import { resolveInlineCanonicalBattleSprite } from "./runtime/safari-canonical-b
 
 let scheduled = false;
 const SIDES = [
-  { side: "player", battlerIndex: 0, nameId: "player-name", combatantId: "player-combatant" },
-  { side: "foe", battlerIndex: 1, nameId: "foe-name", combatantId: "foe-combatant" },
+  { battlerIndex: 0, nameId: "player-name", combatantId: "player-combatant" },
+  { battlerIndex: 1, nameId: "foe-name", combatantId: "foe-combatant" },
 ];
 
 function ensureStyle() {
@@ -22,6 +22,10 @@ function ensureStyle() {
   document.head.append(style);
 }
 
+function setHidden(node, hidden) {
+  if (node && node.hidden !== hidden) node.hidden = hidden;
+}
+
 function renderSide({ battlerIndex, nameId, combatantId }) {
   const combatant = document.getElementById(combatantId);
   const species = document.getElementById(nameId)?.textContent?.trim();
@@ -33,9 +37,9 @@ function renderSide({ battlerIndex, nameId, combatantId }) {
   const atlas = combatant.querySelector(".atlas-battle-sprite");
   if (atlas) atlas.remove();
   if (!asset) {
-    if (image) image.hidden = true;
-    if (legacy) legacy.hidden = true;
-    if (fallback) fallback.hidden = false;
+    setHidden(image, true);
+    setHidden(legacy, true);
+    setHidden(fallback, false);
     return;
   }
   if (!image) {
@@ -51,9 +55,9 @@ function renderSide({ battlerIndex, nameId, combatantId }) {
     image.dataset.assetKey = key;
     image.src = asset.src;
   }
-  image.hidden = false;
-  if (legacy) legacy.hidden = true;
-  if (fallback) fallback.hidden = true;
+  setHidden(image, false);
+  setHidden(legacy, true);
+  setHidden(fallback, true);
 }
 
 function render() {
@@ -74,13 +78,14 @@ ensureStyle();
 render();
 const battle = document.getElementById("battle-card");
 if (battle) {
+  // Observe semantic battle content only. Do not observe hidden/style changes
+  // made by this renderer itself; doing so can create a self-triggering loop
+  // on WebKit/Safari.
   new MutationObserver(schedule).observe(battle, {
     subtree: true,
     childList: true,
     characterData: true,
-    attributes: true,
-    attributeFilter: ["hidden", "data-form"],
   });
 }
-window.addEventListener("pageshow", schedule);
-window.addEventListener("safari-runtime-changed", schedule);
+window.addEventListener("pageshow", schedule, { passive: true });
+window.addEventListener("safari-runtime-changed", schedule, { passive: true });
