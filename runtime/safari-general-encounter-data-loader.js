@@ -1,5 +1,6 @@
 import { projectGeneralEncounterSpeciesPools } from "./general-encounter-species-pools.js";
 import { safariGeneralMoveAiFacts } from "./safari-general-move-ai-facts.js";
+import { safariGeneralSpeciesIndividualFacts } from "./safari-general-species-individual-facts.js";
 
 const chunks = await Promise.all([
   import("./generated/safari-general-encounter-data-v2-00.js"),
@@ -40,8 +41,9 @@ const speciesIds = [...new Set(Object.values(projectGeneralEncounterSpeciesPools
 if (speciesIds.length !== 875 || payload.speciesRows.length !== speciesIds.length) throw new Error(`Safari General Encounter species count mismatch: ${speciesIds.length}/${payload.speciesRows.length}`);
 if (!Array.isArray(payload.moveIds) || !Array.isArray(payload.moveRows) || payload.moveIds.length !== payload.moveRows.length) throw new Error("Safari General Encounter move projection mismatch");
 
-function speciesMaster(id, row) {
+function speciesMaster(id, row, speciesIndex) {
   const [stats, baseExp, catchRate, levelMoves, dexNumber] = row;
+  const individualFacts = safariGeneralSpeciesIndividualFacts(id, speciesIndex, speciesIds.length);
   return Object.freeze({
     id, name: id,
     base_stats: Object.freeze(Object.fromEntries(STAT_IDS.map((stat, index) => [stat, Number(stats[index])]))),
@@ -49,6 +51,7 @@ function speciesMaster(id, row) {
     catch_rate: Number(catchRate),
     level_moves: Object.freeze(levelMoves.map(([level, moveIndex]) => Object.freeze({ level: Number(level), move: payload.moveIds[Number(moveIndex)] }))),
     dex_number: Number(dexNumber),
+    gender_ratio: individualFacts.gender_ratio,
   });
 }
 
@@ -65,7 +68,7 @@ function moveMaster(id, row, moveIndex) {
 }
 
 export const SAFARI_GENERAL_SPECIES_MASTERS = Object.freeze(Object.fromEntries(
-  speciesIds.map((id, index) => [id, speciesMaster(id, payload.speciesRows[index])]),
+  speciesIds.map((id, index) => [id, speciesMaster(id, payload.speciesRows[index], index)]),
 ));
 export const SAFARI_GENERAL_MOVE_MASTERS = Object.freeze(Object.fromEntries(
   payload.moveIds.map((id, index) => [id, moveMaster(id, payload.moveRows[index], index)]),
