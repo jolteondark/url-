@@ -3,154 +3,29 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#0d1117" />
+  <meta name="theme-color" content="#071018" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <title>Mapless Safari Playable</title>
+  <title>Mapless</title>
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="stylesheet" href="./style.css" />
+  <link rel="stylesheet" href="./bridge-shell.css" />
   <link rel="stylesheet" href="./battle-presentation.css" />
 </head>
 <body>
   <main class="app">
-    <header class="hero">
-      <p class="eyebrow">Mapless v0.9.108 browser integration</p>
-      <h1>Safari Playable</h1>
-      <p class="muted">Day Board・Village Bounty・canonical fixed shops・Shop/Money・Battle・EXP・捕獲・Party/Storage・Bag・Persistenceを既存Web domainから接続した縦線です。</p>
-      <p class="muted">Runtime source: private main 9907f853</p>
-    </header>
-
-    <section class="card status-card" aria-live="polite">
-      <div><span>Day</span><strong id="day">1</strong></div>
-      <div><span>Party</span><strong id="party">1 / 6</strong></div>
-      <div><span>Storage</span><strong id="storage">0</strong></div>
-      <div><span>POTION</span><strong id="bag">0</strong></div>
-      <div><span>Money</span><strong id="money">0円</strong></div>
+    <header class="game-header"><div class="brand-lockup"><p class="eyebrow">MAPLESS</p><h1>Survival</h1></div><div class="run-chip"><span>DAY</span><strong id="day">1</strong></div></header>
+    <section class="hud" aria-label="ラン情報" aria-live="polite"><div><span>PARTY</span><strong id="party">1 / 6</strong></div><div><span>BOX</span><strong id="storage">0</strong></div><div><span>POTION</span><strong id="bag">0</strong></div><div><span>MONEY</span><strong id="money">0円</strong></div></section>
+    <section class="game-stage">
+      <section class="scene board-scene" id="board-card"><div class="scene-heading"><div><span class="scene-kicker">探索</span><h2>Day Board</h2></div><span class="mode-pill" id="mode">探索</span></div><p id="notice" class="notice" aria-live="polite">読み込み中です。</p><div class="board-grid" id="board" aria-label="Day Board"></div><div class="primary-action-row"><button id="enter-village" class="secondary facility-button">村へ行く</button></div></section>
+      <section class="scene village-scene" id="village-card" hidden><div class="scene-heading"><div><span class="scene-kicker">安全地帯</span><h2>村</h2></div><span class="mode-pill" id="village-actions">行動 3 / 3</span></div><p class="notice" id="bounty-message" aria-live="polite">施設または依頼を選んでください。</p><article class="facility-panel"><div class="facility-title"><span class="facility-mark">SHOP</span><div><small>固定施設</small><strong>ショップ</strong></div></div><div class="shop-form village-shop-form"><label class="field"><span>店を選ぶ</span><select id="village-shop-select"><option value="normal_shop">フレンドリィショップ</option><option value="ball_shop">ボールショップ</option><option value="held_shop">持ち物ショップ</option><option value="tm_shop">TMショップ</option><option value="tr_shop">TRショップ</option><option value="evolution_shop">進化ショップ</option><option value="mint_shop">ミントショップ</option></select></label><button id="village-shop-open">商品を見る</button></div></article><article class="bounty-quest"><div class="quest-head"><span class="quest-label">BOUNTY</span><span id="bounty-level">Lv.6</span></div><strong id="bounty-species">凶暴なコラッタ</strong><div class="quest-reward"><span>討伐報酬</span><strong id="bounty-reward">600円</strong></div></article><div class="village-actions"><button id="bounty-accept">依頼を受ける</button><button id="bounty-depart">討伐へ出発</button><button id="leave-village" class="secondary">Day Boardへ戻る</button></div></section>
+      <section class="scene shop-scene" id="shop-card" hidden><div class="scene-heading"><div><span class="scene-kicker">施設</span><h2 id="shop-title">ショップ</h2></div><span class="mode-pill money-pill" id="shop-money">0円</span></div><p class="notice" id="shop-message" aria-live="polite">商品と数量を選んでください。</p><div class="shop-form"><label class="field item-field"><span>商品</span><select id="shop-item"></select></label><label class="field quantity-field"><span>数量</span><input id="shop-quantity" type="number" inputmode="numeric" min="1" max="99" step="1" value="1" /></label></div><div class="shop-actions"><button id="shop-confirm">取引を確定</button><button id="shop-cancel" class="secondary">買い物をやめる</button></div></section>
+      <section class="scene battle-scene" id="battle-card" hidden><div class="battle-topline"><h2 id="battle-title">Battle</h2><span class="mode-pill" id="turn">Turn 1</span></div><div class="arena"><article class="combatant foe" id="foe-combatant"><div class="battle-info-panel foe-info"><div class="pokemon-name"><strong id="foe-name">PIKACHU</strong><span id="foe-level">Lv.5</span></div><div class="hp-row"><span>HP</span><div class="hp-track" aria-label="foe HP"><span id="foe-hp-bar"></span></div></div><small id="foe-hp">20 / 20</small></div><div class="battle-platform foe-platform" aria-hidden="true"></div><div class="text-mon" aria-hidden="true">◆</div></article><article class="combatant player" id="player-combatant"><div class="battle-platform player-platform" aria-hidden="true"></div><div class="text-mon" aria-hidden="true">●</div><div class="battle-info-panel player-info"><div class="pokemon-name"><strong id="player-name">EEVEE</strong><span id="player-level">Lv.5</span></div><div class="hp-row"><span>HP</span><div class="hp-track" aria-label="player HP"><span id="player-hp-bar"></span></div></div><small id="player-hp">20 / 20</small></div></article></div><div class="battle-command-panel"><p class="notice battle-message" id="battle-message" aria-live="polite">技を選んでください。</p><div class="move-grid" id="moves"></div><div class="battle-actions"><button id="capture" class="capture">モンスターボール</button><button id="flee" class="secondary">にげる</button><button id="return-board" class="secondary" hidden>Day Boardへ戻る</button></div></div></section>
     </section>
-
-    <section class="card save-actions">
-      <button id="new-run" class="secondary">新規ラン</button>
-      <button id="continue-run" class="secondary">つづきから</button>
-      <button id="save-run">セーブ</button>
-    </section>
-
-    <section class="card" id="board-card">
-      <div class="section-heading">
-        <h2>Day Board</h2>
-        <span class="pill" id="mode">探索</span>
-      </div>
-      <p id="notice" class="notice" aria-live="polite">読み込み中です。</p>
-      <div class="board-grid" id="board" aria-label="Day Board"></div>
-      <div class="board-actions">
-        <button id="enter-village" class="secondary">村へ行く</button>
-      </div>
-    </section>
-
-    <section class="card village-card" id="village-card" hidden>
-      <div class="section-heading">
-        <h2>村</h2>
-        <span class="pill" id="village-actions">行動 3 / 3</span>
-      </div>
-      <p class="notice" id="bounty-message" aria-live="polite">施設または依頼を選んでください。</p>
-      <div class="shop-form">
-        <label class="field">
-          <span>固定ショップ</span>
-          <select id="village-shop-select">
-            <option value="normal_shop">フレンドリィショップ</option>
-            <option value="ball_shop">ボールショップ</option>
-            <option value="held_shop">持ち物ショップ</option>
-            <option value="tm_shop">TMショップ</option>
-            <option value="tr_shop">TRショップ</option>
-            <option value="evolution_shop">進化ショップ</option>
-            <option value="mint_shop">ミントショップ</option>
-          </select>
-        </label>
-        <button id="village-shop-open">商品を見る</button>
-      </div>
-      <article class="bounty-quest">
-        <div>
-          <span class="quest-label">討伐対象</span>
-          <strong id="bounty-species">凶暴なコラッタ</strong>
-        </div>
-        <div class="quest-meta">
-          <span id="bounty-level">Lv.6</span>
-          <span id="bounty-reward">賞金 600円</span>
-        </div>
-      </article>
-      <div class="village-actions">
-        <button id="bounty-accept">依頼を受ける</button>
-        <button id="bounty-depart">討伐へ出発</button>
-        <button id="leave-village" class="secondary">Day Boardへ戻る</button>
-      </div>
-    </section>
-
-    <section class="card shop-card" id="shop-card" hidden>
-      <div class="section-heading">
-        <h2 id="shop-title">ショップ</h2>
-        <span class="pill" id="shop-money">0円</span>
-      </div>
-      <p class="notice" id="shop-message" aria-live="polite">商品と数量を選んでください。</p>
-      <div class="shop-form">
-        <label class="field">
-          <span>商品</span>
-          <select id="shop-item"></select>
-        </label>
-        <label class="field">
-          <span>数量</span>
-          <input id="shop-quantity" type="number" inputmode="numeric" min="1" max="99" step="1" value="1" />
-        </label>
-      </div>
-      <div class="shop-actions">
-        <button id="shop-confirm">取引を確定</button>
-        <button id="shop-cancel" class="secondary">買い物をやめる</button>
-      </div>
-    </section>
-
-    <section class="card battle-card" id="battle-card" hidden>
-      <div class="section-heading">
-        <h2 id="battle-title">Battle</h2>
-        <span class="pill" id="turn">Turn 1</span>
-      </div>
-      <div class="arena">
-        <article class="combatant foe" id="foe-combatant">
-          <div class="pokemon-name"><strong id="foe-name">PIKACHU</strong><span id="foe-level">Lv.5</span></div>
-          <div class="hp-track" aria-label="foe HP"><span id="foe-hp-bar"></span></div>
-          <small id="foe-hp">20 / 20</small>
-          <div class="text-mon" aria-hidden="true">◆</div>
-        </article>
-        <article class="combatant player" id="player-combatant">
-          <div class="text-mon" aria-hidden="true">●</div>
-          <div class="pokemon-name"><strong id="player-name">EEVEE</strong><span id="player-level">Lv.5</span></div>
-          <div class="hp-track" aria-label="player HP"><span id="player-hp-bar"></span></div>
-          <small id="player-hp">20 / 20</small>
-        </article>
-      </div>
-      <p class="notice" id="battle-message" aria-live="polite">技を選んでください。</p>
-      <div class="move-grid" id="moves"></div>
-      <div class="battle-actions">
-        <button id="capture" class="capture">モンスターボール</button>
-        <button id="flee" class="secondary">にげる</button>
-        <button id="return-board" class="secondary" hidden>Day Boardへ戻る</button>
-      </div>
-    </section>
-
-    <section class="card">
-      <h2>Operation log</h2>
-      <ol id="log" class="log"></ol>
-    </section>
+    <nav class="run-controls save-actions" aria-label="ラン操作"><button id="new-run" class="secondary">新規</button><button id="continue-run" class="secondary">つづき</button><button id="save-run">セーブ</button></nav>
+    <details class="debug-drawer"><summary>開発ログ</summary><p class="runtime-source">canonical browser integration / v0.9.108</p><ol id="log" class="log"></ol></details>
   </main>
-  <script type="importmap">
-    {
-      "imports": {
-        "./runtime/safari-playable-integration.js": "./runtime/safari-playable-integration-ai.js"
-      }
-    }
-  </script>
-  <script type="module" src="./preview.js"></script>
-  <script type="module" src="./party-panel-bridge.js"></script>
-  <script type="module" src="./storage-panel-bridge.js"></script>
-  <script type="module" src="./party-storage-controls-bridge.js"></script>
-  <script type="module" src="./species-form-metadata-bridge.js"></script>
-  <script type="module" src="./species-sprite-atlas-bridge.js"></script>
+  <script type="importmap">{"imports":{"./runtime/safari-playable-integration.js":"./runtime/safari-playable-integration-ai.js"}}</script>
+  <script type="module" src="./preview.js"></script><script type="module" src="./battle-sprite-bridge.js"></script><script type="module" src="./party-panel-bridge.js"></script><script type="module" src="./storage-panel-bridge.js"></script><script type="module" src="./party-storage-controls-bridge.js"></script><script type="module" src="./species-form-metadata-bridge.js"></script><script type="module" src="./species-sprite-atlas-bridge.js"></script>
 </body>
 </html>
