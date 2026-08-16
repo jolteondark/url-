@@ -2,6 +2,20 @@ import CATALOG from "./generated/canonical-shop-catalog-data.js";
 
 export const CANONICAL_SHOP_CATALOG = CATALOG;
 export const CANONICAL_SHOP_METADATA = Object.freeze({ ...CATALOG.metadata });
+export const CANONICAL_BOARD_SHOP_ORDER = Object.freeze([
+  "friendly_shop",
+  "ball_merchant",
+  "evolution_shop",
+  "tm_merchant",
+  "tr_merchant",
+  "mint_merchant",
+  "type_boost",
+  "power",
+  "defense",
+  "accuracy",
+  "weather",
+  "switching",
+]);
 
 function unique(values) {
   return [...new Set(values)];
@@ -20,7 +34,8 @@ function selection(pool, count, indices = []) {
 }
 
 export function resolveCanonicalBoardShopType(roll) {
-  const entries = Object.entries(CATALOG.boardShops);
+  const entries = CANONICAL_BOARD_SHOP_ORDER.map((id) => [id, CATALOG.boardShops[id]]);
+  if (entries.some(([, rule]) => !rule)) throw new Error("canonical board shop order/catalog mismatch");
   const total = entries.reduce((sum, [, rule]) => sum + Number(rule.weight), 0);
   if (!Number.isInteger(roll)) throw new TypeError("shop roll must be an integer");
   let remaining = ((roll % total) + total) % total;
