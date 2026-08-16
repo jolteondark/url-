@@ -32,6 +32,14 @@ function pips(count,limit=6){
   return fragment;
 }
 
+function renderPips(node,count){
+  if(!node)return;
+  const key=String(count);
+  if(node.dataset.count===key)return;
+  node.dataset.count=key;
+  node.replaceChildren(pips(count));
+}
+
 function ensureBattleChrome(){
   const card=byId("battle-card");
   if(!card)return;
@@ -60,33 +68,35 @@ function renderBattleChrome(){
   const owner=byId("battle-owner-name");
   const kicker=byId("battle-owner-kicker");
   if(/Trainer|Bounty/i.test(title)){
-    if(owner)owner.textContent=trainer??"トレーナー";
-    if(kicker)kicker.textContent=/Bounty/i.test(title)?"BOUNTY":"TRAINER";
+    const ownerText=trainer??"トレーナー";
+    if(owner&&owner.textContent!==ownerText)owner.textContent=ownerText;
+    const kickerText=/Bounty/i.test(title)?"BOUNTY":"TRAINER";
+    if(kicker&&kicker.textContent!==kickerText)kicker.textContent=kickerText;
   }else{
-    if(owner)owner.textContent="野生ポケモン";
-    if(kicker)kicker.textContent="WILD";
+    if(owner&&owner.textContent!=="野生ポケモン")owner.textContent="野生ポケモン";
+    if(kicker&&kicker.textContent!=="WILD")kicker.textContent="WILD";
     delete card.dataset.ownerName;
   }
-  const playerPips=byId("player-roster-pips");
-  const foePips=byId("foe-roster-pips");
-  if(playerPips)playerPips.replaceChildren(pips(partyCount()));
-  if(foePips)foePips.replaceChildren(pips(1));
+  renderPips(byId("player-roster-pips"),partyCount());
+  renderPips(byId("foe-roster-pips"),1);
   const completed=/Result/i.test(byId("turn")?.textContent??"");
   card.classList.toggle("battle-complete",completed);
 }
 
 function decorateParty(){
   document.querySelectorAll("#party-detail-grid .party-slot:not(.empty)").forEach((slot,index)=>{
-    slot.dataset.partyIndex=String(index+1);
+    const partyIndex=String(index+1);
+    if(slot.dataset.partyIndex!==partyIndex)slot.dataset.partyIndex=partyIndex;
     const hp=slot.querySelector(".hp-track span");
     const value=Math.max(0,Math.min(100,parseFloat(hp?.style.width)||0));
-    slot.dataset.hpTone=value<=20?"danger":value<=50?"warn":"safe";
+    const tone=value<=20?"danger":value<=50?"warn":"safe";
+    if(slot.dataset.hpTone!==tone)slot.dataset.hpTone=tone;
     slot.querySelectorAll(".party-moves li span:first-child").forEach((node)=>{
       const id=node.dataset.moveId||node.textContent?.trim()||"";
       if(!id)return;
       node.dataset.moveId=id;
       const label=SAFARI_MOVE_LABELS[id];
-      if(label){node.textContent=label;node.title=id}
+      if(label&&node.textContent!==label){node.textContent=label;node.title=id}
     });
   });
 }
@@ -99,10 +109,11 @@ function decorateBag(){
     if(!id)return;
     slot.dataset.itemId=id;
     const master=SAFARI_SHOP_ITEM_MASTERS[id];
-    if(master){strong.textContent=master.label;strong.title=id}
+    if(master&&strong.textContent!==master.label){strong.textContent=master.label;strong.title=id}
     let meta=slot.querySelector(".bag-item-meta");
     if(!meta){meta=document.createElement("small");meta.className="bag-item-meta";strong.insertAdjacentElement("afterend",meta)}
-    meta.textContent=master?.pocket??"ITEM";
+    const metaText=master?.pocket??"ITEM";
+    if(meta.textContent!==metaText)meta.textContent=metaText;
   });
 }
 
