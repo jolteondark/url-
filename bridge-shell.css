@@ -1,4 +1,4 @@
-@import url("./game-presentation.css");
+@import url("./battle-core-safety.css");
 .card{position:relative;margin:12px 0;padding:14px;border:1px solid #29445a;border-radius:18px;background:linear-gradient(165deg,rgba(17,34,47,.97),rgba(9,21,31,.97));box-shadow:0 14px 34px rgba(0,0,0,.22)}
 .section-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.section-heading h2{font-size:1rem}.pill{display:inline-flex;align-items:center;min-height:27px;border:1px solid #3d627b;border-radius:999px;padding:4px 9px;color:#c9e2ee;background:#102535;font-size:.68rem;font-weight:800}
 .party-detail-card,.storage-detail-card{margin-top:13px}.party-detail-card::before,.storage-detail-card::before{display:block;margin-bottom:3px;color:#75b6c6;font-size:.6rem;font-weight:900;letter-spacing:.12em}.party-detail-card::before{content:"ROSTER"}.storage-detail-card::before{content:"STORAGE"}
