@@ -14,7 +14,7 @@ function speedOf(pokemon) {
   return Number.isFinite(value) ? value : 0;
 }
 
-export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed() } = {}) {
+export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), randomRoll = undefined } = {}) {
   const state = runtime?.variables?.mapless;
   const battle = state?.battle;
   if (!state || !battle || battle.completed) throw new Error("active battle is required");
@@ -41,6 +41,7 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed() } 
     trappedByOpponentAbility: false,
     trappedByOpponentItem: false,
     runRandomSeed,
+    randomRoll,
   });
   battle.run_command = resolved.runCommand;
 
