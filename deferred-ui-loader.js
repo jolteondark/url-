@@ -1,66 +1,90 @@
-const OPTIONAL_UI_STYLES = [
-  "./game-menu.css",
-  "./battle-presentation.css",
-  "./game-presentation.css",
-  "./event-presentation.css",
-  "./terminal-wild-presentation.css",
-  "./shop-touch-presentation.css",
-  "./trainer-battle-presentation.css",
-];
+const loadedStyles = new Set();
+const loadedModules = new Map();
 
-const OPTIONAL_UI_MODULES = [
-  "./game-presentation.js",
-  "./camp-presentation.js",
-  "./battle-sprite-bridge.js",
-  "./game-menu-bridge.js",
-  "./party-panel-bridge.js",
-  "./storage-panel-bridge.js",
-  "./party-storage-controls-bridge.js",
-  "./species-form-metadata-bridge.js",
-  "./species-sprite-atlas-bridge.js",
-  "./canonical-battle-sprite-bridge.js",
-  "./terminal-wild-presentation.js",
-  "./shop-touch-presentation.js",
-  "./trainer-battle-presentation.js",
-];
+function loadStyle(href) {
+  if (loadedStyles.has(href)) return;
+  loadedStyles.add(href);
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = href;
+  link.dataset.maplessDeferredStyle = href;
+  document.head.append(link);
+}
 
-let started = false;
+function loadModule(path) {
+  if (loadedModules.has(path)) return loadedModules.get(path);
+  const promise = import(path).catch((error) => {
+    console.error(`[Mapless] optional UI failed: ${path}`, error);
+  });
+  loadedModules.set(path, promise);
+  return promise;
+}
 
-function loadStyles() {
-  for (const href of OPTIONAL_UI_STYLES) {
-    if (document.querySelector(`link[data-mapless-deferred-style="${href}"]`)) continue;
-    const link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = href;
-    link.dataset.maplessDeferredStyle = href;
-    document.head.append(link);
+async function loadBoardPresentation() {
+  loadStyle("./game-presentation.css");
+  loadStyle("./event-presentation.css");
+  await Promise.all([
+    loadModule("./game-presentation.js"),
+    loadModule("./camp-presentation.js"),
+  ]);
+}
+
+async function loadBattleUi() {
+  loadStyle("./battle-presentation.css");
+  loadStyle("./terminal-wild-presentation.css");
+  loadStyle("./trainer-battle-presentation.css");
+  await Promise.all([
+    loadModule("./battle-sprite-bridge.js"),
+    loadModule("./canonical-battle-sprite-bridge.js"),
+    loadModule("./terminal-wild-presentation.js"),
+    loadModule("./trainer-battle-presentation.js"),
+  ]);
+}
+
+async function loadShopUi() {
+  loadStyle("./shop-touch-presentation.css");
+  await loadModule("./shop-touch-presentation.js");
+}
+
+async function loadMenuUi() {
+  loadStyle("./game-menu.css");
+  await Promise.all([
+    loadModule("./game-menu-bridge.js"),
+    loadModule("./party-panel-bridge.js"),
+    loadModule("./storage-panel-bridge.js"),
+    loadModule("./party-storage-controls-bridge.js"),
+    loadModule("./species-form-metadata-bridge.js"),
+    loadModule("./species-sprite-atlas-bridge.js"),
+  ]);
+}
+
+function sceneIsVisible(id) {
+  const node = document.getElementById(id);
+  return Boolean(node && !node.hidden);
+}
+
+function syncSceneBundles() {
+  if (sceneIsVisible("battle-card")) loadBattleUi();
+  if (sceneIsVisible("shop-card")) loadShopUi();
+}
+
+document.addEventListener("click", (event) => {
+  if (event.target.closest("#menu-party,#menu-bag,#menu-box")) {
+    loadMenuUi();
+    return;
   }
-}
-
-async function loadOptionalUi() {
-  if (started) return;
-  started = true;
-  loadStyles();
-  for (const modulePath of OPTIONAL_UI_MODULES) {
-    try {
-      await import(modulePath);
-      await new Promise((resolve) => window.setTimeout(resolve, 0));
-    } catch (error) {
-      console.error(`[Mapless] optional UI failed: ${modulePath}`, error);
-    }
+  if (event.target.closest("#board button[data-board-index]")) {
+    loadBoardPresentation();
   }
+}, { passive: true });
+
+for (const id of ["battle-card", "shop-card"]) {
+  const node = document.getElementById(id);
+  if (!node) continue;
+  new MutationObserver(syncSceneBundles).observe(node, {
+    attributes: true,
+    attributeFilter: ["hidden"],
+  });
 }
 
-function scheduleOptionalUi() {
-  const start = () => {
-    if ("requestIdleCallback" in window) {
-      window.requestIdleCallback(() => loadOptionalUi(), { timeout: 1500 });
-    } else {
-      window.setTimeout(loadOptionalUi, 400);
-    }
-  };
-  if (document.readyState === "complete") start();
-  else window.addEventListener("load", start, { once: true });
-}
-
-scheduleOptionalUi();
+syncSceneBundles();
