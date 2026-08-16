@@ -16,8 +16,8 @@
     <header class="hero">
       <p class="eyebrow">Mapless v0.9.108 browser integration</p>
       <h1>Safari Playable</h1>
-      <p class="muted">Day Board・Village Bounty・Shop/Money・Battle・EXP・捕獲・Party/Storage・Bag・Persistenceを既存Web domainから接続した縦線です。</p>
-      <p class="muted">Runtime: private main ecac588</p>
+      <p class="muted">Day Board・Village Bounty・canonical fixed shops・Shop/Money・Battle・EXP・捕獲・Party/Storage・Bag・Persistenceを既存Web domainから接続した縦線です。</p>
+      <p class="muted">Runtime source: private main 9907f853</p>
     </header>
 
     <section class="card status-card" aria-live="polite">
@@ -48,10 +48,25 @@
 
     <section class="card village-card" id="village-card" hidden>
       <div class="section-heading">
-        <h2>村・手配掲示板</h2>
+        <h2>村</h2>
         <span class="pill" id="village-actions">行動 3 / 3</span>
       </div>
-      <p class="notice" id="bounty-message" aria-live="polite">依頼を確認してください。</p>
+      <p class="notice" id="bounty-message" aria-live="polite">施設または依頼を選んでください。</p>
+      <div class="shop-form">
+        <label class="field">
+          <span>固定ショップ</span>
+          <select id="village-shop-select">
+            <option value="normal_shop">フレンドリィショップ</option>
+            <option value="ball_shop">ボールショップ</option>
+            <option value="held_shop">持ち物ショップ</option>
+            <option value="tm_shop">TMショップ</option>
+            <option value="tr_shop">TRショップ</option>
+            <option value="evolution_shop">進化ショップ</option>
+            <option value="mint_shop">ミントショップ</option>
+          </select>
+        </label>
+        <button id="village-shop-open">商品を見る</button>
+      </div>
       <article class="bounty-quest">
         <div>
           <span class="quest-label">討伐対象</span>
@@ -71,7 +86,7 @@
 
     <section class="card shop-card" id="shop-card" hidden>
       <div class="section-heading">
-        <h2>フレンドリィショップ</h2>
+        <h2 id="shop-title">ショップ</h2>
         <span class="pill" id="shop-money">0円</span>
       </div>
       <p class="notice" id="shop-message" aria-live="polite">商品と数量を選んでください。</p>
@@ -86,8 +101,8 @@
         </label>
       </div>
       <div class="shop-actions">
-        <button id="shop-confirm">購入を確定</button>
-        <button id="shop-cancel" class="secondary">買わずに戻る</button>
+        <button id="shop-confirm">取引を確定</button>
+        <button id="shop-cancel" class="secondary">買い物をやめる</button>
       </div>
     </section>
 

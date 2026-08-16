@@ -15,15 +15,25 @@ function unchanged(input, result) {
   };
 }
 
+function hasResolvedItemAndPrice(offer) {
+  const item = offer?.item;
+  const unitPrice = Number(offer?.unitPrice);
+  return typeof item === 'string' && item.length > 0 && Number.isInteger(unitPrice) && unitPrice >= 0;
+}
+
 // Facilities/Game Data own stock, conditions, sale eligibility, price and any
 // resolved purchase metadata (for example Premier Ball bonus eligibility).
-// This owner commits that resolved offer through the existing Bag/Economy
-// transaction family so Safari never becomes a parallel mart implementation.
+// This owner commits only a complete resolved offer through the existing
+// Bag/Economy transaction family so Safari never becomes a parallel mart
+// implementation and unresolved data cannot mutate Bag or Money.
 export function resolveResolvedShopTransaction(input = {}) {
   const offer = input.offer || {};
   if (offer.conditionPassed !== true) return unchanged(input, 'unavailable');
 
   const kind = String(offer.kind || '');
+  if (!['buy', 'sell'].includes(kind)) return unchanged(input, 'unsupported_transaction');
+  if (!hasResolvedItemAndPrice(offer)) return unchanged(input, 'unresolved_offer');
+
   const transaction = {
     ...offer,
     qty: input.qty ?? offer.qty,
@@ -37,20 +47,18 @@ export function resolveResolvedShopTransaction(input = {}) {
   let result;
   if (kind === 'buy') {
     result = resolveBagEconomyTransaction({ ...transaction, kind: 'purchase' });
-  } else if (kind === 'sell') {
+  } else {
     result = resolveBagEconomyTransaction({
       ...transaction,
       kind: 'sale',
       canSell: offer.canSell === true,
     });
-  } else {
-    return unchanged(input, 'unsupported_transaction');
   }
 
   return {
     ...result,
     kind,
-    item: offer.item ?? null,
+    item: offer.item,
     unitPrice: offer.unitPrice,
   };
 }

@@ -21,6 +21,11 @@ import {
   startSafariVillageBounty,
 } from "./runtime/safari-playable-integration.js";
 import { attemptSafariFlee } from "./runtime/safari-flee-command.js";
+import {
+  leaveSafariVillageFixedShop,
+  openSafariVillageFixedShop,
+  purchaseSafariVillageFixedShopItem,
+} from "./runtime/safari-village-fixed-shop-integration.js";
 
 let runtime = createSafariPlayableRuntime();
 let busy = false;
@@ -102,6 +107,7 @@ function renderShop() {
   const card = byId("shop-card");
   card.hidden = !shop;
   if (!shop) return;
+  if (byId("shop-title")) byId("shop-title").textContent = shop.facilityId ?? "ショップ";
   byId("shop-money").textContent = moneyFormat.format(shop.money) + "円";
   const select = byId("shop-item");
   const selected = select.value;
@@ -126,6 +132,7 @@ function renderVillage() {
   const card = byId("village-card");
   card.hidden = !village.active || Boolean(state.battle);
   if (card.hidden) return;
+  const shopOpen = Boolean(state.shop);
   byId("village-actions").textContent = `行動 ${village.actionsLeft} / ${village.actionLimit}`;
   byId("bounty-message").textContent = state.notice;
   const quest = village.quest;
@@ -135,10 +142,12 @@ function renderVillage() {
   byId("bounty-level").textContent = quest ? `Lv.${quest.level}` : "-";
   byId("bounty-reward").textContent = quest ? `賞金 ${moneyFormat.format(quest.reward)}円` : "-";
   byId("bounty-accept").hidden = village.hasActiveBounty;
-  byId("bounty-accept").disabled = busy || !quest || village.boardLocked || village.actionsLeft <= 0;
+  byId("bounty-accept").disabled = busy || shopOpen || !quest || village.boardLocked || village.actionsLeft <= 0;
   byId("bounty-depart").hidden = !village.hasActiveBounty;
-  byId("bounty-depart").disabled = busy || !village.hasActiveBounty || village.actionsLeft <= 0 || village.ablePokemonCount <= 0;
-  byId("leave-village").disabled = busy;
+  byId("bounty-depart").disabled = busy || shopOpen || !village.hasActiveBounty || village.actionsLeft <= 0 || village.ablePokemonCount <= 0;
+  if (byId("village-shop-select")) byId("village-shop-select").disabled = busy || shopOpen;
+  if (byId("village-shop-open")) byId("village-shop-open").disabled = busy || shopOpen;
+  byId("leave-village").disabled = busy || shopOpen;
 }
 
 function renderMoves(player, battle) {
@@ -289,6 +298,22 @@ byId("enter-village").addEventListener("click", () => {
   byId("village-card").scrollIntoView({ behavior: "smooth", block: "start" });
 });
 
+byId("village-shop-open")?.addEventListener("click", () => {
+  if (busy) return;
+  busy = true;
+  render();
+  try {
+    const result = openSafariVillageFixedShop(runtime, byId("village-shop-select").value);
+    note("Village shop: " + result.shop.facility_id);
+  } catch (error) {
+    note("Village shop error: " + (error?.message ?? error));
+  } finally {
+    busy = false;
+    render();
+  }
+  if (mapless().shop) byId("shop-card").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+
 byId("bounty-accept").addEventListener("click", () => {
   if (busy) return;
   busy = true;
@@ -337,34 +362,35 @@ byId("shop-confirm").addEventListener("click", () => {
   if (busy) return;
   const itemId = byId("shop-item").value;
   const quantity = Number(byId("shop-quantity").value);
+  const villageShop = Boolean(mapless().shop?.village_fixed_shop);
   busy = true;
   render();
   try {
-    const result = purchaseSafariShopItem(runtime, { itemId, quantity, confirmed: true });
+    const result = villageShop
+      ? purchaseSafariVillageFixedShopItem(runtime, { itemId, quantity })
+      : purchaseSafariShopItem(runtime, { itemId, quantity, confirmed: true });
     note("Shop transaction: " + result.transaction_result);
-    if (result.result && result.operations.some((operation) => operation.op === "request_save")) {
-      const saved = saveSafariPlayableRun(window.localStorage, runtime);
-      note("Persistence auto-save: " + saved.key);
-    }
+    autoSaveIfRequested(result, "Shop transaction auto-save");
   } catch (error) {
     note("Shop error: " + (error?.message ?? error));
   } finally {
     busy = false;
     render();
   }
-  if (!mapless().shop) byId("board-card").scrollIntoView({ behavior: "smooth", block: "start" });
+  if (!mapless().shop) byId(villageShop ? "village-card" : "board-card").scrollIntoView({ behavior: "smooth", block: "start" });
 });
 
 byId("shop-cancel").addEventListener("click", () => {
   if (busy) return;
+  const villageShop = Boolean(mapless().shop?.village_fixed_shop);
   try {
-    const result = leaveSafariShop(runtime);
+    const result = villageShop ? leaveSafariVillageFixedShop(runtime) : leaveSafariShop(runtime);
     note("Shop: " + result.result);
   } catch (error) {
     note("Shop return error: " + (error?.message ?? error));
   }
   render();
-  byId("board-card").scrollIntoView({ behavior: "smooth", block: "start" });
+  byId(villageShop ? "village-card" : "board-card").scrollIntoView({ behavior: "smooth", block: "start" });
 });
 
 byId("moves").addEventListener("click", async (event) => {
