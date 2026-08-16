@@ -36,6 +36,8 @@ jobs:
           node --check runtime/mapless-dynamic-trainer-generator.js
           node --check runtime/safari-playable-integration-core.js
           node --check runtime/safari-playable-integration.js
+          node --check runtime/generated/canonical-shop-catalog-data.js
+          node --check runtime/canonical-shop-catalog.js
           node --check runtime/bag-economy-resolved-shop-transaction.js
           node --check runtime/facility-reward-return.js
           node --check runtime/facility-reward-bag-money-integration.js
@@ -45,6 +47,7 @@ jobs:
           node tests/facility-reward-smoke.mjs
           node tests/trainer-party-handoff-smoke.mjs
           node tests/resolved-shop-transaction-smoke.mjs
+          node tests/canonical-shop-catalog-smoke.mjs
 
   deploy:
     needs: validate
