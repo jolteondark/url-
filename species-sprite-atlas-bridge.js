@@ -1,6 +1,6 @@
 import "./party-storage-controls-bridge.js";
 import { stampSafariSpeciesFormMetadata } from "./species-form-metadata-bridge.js";
-import { applySafariSpeciesSprite } from "./runtime/safari-species-sprite-atlas.js";
+import { applySafariSpeciesSpriteWithManifest } from "./runtime/safari-species-sprite-manifest-resolver.js";
 
 let scheduled = false;
 
@@ -40,8 +40,7 @@ function ensureSprite(root, className, species, size, form = 0) {
     sprite.setAttribute("aria-hidden", "true");
     root.prepend(sprite);
   }
-  sprite.dataset.spriteForm = String(form);
-  const ok = applySafariSpeciesSprite(sprite, species, { size });
+  const ok = applySafariSpeciesSpriteWithManifest(sprite, species, { form, family: "front", size });
   sprite.hidden = !ok;
   return ok;
 }
