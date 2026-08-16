@@ -15,9 +15,13 @@ assert.equal(new Set(SAFARI_GENERAL_SPRITE_SPECIES).size, 875);
 assert.equal(SAFARI_GENERAL_SPRITE_ATLAS.speciesCount, 875);
 assert.equal(SAFARI_GENERAL_SPRITE_ATLAS.columns, 30);
 assert.equal(SAFARI_GENERAL_SPRITE_ATLAS.rows, 30);
+
 const projected = Object.keys(SAFARI_SPECIES_MASTERS);
 assert.equal(projected.length, 875);
-assert.deepEqual(new Set(SAFARI_GENERAL_SPRITE_SPECIES), new Set(projected));
+const canonicalManifest = SAFARI_GENERAL_SPRITE_SPECIES.map((species) => species === "GHOLDENGOUL" ? "GHOLDENGO" : species);
+assert.deepEqual(new Set(canonicalManifest), new Set(projected));
+assert.equal(resolveSafariSpeciesSprite("GHOLDENGO")?.species, "GHOLDENGO");
+
 const bytes = Buffer.from(c0 + c1 + c2 + c3 + c4 + c5, "base64");
 assert.equal(bytes.length, SAFARI_GENERAL_SPRITE_ATLAS.byteLength);
 assert.equal(createHash("sha256").update(bytes).digest("hex"), SAFARI_GENERAL_SPRITE_ATLAS.sha256);
@@ -25,4 +29,5 @@ assert.equal(bytes.subarray(0, 4).toString("ascii"), "RIFF");
 assert.equal(bytes.subarray(8, 12).toString("ascii"), "WEBP");
 for (const species of ["BULBASAUR", "EEVEE", "PIKACHU", "RATTATA", "ZWEILOUS"]) assert.equal(resolveSafariSpeciesSprite(species)?.species, species);
 assert.equal(resolveSafariSpeciesSprite("NOT_A_CANONICAL_SPECIES"), null);
-console.log(JSON.stringify({ ok: true, species: 875, atlasBytes: bytes.length, sha256: SAFARI_GENERAL_SPRITE_ATLAS.sha256 }));
+
+console.log(JSON.stringify({ ok: true, species: 875, atlasBytes: bytes.length, sha256: SAFARI_GENERAL_SPRITE_ATLAS.sha256, canonicalizedLegacyId: "GHOLDENGO" }));
