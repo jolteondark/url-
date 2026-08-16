@@ -32,6 +32,8 @@ jobs:
           node --check storage-panel-bridge.js
           node --check species-sprite-atlas-bridge.js
           node --check runtime/browser-mapless-wild-encounter-runtime.js
+          node --check runtime/general-wild-encounter-resolver.js
+          node --check runtime/safari-general-encounter-runtime.js
           node --check runtime/browser-battle-round-runtime.js
           node --check runtime/battle-core-try-use-move.js
           node --check runtime/safari-playable-data.js
@@ -56,6 +58,8 @@ jobs:
           node tests/canonical-shop-catalog-smoke.mjs
           node tests/species-sprite-atlas-smoke.mjs
           node tests/seeded-trainer-ruby-rng-smoke.mjs
+          node tests/canonical-general-wild-owner-smoke.mjs
+          python3 tests/canonical_general_wild_owner_parity.py
 
   deploy:
     needs: validate

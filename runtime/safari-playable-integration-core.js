@@ -18,6 +18,7 @@ function wildTypeFor(day, ordinal) { return SAFARI_GENERAL_TYPES[((Math.max(1, N
 function assignFullWildTypes(state) { let ordinal = 0; state.board_events = state.board_events.map((event) => event.kind === "wild" ? { ...event, type: wildTypeFor(state.day, ordinal++) } : event); return state; }
 function randomUint32() { if (globalThis.crypto && typeof globalThis.crypto.getRandomValues === "function") { const out = new Uint32Array(1); globalThis.crypto.getRandomValues(out); return out[0] >>> 0; } return Math.floor(Math.random() * 0x100000000) >>> 0; }
 function randomBelow(max) { const limit = Math.floor(0x100000000 / max) * max; while (true) { const value = randomUint32(); if (value < limit) return value % max; } }
+function unitFromUint32(value) { return (Number(value) >>> 0) / 0x100000000; }
 function ensureTrainerSeeds(state) {
   const used = new Set();
   for (const event of state.board_events ?? []) if (event?.kind === "trainer" && Number.isInteger(event.trainer_seed) && event.trainer_seed >= 0) used.add(event.trainer_seed);
@@ -44,7 +45,10 @@ function setBattle(runtime, index, kind, opponent, operations, trainer = null, e
   state.last_operations = lastOperations;
 }
 function startWild(runtime, event, index, operations) {
-  const state = stateOf(runtime); const generated = resolveSafariGeneralEncounter({ day: state.day, requiredType: event.type, enemyRank: "NORMAL", extraModifier: 0, speciesIndex: nextSafariEncounterSpeciesIndex(state, { day: state.day, boardIndex: index }), varianceIndex: 1 });
+  const state = stateOf(runtime);
+  const speciesRoll = unitFromUint32(nextSafariEncounterSpeciesIndex(state, { day: state.day, boardIndex: index }));
+  const varianceRoll = unitFromUint32(nextSafariEncounterSpeciesIndex(state, { day: state.day, boardIndex: index }));
+  const generated = resolveSafariGeneralEncounter({ day: state.day, requiredType: event.type, enemyRank: "NORMAL", extraModifier: 0, speciesRoll, varianceRoll });
   const encounterResolution = resolveBrowserMaplessWildEncounter({ day: state.day, event, boardIndex: index, generated, variance: generated.variance, minLevel: generated.min_level, maxLevel: generated.max_level, gameTempPresent: true }); const encounter = encounterResolution.encounter;
   const opponent = materializePokemon({ species: encounter.species_id, level: encounter.level, status: "NONE", moves: encounter.move_ids }); setBattle(runtime, index, "wild", opponent, operations, null, encounterResolution, generated); state.notice = `野生の${encounter.species_name}が現れた！`;
 }

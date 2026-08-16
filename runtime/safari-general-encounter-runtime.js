@@ -1,4 +1,5 @@
 import { resolveGeneralTypeEncounterRuntime } from "./general-type-encounter-runtime.js";
+import { resolveGeneralWildEncounter } from "./general-wild-encounter-resolver.js";
 import {
   buildGeneralEncounterSpeciesPool,
   projectGeneralEncounterSpeciesPools,
@@ -26,19 +27,50 @@ export function resolveSafariGeneralEncounter({
   extraModifier = 0,
   speciesIndex = 0,
   varianceIndex = 1,
+  speciesRoll = null,
+  varianceRoll = null,
 } = {}) {
   if (!SAFARI_GENERAL_TYPES.includes(requiredType)) {
     throw new RangeError(`unknown General Encounter type: ${requiredType}`);
   }
-  const resolved = resolveGeneralTypeEncounterRuntime({
-    day,
-    requiredType,
-    enemyRank,
-    extraModifier,
-    speciesIndex,
-    varianceIndex,
-    useVariance: true,
-  });
+
+  let resolved;
+  if (speciesRoll != null || varianceRoll != null) {
+    if (speciesRoll == null || varianceRoll == null) throw new Error("speciesRoll and varianceRoll must be supplied together");
+    const owner = resolveGeneralWildEncounter({ day, requiredType, enemyRank, extraModifier, speciesRoll, varianceRoll });
+    resolved = {
+      required_type: owner.requiredType,
+      species_id: owner.speciesId,
+      base_level: owner.scaling.baseLevel,
+      variance: owner.levelVariance,
+      level: owner.level,
+      min_level: projectGeneralEncounterRules().enemyScaling.minLevel,
+      max_level: projectGeneralEncounterRules().enemyScaling.maxLevel,
+      selection: {
+        owner_schema: owner.schema,
+        enemy_rank: owner.scaling.enemyRank,
+        rank_modifier: owner.scaling.rankModifier,
+        day_scaling: owner.scaling.dayScaling,
+        effective_scaling: owner.scaling.effectiveScaling,
+        allowed_stages: [...owner.scaling.allowedStages],
+        pool_size: owner.poolSize,
+        species_index: owner.speciesIndex,
+        variance_index: owner.varianceIndex,
+      },
+    };
+  } else {
+    // Compatibility path for deterministic fixtures that still inject resolved indexes.
+    resolved = resolveGeneralTypeEncounterRuntime({
+      day,
+      requiredType,
+      enemyRank,
+      extraModifier,
+      speciesIndex,
+      varianceIndex,
+      useVariance: true,
+    });
+  }
+
   const speciesMaster = SAFARI_GENERAL_SPECIES_MASTERS[resolved.species_id];
   if (!speciesMaster) throw new RangeError(`missing Safari General species master: ${resolved.species_id}`);
   const moveIds = safariCanonicalResetMoves(resolved.species_id, resolved.level);
