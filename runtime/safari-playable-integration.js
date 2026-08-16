@@ -1,6 +1,8 @@
 import * as base from "./safari-playable-integration-legacy.js";
 import { hydrateSafariNormalEventCells } from "./mapless-normal-event-v108-preparation.js";
 import { resolveMachineGachaBagEconomyIntegration } from "./bag-economy-machine-gacha-integration.js";
+import { resolveBrowserOpponentMoveChoiceCanonical } from "./battle-core-browser-opponent-move-choice.js";
+import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
 
 export * from "./safari-playable-integration-legacy.js";
 
@@ -23,6 +25,99 @@ export function loadSafariPlayableRun(storage, currentRuntime = createSafariPlay
   const loaded = base.loadSafariPlayableRun(storage, currentRuntime);
   if (loaded.found) hydrate(loaded.state);
   return loaded;
+}
+
+function moveId(move) {
+  return typeof move === "string" ? move : move?.id;
+}
+
+function opponentAiSeed(state, battle) {
+  const turn = Math.max(1, Math.trunc(Number(battle?.turn ?? 1)));
+  const ownerSeed = battle?.kind === "trainer"
+    ? Number(battle?.trainer_seed ?? 0)
+    : (Math.imul(Math.max(1, Math.trunc(Number(state?.day ?? 1))), 1_000_003) ^ Math.imul(Number(battle?.board_index ?? 0) + 1, 97_409));
+  return (Number(ownerSeed) ^ Math.imul(turn, 0x45d9f3b)) & 0x7fffffff;
+}
+
+function restoreMoveOrder(foe, originalIds) {
+  if (!foe || !Array.isArray(foe.moves)) return;
+  const buckets = new Map();
+  for (const move of foe.moves) {
+    const id = moveId(move);
+    const bucket = buckets.get(id) ?? [];
+    bucket.push(move);
+    buckets.set(id, bucket);
+  }
+  const restored = [];
+  for (const id of originalIds) {
+    const bucket = buckets.get(id);
+    if (bucket?.length) restored.push(bucket.shift());
+  }
+  for (const bucket of buckets.values()) restored.push(...bucket);
+  if (restored.length === foe.moves.length) foe.moves = restored;
+}
+
+function prepareOwnedOpponentMove(runtime) {
+  const state = stateOf(runtime);
+  const battle = state.battle;
+  if (!battle || battle.completed) return null;
+  const player = runtime.player?.party?.[0];
+  if (!player) throw new Error("active player Pokemon is required for Battle-owned opponent choice");
+  const originalMoves = [...(battle.foe?.moves ?? [])];
+  const originalIds = originalMoves.map(moveId);
+  const playerReserveCount = Math.max(0, (runtime.player?.party ?? []).filter((pokemon) => Number(pokemon?.hp ?? 0) > 0).length - 1);
+  const foeReserveCount = battle.kind === "trainer" && Array.isArray(battle.trainer_party)
+    ? Math.max(0, battle.trainer_party.length - Number(battle.trainer_party_index ?? 0) - 1)
+    : 0;
+  const resolution = resolveBrowserOpponentMoveChoiceCanonical({
+    battleKind: battle.kind,
+    player,
+    foe: battle.foe,
+    moveMasters: SAFARI_MOVE_MASTERS,
+    aiRandomSeed: opponentAiSeed(state, battle),
+    trainerSkill: Number(battle.skill_level ?? 0),
+    trainerFlags: Array.isArray(battle.trainer_flags) ? battle.trainer_flags : [],
+    ownReserveCount: foeReserveCount,
+    foeReserveCount: playerReserveCount,
+    mechanicsGeneration: 9,
+    turnCount: Math.max(0, Number(battle.turn ?? 1) - 1),
+    canSwitchLax: false,
+  });
+  const selected = originalMoves[resolution.moveIndex];
+  if (!selected) throw new RangeError("Battle-owned opponent choice selected an invalid Safari move index");
+  battle.foe.moves = [selected, ...originalMoves.filter((_, index) => index !== resolution.moveIndex)];
+  return {
+    resolution,
+    selectedMoveId: moveId(selected),
+    originalIds,
+    battleKind: battle.kind,
+    trainerPartyIndex: battle.trainer_party_index,
+    foeSpecies: battle.foe.species,
+  };
+}
+
+export function resolveSafariBattleRound(runtime, selectedMoveId) {
+  const prepared = prepareOwnedOpponentMove(runtime);
+  const result = base.resolveSafariBattleRound(runtime, selectedMoveId);
+  if (!prepared) return result;
+  const battle = stateOf(runtime).battle;
+  if (battle
+    && battle.kind === prepared.battleKind
+    && battle.trainer_party_index === prepared.trainerPartyIndex
+    && battle.foe?.species === prepared.foeSpecies) {
+    restoreMoveOrder(battle.foe, prepared.originalIds);
+  }
+  return {
+    ...result,
+    opponentChoice: {
+      selectedMoveId: prepared.selectedMoveId,
+      command: prepared.resolution.command,
+      reason: prepared.resolution.reason,
+      choices: prepared.resolution.choices,
+      weightedChoices: prepared.resolution.weightedChoices,
+      randomRolls: prepared.resolution.randomRolls,
+    },
+  };
 }
 
 function commitMachineSnapshot(runtime, index, resolved, keepOpen) {
