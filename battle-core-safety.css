@@ -1,0 +1,7 @@
+.battle-scene{min-height:0!important}
+.battle-scene .arena{height:330px!important;min-height:0!important}
+.battle-scene .battle-command-panel{display:block!important;position:relative!important;visibility:visible!important;opacity:1!important;min-height:150px!important;transform:none!important}
+.battle-scene .battle-message{display:block!important;visibility:visible!important;opacity:1!important}
+.battle-scene .move-grid{display:grid!important;visibility:visible!important;opacity:1!important}
+.battle-scene .battle-actions{display:grid!important;visibility:visible!important;opacity:1!important}
+@media(max-width:520px){.battle-scene .arena{height:310px!important}.battle-scene .battle-command-panel{min-height:146px!important}}
