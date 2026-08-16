@@ -1,5 +1,3 @@
-import "./party-storage-controls-bridge.js";
-import { stampSafariSpeciesFormMetadata } from "./species-form-metadata-bridge.js";
 import { applySafariSpeciesSpriteWithManifest } from "./runtime/safari-species-sprite-manifest-resolver.js";
 
 let scheduled = false;
@@ -11,7 +9,8 @@ function ensureStyle() {
   style.textContent = `
     .atlas-battle-sprite{position:absolute;z-index:0;display:block;pointer-events:none;filter:drop-shadow(0 8px 7px rgba(0,0,0,.30))}
     .combatant.foe .atlas-battle-sprite{right:4px;bottom:-18px}
-    .combatant.player .atlas-battle-sprite{right:4px;top:28px;transform:scaleX(-1)}
+    .combatant.player .atlas-battle-sprite{right:4px;top:28px}
+    .combatant.player .atlas-battle-sprite[data-sprite-family="back"][data-sprite-exact-form-asset="false"]{transform:scaleX(-1)}
     .atlas-party-sprite,.atlas-storage-sprite{flex:0 0 auto;margin:2px 8px 4px 0;filter:drop-shadow(0 3px 3px rgba(0,0,0,.24))}
     .party-slot,.storage-slot{position:relative}
     .party-slot>.atlas-party-sprite,.storage-slot>.atlas-storage-sprite{float:left}
@@ -27,11 +26,11 @@ function speciesFromHeading(root, selector) {
 
 function speciesMetadata(root, selector) {
   const species = root?.dataset?.species || speciesFromHeading(root, selector);
-  const form = Number.isFinite(Number(root?.dataset?.form)) ? Number(root.dataset.form) : 0;
-  return { species, form };
+  const formValue = Number(root?.dataset?.form ?? 0);
+  return { species, form: Number.isFinite(formValue) ? formValue : 0 };
 }
 
-function ensureSprite(root, className, species, size, form = 0) {
+function ensureSprite(root, className, species, { size, form = 0, family = "front" }) {
   if (!root || !species) return false;
   let sprite = root.querySelector(`.${className}`);
   if (!sprite) {
@@ -40,22 +39,46 @@ function ensureSprite(root, className, species, size, form = 0) {
     sprite.setAttribute("aria-hidden", "true");
     root.prepend(sprite);
   }
-  const ok = applySafariSpeciesSpriteWithManifest(sprite, species, { form, family: "front", size });
-  sprite.hidden = !ok;
-  return ok;
+  try {
+    const ok = applySafariSpeciesSpriteWithManifest(sprite, species, { form, family, size });
+    sprite.hidden = !ok;
+    return ok;
+  } catch (error) {
+    console.error("Safari sprite render failed", { species, form, family, error });
+    sprite.hidden = true;
+    return false;
+  }
 }
 
 function renderBattle() {
   const battle = document.getElementById("battle-card");
   if (!battle || battle.hidden) return;
-  for (const side of ["player", "foe"]) {
-    const species = document.getElementById(`${side}-name`)?.textContent?.trim();
-    const combatant = document.getElementById(`${side}-combatant`);
-    if (!combatant || !species) continue;
-    const ok = ensureSprite(combatant, "atlas-battle-sprite", species, 108, Number(combatant.dataset.form ?? 0));
-    const fallback = combatant.querySelector(".text-mon");
+
+  const foe = document.getElementById("foe-combatant");
+  const foeSpecies = document.getElementById("foe-name")?.textContent?.trim();
+  if (foe && foeSpecies) {
+    const ok = ensureSprite(foe, "atlas-battle-sprite", foeSpecies, {
+      family: "front",
+      size: 108,
+      form: Number(foe.dataset.form ?? 0),
+    });
+    const fallback = foe.querySelector(".text-mon");
     if (fallback) fallback.hidden = ok;
-    const oldImage = combatant.querySelector(".battle-sprite-image");
+    const oldImage = foe.querySelector(".battle-sprite-image");
+    if (oldImage) oldImage.hidden = true;
+  }
+
+  const player = document.getElementById("player-combatant");
+  const playerSpecies = document.getElementById("player-name")?.textContent?.trim();
+  if (player && playerSpecies) {
+    const ok = ensureSprite(player, "atlas-battle-sprite", playerSpecies, {
+      family: "back",
+      size: 112,
+      form: Number(player.dataset.form ?? 0),
+    });
+    const fallback = player.querySelector(".text-mon");
+    if (fallback) fallback.hidden = ok;
+    const oldImage = player.querySelector(".battle-sprite-image");
     if (oldImage) oldImage.hidden = true;
   }
 }
@@ -63,21 +86,20 @@ function renderBattle() {
 function renderParty() {
   document.querySelectorAll("#party-detail-grid .party-slot:not(.empty)").forEach((slot) => {
     const { species, form } = speciesMetadata(slot, ".party-slot-head strong");
-    ensureSprite(slot, "atlas-party-sprite", species, 52, form);
+    ensureSprite(slot, "atlas-party-sprite", species, { family: "icon", size: 48, form });
   });
 }
 
 function renderStorage() {
   document.querySelectorAll("#storage-detail-boxes .storage-slot").forEach((slot) => {
     const { species, form } = speciesMetadata(slot, ".storage-slot-head strong");
-    ensureSprite(slot, "atlas-storage-sprite", species, 44, form);
+    ensureSprite(slot, "atlas-storage-sprite", species, { family: "icon", size: 44, form });
   });
 }
 
 function renderAll() {
   scheduled = false;
   ensureStyle();
-  stampSafariSpeciesFormMetadata();
   renderBattle();
   renderParty();
   renderStorage();
@@ -96,7 +118,7 @@ new MutationObserver(scheduleRender).observe(document.body, {
   childList: true,
   characterData: true,
   attributes: true,
-  attributeFilter: ["hidden"],
+  attributeFilter: ["hidden", "data-species", "data-form"],
 });
 window.addEventListener("pageshow", scheduleRender);
 window.addEventListener("storage", scheduleRender);
