@@ -1,4 +1,5 @@
 import { createSafariPlayableRuntime, loadSafariPlayableRun } from "./runtime/safari-playable-integration.js";
+import "./battle-menu-presentation.js";
 
 const byId=(id)=>document.getElementById(id);let active="party";const moneyFormat=new Intl.NumberFormat("ja-JP");
 function snapshot(){const fallback=createSafariPlayableRuntime();try{const loaded=loadSafariPlayableRun(window.localStorage,fallback);return loaded.found?loaded.state:fallback}catch(_){return fallback}}
