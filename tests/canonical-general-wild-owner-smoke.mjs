@@ -42,7 +42,7 @@ const expectedType = state.board_events[wildIndex].type;
 const result = activateSafariDayBoardCell(runtime, wildIndex);
 assert.equal(result.result, "dispatched");
 assert.equal(state.battle.kind, "wild");
-assert.equal(state.battle.encounter.required_type, expectedType);
+assert.equal(state.battle.encounter_request.required_type, expectedType);
 assert.equal(state.battle.general_selection.owner_schema, "mapless.general-wild-encounter.v1");
 assert.ok([0, 1, 2].includes(state.battle.general_selection.variance_index));
 assert.ok(state.battle.encounter.level >= 1 && state.battle.encounter.level <= 100);
