@@ -69,7 +69,10 @@ function render(){
   }
 }
 
-const observer=new MutationObserver(()=>queueMicrotask(render));
+const observer=new MutationObserver((mutations)=>{
+  const external=mutations.some((mutation)=>!mutation.target.closest?.("#trainer-battle-hud"));
+  if(external) queueMicrotask(render);
+});
 const root=byId("battle-card");
 if(root) observer.observe(root,{subtree:true,childList:true,attributes:true,characterData:true});
 window.addEventListener("pageshow",render);
