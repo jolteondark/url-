@@ -3,12 +3,19 @@ import { SAFARI_MOVE_LABELS, SAFARI_SHOP_ITEM_MASTERS } from "./runtime/safari-p
 const byId=(id)=>document.getElementById(id);
 let scheduled=false;
 
+function ensureStyles(){
+  if(document.querySelector('link[data-battle-menu-presentation]'))return;
+  const link=document.createElement("link");
+  link.rel="stylesheet";
+  link.href="./battle-menu-presentation.css";
+  link.dataset.battleMenuPresentation="true";
+  document.head.append(link);
+}
 function partyCount(){
   const text=byId("party")?.textContent??"0 / 6";
   const match=text.match(/(\d+)/);
   return match?Math.max(0,Math.min(6,Number(match[1]))):0;
 }
-
 function trainerName(){
   const card=byId("battle-card");
   if(!card)return null;
@@ -21,7 +28,6 @@ function trainerName(){
   if(match){card.dataset.ownerName=match[1];return match[1]}
   return "トレーナー";
 }
-
 function pips(count,limit=6){
   const fragment=document.createDocumentFragment();
   for(let index=0;index<limit;index+=1){
@@ -31,7 +37,6 @@ function pips(count,limit=6){
   }
   return fragment;
 }
-
 function renderPips(node,count){
   if(!node)return;
   const key=String(count);
@@ -39,7 +44,6 @@ function renderPips(node,count){
   node.dataset.count=key;
   node.replaceChildren(pips(count));
 }
-
 function ensureBattleChrome(){
   const card=byId("battle-card");
   if(!card)return;
@@ -58,7 +62,6 @@ function ensureBattleChrome(){
     card.querySelector(".battle-message")?.insertAdjacentElement("beforebegin",command);
   }
 }
-
 function renderBattleChrome(){
   const card=byId("battle-card");
   if(!card||card.hidden)return;
@@ -82,7 +85,6 @@ function renderBattleChrome(){
   const completed=/Result/i.test(byId("turn")?.textContent??"");
   card.classList.toggle("battle-complete",completed);
 }
-
 function decorateParty(){
   document.querySelectorAll("#party-detail-grid .party-slot:not(.empty)").forEach((slot,index)=>{
     const partyIndex=String(index+1);
@@ -100,7 +102,6 @@ function decorateParty(){
     });
   });
 }
-
 function decorateBag(){
   document.querySelectorAll("#menu-bag-pane .bag-slot").forEach((slot)=>{
     const strong=slot.querySelector("strong");
@@ -116,15 +117,10 @@ function decorateBag(){
     if(meta.textContent!==metaText)meta.textContent=metaText;
   });
 }
-
-function render(){
-  scheduled=false;
-  renderBattleChrome();
-  decorateParty();
-  decorateBag();
-}
+function render(){scheduled=false;renderBattleChrome();decorateParty();decorateBag()}
 function schedule(){if(scheduled)return;scheduled=true;requestAnimationFrame(render)}
 
+ensureStyles();
 ensureBattleChrome();
 render();
 new MutationObserver(schedule).observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:["hidden","style","class"]});
