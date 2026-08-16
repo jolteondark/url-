@@ -1,33 +1,46 @@
-export function assembleDayBoard({ day, pre_shuffle_kinds, shuffle_order, next_day_index }) {
-  const kinds = [...pre_shuffle_kinds];
+import {
+  MAPLESS_V108_EXTRA_EVENT_WEIGHTS,
+  generateCanonicalDayBoardV108,
+  weightedBoardKindV108,
+} from "./mapless-canonical-board-generation-v108.js";
+
+function nextSeed(seed) {
+  return (Math.imul(seed >>> 0, 1664525) + 1013904223) >>> 0;
+}
+
+function deterministicDecisions(day) {
+  let seed = (Math.imul(day >>> 0, 0x9e3779b1) ^ 0xa511e9b3) >>> 0;
+  const available = { ...MAPLESS_V108_EXTRA_EVENT_WEIGHTS };
+  const extraRolls = [];
+  for (let i = 0; i < 5; i += 1) {
+    seed = nextSeed(seed);
+    const total = Object.values(available).reduce((sum, weight) => sum + weight, 0);
+    const roll = seed % total;
+    extraRolls.push(roll);
+    const kind = weightedBoardKindV108(available, roll);
+    if (kind !== "wild" && kind !== "trainer") delete available[kind];
+  }
+
+  const shuffleOrder = Array.from({ length: 8 }, (_, index) => index);
+  for (let i = shuffleOrder.length - 1; i > 0; i -= 1) {
+    seed = nextSeed(seed);
+    const j = seed % (i + 1);
+    [shuffleOrder[i], shuffleOrder[j]] = [shuffleOrder[j], shuffleOrder[i]];
+  }
+  return { extraRolls, shuffleOrder };
+}
+
+export function assembleDayBoard({ day }) {
   if (!Number.isInteger(day) || day < 1) throw new RangeError("day must be >= 1");
-  if (kinds.length !== 7) throw new RangeError("pre_shuffle_kinds must contain 7 events");
-  const count = (kind) => kinds.filter((x) => x === kind).length;
-  if (count("center") !== 1 || count("shop") !== 1 || count("egg_shop") !== 1) {
-    throw new Error("center/shop/egg_shop must each occur exactly once");
-  }
-  const randomKinds = kinds.filter((x) => x === "wild" || x === "trainer");
-  if (randomKinds.length !== 4 || kinds.some((x) => !["center", "shop", "egg_shop", "wild", "trainer"].includes(x))) {
-    throw new Error("remaining four events must be wild/trainer");
-  }
-  if (!Array.isArray(shuffle_order) || shuffle_order.length !== 7 ||
-      [...shuffle_order].sort((a, b) => a - b).some((v, i) => v !== i)) {
-    throw new Error("shuffle_order must be a permutation of 0..6");
-  }
-  if (!Number.isInteger(next_day_index) || next_day_index < 0 || next_day_index >= 8) {
-    throw new RangeError("next_day_index must be 0..7");
-  }
-  const shuffled = shuffle_order.map((i) => kinds[i]);
-  const board = [];
-  let eventIndex = 0;
-  for (let index = 0; index < 8; index += 1) {
-    if (index === next_day_index) board.push("next_day");
-    else board.push(shuffled[eventIndex++]);
-  }
+  const decisions = deterministicDecisions(day);
+  const board = generateCanonicalDayBoardV108({ day, ...decisions });
   return {
-    day,
-    board_kinds: board,
-    board_revealed: Array(8).fill(false),
-    board_consumed: Array(8).fill(false)
+    day: board.day,
+    board_kinds: board.board_kinds,
+    board_revealed: board.board_revealed,
+    board_consumed: board.board_consumed,
+    board_visited: board.board_visited,
+    selected_extra_kinds: board.selected_extra_kinds,
+    random_trace: board.random_trace,
   };
 }
