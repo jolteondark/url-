@@ -2,6 +2,7 @@ const byId=(id)=>document.getElementById(id);
 const setText=(node,value)=>{if(node&&node.textContent!==value)node.textContent=value};
 const setStyleWidth=(node,value)=>{if(node&&node.style.width!==value)node.style.width=value};
 let pendingBoardPresentation=null;
+let queued=false;
 
 function eventTone(label=""){
   if(/野生|トレーナー|罠/.test(label))return "danger";
@@ -17,196 +18,75 @@ function ensureEventScene(){
   const stage=document.querySelector(".game-stage");
   if(!stage)return null;
   const scene=document.createElement("section");
-  scene.className="scene event-scene";
-  scene.id="event-card";
-  scene.hidden=true;
+  scene.className="scene event-scene";scene.id="event-card";scene.hidden=true;
   scene.innerHTML='<div class="event-visual" aria-hidden="true"><span class="event-orbit"></span><span class="event-sigil">◆</span></div><div class="scene-heading event-heading"><div><span class="scene-kicker" id="event-kicker">ENCOUNTER</span><h2 id="event-title">出来事</h2></div><span class="mode-pill" id="event-result">完了</span></div><p class="event-message" id="event-message"></p><div class="event-footer"><span id="event-day">DAY</span><button id="event-continue" type="button">探索を続ける</button></div>';
-  stage.append(scene);
-  byId("event-continue").addEventListener("click",()=>hideEventScene(true));
-  return scene;
+  stage.append(scene);byId("event-continue")?.addEventListener("click",()=>hideEventScene(true));return scene;
 }
 
 function hideEventScene(focusBoard=false){
-  const scene=byId("event-card");
-  if(scene)scene.hidden=true;
-  const board=byId("board-card");
-  if(board&&byId("village-card")?.hidden!==false)board.hidden=false;
-  pendingBoardPresentation=null;
-  renderPresentation();
+  const scene=byId("event-card");if(scene)scene.hidden=true;
+  const board=byId("board-card");if(board&&byId("village-card")?.hidden!==false)board.hidden=false;
+  pendingBoardPresentation=null;schedulePresentation();
   if(focusBoard)window.setTimeout(()=>board?.scrollIntoView({behavior:"smooth",block:"start"}),0);
 }
 
-function eventKickerForTone(tone){
-  if(tone==="rest")return "RECOVERY";
-  if(tone==="facility")return "FACILITY";
-  if(tone==="reward")return "REWARD";
-  if(tone==="danger")return "DANGER";
-  if(tone==="event")return "EVENT";
-  return "ENCOUNTER";
-}
+function eventKickerForTone(tone){return tone==="rest"?"RECOVERY":tone==="facility"?"FACILITY":tone==="reward"?"REWARD":tone==="danger"?"DANGER":tone==="event"?"EVENT":"ENCOUNTER"}
 
 function showEventScene(snapshot){
-  const scene=ensureEventScene();
-  const board=byId("board-card");
-  if(!scene||!board)return;
+  const scene=ensureEventScene(),board=byId("board-card");if(!scene||!board)return;
   const currentCell=byId("board")?.querySelector(`button[data-board-index="${snapshot.index}"]`);
-  const dayAfter=byId("day")?.textContent??snapshot.day;
-  const dayAdvanced=dayAfter!==snapshot.day;
+  const dayAfter=byId("day")?.textContent??snapshot.day,dayAdvanced=dayAfter!==snapshot.day;
   const currentLabel=currentCell?.querySelector("strong")?.textContent?.trim();
   const title=dayAdvanced?"野宿する":currentLabel&&currentLabel!=="？？？"?currentLabel:snapshot.label&&snapshot.label!=="？？？"?snapshot.label:"出来事";
-  const tone=dayAdvanced?"rest":eventTone(title);
-  scene.dataset.eventTone=tone;
-  setText(byId("event-kicker"),eventKickerForTone(tone));
-  setText(byId("event-title"),title);
-  setText(byId("event-result"),dayAdvanced?`DAY ${dayAfter}`:"完了");
-  setText(byId("event-message"),byId("notice")?.textContent?.trim()||"探索を進めました。");
-  setText(byId("event-day"),`DAY ${dayAfter} · SLOT ${snapshot.index+1}`);
-  board.hidden=true;
-  scene.hidden=false;
-  renderPresentation();
-  window.setTimeout(()=>scene.scrollIntoView({behavior:"smooth",block:"start"}),0);
+  const tone=dayAdvanced?"rest":eventTone(title);scene.dataset.eventTone=tone;
+  setText(byId("event-kicker"),eventKickerForTone(tone));setText(byId("event-title"),title);setText(byId("event-result"),dayAdvanced?`DAY ${dayAfter}`:"完了");
+  setText(byId("event-message"),byId("notice")?.textContent?.trim()||"探索を進めました。");setText(byId("event-day"),`DAY ${dayAfter} · SLOT ${snapshot.index+1}`);
+  board.hidden=true;scene.hidden=false;schedulePresentation();window.setTimeout(()=>scene.scrollIntoView({behavior:"smooth",block:"start"}),0);
 }
 
 function wireBoardPresentation(){
-  const board=byId("board");
-  if(!board||board.dataset.presentationWired==="true")return;
+  const board=byId("board");if(!board||board.dataset.presentationWired==="true")return;
   board.dataset.presentationWired="true";
   board.addEventListener("click",(event)=>{
-    const button=event.target.closest("button[data-board-index]");
-    if(!button||button.disabled)return;
-    pendingBoardPresentation={
-      index:Number(button.dataset.boardIndex),
-      label:button.querySelector("strong")?.textContent?.trim()??"",
-      day:byId("day")?.textContent??"",
-    };
-    queueMicrotask(()=>{
-      const snapshot=pendingBoardPresentation;
-      if(!snapshot)return;
-      if(byId("battle-card")?.hidden===false||byId("shop-card")?.hidden===false||byId("village-card")?.hidden===false){pendingBoardPresentation=null;return;}
-      showEventScene(snapshot);
-    });
+    const button=event.target.closest("button[data-board-index]");if(!button||button.disabled)return;
+    pendingBoardPresentation={index:Number(button.dataset.boardIndex),label:button.querySelector("strong")?.textContent?.trim()??"",day:byId("day")?.textContent??""};
+    queueMicrotask(()=>{const snapshot=pendingBoardPresentation;if(!snapshot)return;if(byId("battle-card")?.hidden===false||byId("shop-card")?.hidden===false||byId("village-card")?.hidden===false){pendingBoardPresentation=null;return}showEventScene(snapshot)});
   },true);
-  byId("new-run")?.addEventListener("click",()=>hideEventScene(false),true);
-  byId("continue-run")?.addEventListener("click",()=>hideEventScene(false),true);
+  byId("new-run")?.addEventListener("click",()=>hideEventScene(false),true);byId("continue-run")?.addEventListener("click",()=>hideEventScene(false),true);
 }
 
 function ensureBoardChrome(){
-  const board=byId("board");
-  if(!board)return;
-  const scene=byId("board-card");
-  if(scene&&!scene.querySelector(".board-progress")){
-    const bar=document.createElement("div");
-    bar.className="board-progress";
-    bar.innerHTML='<div><span class="board-progress-label">TODAY</span><strong id="board-progress-text">0 / 8 cleared</strong></div><div class="board-progress-track" aria-hidden="true"><span id="board-progress-fill"></span></div>';
-    board.before(bar);
-  }
-  if(scene&&!scene.querySelector(".board-guidance")){
-    const guide=document.createElement("div");
-    guide.className="board-guidance";
-    guide.innerHTML='<span>ROUTE SELECT</span><p>マスを選んで探索を進める</p>';
-    board.before(guide);
-  }
+  const board=byId("board");if(!board)return;const scene=byId("board-card");
+  if(scene&&!scene.querySelector(".board-progress")){const bar=document.createElement("div");bar.className="board-progress";bar.innerHTML='<div><span class="board-progress-label">TODAY</span><strong id="board-progress-text">0 / 8 cleared</strong></div><div class="board-progress-track" aria-hidden="true"><span id="board-progress-fill"></span></div>';board.before(bar)}
+  if(scene&&!scene.querySelector(".board-guidance")){const guide=document.createElement("div");guide.className="board-guidance";guide.innerHTML='<span>ROUTE SELECT</span><p>マスを選んで探索を進める</p>';board.before(guide)}
   wireBoardPresentation();
 }
 
 function decorateBoard(){
-  ensureBoardChrome();
-  const board=byId("board");
-  if(!board)return;
-  const cells=[...board.querySelectorAll(".board-cell")];
-  let consumed=0;
-  let revealed=0;
+  ensureBoardChrome();const board=byId("board");if(!board)return;const cells=[...board.querySelectorAll(".board-cell")];let consumed=0,revealed=0;
   for(const [index,cell] of cells.entries()){
-    consumed+=cell.classList.contains("consumed")?1:0;
-    revealed+=cell.classList.contains("revealed")?1:0;
-    cell.dataset.slot=String(index+1);
-    const label=cell.querySelector("strong")?.textContent??"";
-    cell.dataset.eventTone=cell.classList.contains("revealed")?eventTone(label):"unknown";
-    if(!cell.querySelector(".cell-state")){
-      const state=document.createElement("span");
-      state.className="cell-state";
-      cell.append(state);
-    }
-    if(!cell.querySelector(".cell-glyph")){
-      const glyph=document.createElement("span");
-      glyph.className="cell-glyph";
-      glyph.setAttribute("aria-hidden","true");
-      cell.append(glyph);
-    }
-    const state=cell.querySelector(".cell-state");
-    const stateText=cell.classList.contains("consumed")?"CLEARED":cell.classList.contains("revealed")?"REVEALED":"UNKNOWN";
-    setText(state,stateText);
-    cell.setAttribute("aria-label",`マス ${index+1}: ${label} ${stateText}`);
+    consumed+=cell.classList.contains("consumed")?1:0;revealed+=cell.classList.contains("revealed")?1:0;cell.dataset.slot=String(index+1);
+    const label=cell.querySelector("strong")?.textContent??"";cell.dataset.eventTone=cell.classList.contains("revealed")?eventTone(label):"unknown";
+    if(!cell.querySelector(".cell-state")){const state=document.createElement("span");state.className="cell-state";cell.append(state)}
+    if(!cell.querySelector(".cell-glyph")){const glyph=document.createElement("span");glyph.className="cell-glyph";glyph.setAttribute("aria-hidden","true");cell.append(glyph)}
+    const stateText=cell.classList.contains("consumed")?"CLEARED":cell.classList.contains("revealed")?"REVEALED":"UNKNOWN";setText(cell.querySelector(".cell-state"),stateText);
+    const aria=`マス ${index+1}: ${label} ${stateText}`;if(cell.getAttribute("aria-label")!==aria)cell.setAttribute("aria-label",aria);
   }
-  setText(byId("board-progress-text"),`${consumed} / ${cells.length||8} cleared · ${revealed} revealed`);
-  setStyleWidth(byId("board-progress-fill"),`${cells.length?Math.round(consumed/cells.length*100):0}%`);
+  setText(byId("board-progress-text"),`${consumed} / ${cells.length||8} cleared · ${revealed} revealed`);setStyleWidth(byId("board-progress-fill"),`${cells.length?Math.round(consumed/cells.length*100):0}%`);
 }
 
-function hpTone(id){
-  const bar=byId(id);
-  if(!bar)return;
-  const value=Math.max(0,Math.min(100,parseFloat(bar.style.width)||0));
-  bar.dataset.hpTone=value<=20?"danger":value<=50?"warn":"safe";
-}
+function hpTone(id){const bar=byId(id);if(!bar)return;const value=Math.max(0,Math.min(100,parseFloat(bar.style.width)||0));const tone=value<=20?"danger":value<=50?"warn":"safe";if(bar.dataset.hpTone!==tone)bar.dataset.hpTone=tone}
+function decorateMoves(){const moves=byId("moves");if(!moves)return;[...moves.children].forEach((button,index)=>{button.dataset.command=String(index+1);if(!button.querySelector(".command-index")){const tag=document.createElement("span");tag.className="command-index";tag.textContent=String(index+1);button.prepend(tag)}})}
+function decorateBattle(){hpTone("player-hp-bar");hpTone("foe-hp-bar");decorateMoves();const battle=byId("battle-card");if(!battle)return;const title=byId("battle-title")?.textContent||"Battle";const kind=/trainer|bounty/i.test(title)?"trainer":/wild/i.test(title)?"wild":"other";if(battle.dataset.battleKind!==kind)battle.dataset.battleKind=kind}
+function decorateHud(){const hud=document.querySelector(".hud");if(!hud)return;[...hud.children].forEach((item,index)=>{const slot=String(index+1);if(item.dataset.hudSlot!==slot)item.dataset.hudSlot=slot})}
+function decorateScenes(){for(const scene of document.querySelectorAll(".scene"))scene.classList.toggle("scene-active",!scene.hidden);const current=byId("battle-card")&&!byId("battle-card").hidden?"battle":byId("shop-card")&&!byId("shop-card").hidden?"shop":byId("village-card")&&!byId("village-card").hidden?"village":byId("event-card")&&!byId("event-card").hidden?"event":"board";if(document.body.dataset.scene!==current)document.body.dataset.scene=current;document.body.classList.add("presentation-ready")}
+function syncViewport(){const height=window.visualViewport?.height??window.innerHeight;document.documentElement.style.setProperty("--mapless-vvh",`${height}px`)}
 
-function decorateMoves(){
-  const moves=byId("moves");
-  if(!moves)return;
-  [...moves.children].forEach((button,index)=>{
-    button.dataset.command=String(index+1);
-    if(!button.querySelector(".command-index")){
-      const tag=document.createElement("span");
-      tag.className="command-index";
-      tag.textContent=String(index+1);
-      button.prepend(tag);
-    }
-  });
-}
+function renderPresentation(){queued=false;decorateBoard();decorateBattle();decorateHud();decorateScenes()}
+function schedulePresentation(){if(queued)return;queued=true;requestAnimationFrame(renderPresentation)}
 
-function decorateBattle(){
-  hpTone("player-hp-bar");
-  hpTone("foe-hp-bar");
-  decorateMoves();
-  const battle=byId("battle-card");
-  if(!battle)return;
-  const title=byId("battle-title")?.textContent||"Battle";
-  battle.dataset.battleKind=/trainer|bounty/i.test(title)?"trainer":/wild/i.test(title)?"wild":"other";
-}
-
-function decorateHud(){
-  const hud=document.querySelector(".hud");
-  if(!hud)return;
-  [...hud.children].forEach((item,index)=>item.dataset.hudSlot=String(index+1));
-}
-
-function decorateScenes(){
-  for(const scene of document.querySelectorAll(".scene"))scene.classList.toggle("scene-active",!scene.hidden);
-  const current=byId("battle-card")&&!byId("battle-card").hidden?"battle":byId("shop-card")&&!byId("shop-card").hidden?"shop":byId("village-card")&&!byId("village-card").hidden?"village":byId("event-card")&&!byId("event-card").hidden?"event":"board";
-  document.body.dataset.scene=current;
-  document.body.classList.add("presentation-ready");
-}
-
-function syncViewport(){
-  const height=window.visualViewport?.height??window.innerHeight;
-  document.documentElement.style.setProperty("--mapless-vvh",`${height}px`);
-}
-
-let queued=false;
-function renderPresentation(){
-  if(queued)return;
-  queued=true;
-  requestAnimationFrame(()=>{
-    queued=false;
-    decorateBoard();
-    decorateBattle();
-    decorateHud();
-    decorateScenes();
-  });
-}
-
-syncViewport();
-ensureEventScene();
-renderPresentation();
-window.visualViewport?.addEventListener("resize",syncViewport,{passive:true});
-window.addEventListener("orientationchange",syncViewport,{passive:true});
-new MutationObserver(renderPresentation).observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:["class","hidden","style","disabled"]});
+syncViewport();ensureEventScene();schedulePresentation();
+window.visualViewport?.addEventListener("resize",syncViewport,{passive:true});window.addEventListener("orientationchange",syncViewport,{passive:true});
+const board=byId("board");if(board)new MutationObserver(schedulePresentation).observe(board,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:["class","disabled"]});
+const battle=byId("battle-card");if(battle)new MutationObserver(schedulePresentation).observe(battle,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:["hidden","style"]});
+const stage=document.querySelector(".game-stage");if(stage)new MutationObserver(schedulePresentation).observe(stage,{subtree:true,attributes:true,attributeFilter:["hidden"]});
