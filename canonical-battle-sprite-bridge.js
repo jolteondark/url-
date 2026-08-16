@@ -1,4 +1,5 @@
 import { resolveInlineCanonicalBattleSprite } from "./runtime/safari-canonical-battle-sprite-inline.js";
+import { resolveSafariCanonicalBugBattleSprite } from "./runtime/safari-canonical-battle-sprite-bug.js";
 
 let scheduled = false;
 const SIDES = [
@@ -26,11 +27,18 @@ function setHidden(node, hidden) {
   if (node && node.hidden !== hidden) node.hidden = hidden;
 }
 
+function resolveCanonicalAsset({ species, form, battlerIndex }) {
+  const inline = resolveInlineCanonicalBattleSprite({ species, form, battlerIndex });
+  if (inline) return inline;
+  const side = (battlerIndex & 1) === 0 ? "player" : "foe";
+  return resolveSafariCanonicalBugBattleSprite({ species, form, side });
+}
+
 function renderSide({ battlerIndex, nameId, combatantId }) {
   const combatant = document.getElementById(combatantId);
   const species = document.getElementById(nameId)?.textContent?.trim();
   if (!combatant || !species) return;
-  const asset = resolveInlineCanonicalBattleSprite({ species, form: Number(combatant.dataset.form ?? 0), battlerIndex });
+  const asset = resolveCanonicalAsset({ species, form: Number(combatant.dataset.form ?? 0), battlerIndex });
   let image = combatant.querySelector(".canonical-battle-sprite");
   const fallback = combatant.querySelector(".text-mon");
   const legacy = combatant.querySelector(".battle-sprite-image");
