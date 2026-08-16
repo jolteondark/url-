@@ -18,6 +18,7 @@ const OPTIONAL_UI_MODULES = [
   "./party-storage-controls-bridge.js",
   "./species-form-metadata-bridge.js",
   "./species-sprite-atlas-bridge.js",
+  "./canonical-battle-sprite-bridge.js",
   "./terminal-wild-presentation.js",
   "./shop-touch-presentation.js",
   "./trainer-battle-presentation.js",
