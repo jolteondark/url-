@@ -20,6 +20,21 @@ function captureInputForBattle(battle) {
   };
 }
 
+function postBattlePersistenceInput(runtime) {
+  const party = structuredClone(runtime?.player?.party ?? []);
+  return {
+    party,
+    caught: [],
+    initialItems: [party.map((pokemon) => pokemon?.item ?? null), []],
+  };
+}
+
+function commitTerminalPlayer(runtime, terminalStateHandoff) {
+  const reflected = terminalStateHandoff?.playerParty?.[0];
+  if (!reflected || !runtime?.player?.party?.[0]) return;
+  runtime.player.party[0] = structuredClone(reflected);
+}
+
 export function attemptSafariCapture(runtime) {
   const state = runtime?.variables?.mapless;
   const battle = state?.battle;
@@ -33,6 +48,8 @@ export function attemptSafariCapture(runtime) {
     foe: battle.foe,
     trainerBattle: false,
     decision: Number(battle.decision ?? 0),
+    postBattlePersistenceInput: postBattlePersistenceInput(runtime),
+    reflectedPartyIndex: 0,
     captureInput: captureInputForBattle(battle),
   });
 
@@ -47,6 +64,7 @@ export function attemptSafariCapture(runtime) {
       presentation: [],
       calculation: owner.capture?.capture ?? null,
       availability: owner.availability,
+      terminalStateHandoff: owner.terminalStateHandoff,
       ownerResolution: owner,
     };
   }
@@ -62,23 +80,29 @@ export function attemptSafariCapture(runtime) {
       presentation: [],
       calculation: owner.capture.capture,
       availability: owner.availability,
+      terminalStateHandoff: owner.terminalStateHandoff,
       ownerResolution: owner,
     };
   }
 
-  // The existing Safari adapter still owns Party/Storage routing, Day Board
-  // completion and persistence handoff. Its capture calculation uses the same
-  // deterministic inputs above; the browser-safe Battle owner is authoritative
-  // for whether capture may proceed and for the capture result.
+  // Party/Storage routing and Day Board completion remain owned by the existing
+  // Safari adapter. The Battle owner now supplies the terminal player snapshot;
+  // commit only that active slot after routing so newly caught Party members are
+  // not replaced by the pre-capture persistence snapshot.
   const applied = applyLegacySafariCaptureState(runtime);
   if (applied.result !== owner.capture.result) {
     throw new Error(`Safari capture adapter diverged from Battle owner: ${applied.result} != ${owner.capture.result}`);
   }
+  commitTerminalPlayer(runtime, owner.terminalStateHandoff);
+  state.last_terminal_wild = structuredClone(owner.terminalStateHandoff);
+  const terminalOperation = { op: "terminal_wild_state_committed", resultKind: owner.terminalStateHandoff?.resultKind ?? "captured" };
+  state.last_operations = [...owner.operations, ...(applied.operations ?? []), terminalOperation];
   return {
     ...applied,
-    operations: owner.operations.length ? [...owner.operations, ...applied.operations] : applied.operations,
+    operations: state.last_operations,
     calculation: owner.capture.capture,
     availability: owner.availability,
+    terminalStateHandoff: owner.terminalStateHandoff,
     ownerResolution: owner,
   };
 }
