@@ -37,4 +37,28 @@ assert.equal(missingEligibility.result, 'cannot_sell');
 assert.deepEqual(missingEligibility.slots.filter(Boolean), [['POTION', 1]]);
 assert.equal(missingEligibility.money, 1000);
 
-console.log(JSON.stringify({ ok: true, unavailable: unavailable.result, bought: bought.result, sold: sold.result, missingEligibility: missingEligibility.result }));
+const negativeMoney = resolveResolvedShopTransaction({
+  ...common, slots: [], money: -1,
+  offer: { kind: 'buy', item: 'POTION', conditionPassed: true, unitPrice: 100 }, qty: 1,
+});
+assert.equal(negativeMoney.result, 'unresolved_transaction');
+assert.deepEqual(negativeMoney.slots, []);
+assert.equal(negativeMoney.money, -1);
+
+const overCapMoney = resolveResolvedShopTransaction({
+  ...common, slots: [['POTION', 2]], money: 1000000,
+  offer: { kind: 'sell', item: 'POTION', conditionPassed: true, canSell: true, unitPrice: 50 }, qty: 1,
+});
+assert.equal(overCapMoney.result, 'unresolved_transaction');
+assert.deepEqual(overCapMoney.slots, [['POTION', 2]]);
+assert.equal(overCapMoney.money, 1000000);
+
+console.log(JSON.stringify({
+  ok: true,
+  unavailable: unavailable.result,
+  bought: bought.result,
+  sold: sold.result,
+  missingEligibility: missingEligibility.result,
+  negativeMoney: negativeMoney.result,
+  overCapMoney: overCapMoney.result,
+}));
