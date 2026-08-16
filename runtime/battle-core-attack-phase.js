@@ -1,12 +1,24 @@
-import { calculatePriorityCanonical } from "./battle-core-turn-vertical-slice.js";
+import { buildCanonicalPriorityRandomOrder, calculatePriorityCanonical } from "./battle-core-priority.js";
 import { resolveAttackPhaseMovesCanonical } from "./battle-core-attack-phase-moves.js";
 
 const COMMAND_OPS = new Set(["clear_choice", "retain_forced_choice", "auto_choose_move", "register_move"]);
+
+function resolveRoundRandomOrder(priorityEntries, input) {
+  if (Array.isArray(input.priorityRandomOrder)) return [...input.priorityRandomOrder];
+  if (input.priorityRandomSeed === undefined || input.priorityRandomSeed === null) return null;
+  const maxBattlerIndex = (priorityEntries ?? []).reduce((maximum, entry, index) => {
+    const battlerIndex = Number(entry?.battlerIndex ?? entry?.index ?? index);
+    return Number.isInteger(battlerIndex) ? Math.max(maximum, battlerIndex) : maximum;
+  }, -1);
+  return buildCanonicalPriorityRandomOrder(maxBattlerIndex, input.priorityRandomSeed);
+}
 
 export function resolveAttackPhaseCanonical(input = {}) {
   let decision = Number(input.initialDecision ?? 0);
   const operations = [{ op: "begin_attack_phase" }];
   const battlers = Array.isArray(input.battlers) ? input.battlers : [];
+  const priorityEntries = input.priorityEntries ?? [];
+  const roundRandomOrder = resolveRoundRandomOrder(priorityEntries, input);
 
   for (const source of battlers) {
     if (!source || source.present === false) continue;
@@ -21,10 +33,17 @@ export function resolveAttackPhaseCanonical(input = {}) {
     if (!source.choseRageFunction) operations.push({ op: "effect_reset_request", battler, effect: "Rage" });
   }
 
-  const initialPriority = calculatePriorityCanonical(input.priorityEntries ?? [], {
+  const initialPriority = calculatePriorityCanonical(priorityEntries, {
     trickRoom: Boolean(input.trickRoom),
+    randomOrder: roundRandomOrder,
   });
-  operations.push({ op: "calculate_priority", scope: "attack_phase_start", order: initialPriority.order, entries: initialPriority.entries });
+  operations.push({
+    op: "calculate_priority",
+    scope: "attack_phase_start",
+    order: initialPriority.order,
+    entries: initialPriority.entries,
+    ...(roundRandomOrder ? { randomOrder: [...roundRandomOrder] } : {}),
+  });
   operations.push({ op: "priority_change_messages_request" });
   operations.push({ op: "attack_phase_call_request" });
   operations.push({ op: "attack_phase_switch_request" });
@@ -42,10 +61,11 @@ export function resolveAttackPhaseCanonical(input = {}) {
   const moves = resolveAttackPhaseMovesCanonical({
     commandEntries: input.commandEntries ?? [],
     actions: input.actions ?? [],
-    priorityEntries: input.priorityEntries ?? [],
+    priorityEntries,
     priorityEntriesByLoop: input.priorityEntriesByLoop ?? null,
     trickRoom: Boolean(input.trickRoom),
     mechanicsGeneration: Number(input.mechanicsGeneration ?? 9),
+    randomOrder: roundRandomOrder,
   });
   for (const operation of moves.operations) {
     if (!COMMAND_OPS.has(operation.op)) operations.push({ ...operation, scope: operation.scope ?? "attack_phase_moves" });
