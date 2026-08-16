@@ -1,243 +1,71 @@
-import * as base from "./safari-playable-integration-legacy.js";
-import { hydrateSafariNormalEventCells } from "./mapless-normal-event-v108-preparation.js";
-import { resolveMachineGachaBagEconomyIntegration } from "./bag-economy-machine-gacha-integration.js";
-import { resolveBrowserOpponentMoveChoiceCanonical } from "./battle-core-browser-opponent-move-choice.js";
-import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
+import * as base from "./safari-playable-integration-base.js";
+import { resolveDayBoardCellDispatch } from "./mapless-day-board-cell-dispatch.js";
+import { projectDayBoardEventName } from "./mapless-day-board-event-name-projection.js";
+import { resolveBrowserMaplessWildEncounter } from "./browser-mapless-wild-encounter-runtime.js";
+import { resolveBattleStartCore } from "./battle-core-start-handoff.js";
+import { resolvePokemonRuntimeMasters } from "./pokemon-runtime-masters.js";
+import { movePartyPokemonToLead } from "./party-order-management.js";
+import { ensureSafariEncounterSeed, nextSafariEncounterSpeciesIndex } from "./safari-encounter-randomization.js";
+import { generateSafariDynamicTrainer } from "./mapless-dynamic-trainer-generator.js";
+import { SAFARI_MOVE_MASTERS, SAFARI_NATURE_MASTERS, SAFARI_SPECIES_MASTERS, SAFARI_ZERO_STAT_VALUES } from "./safari-playable-data.js";
+import { SAFARI_GENERAL_TYPES, SAFARI_GENERAL_TYPE_NAMES, resolveSafariGeneralEncounter } from "./safari-general-encounter-runtime.js";
 
-export * from "./safari-playable-integration-legacy.js";
+export * from "./safari-playable-integration-base.js";
 
-function stateOf(runtime) {
-  const state = runtime?.variables?.mapless;
-  if (!state || typeof state !== "object" || Array.isArray(state)) throw new TypeError("runtime variables.mapless state is required");
+function stateOf(runtime) { const state = runtime?.variables?.mapless; if (!state || typeof state !== "object" || Array.isArray(state)) throw new TypeError("runtime variables.mapless state is required"); return state; }
+function moveId(move) { return typeof move === "string" ? move : move?.id; }
+function wildTypeFor(day, ordinal) { return SAFARI_GENERAL_TYPES[((Math.max(1, Number(day)) - 1) * 2 + ordinal) % SAFARI_GENERAL_TYPES.length]; }
+function assignFullWildTypes(state) { let ordinal = 0; state.board_events = state.board_events.map((event) => event.kind === "wild" ? { ...event, type: wildTypeFor(state.day, ordinal++) } : event); return state; }
+function randomUint32() { if (globalThis.crypto && typeof globalThis.crypto.getRandomValues === "function") { const out = new Uint32Array(1); globalThis.crypto.getRandomValues(out); return out[0] >>> 0; } return Math.floor(Math.random() * 0x100000000) >>> 0; }
+function randomBelow(max) { const limit = Math.floor(0x100000000 / max) * max; while (true) { const value = randomUint32(); if (value < limit) return value % max; } }
+function unitFromUint32(value) { return (Number(value) >>> 0) / 0x100000000; }
+function ensureTrainerSeeds(state) {
+  const used = new Set();
+  for (const event of state.board_events ?? []) if (event?.kind === "trainer" && Number.isInteger(event.trainer_seed) && event.trainer_seed >= 0) used.add(event.trainer_seed);
+  state.board_events = (state.board_events ?? []).map((event, index) => {
+    if (event?.kind !== "trainer" || (Number.isInteger(event.trainer_seed) && event.trainer_seed >= 0)) return event;
+    const day = Math.max(1, Math.trunc(Number(state.day)));
+    let seed = ((Math.imul(day, 1_000_003) ^ Math.imul(index + 1, 97_409) ^ randomBelow(0x7fffffff)) & 0x7fffffff) >>> 0;
+    while (used.has(seed)) seed = (seed + 1) & 0x7fffffff;
+    used.add(seed);
+    return { ...event, trainer_seed: seed };
+  });
   return state;
 }
-
-function hydrate(runtime) {
-  hydrateSafariNormalEventCells(runtime);
-  return runtime;
+function baseTurnInput(state, index) { return { index, day: state.day, board_events: state.board_events, board_revealed: state.board_revealed, board_consumed: state.board_consumed, board_visited: state.board_visited, notice: state.notice, scene_is_self: true, scene_same: true, event_stage_active: true, pending_hatches: [] }; }
+function materializePokemon(input) {
+  const speciesMaster = SAFARI_SPECIES_MASTERS[input?.species]; if (!speciesMaster) throw new RangeError(`species is outside the Safari GENERAL projection: ${input?.species}`);
+  const moves = (input.moves ?? input.move_ids ?? []).map(moveId); for (const id of moves) if (!SAFARI_MOVE_MASTERS[id]) throw new RangeError(`move is outside the Safari GENERAL projection: ${id}`);
+  const natureId = input.nature_id ?? "HARDY";
+  return resolvePokemonRuntimeMasters({ ...input, hp: input.hp ?? 1, nature_id: natureId, iv: input.iv ?? { ...SAFARI_ZERO_STAT_VALUES }, ev: input.ev ?? { ...SAFARI_ZERO_STAT_VALUES }, moves }, { species_master: speciesMaster, nature_master: SAFARI_NATURE_MASTERS[natureId], move_masters: SAFARI_MOVE_MASTERS });
 }
-
-export function createSafariPlayableRuntime() {
-  return hydrate(base.createSafariPlayableRuntime());
+function setBattle(runtime, index, kind, opponent, operations, trainer = null, encounterResolution = null, generated = null) {
+  const state = stateOf(runtime); const battleStart = resolveBattleStartCore({ sendOuts: [[0, runtime.player.party[0]], [1, opponent]] }); const lastOperations = [...operations, ...(encounterResolution?.operations ?? []), ...battleStart.operations];
+  state.battle = { kind, board_index: index, turn: 1, decision: 0, completed: false, captured: false, foe: opponent, trainer, trainer_party: trainer?.party?.map(materializePokemon) ?? null, trainer_party_index: trainer ? 0 : null, trainer_seed: trainer?.seed ?? null, prize_money: trainer?.prize_money ?? null, skill_level: trainer?.skill_level ?? null, encounter_request: encounterResolution?.request ?? null, encounter: encounterResolution?.encounter ?? null, encounter_cleanup: encounterResolution?.cleanup ?? [], general_selection: generated?.selection ?? null, last_operations: lastOperations, presentation: [{ type: "battle_started", actor: "foe", species: opponent.species, trainer: trainer?.trainer_full_name ?? null }] };
+  state.last_operations = lastOperations;
 }
-
-export function loadSafariPlayableRun(storage, currentRuntime = createSafariPlayableRuntime()) {
-  const loaded = base.loadSafariPlayableRun(storage, currentRuntime);
-  if (loaded.found) hydrate(loaded.state);
-  return loaded;
-}
-
-function moveId(move) {
-  return typeof move === "string" ? move : move?.id;
-}
-
-function opponentAiSeed(state, battle) {
-  const turn = Math.max(1, Math.trunc(Number(battle?.turn ?? 1)));
-  const ownerSeed = battle?.kind === "trainer"
-    ? Number(battle?.trainer_seed ?? 0)
-    : (Math.imul(Math.max(1, Math.trunc(Number(state?.day ?? 1))), 1_000_003) ^ Math.imul(Number(battle?.board_index ?? 0) + 1, 97_409));
-  return (Number(ownerSeed) ^ Math.imul(turn, 0x45d9f3b)) & 0x7fffffff;
-}
-
-function restoreMoveOrder(foe, originalIds) {
-  if (!foe || !Array.isArray(foe.moves)) return;
-  const buckets = new Map();
-  for (const move of foe.moves) {
-    const id = moveId(move);
-    const bucket = buckets.get(id) ?? [];
-    bucket.push(move);
-    buckets.set(id, bucket);
-  }
-  const restored = [];
-  for (const id of originalIds) {
-    const bucket = buckets.get(id);
-    if (bucket?.length) restored.push(bucket.shift());
-  }
-  for (const bucket of buckets.values()) restored.push(...bucket);
-  if (restored.length === foe.moves.length) foe.moves = restored;
-}
-
-function prepareOwnedOpponentMove(runtime) {
+function startWild(runtime, event, index, operations) {
   const state = stateOf(runtime);
-  const battle = state.battle;
-  if (!battle || battle.completed) return null;
-  const player = runtime.player?.party?.[0];
-  if (!player) throw new Error("active player Pokemon is required for Battle-owned opponent choice");
-  const originalMoves = [...(battle.foe?.moves ?? [])];
-  const originalIds = originalMoves.map(moveId);
-  const playerReserveCount = Math.max(0, (runtime.player?.party ?? []).filter((pokemon) => Number(pokemon?.hp ?? 0) > 0).length - 1);
-  const foeReserveCount = battle.kind === "trainer" && Array.isArray(battle.trainer_party)
-    ? Math.max(0, battle.trainer_party.length - Number(battle.trainer_party_index ?? 0) - 1)
-    : 0;
-  const resolution = resolveBrowserOpponentMoveChoiceCanonical({
-    battleKind: battle.kind,
-    player,
-    foe: battle.foe,
-    moveMasters: SAFARI_MOVE_MASTERS,
-    aiRandomSeed: opponentAiSeed(state, battle),
-    trainerSkill: Number(battle.skill_level ?? 0),
-    trainerFlags: Array.isArray(battle.trainer_flags) ? battle.trainer_flags : [],
-    ownReserveCount: foeReserveCount,
-    foeReserveCount: playerReserveCount,
-    mechanicsGeneration: 9,
-    turnCount: Math.max(0, Number(battle.turn ?? 1) - 1),
-    canSwitchLax: false,
-  });
-  const selected = originalMoves[resolution.moveIndex];
-  if (!selected) throw new RangeError("Battle-owned opponent choice selected an invalid Safari move index");
-  battle.foe.moves = [selected, ...originalMoves.filter((_, index) => index !== resolution.moveIndex)];
-  return {
-    resolution,
-    selectedMoveId: moveId(selected),
-    originalIds,
-    battleKind: battle.kind,
-    trainerPartyIndex: battle.trainer_party_index,
-    foeSpecies: battle.foe.species,
-  };
+  const speciesRoll = unitFromUint32(nextSafariEncounterSpeciesIndex(state, { day: state.day, boardIndex: index }));
+  const varianceRoll = unitFromUint32(nextSafariEncounterSpeciesIndex(state, { day: state.day, boardIndex: index }));
+  const generated = resolveSafariGeneralEncounter({ day: state.day, requiredType: event.type, enemyRank: "NORMAL", extraModifier: 0, speciesRoll, varianceRoll });
+  const encounterResolution = resolveBrowserMaplessWildEncounter({ day: state.day, event, boardIndex: index, generated, variance: generated.variance, minLevel: generated.min_level, maxLevel: generated.max_level, gameTempPresent: true }); const encounter = encounterResolution.encounter;
+  const opponent = materializePokemon({ species: encounter.species_id, level: encounter.level, status: "NONE", moves: encounter.move_ids }); setBattle(runtime, index, "wild", opponent, operations, null, encounterResolution, generated); state.notice = `野生の${encounter.species_name}が現れた！`;
+}
+function startTrainer(runtime, event, index, operations) {
+  const state = stateOf(runtime); const trainer = generateSafariDynamicTrainer({ day: state.day, seed: event.trainer_seed }); const party = trainer.party.map(materializePokemon); setBattle(runtime, index, "trainer", party[0], operations, trainer); state.battle.trainer_party = party; state.notice = `${trainer.trainer_full_name}が勝負を仕掛けてきた！`;
 }
 
-export function resolveSafariBattleRound(runtime, selectedMoveId) {
-  const prepared = prepareOwnedOpponentMove(runtime);
-  const result = base.resolveSafariBattleRound(runtime, selectedMoveId);
-  if (!prepared) return result;
-  const battle = stateOf(runtime).battle;
-  if (battle
-    && battle.kind === prepared.battleKind
-    && battle.trainer_party_index === prepared.trainerPartyIndex
-    && battle.foe?.species === prepared.foeSpecies) {
-    restoreMoveOrder(battle.foe, prepared.originalIds);
-  }
-  return {
-    ...result,
-    opponentChoice: {
-      selectedMoveId: prepared.selectedMoveId,
-      command: prepared.resolution.command,
-      reason: prepared.resolution.reason,
-      choices: prepared.resolution.choices,
-      weightedChoices: prepared.resolution.weightedChoices,
-      randomRolls: prepared.resolution.randomRolls,
-    },
-  };
-}
-
-function commitMachineSnapshot(runtime, index, resolved, keepOpen) {
-  const state = stateOf(runtime);
-  const event = resolved.facility.event;
-  event.normal_resolved = !keepOpen;
-  state.board_events[index] = event;
-  runtime.bag.slots = resolved.slots;
-  runtime.bag.money = resolved.money;
-  state.last_operations = [
-    ...(resolved.facility.operations ?? []).filter((op) => op.op !== "leave_event"),
-    ...(resolved.bagOperations ?? []),
-  ];
-  if (!keepOpen) state.board_consumed[index] = true;
-  return event;
-}
-
-export function resolveSafariMachineGachaInteraction(runtime, index, decisions = []) {
-  const state = stateOf(runtime);
-  hydrate(runtime);
-  const event = state.board_events?.[index];
-  if (!event || event.kind !== "normal_event" || event.normal_event_id !== "machine_gacha") {
-    throw new Error("machine_gacha board event is required");
-  }
-  if (state.battle && !state.battle.completed) return { runtime, result: "battle_active", operations: [] };
-  if (state.shop) return { runtime, result: "shop_active", operations: [] };
-  state.board_revealed[index] = true;
-  if (state.board_consumed[index]) return { runtime, result: "already_consumed", operations: [] };
-
-  const operations = [];
-  const rewards = [];
-  let result = "left_without_use";
-  let draws = 0;
-  for (const decision of decisions) {
-    if (decision !== "buy") {
-      state.board_consumed[index] = true;
-      state.board_events[index] = { ...state.board_events[index], normal_resolved: true };
-      result = draws > 0 ? "used" : "left_without_use";
-      break;
-    }
-    const resolved = resolveMachineGachaBagEconomyIntegration({
-      event: state.board_events[index],
-      choices: ["buy", "leave"],
-      slots: runtime.bag.slots,
-      money: runtime.bag.money,
-      maxSlots: 20,
-      maxPerSlot: 99,
-      maxMoney: 999999,
-    });
-    const reward = resolved.facility.operations.find((op) => op.op === "machine_item_reward")?.item ?? null;
-    const canContinue = resolved.draws > 0 && resolved.outcome === "used" && Number(resolved.facility.event.normal_data.machine_index) < resolved.facility.event.normal_data.machine_stock.length;
-    commitMachineSnapshot(runtime, index, resolved, canContinue);
-    operations.push(...state.last_operations);
-    if (reward) rewards.push(reward);
-    draws += resolved.draws;
-    result = resolved.outcome;
-    if (!canContinue) break;
-  }
-  state.notice = rewards.length > 0
-    ? `技術端末から${rewards[rewards.length - 1]}を受け取りました。`
-    : result === "insufficient_money" ? "お金が足りません。"
-      : result === "bag_full" ? "バッグに空きがありません。"
-        : result === "empty" ? "端末内の技術データは空です。"
-          : "技術端末の前に立っています。";
-  return { runtime, result, draws, rewards, operations, notice: state.notice };
-}
-
-function interactiveMachineGacha(runtime, index) {
-  const state = stateOf(runtime);
-  const confirmFn = typeof globalThis.confirm === "function" ? globalThis.confirm.bind(globalThis) : null;
-  const alertFn = typeof globalThis.alert === "function" ? globalThis.alert.bind(globalThis) : null;
-  if (!confirmFn) {
-    state.board_revealed[index] = true;
-    state.notice = "壊れかけの技術端末。1500円で技マシンを1つ出力できます。";
-    return { runtime, result: "machine_gacha_ready", boundary: "normal_event", notice: state.notice, operations: [] };
-  }
-  let aggregate = { runtime, result: "left_without_use", draws: 0, rewards: [], operations: [] };
-  while (!state.board_consumed[index]) {
-    const buy = confirmFn("壊れかけの技術端末\n1500円を投入して技マシンを1つ出力しますか？\n（キャンセルで立ち去る）");
-    if (!buy) {
-      const left = resolveSafariMachineGachaInteraction(runtime, index, ["leave"]);
-      aggregate = { ...left, draws: aggregate.draws, rewards: aggregate.rewards, operations: [...aggregate.operations, ...left.operations] };
-      break;
-    }
-    const step = resolveSafariMachineGachaInteraction(runtime, index, ["buy"]);
-    aggregate.draws += step.draws;
-    aggregate.rewards.push(...step.rewards);
-    aggregate.operations.push(...step.operations);
-    aggregate.result = step.result;
-    if (step.rewards.length && alertFn) alertFn(`${step.rewards[step.rewards.length - 1]}を1つ受け取りました。`);
-    if (state.board_consumed[index]) {
-      if (step.result === "insufficient_money" && alertFn) alertFn("お金が足りません。");
-      else if (step.result === "bag_full" && alertFn) alertFn("バッグに空きがありません。");
-      else if (step.result === "empty" && alertFn) alertFn("端末内の有効な技術データはすべて出力されました。");
-      break;
-    }
-  }
-  state.notice = aggregate.rewards.length
-    ? `技術端末の利用を終えました。最後の出力: ${aggregate.rewards[aggregate.rewards.length - 1]}`
-    : "技術端末を使わず立ち去りました。";
-  return { ...aggregate, boundary: "normal_event", notice: state.notice };
-}
-
+export function createSafariPlayableRuntime() { const runtime = base.createSafariPlayableRuntime(); const state = stateOf(runtime); ensureSafariEncounterSeed(state); assignFullWildTypes(state); ensureTrainerSeeds(state); return runtime; }
+export function boardCellPresentation(runtime, index) { const state = stateOf(runtime); if (!Number.isInteger(index) || index < 0 || index >= state.board_events.length) throw new RangeError("board index must be 0..7"); const event = state.board_events[index]; if (event.kind !== "wild") return base.boardCellPresentation(runtime, index); const revealed = Boolean(state.board_revealed[index]); return { index, kind: event.kind, label: revealed ? projectDayBoardEventName(event, SAFARI_GENERAL_TYPE_NAMES) : "？？？", revealed, consumed: Boolean(state.board_consumed[index]), disabled: Boolean(state.board_consumed[index]) }; }
 export function activateSafariDayBoardCell(runtime, index) {
-  hydrate(runtime);
-  const state = stateOf(runtime);
-  const event = state.board_events?.[index];
-  if (event?.kind === "normal_event") {
-    state.board_revealed[index] = true;
-    if (event.normal_event_id === "machine_gacha") return interactiveMachineGacha(runtime, index);
-    state.notice = `${event.normal_event_id} はSafari接続待ちです。`;
-    return {
-      runtime,
-      result: "external_request",
-      boundary: "normal_event",
-      notice: state.notice,
-      operations: [{ op: "request_external_normal_event", index, event_id: event.normal_event_id }],
-    };
-  }
-  const result = base.activateSafariDayBoardCell(runtime, index);
-  hydrate(runtime);
-  return result;
+  const state = stateOf(runtime), event = state.board_events[index];
+  if (!event || !["wild", "trainer"].includes(event.kind)) { const result = base.activateSafariDayBoardCell(runtime, index); if (result.result === "day_advanced") { const next = stateOf(runtime); assignFullWildTypes(next); ensureTrainerSeeds(next); } return result; }
+  if (state.battle && !state.battle.completed) return { runtime, result: "battle_active", boundary: "battle", notice: "戦闘を先に終えてください。", operations: [] };
+  if (state.shop) return { runtime, result: "shop_active", boundary: "shop", notice: "ショップを先に終了してください。", operations: [] };
+  const dispatch = resolveDayBoardCellDispatch({ ...baseTurnInput(state, index), reusable: false }); state.board_events = dispatch.state.board_events; state.board_revealed = dispatch.state.board_revealed; state.board_consumed = dispatch.state.board_consumed; state.last_operations = dispatch.operations; state.notice = dispatch.notice;
+  if (dispatch.result === "dispatched") { if (event.kind === "wild") startWild(runtime, event, index, dispatch.operations); else startTrainer(runtime, event, index, dispatch.operations); }
+  return { runtime, result: dispatch.result, boundary: event.kind, notice: state.notice, operations: state.battle?.last_operations ?? dispatch.operations, presentation: state.battle?.presentation ?? [], trainer: state.battle?.trainer ?? null };
 }
+export function setSafariPartyLead(runtime, index) { const state = stateOf(runtime); if (state.battle) throw new Error("戦闘中は先頭を変更できません。"); const result = movePartyPokemonToLead(runtime.player.party, index); state.notice = result.changed ? `${result.pokemon.species}を先頭にしました。` : `${result.pokemon.species}はすでに先頭です。`; return { ...result, runtime, notice: state.notice }; }
+export function loadSafariPlayableRun(storage, currentRuntime = createSafariPlayableRuntime()) { const loaded = base.loadSafariPlayableRun(storage, currentRuntime); if (loaded.found) { const state = stateOf(loaded.state); ensureSafariEncounterSeed(state); assignFullWildTypes(state); ensureTrainerSeeds(state); } return loaded; }
