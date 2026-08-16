@@ -10,6 +10,8 @@ import {
 
 export * from "./safari-playable-integration-core.js";
 
+const SELL_ITEM_PREFIX = "SELL:";
+
 function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
   if (!state || typeof state !== "object" || Array.isArray(state)) {
@@ -98,23 +100,43 @@ export function safariShopPresentation(runtime) {
   const state = stateOf(runtime);
   const shop = state.shop;
   if (!shop?.canonical) return core.safariShopPresentation(runtime);
+  const buyItems = shop.stock.map((itemId) => {
+    const price = shop.prices[itemId] ?? canonicalShopPrice(itemId);
+    return {
+      id: itemId,
+      canonical_id: itemId,
+      transaction_kind: "buy",
+      name: itemId,
+      label: `購入: ${itemId}`,
+      price: Number(price.buyPrice),
+      sell_price: Number(price.sellPrice),
+      quantity: quantity(runtime.bag?.slots ?? [], itemId),
+    };
+  });
+  const sellItems = shop.can_sell
+    ? shop.stock.flatMap((itemId) => {
+      const owned = quantity(runtime.bag?.slots ?? [], itemId);
+      if (owned <= 0) return [];
+      const price = shop.prices[itemId] ?? canonicalShopPrice(itemId);
+      return [{
+        id: `${SELL_ITEM_PREFIX}${itemId}`,
+        canonical_id: itemId,
+        transaction_kind: "sell",
+        name: itemId,
+        label: `売却: ${itemId}`,
+        price: Number(price.sellPrice),
+        sell_price: Number(price.sellPrice),
+        quantity: owned,
+      }];
+    })
+    : [];
   return {
     facilityId: shop.facility_id,
     boardIndex: shop.board_index,
     money: Number(runtime.bag?.money ?? 0),
     canSell: Boolean(shop.can_sell),
     lastTransactionResult: shop.last_transaction_result,
-    items: shop.stock.map((itemId) => {
-      const price = shop.prices[itemId] ?? canonicalShopPrice(itemId);
-      return {
-        id: itemId,
-        name: itemId,
-        label: itemId,
-        price: Number(price.buyPrice),
-        sell_price: Number(price.sellPrice),
-        quantity: quantity(runtime.bag?.slots ?? [], itemId),
-      };
-    }),
+    items: [...buyItems, ...sellItems],
   };
 }
 
@@ -175,6 +197,13 @@ function commitCanonicalShopTransaction(runtime, kind, input = {}) {
 export function purchaseSafariShopItem(runtime, input = {}) {
   if (!stateOf(runtime).shop?.canonical) return core.purchaseSafariShopItem(runtime, input);
   if (input.confirmed === false) return { runtime, result: "cancelled", operations: [] };
+  const selectedId = String(input.itemId ?? "");
+  if (selectedId.startsWith(SELL_ITEM_PREFIX)) {
+    return commitCanonicalShopTransaction(runtime, "sell", {
+      ...input,
+      itemId: selectedId.slice(SELL_ITEM_PREFIX.length),
+    });
+  }
   return commitCanonicalShopTransaction(runtime, "buy", input);
 }
 
