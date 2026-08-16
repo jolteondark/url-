@@ -33,7 +33,13 @@ export function resolveDayBoardCellDispatch(input) {
       operations.push({ op: "activate_trainer_cell", index });
       break;
     case "normal_event":
-      operations.push({ op: "activate_normal_event_cell", index, event });
+      if (event.normal_event_id) {
+        operations.push({ op: "activate_normal_event_cell", index, event });
+      } else {
+        notice = "この出来事はcanonicalイベント接続待ちです。";
+        operations.push({ op: "request_external_event", index, kind: event.kind });
+        result = "external_request";
+      }
       break;
     case "center":
       operations.push({ op: "activate_center_cell", index });
@@ -45,10 +51,9 @@ export function resolveDayBoardCellDispatch(input) {
       operations.push({ op: "activate_egg_shop_cell" });
       break;
     default:
-      state.board_consumed[index] = true;
-      notice = "イベントを実行できませんでした。";
-      operations.push({ op: "buzzer" });
-      result = "unsupported_kind";
+      notice = "このイベントはSafari接続待ちです。";
+      operations.push({ op: "request_external_event", index, kind: event.kind });
+      result = "external_request";
       break;
   }
   if (Boolean(input.scene_is_self)) {
