@@ -1,4 +1,5 @@
 import { applySafariSpeciesSprite } from "./safari-species-sprite-atlas.js";
+import { applySafariSpeciesFormFrontSprite } from "./safari-species-form-front-atlas.js";
 
 let manifest = null;
 let index = null;
@@ -34,9 +35,10 @@ export function applySafariSpeciesSpriteWithManifest(element, species, { form = 
     element.style.imageRendering = "pixelated";
     return true;
   }
+  element.dataset.spriteExactFormAsset = "false";
+  if (applySafariSpeciesFormFrontSprite(element, species, { form, family, size })) return true;
   element.dataset.spriteForm = String(Number(form) || 0);
   element.dataset.spriteFamily = family;
-  element.dataset.spriteExactFormAsset = "false";
   return applySafariSpeciesSprite(element, species, { size });
 }
 
