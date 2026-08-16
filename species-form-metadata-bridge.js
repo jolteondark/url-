@@ -1,3 +1,4 @@
+import "./pokemon-center-presentation.js";
 import { createSafariPlayableRuntime, loadSafariPlayableRun } from "./runtime/safari-playable-integration.js";
 
 function loadSnapshot() {
