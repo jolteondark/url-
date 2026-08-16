@@ -30,13 +30,9 @@ async function loadBoardPresentation() {
 }
 
 async function loadBattleUi() {
-  // Keep the battle path intentionally minimal on iPhone Safari. The core
-  // preview already renders the arena, HP, moves, capture and flee controls.
-  // Extra HUD/result/trainer/terminal presentation modules were causing a
-  // large burst of MutationObservers immediately after battle-card became
-  // visible. Load only the canonical sprite layer here; embellishments can be
-  // reintroduced after real-device responsiveness is proven.
-  loadStyle("./battle-presentation.css");
+  // Core battle geometry and controls live in style.css. Do not layer any
+  // presentation stylesheet over them on iPhone Safari; only add the canonical
+  // sprite renderer after battle-card becomes visible.
   await loadModule("./canonical-battle-sprite-bridge.js");
 }
 
