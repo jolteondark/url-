@@ -9,9 +9,6 @@ import {
 
 export const SAFARI_SPECIES_MASTERS = SAFARI_GENERAL_SPECIES_MASTERS;
 
-// Kept only as a compatibility seam until the Safari Day Board caller below is
-// switched to resolveSafariGeneralEncounter. No species selection logic lives
-// here anymore.
 export const SAFARI_WILD_ENCOUNTER_PROJECTIONS = Object.freeze({
   ELECTRIC: Object.freeze({
     required_type: "ELECTRIC",
@@ -28,36 +25,26 @@ export const SAFARI_WILD_ENCOUNTER_PROJECTIONS = Object.freeze({
 });
 
 const LEGACY_BROWSER_MOVE_OVERRIDES = Object.freeze({
-  TACKLE: Object.freeze({
-    id: "TACKLE", name: "Tackle", category: "Physical",
-    power: 40, accuracy: 100, total_pp: 35, priority: 0,
-  }),
-  QUICKATTACK: Object.freeze({
-    id: "QUICKATTACK", name: "Quick Attack", category: "Physical",
-    power: 40, accuracy: 100, total_pp: 30, priority: 1,
-  }),
-  BITE: Object.freeze({
-    id: "BITE", name: "Bite", category: "Physical",
-    power: 60, accuracy: 100, total_pp: 25, priority: 0,
-  }),
-  SWIFT: Object.freeze({
-    id: "SWIFT", name: "Swift", category: "Special",
-    power: 60, accuracy: 0, total_pp: 20, priority: 0,
-  }),
-  THUNDERSHOCK: Object.freeze({
-    id: "THUNDERSHOCK", name: "Thunder Shock", category: "Special",
-    power: 40, accuracy: 100, total_pp: 30, priority: 0,
-  }),
+  TACKLE: Object.freeze({ id: "TACKLE", name: "Tackle", category: "Physical", power: 40, accuracy: 100, total_pp: 35, priority: 0 }),
+  QUICKATTACK: Object.freeze({ id: "QUICKATTACK", name: "Quick Attack", category: "Physical", power: 40, accuracy: 100, total_pp: 30, priority: 1 }),
+  BITE: Object.freeze({ id: "BITE", name: "Bite", category: "Physical", power: 60, accuracy: 100, total_pp: 25, priority: 0 }),
+  SWIFT: Object.freeze({ id: "SWIFT", name: "Swift", category: "Special", power: 60, accuracy: 0, total_pp: 20, priority: 0 }),
+  THUNDERSHOCK: Object.freeze({ id: "THUNDERSHOCK", name: "Thunder Shock", category: "Special", power: 40, accuracy: 100, total_pp: 30, priority: 0 }),
 });
+
+const LEGACY_BROWSER_MOVE_MASTERS = Object.freeze(Object.fromEntries(
+  Object.entries(LEGACY_BROWSER_MOVE_OVERRIDES).map(([id, override]) => [
+    id,
+    Object.freeze({ ...SAFARI_GENERAL_MOVE_MASTERS[id], ...override }),
+  ]),
+));
 
 export const SAFARI_MOVE_MASTERS = Object.freeze({
   ...SAFARI_GENERAL_MOVE_MASTERS,
-  ...LEGACY_BROWSER_MOVE_OVERRIDES,
+  ...LEGACY_BROWSER_MOVE_MASTERS,
 });
 
-export const SAFARI_NATURE_MASTERS = Object.freeze({
-  HARDY: Object.freeze({ id: "HARDY", stat_changes: Object.freeze([]) }),
-});
+export const SAFARI_NATURE_MASTERS = Object.freeze({ HARDY: Object.freeze({ id: "HARDY", stat_changes: Object.freeze([]) }) });
 
 export const SAFARI_MOVE_LABELS = Object.freeze({
   TACKLE: "たいあたり",
@@ -68,34 +55,15 @@ export const SAFARI_MOVE_LABELS = Object.freeze({
 });
 
 export const SAFARI_SHOP_ITEM_MASTERS = Object.freeze({
-  POTION: Object.freeze({
-    id: "POTION",
-    name: "Potion",
-    label: "キズぐすり",
-    pocket: "MEDICINE",
-    price: 200,
-    sell_price: 50,
-  }),
+  POTION: Object.freeze({ id: "POTION", name: "Potion", label: "キズぐすり", pocket: "MEDICINE", price: 200, sell_price: 50 }),
 });
-
 export const SAFARI_NORMAL_SHOP_STOCK = Object.freeze(["POTION"]);
 
 export const SAFARI_BOUNTY_PROJECTION = Object.freeze({
-  species: "RATTATA",
-  species_name: "コラッタ",
-  form: 0,
-  level: 6,
-  reward: 600,
-  prefix: "凶暴な",
-  gender: 2,
+  species: "RATTATA", species_name: "コラッタ", form: 0, level: 6, reward: 600, prefix: "凶暴な", gender: 2,
   move_ids: Object.freeze(["TACKLE"]),
 });
 
 export const SAFARI_ZERO_STAT_VALUES = Object.freeze({
-  HP: 0,
-  ATTACK: 0,
-  DEFENSE: 0,
-  SPECIAL_ATTACK: 0,
-  SPECIAL_DEFENSE: 0,
-  SPEED: 0,
+  HP: 0, ATTACK: 0, DEFENSE: 0, SPECIAL_ATTACK: 0, SPECIAL_DEFENSE: 0, SPEED: 0,
 });
