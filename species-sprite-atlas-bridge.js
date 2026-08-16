@@ -7,13 +7,17 @@ function ensureStyle() {
   const style = document.createElement("style");
   style.id = "species-sprite-atlas-style";
   style.textContent = `
-    .atlas-battle-sprite{position:absolute;z-index:0;display:block;pointer-events:none;filter:drop-shadow(0 8px 7px rgba(0,0,0,.30))}
-    .combatant.foe .atlas-battle-sprite{right:4px;bottom:-18px}
-    .combatant.player .atlas-battle-sprite{right:4px;top:28px}
+    .atlas-battle-sprite{position:absolute;z-index:1;display:block;pointer-events:none;filter:drop-shadow(0 8px 7px rgba(0,0,0,.30))}
+    .combatant.foe .atlas-battle-sprite{right:48px;bottom:22px}
+    .combatant.player .atlas-battle-sprite{left:48px;bottom:28px}
     .combatant.player .atlas-battle-sprite[data-sprite-family="back"][data-sprite-exact-form-asset="false"]{transform:scaleX(-1)}
     .atlas-party-sprite,.atlas-storage-sprite{flex:0 0 auto;margin:2px 8px 4px 0;filter:drop-shadow(0 3px 3px rgba(0,0,0,.24))}
     .party-slot,.storage-slot{position:relative}
     .party-slot>.atlas-party-sprite,.storage-slot>.atlas-storage-sprite{float:left}
+    @media(max-width:520px){
+      .combatant.foe .atlas-battle-sprite{right:26px;bottom:18px}
+      .combatant.player .atlas-battle-sprite{left:26px;bottom:24px}
+    }
   `;
   document.head.append(style);
 }
