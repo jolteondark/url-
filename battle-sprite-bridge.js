@@ -1,3 +1,4 @@
+import "./game-presentation.js";
 import { resolveSafariBattleSpriteAsset } from "./runtime/safari-battle-sprite-asset-subset.js";
 import { projectSafariBattleSpriteImage } from "./runtime/safari-battle-sprite-image-presentation.js";
 const SIDES=[{side:"player",nameId:"player-name",combatantId:"player-combatant",battlerIndex:0},{side:"foe",nameId:"foe-name",combatantId:"foe-combatant",battlerIndex:1}];
