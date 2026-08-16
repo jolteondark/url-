@@ -28,10 +28,15 @@ jobs:
       - name: Check browser modules
         run: |
           node --check preview.js
+          node --check party-panel-bridge.js
+          node --check storage-panel-bridge.js
+          node --check species-sprite-atlas-bridge.js
           node --check runtime/browser-mapless-wild-encounter-runtime.js
           node --check runtime/browser-battle-round-runtime.js
           node --check runtime/battle-core-try-use-move.js
           node --check runtime/safari-playable-data.js
+          node --check runtime/safari-species-sprite-manifest.js
+          node --check runtime/safari-species-sprite-atlas.js
           node --check runtime/mapless-dynamic-trainer-master.js
           node --check runtime/mapless-dynamic-trainer-generator.js
           node --check runtime/safari-playable-integration-core.js
@@ -48,6 +53,7 @@ jobs:
           node tests/trainer-party-handoff-smoke.mjs
           node tests/resolved-shop-transaction-smoke.mjs
           node tests/canonical-shop-catalog-smoke.mjs
+          node tests/species-sprite-atlas-smoke.mjs
 
   deploy:
     needs: validate
@@ -64,8 +70,12 @@ jobs:
       - name: Build public artifact
         run: |
           mkdir -p dist
-          cp index.html style.css manifest.webmanifest preview.js domain-runtime.js battle-runtime.js runtime-source.json dist/
+          cp index.html *.css *.js runtime-source.json manifest.webmanifest dist/
           cp -R runtime dist/runtime
+          cp -R assets dist/assets
+          test -f dist/species-sprite-atlas-bridge.js
+          test -f dist/runtime/safari-species-sprite-atlas.js
+          test -f dist/assets/general-front12/front-00.js
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4
         with:
