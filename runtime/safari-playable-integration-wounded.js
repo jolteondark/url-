@@ -1,11 +1,11 @@
-import * as base from "./safari-playable-integration-core.js";
+import * as base from "./safari-playable-integration-pre-wounded.js";
 import {
   prepareSafariWoundedPokemonCandidate,
   resolveSafariWoundedPokemonDecision,
   safariWoundedHealingInventory,
 } from "./safari-wounded-pokemon-integration.js";
 
-export * from "./safari-playable-integration-core.js";
+export * from "./safari-playable-integration-pre-wounded.js";
 export {
   prepareSafariWoundedPokemonCandidate,
   resolveSafariWoundedPokemonDecision,
