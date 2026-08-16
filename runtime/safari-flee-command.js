@@ -1,4 +1,4 @@
-import { resolveRunCanonical } from "./battle-core-run-flee.js";
+import { resolveBrowserWildBattleCommand } from "./browser-battle-wild-command-handoff.js";
 
 function browserRunSeed() {
   if (globalThis.crypto && typeof globalThis.crypto.getRandomValues === "function") {
@@ -7,11 +7,6 @@ function browserRunSeed() {
     return value[0] & 0x7fffffff;
   }
   return Math.floor(Math.random() * 0x80000000) & 0x7fffffff;
-}
-
-function speedOf(pokemon) {
-  const value = Number(pokemon?.stats?.SPEED ?? 0);
-  return Number.isFinite(value) ? value : 0;
 }
 
 export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), randomRoll = undefined } = {}) {
@@ -23,26 +18,29 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
   const foe = battle.foe;
   const trainerBattle = battle.kind === "trainer";
   const facilityBlocked = battle.origin === "village_bounty";
-  const resolved = resolveRunCanonical({
-    battlerOpposes: false,
+  const command = resolveBrowserWildBattleCommand({
+    command: "run",
+    player,
+    foe,
     trainerBattle,
-    internalBattle: true,
-    canRun: battle.kind === "wild" && !facilityBlocked,
-    duringBattle: false,
     decision: Number(battle.decision ?? 0),
-    runCommand: Number(battle.run_command ?? 0),
-    speedPlayer: speedOf(player),
-    opponentSpeeds: [speedOf(foe)],
-    moreTypeEffects: false,
-    battlerHasGhostType: false,
-    certainEscapeByAbility: false,
-    certainEscapeByItem: false,
-    trappedInBattle: false,
-    trappedByOpponentAbility: false,
-    trappedByOpponentItem: false,
-    runRandomSeed,
-    randomRoll,
+    runInput: {
+      internalBattle: true,
+      canRun: battle.kind === "wild" && !facilityBlocked,
+      duringBattle: false,
+      runCommand: Number(battle.run_command ?? 0),
+      moreTypeEffects: false,
+      battlerHasGhostType: false,
+      certainEscapeByAbility: false,
+      certainEscapeByItem: false,
+      trappedInBattle: false,
+      trappedByOpponentAbility: false,
+      trappedByOpponentItem: false,
+      runRandomSeed,
+      randomRoll,
+    },
   });
+  const resolved = command.run;
   battle.run_command = resolved.runCommand;
 
   const baseOperation = {
@@ -62,7 +60,7 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
     const operations = [baseOperation];
     battle.last_operations = operations;
     state.last_operations = operations;
-    return { runtime, escaped: false, blocked, resolution: resolved, operations };
+    return { runtime, escaped: false, blocked, resolution: resolved, availability: command.availability, operations };
   }
 
   const index = Number(battle.board_index);
@@ -80,5 +78,5 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
   state.location = "day_board";
   state.notice = "うまく逃げ切った！";
   state.last_operations = operations;
-  return { runtime, escaped: true, blocked: false, target: "day_board", resolution: resolved, operations };
+  return { runtime, escaped: true, blocked: false, target: "day_board", resolution: resolved, availability: command.availability, operations };
 }
