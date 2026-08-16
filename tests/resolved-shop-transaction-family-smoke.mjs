@@ -48,4 +48,42 @@ assert.equal(blocked.result, "cannot_sell");
 assert.deepEqual(blocked.slots.filter(Boolean), [["POTION", 1]]);
 assert.equal(blocked.money, 1000);
 
-console.log(JSON.stringify({ ok: true, premier: [premier.premierBallBonusRequested, premier.premierBallBonusAdded], sale: sold.result, blocked: blocked.result }));
+const missingMoney = resolveResolvedShopTransaction({
+  ...common,
+  slots: [["POTION", 1]],
+  offer: { kind: "buy", item: "POTION", conditionPassed: true, unitPrice: 300 },
+  qty: 1,
+});
+assert.equal(missingMoney.result, "unresolved_transaction");
+assert.deepEqual(missingMoney.slots, [["POTION", 1]]);
+assert.equal(missingMoney.money, 0);
+
+const malformedSlots = resolveResolvedShopTransaction({
+  ...common,
+  slots: [["POTION", 0]],
+  money: 1000,
+  offer: { kind: "buy", item: "POTION", conditionPassed: true, unitPrice: 300 },
+  qty: 1,
+});
+assert.equal(malformedSlots.result, "unresolved_transaction");
+assert.deepEqual(malformedSlots.slots, [["POTION", 0]]);
+assert.equal(malformedSlots.money, 1000);
+
+const stringQty = resolveResolvedShopTransaction({
+  ...common,
+  slots: [],
+  money: 1000,
+  offer: { kind: "buy", item: "POTION", conditionPassed: true, unitPrice: 300 },
+  qty: "1",
+});
+assert.equal(stringQty.result, "unresolved_transaction");
+assert.deepEqual(stringQty.slots, []);
+assert.equal(stringQty.money, 1000);
+
+console.log(JSON.stringify({
+  ok: true,
+  premier: [premier.premierBallBonusRequested, premier.premierBallBonusAdded],
+  sale: sold.result,
+  blocked: blocked.result,
+  unresolved: [missingMoney.result, malformedSlots.result, stringQty.result],
+}));
