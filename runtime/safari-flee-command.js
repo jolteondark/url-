@@ -9,6 +9,21 @@ function browserRunSeed() {
   return Math.floor(Math.random() * 0x80000000) & 0x7fffffff;
 }
 
+function postBattlePersistenceInput(runtime) {
+  const party = structuredClone(runtime?.player?.party ?? []);
+  return {
+    party,
+    caught: [],
+    initialItems: [party.map((pokemon) => pokemon?.item ?? null), []],
+  };
+}
+
+function commitTerminalPlayer(runtime, terminalStateHandoff) {
+  const reflected = terminalStateHandoff?.playerParty?.[0];
+  if (!reflected || !runtime?.player?.party?.[0]) return;
+  runtime.player.party[0] = structuredClone(reflected);
+}
+
 export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), randomRoll = undefined } = {}) {
   const state = runtime?.variables?.mapless;
   const battle = state?.battle;
@@ -24,6 +39,8 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
     foe,
     trainerBattle,
     decision: Number(battle.decision ?? 0),
+    postBattlePersistenceInput: postBattlePersistenceInput(runtime),
+    reflectedPartyIndex: 0,
     runInput: {
       internalBattle: true,
       canRun: battle.kind === "wild" && !facilityBlocked,
@@ -60,8 +77,11 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
     const operations = [baseOperation];
     battle.last_operations = operations;
     state.last_operations = operations;
-    return { runtime, escaped: false, blocked, resolution: resolved, availability: command.availability, operations };
+    return { runtime, escaped: false, blocked, resolution: resolved, availability: command.availability, terminalStateHandoff: command.terminalStateHandoff, operations };
   }
+
+  commitTerminalPlayer(runtime, command.terminalStateHandoff);
+  state.last_terminal_wild = structuredClone(command.terminalStateHandoff);
 
   const index = Number(battle.board_index);
   if (Number.isInteger(index) && index >= 0) {
@@ -71,6 +91,7 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
 
   const operations = [
     baseOperation,
+    { op: "terminal_wild_state_committed", resultKind: command.terminalStateHandoff?.resultKind ?? "fled" },
     { op: "return_to_day_board" },
     { op: "request_save", reason: "battle_flee" },
   ];
@@ -78,5 +99,5 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
   state.location = "day_board";
   state.notice = "うまく逃げ切った！";
   state.last_operations = operations;
-  return { runtime, escaped: true, blocked: false, target: "day_board", resolution: resolved, availability: command.availability, operations };
+  return { runtime, escaped: true, blocked: false, target: "day_board", resolution: resolved, availability: command.availability, terminalStateHandoff: command.terminalStateHandoff, operations };
 }
