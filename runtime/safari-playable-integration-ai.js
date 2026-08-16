@@ -1,6 +1,5 @@
 export * from "./safari-playable-integration.js?canonical-base=1";
 
-import "../camp-presentation.js";
 import {
   createSafariPlayableRuntime as createSafariPlayableRuntimeBase,
   loadSafariPlayableRun as loadSafariPlayableRunBase,
