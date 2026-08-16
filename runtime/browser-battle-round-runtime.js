@@ -33,7 +33,16 @@ function requireBattleMoveRuntime(move, label) {
   return move;
 }
 
-function actionInput({ actor, target, move, moveIndex, battlerIndex, randomRoll, reflectPp }) {
+function browserCombatSeed() {
+  if (globalThis.crypto && typeof globalThis.crypto.getRandomValues === "function") {
+    const value = new Uint32Array(1);
+    globalThis.crypto.getRandomValues(value);
+    return value[0] & 0x7fffffff;
+  }
+  return Math.floor(Math.random() * 0x80000000) & 0x7fffffff;
+}
+
+function actionInput({ actor, target, move, moveIndex, battlerIndex, reflectPp }) {
   const special = move.category === "Special";
   const action = {
     kind: "move",
@@ -42,7 +51,6 @@ function actionInput({ actor, target, move, moveIndex, battlerIndex, randomRoll,
     moveId: move.id,
     accuracyInput: {
       baseAccuracy: move.accuracy,
-      randomRoll,
     },
     damageInput: {
       level: actor.level,
@@ -51,6 +59,11 @@ function actionInput({ actor, target, move, moveIndex, battlerIndex, randomRoll,
       defense: target.stats[special ? "SPECIAL_DEFENSE" : "DEFENSE"],
       attackStageIndex: 6,
       defenseStageIndex: 6,
+      damageMultiplierInput: {
+        type: move.type ?? null,
+        physicalMove: move.category === "Physical",
+        specialMove: special,
+      },
     },
     hpBefore: target.hp,
     totalHp: target.max_hp,
@@ -109,8 +122,9 @@ function attachBrowserJudgeStates(input) {
  * Browser continuation adapter for exactly one interactive Battle round.
  *
  * Core owns command validation, priority, accuracy, damage, HP/faint preparation
- * and decision semantics. This adapter only commits the resolved action order
- * to two Pokemon Runtime instances and exposes a presentation-friendly stream.
+ * and decision semantics. This adapter only supplies entropy as a seed, commits
+ * the resolved action order to two Pokemon Runtime instances and exposes a
+ * presentation-friendly stream.
  */
 export function resolveBrowserBattleRound({
   player,
@@ -118,8 +132,7 @@ export function resolveBrowserBattleRound({
   selectedMoveId,
   foeMoveId,
   moveMasters,
-  playerRandomRoll = 0,
-  foeRandomRoll = 0,
+  combatRandomSeed = browserCombatSeed(),
 } = {}) {
   requireBattleStats(player, "player");
   requireBattleStats(foe, "foe");
@@ -174,12 +187,12 @@ export function resolveBrowserBattleRound({
       actionInput({
         actor: player, target: foe, move: playerMove,
         moveIndex: playerMoveIndex, battlerIndex: 0,
-        randomRoll: playerRandomRoll, reflectPp: true,
+        reflectPp: true,
       }),
       actionInput({
         actor: foe, target: player, move: foeMove,
         moveIndex: foeMoveIndex, battlerIndex: 1,
-        randomRoll: foeRandomRoll, reflectPp: true,
+        reflectPp: true,
       }),
     ],
   };
@@ -187,6 +200,7 @@ export function resolveBrowserBattleRound({
   const battleInput = {
     useAttackPhaseScheduler: true,
     useCanonicalAccuracyDamage: true,
+    combatRandomSeed: Number(combatRandomSeed) & 0x7fffffff,
     rounds: [round],
   };
   const playerRuntime = resolveBattleRuntimeIntegration({
@@ -225,6 +239,7 @@ export function resolveBrowserBattleRound({
     operations,
     selection,
     scheduling,
+    combatRandomSeed: Number(combatRandomSeed) & 0x7fffffff,
     ppIntegration: {
       prepared: playerPp.prepared,
       commits: [
