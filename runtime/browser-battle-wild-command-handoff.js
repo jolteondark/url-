@@ -1,5 +1,6 @@
 import { resolveCaptureFlow } from "./battle-capture-flow.js";
 import { canRunCanonical, resolveRunCanonical } from "./battle-core-run-flee.js";
+import { resolveBattleEndPersistenceIntegration } from "./battle-runtime-integration.js";
 
 function requirePokemon(pokemon, label) {
   if (!pokemon || typeof pokemon !== "object" || Array.isArray(pokemon)) {
@@ -12,6 +13,32 @@ function requirePokemon(pokemon, label) {
     throw new TypeError(`${label} Pokemon stats.SPEED is required`);
   }
   return pokemon;
+}
+
+function resolveTerminalState({ decision, resultKind, player, postBattlePersistenceInput, reflectedPartyIndex }) {
+  const terminal = Number(decision) !== 0;
+  const persistence = terminal
+    ? resolveBattleEndPersistenceIntegration({
+        decision,
+        persistenceInput: postBattlePersistenceInput,
+        reflectedPokemon: player,
+        reflectedPartyIndex,
+        reflectMoves: Array.isArray(player.moves),
+        reflectExpLevel: Number.isInteger(player.exp) && Number.isInteger(player.level),
+        reflectStatus: Object.prototype.hasOwnProperty.call(player, "status"),
+        reflectItem: Object.prototype.hasOwnProperty.call(player, "item"),
+      })
+    : null;
+  const sourceParty = persistence?.party ?? postBattlePersistenceInput?.party ?? [];
+  return {
+    terminal,
+    decision: Number(decision),
+    resultKind,
+    player: structuredClone(player),
+    playerParty: structuredClone(sourceParty),
+    postBattlePersistenceApplied: persistence !== null,
+    ...(persistence ? { postBattlePersistence: persistence } : {}),
+  };
 }
 
 export function projectBrowserWildBattleAvailability({ player, foe, trainerBattle = false, runInput = {} } = {}) {
@@ -40,6 +67,8 @@ export function resolveBrowserWildBattleCommand({
   decision = 0,
   runInput = {},
   captureInput = {},
+  postBattlePersistenceInput = null,
+  reflectedPartyIndex = 0,
 } = {}) {
   const user = requirePokemon(player, "player");
   const target = requirePokemon(foe, "foe");
@@ -54,12 +83,21 @@ export function resolveBrowserWildBattleCommand({
       speedPlayer: user.stats.SPEED,
       opponentSpeeds: [target.stats.SPEED],
     });
+    const terminalStateHandoff = resolveTerminalState({
+      decision: run.decision,
+      resultKind: Number(run.decision) === 3 ? "fled" : "run_failed",
+      player: user,
+      postBattlePersistenceInput,
+      reflectedPartyIndex,
+    });
     return {
       command: "run",
       availability,
       decision: run.decision,
-      battleEnded: Number(run.decision) !== 0,
+      battleEnded: terminalStateHandoff.terminal,
       run,
+      terminalStateHandoff,
+      ...(terminalStateHandoff.postBattlePersistence ? { postBattlePersistence: terminalStateHandoff.postBattlePersistence } : {}),
       operations: [{ op: "run_attempt", result: run.result, reason: run.reason, rate: run.rate, randomRoll: run.randomRoll }],
     };
   }
@@ -81,12 +119,21 @@ export function resolveBrowserWildBattleCommand({
         status: target.status ?? captureInput.capture?.status ?? "NONE",
       },
     });
+    const terminalStateHandoff = resolveTerminalState({
+      decision: capture.decision,
+      resultKind: capture.result === "caught" && Number(capture.decision) !== 0 ? "captured" : "capture_failed",
+      player: user,
+      postBattlePersistenceInput,
+      reflectedPartyIndex,
+    });
     return {
       command: "capture",
       availability,
       decision: capture.decision,
-      battleEnded: Number(capture.decision) !== 0,
+      battleEnded: terminalStateHandoff.terminal,
       capture,
+      terminalStateHandoff,
+      ...(terminalStateHandoff.postBattlePersistence ? { postBattlePersistence: terminalStateHandoff.postBattlePersistence } : {}),
       operations: capture.operations.map((operation) => ({ ...operation })),
     };
   }
