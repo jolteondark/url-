@@ -1,6 +1,7 @@
 const byId=(id)=>document.getElementById(id);
 const setText=(node,value)=>{if(node&&node.textContent!==value)node.textContent=value};
 const setStyleWidth=(node,value)=>{if(node&&node.style.width!==value)node.style.width=value};
+let pendingBoardPresentation=null;
 
 function eventTone(label=""){
   if(/野生|トレーナー|罠/.test(label))return "danger";
@@ -9,6 +10,84 @@ function eventTone(label=""){
   if(/宝箱|落とし物/.test(label))return "reward";
   if(/タイプイベント|出来事/.test(label))return "event";
   return "unknown";
+}
+
+function ensureEventScene(){
+  if(byId("event-card"))return byId("event-card");
+  const stage=document.querySelector(".game-stage");
+  if(!stage)return null;
+  const scene=document.createElement("section");
+  scene.className="scene event-scene";
+  scene.id="event-card";
+  scene.hidden=true;
+  scene.innerHTML='<div class="event-visual" aria-hidden="true"><span class="event-orbit"></span><span class="event-sigil">◆</span></div><div class="scene-heading event-heading"><div><span class="scene-kicker" id="event-kicker">ENCOUNTER</span><h2 id="event-title">出来事</h2></div><span class="mode-pill" id="event-result">完了</span></div><p class="event-message" id="event-message"></p><div class="event-footer"><span id="event-day">DAY</span><button id="event-continue" type="button">探索を続ける</button></div>';
+  stage.append(scene);
+  byId("event-continue").addEventListener("click",()=>hideEventScene(true));
+  return scene;
+}
+
+function hideEventScene(focusBoard=false){
+  const scene=byId("event-card");
+  if(scene)scene.hidden=true;
+  const board=byId("board-card");
+  if(board&&byId("village-card")?.hidden!==false)board.hidden=false;
+  pendingBoardPresentation=null;
+  renderPresentation();
+  if(focusBoard)window.setTimeout(()=>board?.scrollIntoView({behavior:"smooth",block:"start"}),0);
+}
+
+function eventKickerForTone(tone){
+  if(tone==="rest")return "RECOVERY";
+  if(tone==="facility")return "FACILITY";
+  if(tone==="reward")return "REWARD";
+  if(tone==="danger")return "DANGER";
+  if(tone==="event")return "EVENT";
+  return "ENCOUNTER";
+}
+
+function showEventScene(snapshot){
+  const scene=ensureEventScene();
+  const board=byId("board-card");
+  if(!scene||!board)return;
+  const currentCell=byId("board")?.querySelector(`button[data-board-index="${snapshot.index}"]`);
+  const dayAfter=byId("day")?.textContent??snapshot.day;
+  const dayAdvanced=dayAfter!==snapshot.day;
+  const currentLabel=currentCell?.querySelector("strong")?.textContent?.trim();
+  const title=dayAdvanced?"野宿する":currentLabel&&currentLabel!=="？？？"?currentLabel:snapshot.label&&snapshot.label!=="？？？"?snapshot.label:"出来事";
+  const tone=dayAdvanced?"rest":eventTone(title);
+  scene.dataset.eventTone=tone;
+  setText(byId("event-kicker"),eventKickerForTone(tone));
+  setText(byId("event-title"),title);
+  setText(byId("event-result"),dayAdvanced?`DAY ${dayAfter}`:"完了");
+  setText(byId("event-message"),byId("notice")?.textContent?.trim()||"探索を進めました。");
+  setText(byId("event-day"),`DAY ${dayAfter} · SLOT ${snapshot.index+1}`);
+  board.hidden=true;
+  scene.hidden=false;
+  renderPresentation();
+  window.setTimeout(()=>scene.scrollIntoView({behavior:"smooth",block:"start"}),0);
+}
+
+function wireBoardPresentation(){
+  const board=byId("board");
+  if(!board||board.dataset.presentationWired==="true")return;
+  board.dataset.presentationWired="true";
+  board.addEventListener("click",(event)=>{
+    const button=event.target.closest("button[data-board-index]");
+    if(!button||button.disabled)return;
+    pendingBoardPresentation={
+      index:Number(button.dataset.boardIndex),
+      label:button.querySelector("strong")?.textContent?.trim()??"",
+      day:byId("day")?.textContent??"",
+    };
+    queueMicrotask(()=>{
+      const snapshot=pendingBoardPresentation;
+      if(!snapshot)return;
+      if(byId("battle-card")?.hidden===false||byId("shop-card")?.hidden===false||byId("village-card")?.hidden===false){pendingBoardPresentation=null;return;}
+      showEventScene(snapshot);
+    });
+  },true);
+  byId("new-run")?.addEventListener("click",()=>hideEventScene(false),true);
+  byId("continue-run")?.addEventListener("click",()=>hideEventScene(false),true);
 }
 
 function ensureBoardChrome(){
@@ -27,6 +106,7 @@ function ensureBoardChrome(){
     guide.innerHTML='<span>ROUTE SELECT</span><p>マスを選んで探索を進める</p>';
     board.before(guide);
   }
+  wireBoardPresentation();
 }
 
 function decorateBoard(){
@@ -101,7 +181,7 @@ function decorateHud(){
 
 function decorateScenes(){
   for(const scene of document.querySelectorAll(".scene"))scene.classList.toggle("scene-active",!scene.hidden);
-  const current=byId("battle-card")&&!byId("battle-card").hidden?"battle":byId("shop-card")&&!byId("shop-card").hidden?"shop":byId("village-card")&&!byId("village-card").hidden?"village":"board";
+  const current=byId("battle-card")&&!byId("battle-card").hidden?"battle":byId("shop-card")&&!byId("shop-card").hidden?"shop":byId("village-card")&&!byId("village-card").hidden?"village":byId("event-card")&&!byId("event-card").hidden?"event":"board";
   document.body.dataset.scene=current;
   document.body.classList.add("presentation-ready");
 }
@@ -125,6 +205,7 @@ function renderPresentation(){
 }
 
 syncViewport();
+ensureEventScene();
 renderPresentation();
 window.visualViewport?.addEventListener("resize",syncViewport,{passive:true});
 window.addEventListener("orientationchange",syncViewport,{passive:true});
