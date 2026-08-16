@@ -33,7 +33,16 @@ function requireBattleMoveRuntime(move, label) {
   return move;
 }
 
-function actionInput({ actor, target, move, moveIndex, battlerIndex, randomRoll, reflectPp }) {
+function randomCombatSeed() {
+  if (globalThis.crypto && typeof globalThis.crypto.getRandomValues === "function") {
+    const out = new Uint32Array(1);
+    globalThis.crypto.getRandomValues(out);
+    return out[0] & 0x7fffffff;
+  }
+  return Math.floor(Math.random() * 0x80000000) & 0x7fffffff;
+}
+
+function actionInput({ actor, target, move, moveIndex, battlerIndex, reflectPp }) {
   const special = move.category === "Special";
   const action = {
     kind: "move",
@@ -42,7 +51,6 @@ function actionInput({ actor, target, move, moveIndex, battlerIndex, randomRoll,
     moveId: move.id,
     accuracyInput: {
       baseAccuracy: move.accuracy,
-      randomRoll,
     },
     damageInput: {
       level: actor.level,
@@ -51,6 +59,7 @@ function actionInput({ actor, target, move, moveIndex, battlerIndex, randomRoll,
       defense: target.stats[special ? "SPECIAL_DEFENSE" : "DEFENSE"],
       attackStageIndex: 6,
       defenseStageIndex: 6,
+      damageMultiplierInput: {},
     },
     hpBefore: target.hp,
     totalHp: target.max_hp,
@@ -108,9 +117,10 @@ function attachBrowserJudgeStates(input) {
 /**
  * Browser continuation adapter for exactly one interactive Battle round.
  *
- * Core owns command validation, priority, accuracy, damage, HP/faint preparation
- * and decision semantics. This adapter only commits the resolved action order
- * to two Pokemon Runtime instances and exposes a presentation-friendly stream.
+ * Core owns command validation, priority, seeded accuracy/damage randomization,
+ * HP/faint preparation and decision semantics. This adapter only supplies a
+ * generic seed, commits the resolved action order to Pokemon Runtime and exposes
+ * a presentation-friendly stream.
  */
 export function resolveBrowserBattleRound({
   player,
@@ -118,8 +128,7 @@ export function resolveBrowserBattleRound({
   selectedMoveId,
   foeMoveId,
   moveMasters,
-  playerRandomRoll = 0,
-  foeRandomRoll = 0,
+  combatRandomSeed = randomCombatSeed(),
 } = {}) {
   requireBattleStats(player, "player");
   requireBattleStats(foe, "foe");
@@ -171,22 +180,15 @@ export function resolveBrowserBattleRound({
       },
     ],
     actions: [
-      actionInput({
-        actor: player, target: foe, move: playerMove,
-        moveIndex: playerMoveIndex, battlerIndex: 0,
-        randomRoll: playerRandomRoll, reflectPp: true,
-      }),
-      actionInput({
-        actor: foe, target: player, move: foeMove,
-        moveIndex: foeMoveIndex, battlerIndex: 1,
-        randomRoll: foeRandomRoll, reflectPp: true,
-      }),
+      actionInput({ actor: player, target: foe, move: playerMove, moveIndex: playerMoveIndex, battlerIndex: 0, reflectPp: true }),
+      actionInput({ actor: foe, target: player, move: foeMove, moveIndex: foeMoveIndex, battlerIndex: 1, reflectPp: true }),
     ],
   };
 
   const battleInput = {
     useAttackPhaseScheduler: true,
     useCanonicalAccuracyDamage: true,
+    combatRandomSeed,
     rounds: [round],
   };
   const playerRuntime = resolveBattleRuntimeIntegration({
