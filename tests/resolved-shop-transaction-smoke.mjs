@@ -22,11 +22,19 @@ assert.equal(bought.spent, 274);
 
 const sold = resolveResolvedShopTransaction({
   ...common, slots: [['POTION', 3]], money: 1000,
-  offer: { kind: 'sell', item: 'POTION', conditionPassed: true, unitPrice: 61 }, qty: 2,
+  offer: { kind: 'sell', item: 'POTION', conditionPassed: true, canSell: true, unitPrice: 61 }, qty: 2,
 });
 assert.equal(sold.result, 'sold');
 assert.deepEqual(sold.slots.filter(Boolean), [['POTION', 1]]);
 assert.equal(sold.money, 1122);
 assert.equal(sold.earned, 122);
 
-console.log(JSON.stringify({ ok: true, unavailable: unavailable.result, bought: bought.result, sold: sold.result }));
+const missingEligibility = resolveResolvedShopTransaction({
+  ...common, slots: [['POTION', 1]], money: 1000,
+  offer: { kind: 'sell', item: 'POTION', conditionPassed: true, unitPrice: 61 }, qty: 1,
+});
+assert.equal(missingEligibility.result, 'cannot_sell');
+assert.deepEqual(missingEligibility.slots.filter(Boolean), [['POTION', 1]]);
+assert.equal(missingEligibility.money, 1000);
+
+console.log(JSON.stringify({ ok: true, unavailable: unavailable.result, bought: bought.result, sold: sold.result, missingEligibility: missingEligibility.result }));

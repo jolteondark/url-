@@ -91,6 +91,9 @@ export function canonicalResolvedShopOffer(shop, itemId, kind = "buy") {
   const price = canonicalShopPrice(item);
   const normalizedKind = String(kind);
   if (normalizedKind === "buy") return Object.freeze({ kind: "buy", item, unitPrice: price.buyPrice, conditionPassed: true });
-  if (normalizedKind === "sell") return Object.freeze({ kind: "sell", item, unitPrice: price.sellPrice, conditionPassed: Boolean(shop.canSell) });
+  if (normalizedKind === "sell") {
+    const canSell = shop.canSell === true;
+    return Object.freeze({ kind: "sell", item, unitPrice: price.sellPrice, canSell, conditionPassed: canSell });
+  }
   throw new RangeError(`unsupported canonical shop transaction: ${kind}`);
 }

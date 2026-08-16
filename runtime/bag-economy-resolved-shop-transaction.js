@@ -15,8 +15,9 @@ function unchanged(input, result) {
   };
 }
 
-// Facilities/Game Data own stock, conditions and price resolution. This owner only
-// commits an already-resolved offer through the canonical Bag/Money mart owners.
+// Facilities/Game Data own stock, conditions, sale eligibility and price
+// resolution. This owner only commits an already-resolved offer through the
+// canonical Bag/Money mart owners.
 export function resolveResolvedShopTransaction(input = {}) {
   const offer = input.offer || {};
   if (offer.conditionPassed !== true) return unchanged(input, 'unavailable');
@@ -40,7 +41,7 @@ export function resolveResolvedShopTransaction(input = {}) {
   } else if (kind === 'sell') {
     result = sellTransaction({
       ...transaction,
-      canSell: true,
+      canSell: offer.canSell === true,
       maxMoney: input.maxMoney,
     });
   } else {
