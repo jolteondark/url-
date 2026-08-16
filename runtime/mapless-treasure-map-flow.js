@@ -1,0 +1,24 @@
+const rewardCandidates = ["NUGGET", "STARPIECE", "COMETSHARD"];
+function finish(operations, eventResult = true) { operations.push({ op: "finish_event", result: eventResult }); return { operations, result: { completed: eventResult } }; }
+function leave(operations, leaveResult = true) { operations.push({ op: "leave_event", result: leaveResult }); return { operations, result: { completed: false, left: leaveResult } }; }
+export function resolveTreasureMapSeller(input) {
+  const operations = [];
+  if (input.existing_treasure_map) { operations.push({ op: "message", text: "すでに別の宝の地図を持っている。" }); return finish(operations, input.finish_event_result ?? true); }
+  const fakeKnown = Boolean(input.fake && input.has_dark_type); if (fakeKnown) operations.push({ op: "message", text: "あくタイプが、この地図は贋作だと見抜いた。" });
+  const price = 900 + Number(input.scaling_value ?? 0) * 150; const commands = fakeKnown ? ["偽物だと指摘する", "あえて購入する", "立ち去る"] : ["購入する", "断る"];
+  operations.push({ op: "choice", price, commands, default_index: commands.length - 1, result: input.choice });
+  if (Number(input.choice) < 0) return { operations, result: { completed: false, price, fake_known: fakeKnown } };
+  if (fakeKnown) {
+    if (input.choice === 0) { operations.push({ op: "seeded_roll", seed: input.seed, upper: 100, result: input.seeded_roll }); if (Number(input.seeded_roll) < 50) operations.push({ op: "grant_random", tier: "small", count: 1, result: input.grant_random_result ?? true }); else { operations.push({ op: "start_trainer_battle", request: { modifier: 0, seed: input.seed }, result: input.battle_result ?? null }); operations.push({ op: "battle_success", result: Boolean(input.battle_success) }); if (input.battle_success) operations.push({ op: "add_money", amount: price, result: input.add_money_result ?? true }); } }
+    else if (input.choice === 1) { operations.push({ op: "spend_money", amount: price, result: Boolean(input.spend_money_result) }); if (!input.spend_money_result) return { operations, result: { completed: false, price, fake_known: fakeKnown } }; const map = { fake: true, purchase_day: input.current_day, due_day: Number(input.current_day) + 1, price, seed: Number(input.seed), placed_day: null }; operations.push({ op: "set_treasure_map", value: map }); if (input.sound_feedback) operations.push({ op: "paper_map" }); operations.push({ op: "message", text: "翌日の分岐に地図の場所が開示される。" }); }
+    else return leave(operations, input.leave_event_result ?? true);
+  } else if (input.choice === 0) { operations.push({ op: "spend_money", amount: price, result: Boolean(input.spend_money_result) }); if (!input.spend_money_result) return { operations, result: { completed: false, price, fake_known: fakeKnown } }; const map = { fake: Boolean(input.fake), purchase_day: input.current_day, due_day: Number(input.current_day) + 1, price, seed: Number(input.seed), placed_day: null }; operations.push({ op: "set_treasure_map", value: map }); if (input.sound_feedback) operations.push({ op: "paper_map" }); operations.push({ op: "message", text: "翌日の分岐に地図の場所が開示される。" }); }
+  else return leave(operations, input.leave_event_result ?? true);
+  const output = finish(operations, input.finish_event_result ?? true); output.result.price = price; output.result.fake_known = fakeKnown; return output;
+}
+export function resolveTreasureMapResult(input) {
+  const operations = [];
+  if (input.fake) { if (input.sound_feedback) operations.push({ op: "trap_reveal" }); operations.push({ op: "message", text: "宝箱の前で盗賊たちが待ち伏せしていた。" }); operations.push({ op: "start_trainer_battle", request: { modifier: 1, seed: input.seed }, result: input.battle_result ?? null }); operations.push({ op: "battle_success", result: Boolean(input.battle_success) }); if (input.battle_success) { const pool = Array.isArray(input.existing_pool) ? input.existing_pool : []; operations.push({ op: "existing_items", candidates: rewardCandidates, result: pool }); if (pool.length > 0) { operations.push({ op: "sample_item", pool, result: input.sampled_item ?? null }); operations.push({ op: "grant_items", items: [input.sampled_item ?? null], result: input.grant_items_result ?? true }); } operations.push({ op: "open_treasure_chest", tier: "normal", day: input.current_day, options: { seed: Number(input.seed) + 1, source_name: "盗賊の宝箱" }, result: input.chest_result ?? null }); } }
+  else operations.push({ op: "open_treasure_chest", tier: "deluxe", day: input.current_day, options: { seed: Number(input.seed), source_name: "地図に記された宝箱" }, result: input.chest_result ?? null });
+  if (input.has_survival_state !== false) operations.push({ op: "clear_treasure_map" }); const output = finish(operations, input.finish_event_result ?? true); output.result.fake = Boolean(input.fake); output.result.battle_success = input.fake ? Boolean(input.battle_success) : null; return output;
+}
