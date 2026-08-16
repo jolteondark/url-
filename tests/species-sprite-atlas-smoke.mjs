@@ -1,0 +1,28 @@
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import c0 from "../assets/general-front12/front-00.js";
+import c1 from "../assets/general-front12/front-01.js";
+import c2 from "../assets/general-front12/front-02.js";
+import c3 from "../assets/general-front12/front-03.js";
+import c4 from "../assets/general-front12/front-04.js";
+import c5 from "../assets/general-front12/front-05.js";
+import { SAFARI_GENERAL_SPRITE_SPECIES } from "../runtime/safari-species-sprite-manifest.js";
+import { SAFARI_GENERAL_SPRITE_ATLAS, resolveSafariSpeciesSprite } from "../runtime/safari-species-sprite-atlas.js";
+import { SAFARI_SPECIES_MASTERS } from "../runtime/safari-playable-data.js";
+
+assert.equal(SAFARI_GENERAL_SPRITE_SPECIES.length, 875);
+assert.equal(new Set(SAFARI_GENERAL_SPRITE_SPECIES).size, 875);
+assert.equal(SAFARI_GENERAL_SPRITE_ATLAS.speciesCount, 875);
+assert.equal(SAFARI_GENERAL_SPRITE_ATLAS.columns, 30);
+assert.equal(SAFARI_GENERAL_SPRITE_ATLAS.rows, 30);
+const projected = Object.keys(SAFARI_SPECIES_MASTERS);
+assert.equal(projected.length, 875);
+assert.deepEqual(new Set(SAFARI_GENERAL_SPRITE_SPECIES), new Set(projected));
+const bytes = Buffer.from(c0 + c1 + c2 + c3 + c4 + c5, "base64");
+assert.equal(bytes.length, SAFARI_GENERAL_SPRITE_ATLAS.byteLength);
+assert.equal(createHash("sha256").update(bytes).digest("hex"), SAFARI_GENERAL_SPRITE_ATLAS.sha256);
+assert.equal(bytes.subarray(0, 4).toString("ascii"), "RIFF");
+assert.equal(bytes.subarray(8, 12).toString("ascii"), "WEBP");
+for (const species of ["BULBASAUR", "EEVEE", "PIKACHU", "RATTATA", "ZWEILOUS"]) assert.equal(resolveSafariSpeciesSprite(species)?.species, species);
+assert.equal(resolveSafariSpeciesSprite("NOT_A_CANONICAL_SPECIES"), null);
+console.log(JSON.stringify({ ok: true, species: 875, atlasBytes: bytes.length, sha256: SAFARI_GENERAL_SPRITE_ATLAS.sha256 }));
