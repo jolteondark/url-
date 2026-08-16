@@ -1,4 +1,6 @@
 const byId=(id)=>document.getElementById(id);
+const setText=(node,value)=>{if(node&&node.textContent!==value)node.textContent=value};
+const setStyleWidth=(node,value)=>{if(node&&node.style.width!==value)node.style.width=value};
 
 function ensureBoardChrome(){
   const board=byId("board");
@@ -29,13 +31,12 @@ function decorateBoard(){
       cell.append(state);
     }
     const state=cell.querySelector(".cell-state");
-    state.textContent=cell.classList.contains("consumed")?"CLEARED":cell.classList.contains("revealed")?"REVEALED":"UNKNOWN";
-    cell.setAttribute("aria-label",`マス ${index+1}: ${cell.querySelector("strong")?.textContent??""} ${state.textContent}`);
+    const stateText=cell.classList.contains("consumed")?"CLEARED":cell.classList.contains("revealed")?"REVEALED":"UNKNOWN";
+    setText(state,stateText);
+    cell.setAttribute("aria-label",`マス ${index+1}: ${cell.querySelector("strong")?.textContent??""} ${stateText}`);
   }
-  const text=byId("board-progress-text");
-  const fill=byId("board-progress-fill");
-  if(text)text.textContent=`${consumed} / ${cells.length||8} cleared · ${revealed} revealed`;
-  if(fill)fill.style.width=`${cells.length?Math.round(consumed/cells.length*100):0}%`;
+  setText(byId("board-progress-text"),`${consumed} / ${cells.length||8} cleared · ${revealed} revealed`);
+  setStyleWidth(byId("board-progress-fill"),`${cells.length?Math.round(consumed/cells.length*100):0}%`);
 }
 
 function hpTone(id){
@@ -70,9 +71,7 @@ function decorateBattle(){
 }
 
 function decorateScenes(){
-  for(const scene of document.querySelectorAll(".scene")){
-    scene.classList.toggle("scene-active",!scene.hidden);
-  }
+  for(const scene of document.querySelectorAll(".scene"))scene.classList.toggle("scene-active",!scene.hidden);
   document.body.dataset.scene=byId("battle-card")&&!byId("battle-card").hidden?"battle":byId("shop-card")&&!byId("shop-card").hidden?"shop":byId("village-card")&&!byId("village-card").hidden?"village":"board";
 }
 
