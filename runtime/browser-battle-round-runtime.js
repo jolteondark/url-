@@ -122,9 +122,9 @@ function attachBrowserJudgeStates(input) {
  * Browser continuation adapter for exactly one interactive Battle round.
  *
  * Core owns command validation, priority, accuracy, damage, HP/faint preparation
- * and decision semantics. This adapter only supplies entropy as a seed, commits
- * the resolved action order to two Pokemon Runtime instances and exposes a
- * presentation-friendly stream.
+ * and decision semantics. This adapter only supplies entropy as separate seeds,
+ * commits the resolved action order to two Pokemon Runtime instances and exposes
+ * a presentation-friendly stream.
  */
 export function resolveBrowserBattleRound({
   player,
@@ -133,6 +133,7 @@ export function resolveBrowserBattleRound({
   foeMoveId,
   moveMasters,
   combatRandomSeed = browserCombatSeed(),
+  priorityRandomSeed = browserCombatSeed(),
 } = {}) {
   requireBattleStats(player, "player");
   requireBattleStats(foe, "foe");
@@ -158,6 +159,7 @@ export function resolveBrowserBattleRound({
 
   const round = {
     attackPhaseInput: {
+      priorityRandomSeed: Number(priorityRandomSeed) & 0x7fffffff,
       battlers: [
         { battlerIndex: 0, choiceKind: "UseMove", fainted: player.hp <= 0, choseRageFunction: false },
         { battlerIndex: 1, choiceKind: "UseMove", fainted: foe.hp <= 0, choseRageFunction: false },
@@ -175,12 +177,12 @@ export function resolveBrowserBattleRound({
     ],
     priorityEntries: [
       {
-        actionIndex: 0, speed: player.stats.SPEED,
-        movePriority: playerMove.priority, tieBreaker: 1,
+        actionIndex: 0, battlerIndex: 0, speed: player.stats.SPEED,
+        movePriority: playerMove.priority,
       },
       {
-        actionIndex: 1, speed: foe.stats.SPEED,
-        movePriority: foeMove.priority, tieBreaker: 0,
+        actionIndex: 1, battlerIndex: 1, speed: foe.stats.SPEED,
+        movePriority: foeMove.priority,
       },
     ],
     actions: [
@@ -240,6 +242,7 @@ export function resolveBrowserBattleRound({
     selection,
     scheduling,
     combatRandomSeed: Number(combatRandomSeed) & 0x7fffffff,
+    priorityRandomSeed: Number(priorityRandomSeed) & 0x7fffffff,
     ppIntegration: {
       prepared: playerPp.prepared,
       commits: [
