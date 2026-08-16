@@ -1,5 +1,5 @@
+import { calculatePriorityCanonical } from "./battle-core-priority.js";
 import {
-  calculatePriorityCanonical,
   resolveGenericTurnVerticalSlice,
   resolveMoveCommandPhaseCanonical,
 } from "./battle-core-turn-vertical-slice.js";
@@ -19,6 +19,7 @@ export function resolveAttackPhaseMovesCanonical({
   priorityEntriesByLoop = null,
   trickRoom = false,
   mechanicsGeneration = 9,
+  randomOrder = null,
 } = {}) {
   actions = structuredClone(actions);
   const command = resolveMoveCommandPhaseCanonical(commandEntries);
@@ -48,7 +49,7 @@ export function resolveAttackPhaseMovesCanonical({
     if (++guard > actions.length * 8 + 8) throw new Error("attack phase move loop did not converge");
     const snapshot = snapshots[Math.min(guard - 1, snapshots.length - 1)] ?? [];
     const filteredPriority = snapshot.filter((entry) => pending.has(Number(entry.actionIndex)) && eligibleAction(actions[Number(entry.actionIndex)]));
-    latestPriority = calculatePriorityCanonical(filteredPriority, { trickRoom });
+    latestPriority = calculatePriorityCanonical(filteredPriority, { trickRoom, randomOrder });
     const priorityActions = latestPriority.order.map((index) => actions[index]).filter(Boolean);
     operations.push({ op: "calculate_priority", loop: guard, order: latestPriority.order });
     let advance = false;
@@ -107,6 +108,7 @@ export function resolvePlayableMoveRoundCanonical(input = {}) {
     priorityEntriesByLoop: round.priorityEntriesByLoop ?? null,
     trickRoom: Boolean(round.trickRoom),
     mechanicsGeneration: Number(round.mechanicsGeneration ?? 9),
+    randomOrder: round.randomOrder ?? null,
   });
   delete round.priorityEntries;
   round.priorityOrder = scheduling.processOrder;
