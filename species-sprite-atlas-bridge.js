@@ -123,3 +123,4 @@ new MutationObserver(scheduleRender).observe(document.body, {
 window.addEventListener("pageshow", scheduleRender);
 window.addEventListener("storage", scheduleRender);
 window.addEventListener("safari-runtime-changed", scheduleRender);
+window.addEventListener("safari-species-form-front-atlas-state", scheduleRender);
