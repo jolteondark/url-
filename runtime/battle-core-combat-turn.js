@@ -10,6 +10,7 @@ import { resolveUseMoveHitLoopCanonical } from "./battle-core-use-move-hit-loop.
 import { resolveUseMovePostHitCanonical } from "./battle-core-use-move-post-hit.js";
 import { resolveUseMoveInstructCanonical } from "./battle-core-use-move-instruct.js";
 import { resolveUseMoveDancerCanonical } from "./battle-core-use-move-dancer.js";
+import { materializeSeededAccuracyDamageCanonical } from "./battle-core-seeded-accuracy-damage.js";
 
 function resolveTryUseMoveInputCanonical(action) {
   if (action?.kind !== "move" || !action.useMoveInput?.tryUseMoveInput) return { action, resolution: null };
@@ -58,11 +59,12 @@ function resolveCombatActionCanonical(action) {
 }
 
 export function prepareCombatTurnInputCanonical(input = {}) {
-  const rounds = (Array.isArray(input.rounds) ? input.rounds : []).map((round) => ({
+  const seeded = input.combatRandomSeed === undefined ? input : materializeSeededAccuracyDamageCanonical(input);
+  const rounds = (Array.isArray(seeded.rounds) ? seeded.rounds : []).map((round) => ({
     ...round,
     actions: (Array.isArray(round.actions) ? round.actions : []).map(resolveCombatActionCanonical),
   }));
-  return { ...input, rounds };
+  return { ...seeded, rounds };
 }
 
 export function resolveCombatTurnVerticalSlice(input = {}) {
