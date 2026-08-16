@@ -1,5 +1,6 @@
 const byId = (id) => document.getElementById(id);
 let renderedSignature = "";
+let queued = false;
 
 function runtimeState() {
   return globalThis.__maplessSafariRuntime?.variables?.mapless ?? null;
@@ -46,11 +47,12 @@ function statusText(value) {
 }
 
 function renderTerminalWild() {
+  queued = false;
   const state = runtimeState();
   const handoff = state?.last_terminal_wild;
   const sheet = ensureSheet();
   if (!handoff?.terminal) {
-    sheet.hidden = true;
+    if (!sheet.hidden) sheet.hidden = true;
     return;
   }
   const player = handoff.playerParty?.[0] ?? handoff.player ?? null;
@@ -80,12 +82,24 @@ function renderTerminalWild() {
   window.setTimeout(() => byId("terminal-wild-close")?.focus(), 0);
 }
 
+function scheduleRender() {
+  if (queued) return;
+  queued = true;
+  requestAnimationFrame(renderTerminalWild);
+}
+
 ensureSheet();
-renderTerminalWild();
-new MutationObserver(renderTerminalWild).observe(document.body, {
-  subtree: true,
-  childList: true,
-  characterData: true,
-  attributes: true,
-  attributeFilter: ["hidden", "class", "style"],
-});
+scheduleRender();
+const battleCard = byId("battle-card");
+if (battleCard) {
+  new MutationObserver(scheduleRender).observe(battleCard, {
+    subtree: true,
+    childList: true,
+    characterData: true,
+    attributes: true,
+    attributeFilter: ["hidden"],
+  });
+}
+for (const id of ["capture", "flee", "return-board"]) byId(id)?.addEventListener("click", scheduleRender);
+window.addEventListener("pageshow", scheduleRender);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) scheduleRender(); });
