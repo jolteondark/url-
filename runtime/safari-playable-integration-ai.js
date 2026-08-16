@@ -88,9 +88,34 @@ function prepareTrainerMove(runtime) {
   battle.foe.moves = [selected, ...originalMoves.filter((_, index) => index !== resolution.moveIndex)];
   return { trainerPartyIndex: battle.trainer_party_index, foeSpecies: battle.foe.species, originalIds, resolution, selectedMoveId: moveId(selected) };
 }
+function lastHpAfter(operations, target) {
+  let hp = null;
+  for (const operation of operations ?? []) {
+    if (operation?.target !== target) continue;
+    if ((operation.op === "reduce_hp" || operation.op === "reduce_self_hp") && Number.isFinite(Number(operation.hpAfter))) {
+      hp = Math.max(0, Math.trunc(Number(operation.hpAfter)));
+    } else if (operation.op === "faint" || operation.op === "faint_self") {
+      hp = 0;
+    }
+  }
+  return hp;
+}
+function applyResolvedHp(runtime, result) {
+  const state = stateOf(runtime);
+  const battle = state.battle;
+  if (!battle) return;
+  const foeHp = lastHpAfter(result?.operations, "foe");
+  if (foeHp !== null && battle.foe) battle.foe.hp = Math.min(Number(battle.foe.max_hp ?? foeHp), foeHp);
+  const playerHp = lastHpAfter(result?.operations, "player");
+  if (playerHp !== null && runtime.player?.party?.[0]) {
+    const player = runtime.player.party[0];
+    player.hp = Math.min(Number(player.max_hp ?? playerHp), playerHp);
+  }
+}
 export function resolveSafariBattleRound(runtime, selectedMoveId) {
   const prepared = prepareTrainerMove(runtime);
   const result = resolveSafariBattleRoundBase(runtime, selectedMoveId);
+  applyResolvedHp(runtime, result);
   if (!prepared) return result;
   const state = stateOf(runtime);
   const battle = state.battle;
