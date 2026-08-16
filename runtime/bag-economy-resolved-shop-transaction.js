@@ -39,6 +39,7 @@ function hasResolvedTransactionContext(input, offer, kind) {
   if (!Number.isInteger(qty)) return false;
   if (!Number.isInteger(input.money)) return false;
   if (!Number.isInteger(input.maxMoney) || input.maxMoney < 0) return false;
+  if (input.money < 0 || input.money > input.maxMoney) return false;
   if (!hasResolvedSlots(input.slots)) return false;
   if (kind === 'buy') {
     if (!Number.isInteger(input.maxSlots) || input.maxSlots < 0) return false;
