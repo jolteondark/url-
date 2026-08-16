@@ -1,8 +1,28 @@
 export * from "./safari-playable-integration.js?canonical-base=1";
 
-import { resolveSafariBattleRound as resolveSafariBattleRoundBase } from "./safari-playable-integration.js?canonical-base=1";
+import "../camp-presentation.js";
+import {
+  createSafariPlayableRuntime as createSafariPlayableRuntimeBase,
+  loadSafariPlayableRun as loadSafariPlayableRunBase,
+  resolveSafariBattleRound as resolveSafariBattleRoundBase,
+} from "./safari-playable-integration.js?canonical-base=1";
 import { resolveTrainerMoveChoiceWithPriorityFlinchCanonical } from "./battle-core-trainer-choice-priority-flinch-integration.js";
 import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
+
+function exposeRuntime(runtime) {
+  globalThis.__maplessSafariRuntime = runtime;
+  return runtime;
+}
+
+export function createSafariPlayableRuntime() {
+  return exposeRuntime(createSafariPlayableRuntimeBase());
+}
+
+export function loadSafariPlayableRun(storage, currentRuntime = createSafariPlayableRuntime()) {
+  const loaded = loadSafariPlayableRunBase(storage, currentRuntime);
+  if (loaded?.found && loaded.state) exposeRuntime(loaded.state);
+  return loaded;
+}
 
 function moveId(move) { return typeof move === "string" ? move : move?.id; }
 function stateOf(runtime) {
