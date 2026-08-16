@@ -1,330 +1,148 @@
-import * as core from "./safari-playable-integration-core.js";
-import { quantity, setMoney } from "./bag-economy-mart-flow.js";
-import { resolveResolvedShopTransaction } from "./bag-economy-resolved-shop-transaction.js";
-import {
-  canonicalResolvedShopOffer,
-  canonicalShopPrice,
-  resolveCanonicalBoardShop,
-  resolveCanonicalBoardShopType,
-} from "./canonical-shop-catalog.js";
+import * as base from "./safari-playable-integration-legacy.js";
+import { hydrateSafariNormalEventCells } from "./mapless-normal-event-v108-preparation.js";
+import { resolveMachineGachaBagEconomyIntegration } from "./bag-economy-machine-gacha-integration.js";
 
-export * from "./safari-playable-integration-core.js";
-
-const SELL_ITEM_PREFIX = "SELL:";
+export * from "./safari-playable-integration-legacy.js";
 
 function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
-  if (!state || typeof state !== "object" || Array.isArray(state)) {
-    throw new TypeError("runtime variables.mapless state is required");
-  }
+  if (!state || typeof state !== "object" || Array.isArray(state)) throw new TypeError("runtime variables.mapless state is required");
   return state;
 }
 
-function randomIndex(length) {
-  if (!Number.isInteger(length) || length < 1) throw new RangeError("random length must be positive");
-  if (globalThis.crypto && typeof globalThis.crypto.getRandomValues === "function") {
-    const value = new Uint32Array(1);
-    globalThis.crypto.getRandomValues(value);
-    return value[0] % length;
-  }
-  return Math.floor(Math.random() * length);
-}
-
-function canonicalShopSnapshot(shop) {
-  return {
-    id: shop.id,
-    surface: shop.surface,
-    canSell: shop.canSell,
-    stock: [...shop.stock],
-    prices: Object.fromEntries(Object.entries(shop.prices).map(([id, row]) => [id, { ...row }])),
-  };
-}
-
-function hydrateCanonicalShopEvents(state) {
-  if (!Array.isArray(state.board_events)) return state;
-  state.board_events = state.board_events.map((event) => {
-    if (!event || event.kind !== "shop" || event.canonical_shop) return event;
-    const shopType = resolveCanonicalBoardShopType(randomIndex(100));
-    const sampleIndices = Array.from({ length: 5 }, () => randomIndex(0x100000000));
-    const resolved = resolveCanonicalBoardShop(shopType, { sampleIndices });
-    return {
-      ...event,
-      shop_type: shopType,
-      canonical_shop: canonicalShopSnapshot(resolved),
-    };
-  });
-  return state;
-}
-
-function installOpenedCanonicalShop(state, index) {
-  const event = state.board_events?.[index];
-  if (!event?.canonical_shop) return null;
-  const resolved = event.canonical_shop;
-  state.shop = {
-    facility_id: resolved.id,
-    board_index: index,
-    canonical: true,
-    can_sell: Boolean(resolved.canSell),
-    stock: [...resolved.stock],
-    prices: structuredClone(resolved.prices),
-    last_transaction_result: null,
-  };
-  state.notice = `${resolved.id}の商品を選んでください。`;
-  return state.shop;
-}
-
-export function createSafariPlayableRuntime() {
-  const runtime = core.createSafariPlayableRuntime();
-  hydrateCanonicalShopEvents(stateOf(runtime));
+function hydrate(runtime) {
+  hydrateSafariNormalEventCells(runtime);
   return runtime;
 }
 
+export function createSafariPlayableRuntime() {
+  return hydrate(base.createSafariPlayableRuntime());
+}
+
 export function loadSafariPlayableRun(storage, currentRuntime = createSafariPlayableRuntime()) {
-  const loaded = core.loadSafariPlayableRun(storage, currentRuntime);
-  if (loaded.found) hydrateCanonicalShopEvents(stateOf(loaded.state));
+  const loaded = base.loadSafariPlayableRun(storage, currentRuntime);
+  if (loaded.found) hydrate(loaded.state);
   return loaded;
 }
 
-export function activateSafariDayBoardCell(runtime, index) {
+function commitMachineSnapshot(runtime, index, resolved, keepOpen) {
   const state = stateOf(runtime);
-  hydrateCanonicalShopEvents(state);
-  const result = core.activateSafariDayBoardCell(runtime, index);
-  if (result.result === "shop_opened") installOpenedCanonicalShop(state, index);
-  hydrateCanonicalShopEvents(state);
-  return result.result === "shop_opened"
-    ? { ...result, notice: state.notice, shop: safariShopPresentation(runtime) }
-    : result;
-}
-
-export function safariShopPresentation(runtime) {
-  const state = stateOf(runtime);
-  const shop = state.shop;
-  if (!shop?.canonical) return core.safariShopPresentation(runtime);
-  const buyItems = shop.stock.map((itemId) => {
-    const price = shop.prices[itemId] ?? canonicalShopPrice(itemId);
-    return {
-      id: itemId,
-      canonical_id: itemId,
-      transaction_kind: "buy",
-      name: itemId,
-      label: `購入: ${itemId}`,
-      price: Number(price.buyPrice),
-      sell_price: Number(price.sellPrice),
-      quantity: quantity(runtime.bag?.slots ?? [], itemId),
-    };
-  });
-  const sellItems = shop.can_sell
-    ? shop.stock.flatMap((itemId) => {
-      const owned = quantity(runtime.bag?.slots ?? [], itemId);
-      if (owned <= 0) return [];
-      const price = shop.prices[itemId] ?? canonicalShopPrice(itemId);
-      return [{
-        id: `${SELL_ITEM_PREFIX}${itemId}`,
-        canonical_id: itemId,
-        transaction_kind: "sell",
-        name: itemId,
-        label: `売却: ${itemId}`,
-        price: Number(price.sellPrice),
-        sell_price: Number(price.sellPrice),
-        quantity: owned,
-      }];
-    })
-    : [];
-  return {
-    facilityId: shop.facility_id,
-    boardIndex: shop.board_index,
-    money: Number(runtime.bag?.money ?? 0),
-    canSell: Boolean(shop.can_sell),
-    lastTransactionResult: shop.last_transaction_result,
-    items: [...buyItems, ...sellItems],
-  };
-}
-
-function commitCanonicalShopTransaction(runtime, kind, input = {}) {
-  const state = stateOf(runtime);
-  const shop = state.shop;
-  if (!shop?.canonical) throw new Error("active canonical shop is required");
-  const itemId = String(input.itemId ?? "");
-  if (!shop.stock.includes(itemId)) throw new RangeError("selected item is outside the active shop stock");
-  const requestedQuantity = Number(input.quantity);
-  if (!Number.isInteger(requestedQuantity) || requestedQuantity <= 0) {
-    throw new RangeError("shop quantity must be a positive integer");
-  }
-  const resolvedShop = {
-    stock: shop.stock,
-    canSell: shop.can_sell,
-  };
-  const offer = canonicalResolvedShopOffer(resolvedShop, itemId, kind);
-  const resolved = resolveResolvedShopTransaction({
-    offer,
-    qty: requestedQuantity,
-    slots: runtime.bag.slots,
-    money: runtime.bag.money,
-    maxSlots: 20,
-    maxPerSlot: 99,
-    maxMoney: 999999,
-  });
+  const event = resolved.facility.event;
+  event.normal_resolved = !keepOpen;
+  state.board_events[index] = event;
   runtime.bag.slots = resolved.slots;
   runtime.bag.money = resolved.money;
-  shop.last_transaction_result = resolved.result;
-  state.last_operations = [{
-    op: "canonical_shop_transaction",
-    kind,
-    shop: shop.facility_id,
-    item: itemId,
-    quantity: requestedQuantity,
-    unitPrice: offer.unitPrice,
-    result: resolved.result,
-  }];
-  if (resolved.result === "bought" || resolved.result === "sold") state.shop = null;
-  state.notice = resolved.result === "bought"
-    ? `${itemId}を${requestedQuantity}個購入しました。`
-    : resolved.result === "sold"
-      ? `${itemId}を${requestedQuantity}個売却しました。`
-      : resolved.result === "unavailable"
-        ? "この店では売却できません。"
-        : `取引できませんでした（${resolved.result}）。`;
-  return {
-    runtime,
-    itemId,
-    quantity: requestedQuantity,
-    transaction_kind: kind,
-    ...resolved,
-    operations: state.last_operations,
-  };
-}
-
-export function purchaseSafariShopItem(runtime, input = {}) {
-  if (!stateOf(runtime).shop?.canonical) return core.purchaseSafariShopItem(runtime, input);
-  if (input.confirmed === false) return { runtime, result: "cancelled", operations: [] };
-  const selectedId = String(input.itemId ?? "");
-  if (selectedId.startsWith(SELL_ITEM_PREFIX)) {
-    return commitCanonicalShopTransaction(runtime, "sell", {
-      ...input,
-      itemId: selectedId.slice(SELL_ITEM_PREFIX.length),
-    });
-  }
-  return commitCanonicalShopTransaction(runtime, "buy", input);
-}
-
-export function sellSafariShopItem(runtime, input = {}) {
-  return commitCanonicalShopTransaction(runtime, "sell", input);
-}
-
-function trainerHasNext(battle) {
-  return battle?.kind === "trainer"
-    && Array.isArray(battle.trainer_party)
-    && Number.isInteger(battle.trainer_party_index)
-    && battle.trainer_party_index + 1 < battle.trainer_party.length;
-}
-
-function snapshotRoundSideEffects(runtime, state) {
-  return {
-    bagSlots: structuredClone(runtime.bag.slots),
-    bagMoney: Number(runtime.bag.money ?? 0),
-    boardEvents: structuredClone(state.board_events),
-    boardRevealed: structuredClone(state.board_revealed),
-    boardConsumed: structuredClone(state.board_consumed),
-    boardVisited: structuredClone(state.board_visited),
-  };
-}
-
-function restoreIntermediateSideEffects(runtime, state, snapshot) {
-  runtime.bag.slots = snapshot.bagSlots;
-  runtime.bag.money = snapshot.bagMoney;
-  state.board_events = snapshot.boardEvents;
-  state.board_revealed = snapshot.boardRevealed;
-  state.board_consumed = snapshot.boardConsumed;
-  state.board_visited = snapshot.boardVisited;
-}
-
-function payTrainerPrize(runtime, state, result) {
-  const battle = state.battle;
-  if (battle?.kind !== "trainer" || battle.decision !== 1) return result;
-  if (battle.trainer_prize_paid) return result;
-
-  const requested = Math.max(0, Math.trunc(Number(battle.prize_money ?? 0)));
-  const before = Number(runtime.bag.money ?? 0);
-  runtime.bag.money = setMoney(before + requested, 999999);
-  const gained = runtime.bag.money - before;
-  battle.trainer_prize_paid = true;
-  battle.money_gained = gained;
-
-  const moneyOperation = {
-    op: "trainer_prize_money",
-    requested,
-    applied: gained,
-    trainer: battle.trainer?.trainer_full_name ?? null,
-  };
-  battle.last_operations = [...(battle.last_operations ?? []), moneyOperation];
-  state.last_operations = [...(state.last_operations ?? []), moneyOperation];
-
-  const cumulativeExp = Number(battle.trainer_exp_gained ?? 0) + Number(battle.exp_gained ?? 0);
-  battle.exp_gained = cumulativeExp;
-  battle.presentation = (battle.presentation ?? []).map((event) => event.type === "battle_result"
-    ? { ...event, expGained: cumulativeExp, moneyGained: gained }
-    : event);
-
-  const trainerName = battle.trainer?.trainer_full_name ?? "トレーナー";
-  state.notice = `${trainerName}に勝利し、賞金${gained}円を受け取りました。`;
-  return {
-    ...result,
-    operations: battle.last_operations,
-    presentation: battle.presentation,
-    persistenceRequested: result.persistenceRequested,
-  };
-}
-
-export function resolveSafariBattleRound(runtime, selectedMoveId) {
-  const state = stateOf(runtime);
-  const battle = state.battle;
-  if (!battle || battle.completed) throw new Error("active battle is required");
-
-  if (!trainerHasNext(battle)) {
-    return payTrainerPrize(runtime, state, core.resolveSafariBattleRound(runtime, selectedMoveId));
-  }
-
-  const snapshot = snapshotRoundSideEffects(runtime, state);
-  const result = core.resolveSafariBattleRound(runtime, selectedMoveId);
-
-  if (result.decision !== 1) return result;
-
-  const gainedExp = Number(state.battle.exp_gained ?? 0);
-  const cumulativeExp = Number(state.battle.trainer_exp_gained ?? 0) + gainedExp;
-  restoreIntermediateSideEffects(runtime, state, snapshot);
-
-  const nextIndex = state.battle.trainer_party_index + 1;
-  const nextFoe = structuredClone(state.battle.trainer_party[nextIndex]);
-  state.battle.trainer_party_index = nextIndex;
-  state.battle.trainer_exp_gained = cumulativeExp;
-  state.battle.foe = nextFoe;
-  state.battle.decision = 0;
-  state.battle.completed = false;
-  state.battle.captured = false;
-  state.battle.reward = null;
-  state.battle.exp_gained = 0;
-  state.battle.money_gained = 0;
-
-  const trainerName = state.battle.trainer?.trainer_full_name ?? "トレーナー";
-  const switchOperation = {
-    op: "trainer_send_next",
-    trainer: trainerName,
-    partyIndex: nextIndex,
-    species: nextFoe.species,
-  };
-  state.battle.last_operations = [...(result.operations ?? []).filter((operation) => operation.scope !== "reward"), switchOperation];
-  state.battle.presentation = [
-    ...(result.presentation ?? []).filter((event) => event.type !== "battle_result"),
-    { type: "trainer_next", actor: "foe", trainer: trainerName, species: nextFoe.species, partyIndex: nextIndex },
+  state.last_operations = [
+    ...(resolved.facility.operations ?? []).filter((op) => op.op !== "leave_event"),
+    ...(resolved.bagOperations ?? []),
   ];
-  state.last_operations = state.battle.last_operations;
-  state.notice = `${trainerName}は${nextFoe.species}を繰り出した！`;
+  if (!keepOpen) state.board_consumed[index] = true;
+  return event;
+}
 
-  return {
-    ...result,
-    decision: 0,
-    operations: state.battle.last_operations,
-    presentation: state.battle.presentation,
-    persistenceRequested: false,
-  };
+export function resolveSafariMachineGachaInteraction(runtime, index, decisions = []) {
+  const state = stateOf(runtime);
+  hydrate(runtime);
+  const event = state.board_events?.[index];
+  if (!event || event.kind !== "normal_event" || event.normal_event_id !== "machine_gacha") {
+    throw new Error("machine_gacha board event is required");
+  }
+  if (state.battle && !state.battle.completed) return { runtime, result: "battle_active", operations: [] };
+  if (state.shop) return { runtime, result: "shop_active", operations: [] };
+  state.board_revealed[index] = true;
+  if (state.board_consumed[index]) return { runtime, result: "already_consumed", operations: [] };
+
+  const operations = [];
+  const rewards = [];
+  let result = "left_without_use";
+  let draws = 0;
+  for (const decision of decisions) {
+    if (decision !== "buy") {
+      state.board_consumed[index] = true;
+      state.board_events[index] = { ...state.board_events[index], normal_resolved: true };
+      result = draws > 0 ? "used" : "left_without_use";
+      break;
+    }
+    const resolved = resolveMachineGachaBagEconomyIntegration({
+      event: state.board_events[index],
+      choices: ["buy", "leave"],
+      slots: runtime.bag.slots,
+      money: runtime.bag.money,
+      maxSlots: 20,
+      maxPerSlot: 99,
+      maxMoney: 999999,
+    });
+    const reward = resolved.facility.operations.find((op) => op.op === "machine_item_reward")?.item ?? null;
+    const canContinue = resolved.draws > 0 && resolved.outcome === "used" && Number(resolved.facility.event.normal_data.machine_index) < resolved.facility.event.normal_data.machine_stock.length;
+    commitMachineSnapshot(runtime, index, resolved, canContinue);
+    operations.push(...state.last_operations);
+    if (reward) rewards.push(reward);
+    draws += resolved.draws;
+    result = resolved.outcome;
+    if (!canContinue) break;
+  }
+  state.notice = rewards.length > 0
+    ? `技術端末から${rewards[rewards.length - 1]}を受け取りました。`
+    : result === "insufficient_money" ? "お金が足りません。"
+      : result === "bag_full" ? "バッグに空きがありません。"
+        : result === "empty" ? "端末内の技術データは空です。"
+          : "技術端末の前に立っています。";
+  return { runtime, result, draws, rewards, operations, notice: state.notice };
+}
+
+function interactiveMachineGacha(runtime, index) {
+  const state = stateOf(runtime);
+  const confirmFn = typeof globalThis.confirm === "function" ? globalThis.confirm.bind(globalThis) : null;
+  const alertFn = typeof globalThis.alert === "function" ? globalThis.alert.bind(globalThis) : null;
+  if (!confirmFn) {
+    state.board_revealed[index] = true;
+    state.notice = "壊れかけの技術端末。1500円で技マシンを1つ出力できます。";
+    return { runtime, result: "machine_gacha_ready", boundary: "normal_event", notice: state.notice, operations: [] };
+  }
+  let aggregate = { runtime, result: "left_without_use", draws: 0, rewards: [], operations: [] };
+  while (!state.board_consumed[index]) {
+    const buy = confirmFn("壊れかけの技術端末\n1500円を投入して技マシンを1つ出力しますか？\n（キャンセルで立ち去る）");
+    if (!buy) {
+      const left = resolveSafariMachineGachaInteraction(runtime, index, ["leave"]);
+      aggregate = { ...left, draws: aggregate.draws, rewards: aggregate.rewards, operations: [...aggregate.operations, ...left.operations] };
+      break;
+    }
+    const step = resolveSafariMachineGachaInteraction(runtime, index, ["buy"]);
+    aggregate.draws += step.draws;
+    aggregate.rewards.push(...step.rewards);
+    aggregate.operations.push(...step.operations);
+    aggregate.result = step.result;
+    if (step.rewards.length && alertFn) alertFn(`${step.rewards[step.rewards.length - 1]}を1つ受け取りました。`);
+    if (state.board_consumed[index]) {
+      if (step.result === "insufficient_money" && alertFn) alertFn("お金が足りません。");
+      else if (step.result === "bag_full" && alertFn) alertFn("バッグに空きがありません。");
+      else if (step.result === "empty" && alertFn) alertFn("端末内の有効な技術データはすべて出力されました。");
+      break;
+    }
+  }
+  state.notice = aggregate.rewards.length
+    ? `技術端末の利用を終えました。最後の出力: ${aggregate.rewards[aggregate.rewards.length - 1]}`
+    : "技術端末を使わず立ち去りました。";
+  return { ...aggregate, boundary: "normal_event", notice: state.notice };
+}
+
+export function activateSafariDayBoardCell(runtime, index) {
+  hydrate(runtime);
+  const state = stateOf(runtime);
+  const event = state.board_events?.[index];
+  if (event?.kind === "normal_event") {
+    state.board_revealed[index] = true;
+    if (event.normal_event_id === "machine_gacha") return interactiveMachineGacha(runtime, index);
+    state.notice = `${event.normal_event_id} はSafari接続待ちです。`;
+    return {
+      runtime,
+      result: "external_request",
+      boundary: "normal_event",
+      notice: state.notice,
+      operations: [{ op: "request_external_normal_event", index, event_id: event.normal_event_id }],
+    };
+  }
+  const result = base.activateSafariDayBoardCell(runtime, index);
+  hydrate(runtime);
+  return result;
 }
