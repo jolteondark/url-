@@ -1,4 +1,6 @@
 const OPTIONAL_UI_MODULES = [
+  "./game-presentation.js",
+  "./camp-presentation.js",
   "./battle-sprite-bridge.js",
   "./game-menu-bridge.js",
   "./party-panel-bridge.js",
@@ -6,7 +8,6 @@ const OPTIONAL_UI_MODULES = [
   "./party-storage-controls-bridge.js",
   "./species-form-metadata-bridge.js",
   "./species-sprite-atlas-bridge.js",
-  "./game-presentation.js",
   "./terminal-wild-presentation.js",
   "./shop-touch-presentation.js",
   "./trainer-battle-presentation.js",
