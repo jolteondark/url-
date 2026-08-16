@@ -4,4 +4,5 @@
 .battle-scene .battle-message{display:block!important;visibility:visible!important;opacity:1!important}
 .battle-scene .move-grid{display:grid!important;visibility:visible!important;opacity:1!important}
 .battle-scene .battle-actions{display:grid!important;visibility:visible!important;opacity:1!important}
+.game-stage:has(#battle-card:not([hidden]))~.run-controls{display:none!important}
 @media(max-width:520px){.battle-scene .arena{height:310px!important}.battle-scene .battle-command-panel{min-height:146px!important}}
