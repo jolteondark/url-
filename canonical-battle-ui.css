@@ -1,0 +1,32 @@
+/* Canonical v0.9.108 / Essentials v21.1 battle UI pass 1.
+   Assets are loaded only after battle entry. Arena geometry and sprite anchors stay owned by style.css. */
+#battle-card .battle-info-panel{width:260px;max-width:calc(100vw - 78px);border:0;border-radius:0;background-color:transparent;background-repeat:no-repeat;background-position:center;background-size:100% 100%;box-shadow:none;color:#303038;text-shadow:0 1px rgba(255,255,255,.75);font-family:Arial,"Hiragino Kaku Gothic ProN","Yu Gothic UI",sans-serif}
+#battle-card .foe-info{height:62px;padding:7px 24px 7px 18px;background-image:url("./assets/canonical-battle-ui/databox_normal_foe.png")}
+#battle-card .player-info{height:84px;padding:8px 18px 7px 33px;background-image:url("./assets/canonical-battle-ui/databox_normal.png")}
+#battle-card .pokemon-name{height:24px;align-items:center}
+#battle-card .pokemon-name strong{color:#26262b;font-size:.84rem;font-weight:900;letter-spacing:.015em;text-shadow:0 1px #fff}
+#battle-card .pokemon-name span{color:#33343a;font-size:.64rem;font-weight:800;text-shadow:0 1px #fff}
+#battle-card .battle-info-panel .hp-row{position:absolute;display:block;margin:0}
+#battle-card .battle-info-panel .hp-row>span{display:none}
+#battle-card .foe-info .hp-row{left:94px;right:27px;top:35px}
+#battle-card .player-info .hp-row{left:104px;right:23px;top:39px}
+#battle-card .battle-info-panel .hp-track{height:5px;border-radius:0;background:transparent;box-shadow:none;overflow:hidden}
+#battle-card .battle-info-panel .hp-track span{height:5px;border-radius:0;background:#43c64c;box-shadow:0 1px #167d26;transition:width .3s linear,background .15s}
+#battle-card .battle-info-panel small{position:absolute;margin:0;color:#303038;font-weight:800;text-shadow:0 1px #fff}
+#battle-card .foe-info small{right:22px;bottom:-18px;font-size:.61rem}
+#battle-card .player-info small{right:21px;bottom:8px;font-size:.65rem}
+#battle-card .battle-command-panel{padding:10px 12px 14px;background:linear-gradient(180deg,rgba(5,16,23,.95),rgba(7,18,26,.99))}
+#battle-card .battle-message{display:flex;align-items:center;min-height:58px;margin:0 0 8px;padding:10px 18px;background-image:url("./assets/canonical-battle-ui/overlay_message.png");background-repeat:no-repeat;background-position:center;background-size:100% 100%;color:#2b2b31;font-size:.84rem;font-weight:800;line-height:1.35;text-shadow:0 1px #fff}
+#battle-card .move-grid{position:relative;min-height:124px;gap:0;padding:4px;background-image:url("./assets/canonical-battle-ui/overlay_fight.png");background-repeat:no-repeat;background-position:center;background-size:100% 100%}
+#battle-card .move-grid button{min-height:58px;padding:7px 14px;border:0;border-radius:0;background:transparent!important;box-shadow:none!important;color:#2d2d34;text-shadow:0 1px #fff;justify-content:center}
+#battle-card .move-grid button:active:not(:disabled){transform:none;filter:brightness(.9)}
+#battle-card .move-grid button:focus-visible{outline:3px solid #f3c94f;outline-offset:-5px}
+#battle-card .move-grid strong{font-size:.82rem;font-weight:900}
+#battle-card .move-grid small{margin-top:2px;color:#53535a;font-size:.58rem;font-weight:800}
+#battle-card .battle-actions{margin-top:8px;gap:7px}
+#battle-card .battle-actions button{min-height:44px;border:2px solid #dad7ce;border-radius:7px;box-shadow:inset 0 0 0 2px rgba(55,55,55,.65),0 3px 8px rgba(0,0,0,.2);font-size:.78rem;font-weight:900}
+#battle-card .battle-actions button.capture{background:linear-gradient(180deg,#d65d68,#b63a46)}
+#battle-card #flee{background:linear-gradient(180deg,#57a9d2,#2b789f)}
+#battle-card #return-board{background:linear-gradient(180deg,#6f9f58,#48733b)}
+@media(max-width:430px){#battle-card .battle-info-panel{max-width:250px}#battle-card .foe-info{left:10px}#battle-card .player-info{right:10px}#battle-card .move-grid{min-height:116px}#battle-card .move-grid button{min-height:54px;padding:6px 12px}}
+@media(max-width:360px){#battle-card .battle-info-panel{max-width:232px}#battle-card .foe-info .hp-row{left:86px}#battle-card .player-info .hp-row{left:96px}#battle-card .battle-message{padding-left:14px;padding-right:14px}}

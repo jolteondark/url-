@@ -30,9 +30,9 @@ async function loadBoardPresentation() {
 }
 
 async function loadBattleUi() {
-  // Core battle geometry and controls live in style.css. Do not layer any
-  // presentation stylesheet over them on iPhone Safari; only add the canonical
-  // sprite renderer after battle-card becomes visible.
+  // Battle UI stays scene-demand only. The canonical HUD stylesheet replaces
+  // chrome inside existing anchors; it does not add observers or move sprites.
+  loadStyle("./canonical-battle-ui.css");
   await loadModule("./canonical-battle-sprite-bridge.js");
 }
 
