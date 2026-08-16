@@ -34,15 +34,18 @@ assert.ok(boardShops.every((event) => event.canonical_shop && CANONICAL_BOARD_SH
 assert.ok(boardShops.every((event) => event.canonical_shop.stock.length > 0));
 
 const friendly = resolveCanonicalBoardShop("friendly_shop");
-runtime.variables.mapless.shop = {
-  facility_id: friendly.id,
-  board_index: 0,
-  canonical: true,
-  can_sell: friendly.canSell,
-  stock: [...friendly.stock],
-  prices: structuredClone(friendly.prices),
-  last_transaction_result: null,
+const openFriendly = () => {
+  runtime.variables.mapless.shop = {
+    facility_id: friendly.id,
+    board_index: 0,
+    canonical: true,
+    can_sell: friendly.canSell,
+    stock: [...friendly.stock],
+    prices: structuredClone(friendly.prices),
+    last_transaction_result: null,
+  };
 };
+openFriendly();
 runtime.bag.money = 1000;
 const beforeBuy = runtime.bag.money;
 const buy = purchaseSafariShopItem(runtime, { itemId: "POKEBALL", quantity: 2, confirmed: true });
@@ -50,20 +53,26 @@ assert.equal(buy.result, "bought");
 assert.equal(runtime.bag.money, beforeBuy - 400);
 assert.ok(runtime.bag.slots.some((slot) => slot?.[0] === "POKEBALL" && slot[1] === 2));
 
-runtime.variables.mapless.shop = {
-  facility_id: friendly.id,
-  board_index: 0,
-  canonical: true,
-  can_sell: friendly.canSell,
-  stock: [...friendly.stock],
-  prices: structuredClone(friendly.prices),
-  last_transaction_result: null,
-};
-const beforeSell = runtime.bag.money;
+openFriendly();
+const sellPresentation = safariShopPresentation(runtime);
+const sellOption = sellPresentation.items.find((item) => item.id === "SELL:POKEBALL");
+assert.ok(sellOption);
+assert.equal(sellOption.transaction_kind, "sell");
+assert.equal(sellOption.price, 50);
+assert.equal(sellOption.quantity, 2);
+const beforePlayableSell = runtime.bag.money;
+const soldViaPlayableSelection = purchaseSafariShopItem(runtime, { itemId: "SELL:POKEBALL", quantity: 1, confirmed: true });
+assert.equal(soldViaPlayableSelection.result, "sold");
+assert.equal(soldViaPlayableSelection.transaction_kind, "sell");
+assert.equal(runtime.bag.money, beforePlayableSell + 50);
+assert.ok(runtime.bag.slots.some((slot) => slot?.[0] === "POKEBALL" && slot[1] === 1));
+
+openFriendly();
+const beforeDirectSell = runtime.bag.money;
 const sold = sellSafariShopItem(runtime, { itemId: "POKEBALL", quantity: 1 });
 assert.equal(sold.result, "sold");
-assert.equal(runtime.bag.money, beforeSell + 50);
-assert.ok(runtime.bag.slots.some((slot) => slot?.[0] === "POKEBALL" && slot[1] === 1));
+assert.equal(runtime.bag.money, beforeDirectSell + 50);
+assert.ok(!runtime.bag.slots.some((slot) => slot?.[0] === "POKEBALL"));
 
 const tm = resolveCanonicalBoardShop("tm_merchant", { sampleIndices: [0,1,2,3,4] });
 assert.equal(tm.stock.length, 5);
@@ -79,7 +88,7 @@ runtime.variables.mapless.shop = {
 };
 const presentation = safariShopPresentation(runtime);
 assert.equal(presentation.items.length, 5);
-assert.ok(presentation.items.every((item) => item.price === 3000));
+assert.ok(presentation.items.every((item) => item.price === 3000 && item.transaction_kind === "buy"));
 
 runtime.bag.slots = [[tm.stock[0], 1]];
 const noSellMoney = runtime.bag.money;
@@ -95,6 +104,7 @@ console.log(JSON.stringify({
   villageShopTypes: CANONICAL_SHOP_METADATA.villageShopTypeCount,
   hydratedBoardShops: boardShops.length,
   buy: buy.result,
-  sell: sold.result,
+  playableSell: soldViaPlayableSelection.result,
+  directSell: sold.result,
   blockedSell: noSell.result,
 }));
