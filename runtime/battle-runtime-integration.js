@@ -18,6 +18,17 @@ export function reflectBattleCoreHpToPokemonRuntime(runtime, turnResult, actionI
   return updatePokemonRuntime(runtime, { hp: Number(matches.at(-1).hpAfter) });
 }
 
+export function reflectBattleCoreBattlerHpToPokemonRuntime(runtime, turnResult, battlerIndex) {
+  const operations = Array.isArray(turnResult?.operations) ? turnResult.operations : [];
+  const index = Number(battlerIndex);
+  const matches = operations.filter((entry) =>
+    (entry.op === "reduce_hp" && Number(entry.targetBattlerIndex) === index) ||
+    (entry.op === "reduce_self_hp" && Number(entry.battlerIndex) === index)
+  );
+  if (matches.length === 0) return updatePokemonRuntime(runtime, {});
+  return updatePokemonRuntime(runtime, { hp: Number(matches.at(-1).hpAfter) });
+}
+
 export function reflectBattleCoreTryUseMoveHpToPokemonRuntime(runtime, preparedBattleInput, actionIndex) {
   const rounds = Array.isArray(preparedBattleInput?.rounds) ? preparedBattleInput.rounds : [];
   const matches = [];
@@ -44,30 +55,20 @@ function restrictPpReflectionToActions(battleInput, actionIndexes) {
   return prepared;
 }
 
-/**
- * Commit the common Battle Runtime reflection prefix for one persistent Pokemon.
- *
- * A browser round has two persistent Pokemon in the same operation stream, so
- * PP ownership (the actor action), incoming HP damage (the opposing action),
- * and confusion self-damage can point at different action indexes. The full
- * Battle Runtime keeps its historical single-index defaults.
- */
 export function commitBattleRuntimePokemonRound({
-  battleInput = {},
-  turn = {},
-  pokemon,
-  ppActionIndexes = null,
-  reflectedActionIndex = 0,
-  reflectedTryUseMoveActionIndex = reflectedActionIndex,
+  battleInput = {}, turn = {}, pokemon, ppActionIndexes = null,
+  reflectedActionIndex = 0, reflectedTryUseMoveActionIndex = reflectedActionIndex,
+  reflectedBattlerIndex = null,
 } = {}) {
   const ppInput = restrictPpReflectionToActions(battleInput, ppActionIndexes);
   const ppCommitted = commitBattleSystemsPpRuntime({ battleInput: ppInput, turn, pokemon });
-  const hpReflected = reflectBattleCoreHpToPokemonRuntime(ppCommitted.pokemon, turn, reflectedActionIndex);
-  const pokemonAfter = reflectBattleCoreTryUseMoveHpToPokemonRuntime(
-    hpReflected,
-    battleInput,
-    reflectedTryUseMoveActionIndex,
-  );
+  let pokemonAfter;
+  if (reflectedBattlerIndex !== null && reflectedBattlerIndex !== undefined) {
+    pokemonAfter = reflectBattleCoreBattlerHpToPokemonRuntime(ppCommitted.pokemon, turn, reflectedBattlerIndex);
+  } else {
+    const hpReflected = reflectBattleCoreHpToPokemonRuntime(ppCommitted.pokemon, turn, reflectedActionIndex);
+    pokemonAfter = reflectBattleCoreTryUseMoveHpToPokemonRuntime(hpReflected, battleInput, reflectedTryUseMoveActionIndex);
+  }
   return { pokemon: pokemonAfter, ppCommitted };
 }
 
@@ -104,67 +105,49 @@ export function prepareBattleRuntimeScheduledCombat({ battleInput: rawBattleInpu
     ? resolveAttackPhaseCanonical({ ...schedulerInput, ...round.attackPhaseInput })
     : resolveAttackPhaseMovesCanonical(schedulerInput);
   const turnRound = structuredClone(round);
-  delete turnRound.priorityEntries; delete turnRound.priorityEntriesByLoop; turnRound.priorityOrder = scheduling.processOrder;
+  if (!round.attackPhaseInput) {
+    delete turnRound.priorityEntries;
+    delete turnRound.priorityEntriesByLoop;
+  }
+  turnRound.priorityOrder = scheduling.processOrder;
   if (round.attackPhaseInput && Number(scheduling.decision ?? 0) > 0) turnRound.attackDecision = Number(scheduling.decision);
   const preparedBattleInput = prepareCombatTurnInputCanonical({ initialDecision: Number(battleInput.initialDecision ?? 0), rounds: [turnRound] });
   return { ppPrepared, scheduling, preparedBattleInput };
 }
 
 function resolveRuntimeLoop(preparedBattleInput, allowIncompleteBattle) {
-  return allowIncompleteBattle
-    ? resolveGenericTurnVerticalSlice(preparedBattleInput, { allowIncomplete: true })
-    : resolveBattleLoopCanonical(preparedBattleInput);
+  return allowIncompleteBattle ? resolveGenericTurnVerticalSlice(preparedBattleInput, { allowIncomplete: true }) : resolveBattleLoopCanonical(preparedBattleInput);
 }
 
-export function resolveBattleRuntimeIntegration({ pokemon, sendOuts = [], battleInput: rawBattleInput = {}, preparedBattleInputTransform = null, ppActionIndexes = null, reflectedActionIndex = 0, reflectedTryUseMoveActionIndex = reflectedActionIndex, reflectedPartyIndex = 0, postBattlePersistenceInput = null, allowIncompleteBattle = true, weatherAnimation = null, terrainAnimation = null }) {
+export function resolveBattleRuntimeIntegration({ pokemon, sendOuts = [], battleInput: rawBattleInput = {}, preparedBattleInputTransform = null, ppActionIndexes = null, reflectedActionIndex = 0, reflectedTryUseMoveActionIndex = reflectedActionIndex, reflectedBattlerIndex = null, reflectedPartyIndex = 0, postBattlePersistenceInput = null, allowIncompleteBattle = true, weatherAnimation = null, terrainAnimation = null }) {
   const start = resolveBattleStartCore({ sendOuts, weatherAnimation, terrainAnimation });
   const useAttackPhaseScheduler = rawBattleInput?.useAttackPhaseScheduler === true;
   const useCanonicalAccuracyDamage = rawBattleInput?.useCanonicalAccuracyDamage === true;
-  let ppPrepared;
-  let battleInput;
-  let turn; let preparedBattleInput = battleInput; let attackPhaseScheduling = null;
+  let ppPrepared; let battleInput; let turn; let preparedBattleInput = battleInput; let attackPhaseScheduling = null;
   if (useAttackPhaseScheduler && useCanonicalAccuracyDamage) {
     const resolved = prepareBattleRuntimeScheduledCombat({ battleInput: rawBattleInput });
-    ppPrepared = resolved.ppPrepared;
-    battleInput = ppPrepared.battleInput;
-    preparedBattleInput = resolved.preparedBattleInput;
-    if (typeof preparedBattleInputTransform === "function") {
-      preparedBattleInput = preparedBattleInputTransform(preparedBattleInput);
-    }
-    attackPhaseScheduling = resolved.scheduling;
-    turn = resolveRuntimeLoop(preparedBattleInput, allowIncompleteBattle);
+    ppPrepared = resolved.ppPrepared; battleInput = ppPrepared.battleInput; preparedBattleInput = resolved.preparedBattleInput;
+    if (typeof preparedBattleInputTransform === "function") preparedBattleInput = preparedBattleInputTransform(preparedBattleInput);
+    attackPhaseScheduling = resolved.scheduling; turn = resolveRuntimeLoop(preparedBattleInput, allowIncompleteBattle);
   } else {
-    ppPrepared = prepareBattleSystemsPpRuntime({ battleInput: rawBattleInput });
-    battleInput = ppPrepared.battleInput;
-    preparedBattleInput = battleInput;
+    ppPrepared = prepareBattleSystemsPpRuntime({ battleInput: rawBattleInput }); battleInput = ppPrepared.battleInput; preparedBattleInput = battleInput;
     if (useAttackPhaseScheduler) {
       const rounds = Array.isArray(battleInput?.rounds) ? battleInput.rounds : [];
       if (rounds.length !== 1) throw new Error("attack-phase integration adapter requires exactly one round");
       const playable = resolvePlayableMoveRoundCanonical({ initialDecision: Number(battleInput.initialDecision ?? 0), round: rounds[0], allowIncomplete: allowIncompleteBattle });
-      turn = playable.vertical;
-      attackPhaseScheduling = playable.scheduling;
+      turn = playable.vertical; attackPhaseScheduling = playable.scheduling;
     } else if (useCanonicalAccuracyDamage) {
       preparedBattleInput = prepareCombatTurnInputCanonical(battleInput);
-      if (typeof preparedBattleInputTransform === "function") {
-        preparedBattleInput = preparedBattleInputTransform(preparedBattleInput);
-      }
+      if (typeof preparedBattleInputTransform === "function") preparedBattleInput = preparedBattleInputTransform(preparedBattleInput);
       turn = resolveRuntimeLoop(preparedBattleInput, allowIncompleteBattle);
     } else turn = resolveRuntimeLoop(battleInput, allowIncompleteBattle);
   }
-  const reflected = commitBattleRuntimePokemonRound({
-    battleInput: preparedBattleInput,
-    turn,
-    pokemon,
-    ppActionIndexes,
-    reflectedActionIndex,
-    reflectedTryUseMoveActionIndex,
-  });
+  const reflected = commitBattleRuntimePokemonRound({ battleInput: preparedBattleInput, turn, pokemon, ppActionIndexes, reflectedActionIndex, reflectedTryUseMoveActionIndex, reflectedBattlerIndex });
   const ppCommitted = reflected.ppCommitted;
   const statusCommitted = commitBattleSystemsStatusRuntime({ battleInput: preparedBattleInput, turn, pokemon: reflected.pokemon });
   const heldItemCommitted = commitBattleSystemsHeldItemRuntime({ battleInput: preparedBattleInput, turn, pokemon: statusCommitted.pokemon });
   const expCommitted = commitBattleSystemsExpRuntime({ battleInput: preparedBattleInput, turn, pokemon: heldItemCommitted.pokemon });
-  const reflectedPokemon = expCommitted.pokemon;
-  const decision = Number(turn.decision);
+  const reflectedPokemon = expCommitted.pokemon; const decision = Number(turn.decision);
   const postBattlePersistence = resolveBattleEndPersistenceIntegration({ decision, persistenceInput: postBattlePersistenceInput, reflectedPokemon, reflectedPartyIndex, reflectMoves: ppCommitted.commits.length > 0 || expCommitted.commits.length > 0, reflectExpLevel: expCommitted.commits.length > 0, reflectStatus: statusCommitted.commits.length > 0, reflectItem: heldItemCommitted.commits.length > 0 });
   return { start, turn, pokemon: reflectedPokemon, battleResultHandoff: { decision, postBattlePersistenceApplied: postBattlePersistence !== null }, ...(useCanonicalAccuracyDamage ? { combatTrace: { rounds: structuredClone(preparedBattleInput.rounds ?? []) } } : {}), ...(ppPrepared.operations.length || ppCommitted.commits.length ? { battlePpIntegration: { prepared: ppPrepared.operations, commits: ppCommitted.commits } } : {}), ...(statusCommitted.commits.length ? { battleStatusIntegration: { commits: statusCommitted.commits } } : {}), ...(heldItemCommitted.commits.length ? { battleHeldItemIntegration: { commits: heldItemCommitted.commits } } : {}), ...(expCommitted.commits.length ? { battleExpIntegration: { commits: expCommitted.commits } } : {}), ...(postBattlePersistence ? { postBattlePersistence } : {}), ...(attackPhaseScheduling ? { attackPhaseScheduling } : {}) };
 }
