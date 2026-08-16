@@ -1,4 +1,4 @@
-import { buyTransaction, sellTransaction } from './bag-economy-mart-flow.js';
+import { resolveBagEconomyTransaction } from './bag-economy-transaction-family.js';
 
 function cloneSlots(slots = []) {
   return slots.map((slot) => slot ? [...slot] : null);
@@ -15,9 +15,10 @@ function unchanged(input, result) {
   };
 }
 
-// Facilities/Game Data own stock, conditions, sale eligibility and price
-// resolution. This owner only commits an already-resolved offer through the
-// canonical Bag/Money mart owners.
+// Facilities/Game Data own stock, conditions, sale eligibility, price and any
+// resolved purchase metadata (for example Premier Ball bonus eligibility).
+// This owner commits that resolved offer through the existing Bag/Economy
+// transaction family so Safari never becomes a parallel mart implementation.
 export function resolveResolvedShopTransaction(input = {}) {
   const offer = input.offer || {};
   if (offer.conditionPassed !== true) return unchanged(input, 'unavailable');
@@ -28,21 +29,19 @@ export function resolveResolvedShopTransaction(input = {}) {
     qty: input.qty ?? offer.qty,
     slots: input.slots || [],
     money: input.money ?? 0,
+    maxSlots: input.maxSlots,
+    maxPerSlot: input.maxPerSlot,
+    maxMoney: input.maxMoney,
   };
 
   let result;
   if (kind === 'buy') {
-    result = buyTransaction({
-      ...transaction,
-      maxSlots: input.maxSlots,
-      maxPerSlot: input.maxPerSlot,
-      maxMoney: input.maxMoney,
-    });
+    result = resolveBagEconomyTransaction({ ...transaction, kind: 'purchase' });
   } else if (kind === 'sell') {
-    result = sellTransaction({
+    result = resolveBagEconomyTransaction({
       ...transaction,
+      kind: 'sale',
       canSell: offer.canSell === true,
-      maxMoney: input.maxMoney,
     });
   } else {
     return unchanged(input, 'unsupported_transaction');
