@@ -1,4 +1,5 @@
 import { resolveBrowserBattleRound } from "./browser-battle-round-runtime.js";
+import { resolveBrowserBattleRoundWithOwnedOpponent } from "./browser-battle-round-owned-opponent-runtime.js";
 import { resolveBrowserTrainerReplacementContinuation } from "./browser-trainer-replacement-continuation.js";
 import { resolveBrowserPlayerReplacementContinuation } from "./browser-player-replacement-continuation.js";
 
@@ -6,6 +7,7 @@ function clone(value) { return value == null ? value : structuredClone(value); }
 
 export function resolveBrowserTrainerBattleRound({
   roundInput = {},
+  ownedOpponentInput = null,
   replacementDecisionInput = {},
   partyOrder = null,
   idxBattler = 1,
@@ -20,7 +22,9 @@ export function resolveBrowserTrainerBattleRound({
       ?? roundInput.playerActivePartyIndex
       ?? 0,
   };
-  const round = resolveBrowserBattleRound(preparedRoundInput);
+  const round = ownedOpponentInput
+    ? resolveBrowserBattleRoundWithOwnedOpponent({ ...preparedRoundInput, ...ownedOpponentInput })
+    : resolveBrowserBattleRound(preparedRoundInput);
   const foeContinuation = resolveBrowserTrainerReplacementContinuation({
     battleContinuationHandoff: round.battleContinuationHandoff,
     replacementDecisionInput,
