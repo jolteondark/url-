@@ -1,5 +1,6 @@
 import { resolveCampNextDay } from "./mapless-camp-next-day-flow.js";
 import { isBoundaryTrialFloor, resolveBoundaryTrialFlow } from "./mapless-boundary-trial-flow.js";
+import { ensurePendingBoundaryLeaderV108 } from "./mapless-boundary-trial-leader-bag-v108.js";
 import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
 import { pokemonMoveTotalPp, setPokemonRuntimeMovePp, updatePokemonRuntime } from "./pokemon-runtime.js";
 
@@ -18,6 +19,19 @@ function generationForDay(day) {
     shuffle_order: [...decision.shuffle_order],
     next_day_index: decision.next_day_index,
   };
+}
+
+function randomBelow(limit) {
+  if (!Number.isInteger(limit) || limit <= 0) throw new RangeError("random limit must be positive");
+  const crypto = globalThis.crypto;
+  if (crypto && typeof crypto.getRandomValues === "function") {
+    const range = 0x100000000;
+    const ceiling = range - (range % limit);
+    const values = new Uint32Array(1);
+    do crypto.getRandomValues(values); while (values[0] >= ceiling);
+    return values[0] % limit;
+  }
+  return Math.floor(Math.random() * limit);
 }
 
 function pokemonId(pokemon, index) {
@@ -71,6 +85,21 @@ function existingBoundaryInput(state, floor) {
   };
 }
 
+function selectBoundaryLeader(input) {
+  const selected = ensurePendingBoundaryLeaderV108({
+    leaderBag: input.leader_bag,
+    lastLeader: input.last_leader,
+    pendingLeader: input.pending_leader,
+    randomBelow,
+  });
+  return {
+    ...input,
+    leader_bag: selected.leaderBag,
+    pending_leader: selected.pendingLeader,
+    selected_leader: selected.pendingLeader,
+  };
+}
+
 export function prepareSafariCampNextDay(runtime, index, confirmed = true) {
   const state = runtime?.variables?.mapless;
   if (!state || typeof state !== "object") throw new TypeError("runtime variables.mapless state is required");
@@ -84,7 +113,8 @@ export function prepareSafariCampNextDay(runtime, index, confirmed = true) {
   });
   const nextDay = Number(owner?.day_board?.day ?? 0);
   if (!confirmed || !isBoundaryTrialFloor(nextDay)) return owner;
-  const boundaryTrial = resolveBoundaryTrialFlow(existingBoundaryInput(state, nextDay));
+  const boundaryInput = selectBoundaryLeader(existingBoundaryInput(state, nextDay));
+  const boundaryTrial = resolveBoundaryTrialFlow(boundaryInput);
   return { ...owner, boundary_trial: boundaryTrial };
 }
 
@@ -114,8 +144,8 @@ export function applySafariBoundaryTrialEntry(runtime, ownerResult) {
     battle_request: structuredClone(boundary.battle_request ?? null),
   };
   state.board_suspended_for_boundary = true;
-  state.notice = boundary.result === "leader_required"
-    ? `DAY ${floor}：境界の試練。リーダーの選出が必要です。`
+  state.notice = boundary.result === "preparation_required"
+    ? `DAY ${floor}：境界の試練。強者の残響が現れた。`
     : `DAY ${floor}：境界の試練。`;
   const boundaryOperations = (boundary.operations ?? []).map((operation) => ({
     ...structuredClone(operation),
