@@ -1,6 +1,6 @@
 let scheduled = false;
 let warming = false;
-let runtimeModulePromise = null;
+let facadePromise = null;
 
 function battleActive() {
   const battle = globalThis.__maplessSafariRuntime?.variables?.mapless?.battle;
@@ -16,13 +16,13 @@ function publishStage(stage, error = null) {
 }
 
 function prepareBattleRuntimeModule() {
-  if (!runtimeModulePromise) {
-    runtimeModulePromise = import("./safari-playable-integration.js").catch((error) => {
-      runtimeModulePromise = null;
+  if (!facadePromise) {
+    facadePromise = import("./safari-web-playable-integration.js?v=20260818-0800").catch((error) => {
+      facadePromise = null;
       throw error;
     });
   }
-  return runtimeModulePromise;
+  return facadePromise.then((facade) => facade.prepareSafariBattleRuntime(globalThis.__maplessSafariRuntime));
 }
 
 function prewarmAfterBattleRender() {

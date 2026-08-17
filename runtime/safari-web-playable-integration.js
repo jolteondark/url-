@@ -12,6 +12,8 @@ export { SAFARI_MOVE_PRESENTATION, clearSafariPlayableRun, createSafariPlayableR
 
 let fullModule = null;
 let fullModulePromise = null;
+let normalBattleModule = null;
+let normalBattleModulePromise = null;
 
 async function full() {
   if (fullModule) return fullModule;
@@ -32,10 +34,37 @@ async function full() {
   return fullModulePromise;
 }
 
+async function normalBattle() {
+  if (normalBattleModule) return normalBattleModule;
+  if (!normalBattleModulePromise) {
+    normalBattleModulePromise = import("./safari-playable-integration-pre-wounded.js")
+      .then((module) => {
+        normalBattleModule = module;
+        globalThis.__maplessBattleRuntimeError = null;
+        return module;
+      })
+      .catch((error) => {
+        normalBattleModulePromise = null;
+        globalThis.__maplessBattleRuntimeError = error;
+        globalThis.__maplessLastError = error;
+        throw error;
+      });
+  }
+  return normalBattleModulePromise;
+}
+
 function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
   if (!state || typeof state !== "object" || Array.isArray(state)) throw new TypeError("runtime variables.mapless state is required");
   return state;
+}
+
+function needsFullBattleIntegration(runtime) {
+  return stateOf(runtime).battle?.origin === "boundary_trial";
+}
+
+async function battleModule(runtime) {
+  return needsFullBattleIntegration(runtime) ? full() : normalBattle();
 }
 
 export function boardCellPresentation(runtime, index) {
@@ -57,18 +86,21 @@ export async function activateSafariDayBoardCell(runtime, index) {
   return (await full()).activateSafariDayBoardCell(runtime, index);
 }
 
-export async function prepareSafariBattleRuntime() {
-  await full();
+export async function prepareSafariBattleRuntime(runtime = globalThis.__maplessSafariRuntime) {
+  if (!runtime?.variables?.mapless?.battle) return false;
+  await battleModule(runtime);
   return true;
 }
 
 export async function resolveSafariBattleRound(runtime, selectedMoveId) {
-  return (await full()).resolveSafariBattleRound(runtime, selectedMoveId);
+  return (await battleModule(runtime)).resolveSafariBattleRound(runtime, selectedMoveId);
 }
 export async function attemptSafariCapture(runtime) {
+  if (stateOf(runtime).battle) return (await battleModule(runtime)).attemptSafariCapture(runtime);
   return (await full()).attemptSafariCapture(runtime);
 }
 export async function returnSafariToDayBoard(runtime) {
+  if (stateOf(runtime).battle) return (await battleModule(runtime)).returnSafariToDayBoard(runtime);
   return (await full()).returnSafariToDayBoard(runtime);
 }
 export async function enterSafariVillage(runtime) {
