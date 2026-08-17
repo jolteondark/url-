@@ -8,6 +8,14 @@ const board = byId("board");
 const newRun = byId("new-run");
 const continueRun = byId("continue-run");
 
+function traceBattleStart(stage, detail = {}) {
+  const trace = Array.isArray(globalThis.__maplessBattleStartLifecycleTrace)
+    ? globalThis.__maplessBattleStartLifecycleTrace
+    : [];
+  trace.push(Object.freeze({ stage, ...detail }));
+  globalThis.__maplessBattleStartLifecycleTrace = trace;
+}
+
 function notice(text) {
   const node = byId("notice");
   if (node) node.textContent = text;
@@ -59,6 +67,7 @@ function nextFrame() {
 }
 
 async function ensureInitialSceneHandoff(state) {
+  traceBattleStart("scene_handoff_dispatch", { hasBattle: Boolean(state.battle) });
   window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
   await nextFrame();
 
@@ -71,12 +80,11 @@ async function ensureInitialSceneHandoff(state) {
     moveButtonCount: moves?.querySelectorAll("button[data-move-id]").length ?? 0,
     pageshowFallbackUsed: false,
   };
+  traceBattleStart("scene_handoff_frame", trace);
 
-  // preview-app historically rendered first-entry state only from a synthetic
-  // pageshow. Prefer the explicit runtime-change handoff, but retain one
-  // conservative fallback while older presentation listeners are still present.
   if (!trace.sceneVisible || trace.moveButtonCount === 0) {
     trace.pageshowFallbackUsed = true;
+    traceBattleStart("scene_pageshow_fallback", trace);
     window.dispatchEvent(new Event("pageshow"));
     await nextFrame();
     trace = {
@@ -84,6 +92,7 @@ async function ensureInitialSceneHandoff(state) {
       sceneVisible: Boolean(card && !card.hidden),
       moveButtonCount: moves?.querySelectorAll("button[data-move-id]").length ?? 0,
     };
+    traceBattleStart("scene_pageshow_frame", trace);
   }
 
   globalThis.__maplessBattleStartTrace = trace;
@@ -93,24 +102,26 @@ async function ensureInitialSceneHandoff(state) {
   if (trace.moveButtonCount === 0) {
     throw new Error("Battle state created but no move buttons were rendered");
   }
+  traceBattleStart("scene_handoff_ready", trace);
 }
 
 async function activateInitialBoardChoice(index) {
+  traceBattleStart("combat_entry_import_start", { index });
   const { activateSafariDayBoardCell } = await import("./runtime/safari-web-playable-integration.js");
+  traceBattleStart("combat_entry_import_ready", { index });
   const runtime = globalThis.__maplessSafariRuntime;
   const state = runtime?.variables?.mapless;
   if (!state) throw new Error("Safari runtime unavailable after preview start");
   const cell = state.board_events?.[index];
+  traceBattleStart("board_owner_start", { index, kind: cell?.kind ?? null });
 
-  // Wild/trainer GENERAL demand belongs to safari-web-combat-start so its
-  // readiness, rollback and exact exception surface remain one atomic owner.
-  // Only non-combat consumers that need the GENERAL masters preflight here.
   if (cell?.kind === "normal_event" && cell.normal_event_id === "wounded_pokemon") {
     const general = await import("./runtime/safari-general-data-demand.js");
     if (!general.safariGeneralDataReady()) await general.ensureSafariGeneralData();
   }
 
   await activateSafariDayBoardCell(runtime, index);
+  traceBattleStart("board_owner_ready", { index, hasBattle: Boolean(state.battle) });
   await ensureInitialSceneHandoff(state);
   const target = state.battle ? byId("battle-card") : state.shop ? byId("shop-card") : null;
   if (target) window.setTimeout(() => target.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
@@ -119,14 +130,28 @@ async function activateInitialBoardChoice(index) {
 async function loadPreviewApp(boardIndex) {
   if (loading || !selectedAction) return;
   loading = true;
+  globalThis.__maplessBattleStartLifecycleTrace = [];
+  traceBattleStart("board_click", { boardIndex, action: selectedAction });
   notice("選択したマスを読み込んでいます…");
-  if (!appPromise) appPromise = import("./preview-app.js");
+  if (!appPromise) {
+    traceBattleStart("preview_app_import_start");
+    appPromise = import("./preview-app.js");
+  }
   try {
     await appPromise;
+    traceBattleStart("preview_app_import_ready");
     window.dispatchEvent(new CustomEvent("safari-preview-start", { detail: { action: selectedAction } }));
+    traceBattleStart("preview_start_dispatched", {
+      runtimeReady: Boolean(globalThis.__maplessSafariRuntime?.variables?.mapless),
+    });
     await activateInitialBoardChoice(boardIndex);
+    traceBattleStart("initial_board_activation_ready");
     detachBootListeners();
   } catch (error) {
+    traceBattleStart("initial_board_activation_error", {
+      error_name: error?.name ?? "Error",
+      error_message: error?.message ?? String(error),
+    });
     loading = false;
     appPromise = null;
     globalThis.__maplessLastError = error;
