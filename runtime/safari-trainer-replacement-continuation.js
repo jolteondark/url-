@@ -1,4 +1,5 @@
 import { resolveBrowserTrainerReplacementContinuation } from "./browser-trainer-replacement-continuation.js";
+import { awardSafariTrainerFaintExp } from "./safari-battle-exp-handoff.js";
 
 function clone(value) {
   return value == null ? value : structuredClone(value);
@@ -50,11 +51,14 @@ function ownerHandoff(result, battle, runtime) {
   const party = clone(battle.trainer_party);
   const activeIndex = preapplied?.priorActivePartyIndex ?? Number(battle.trainer_party_index);
   if (party[activeIndex]) party[activeIndex] = { ...party[activeIndex], hp: 0, fainted: true };
+  const playerActivePartyIndex = Number.isInteger(Number(battle?.player_party_index))
+    ? Number(battle.player_party_index)
+    : 0;
   return {
     decision: 0,
     playerParty: clone(runtime?.player?.party ?? []),
     foeParty: party,
-    playerActivePartyIndex: 0,
+    playerActivePartyIndex,
     foeActivePartyIndex: activeIndex,
     playerReplacementRequired: false,
     foeReplacementRequired: true,
@@ -68,8 +72,20 @@ export function continueSafariTrainerAfterFirstKo(runtime, result = {}) {
   if (Number(result?.decision ?? battle.decision ?? 0) !== 0) return result;
   if (!hasTrainerReserve(battle) || !foeFainted(result, battle)) return result;
 
+  const handoff = ownerHandoff(result, battle, runtime);
+  const defeatedIndex = Number(handoff.foeActivePartyIndex);
+  const defeatedFoe = handoff.foeParty?.[defeatedIndex];
+  if (!defeatedFoe) throw new RangeError("defeated trainer Pokemon is missing from the Battle continuation handoff");
+  const expResolution = awardSafariTrainerFaintExp(
+    runtime,
+    battle,
+    defeatedFoe,
+    handoff.playerActivePartyIndex,
+  );
+  handoff.playerParty = clone(runtime.player.party);
+
   const continuation = resolveBrowserTrainerReplacementContinuation({
-    battleContinuationHandoff: ownerHandoff(result, battle, runtime),
+    battleContinuationHandoff: handoff,
     replacementDecisionInput: {},
     partyOrder: Array.isArray(battle.trainer_party_order) ? battle.trainer_party_order : null,
     idxBattler: 1,
@@ -86,9 +102,10 @@ export function continueSafariTrainerAfterFirstKo(runtime, result = {}) {
   battle.captured = false;
 
   const trainerName = battle.trainer?.trainer_full_name ?? "トレーナー";
+  const expOperations = clone(expResolution.operations ?? []);
   const switchOperations = clone(continuation.operations ?? []);
   const roundOperations = (result.operations ?? []).filter((operation) => operation?.op !== "trainer_send_next");
-  battle.last_operations = [...roundOperations, ...switchOperations];
+  battle.last_operations = [...roundOperations, ...expOperations, ...switchOperations];
   battle.presentation = [
     ...(result.presentation ?? []).filter((event) => event?.type !== "battle_result" && event?.type !== "trainer_next"),
     {
@@ -106,6 +123,8 @@ export function continueSafariTrainerAfterFirstKo(runtime, result = {}) {
     ...result,
     decision: 0,
     trainerReplacementContinuation: continuation,
+    trainerFaintExp: expResolution,
+    expAwarded: expResolution.expGained,
     replacementApplied: true,
     foeReplacementApplied: true,
     operations: battle.last_operations,
