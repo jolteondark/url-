@@ -2,7 +2,8 @@ import * as base from "./safari-playable-integration-wounded.js";
 import { resolveBrowserBattleRound } from "./browser-battle-round-runtime.js";
 import { resolveBoundaryTrialBattleHandoff } from "./mapless-boundary-trial-battle-handoff.js";
 import { pokemonMoveTotalPp, setPokemonRuntimeMovePp, updatePokemonRuntime } from "./pokemon-runtime.js";
-import { SAFARI_MOVE_MASTERS, SAFARI_MOVE_PRESENTATION } from "./safari-playable-integration-base.js";
+import { SAFARI_MOVE_PRESENTATION } from "./safari-playable-integration-base.js";
+import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
 import { createSafariPostBoundaryBoard } from "./safari-boundary-post-victory-board.js";
 
 export * from "./safari-playable-integration-wounded.js";
