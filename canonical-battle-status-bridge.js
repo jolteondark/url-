@@ -20,6 +20,22 @@ function runtimeState() {
   return globalThis.__maplessSafariRuntime ?? null;
 }
 
+function setTextIfChanged(node, text) {
+  if (node && node.textContent !== text) node.textContent = text;
+}
+
+function setHiddenIfChanged(node, hidden) {
+  if (node && node.hidden !== hidden) node.hidden = hidden;
+}
+
+function setDatasetIfChanged(node, key, value) {
+  if (node && node.dataset[key] !== value) node.dataset[key] = value;
+}
+
+function setAttributeIfChanged(node, name, value) {
+  if (node && node.getAttribute(name) !== value) node.setAttribute(name, value);
+}
+
 function statusLabel(value) {
   const key = String(value ?? "").trim().toUpperCase();
   if (!key || key === "NONE" || key === "OK") return "";
@@ -62,6 +78,16 @@ function maxHp(pokemon) {
   return pokemon?.max_hp ?? pokemon?.totalhp ?? pokemon?.maxHp ?? pokemon?.hp ?? 1;
 }
 
+function syncLevel(panel, pokemon) {
+  const levelNode = panel?.querySelector(".pokemon-name > span");
+  const rawLevel = Number(pokemon?.level ?? pokemon?.lvl);
+  if (!levelNode || !Number.isFinite(rawLevel)) return;
+  const level = Math.max(1, Math.trunc(rawLevel));
+  levelNode.classList.add("canonical-level-value");
+  setTextIfChanged(levelNode, String(level));
+  setAttributeIfChanged(levelNode, "aria-label", `Lv.${level}`);
+}
+
 function syncPanel(panel, pokemon) {
   if (!panel) return;
   const badge = ensureBadge(panel);
@@ -69,21 +95,24 @@ function syncPanel(panel, pokemon) {
   const status = pokemon?.status;
   const label = statusLabel(status);
   if (badge) {
-    badge.textContent = label;
-    badge.dataset.status = String(status ?? "NONE").toUpperCase();
-    badge.hidden = !label;
+    setTextIfChanged(badge, label);
+    setDatasetIfChanged(badge, "status", String(status ?? "NONE").toUpperCase());
+    setHiddenIfChanged(badge, !label);
   }
   if (genderNode) {
     const gender = canonicalGender(pokemon?.gender ?? pokemon?.sex);
-    genderNode.dataset.gender = gender;
-    genderNode.textContent = gender === "male" ? "♂" : gender === "female" ? "♀" : "";
-    genderNode.setAttribute("aria-label", gender === "male" ? "オス" : gender === "female" ? "メス" : "");
-    genderNode.hidden = !gender;
+    const genderText = gender === "male" ? "♂" : gender === "female" ? "♀" : "";
+    const genderLabel = gender === "male" ? "オス" : gender === "female" ? "メス" : "";
+    setDatasetIfChanged(genderNode, "gender", gender);
+    setTextIfChanged(genderNode, genderText);
+    setAttributeIfChanged(genderNode, "aria-label", genderLabel);
+    setHiddenIfChanged(genderNode, !gender);
   }
-  panel.dataset.hpZone = String(resolveSafariCanonicalHpZone({
+  syncLevel(panel, pokemon);
+  setDatasetIfChanged(panel, "hpZone", String(resolveSafariCanonicalHpZone({
     hp: pokemon?.hp,
     maxHp: maxHp(pokemon),
-  }));
+  })));
 }
 
 function syncDataboxState() {

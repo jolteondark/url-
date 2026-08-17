@@ -14,5 +14,6 @@
 #battle-card .player-info>.canonical-gender{left:141px}
 #battle-card .canonical-gender[data-gender="male"]{color:#3b78d8}
 #battle-card .canonical-gender[data-gender="female"]{color:#e05a82}
+#battle-card .pokemon-name>span.canonical-level-value{top:6px;width:50px;height:14px;padding:0 0 0 22px;box-sizing:border-box;background-image:url("./assets/canonical-battle-ui/overlay_lv.png");background-repeat:no-repeat;background-position:0 0;background-size:22px 14px;color:#303038;font-size:.64rem;font-weight:900;line-height:14px;text-shadow:0 1px #fff}
 #battle-card .battle-info-panel[data-hp-zone="1"] .hp-track span{background-position:0 -6px}
 #battle-card .battle-info-panel[data-hp-zone="2"] .hp-track span{background-position:0 -12px}
