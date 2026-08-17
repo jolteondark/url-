@@ -6,13 +6,18 @@ function notice(text) {
   if (node) node.textContent = text;
 }
 
+function bootstrapErrorText(error) {
+  const message = String(error?.message ?? error ?? "unknown error").trim();
+  return message ? `ゲームの読み込みに失敗しました: ${message}` : "ゲームの読み込みに失敗しました。再度タップしてください。";
+}
+
 async function startRuntime() {
   if (started) return startPromise;
   started = true;
   notice("ゲームを読み込んでいます…");
   startPromise = import("./preview.js").catch((error) => {
     started = false;
-    notice("ゲームの読み込みに失敗しました。再度タップしてください。");
+    notice(bootstrapErrorText(error));
     console.error("[Mapless] gameplay bootstrap failed", error);
     throw error;
   });
