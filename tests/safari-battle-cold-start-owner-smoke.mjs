@@ -46,6 +46,8 @@ assert.match(previewSource, /card\.hidden = !battle/,
   "core Battle visibility must be driven directly by Battle state");
 assert.match(previewSource, /button\.dataset\.moveId = id/,
   "core Battle rendering must create tappable owner-backed move buttons");
+assert.match(previewSource, /window\.addEventListener\("safari-runtime-changed", render\)/,
+  "the loaded playable app must render directly from the runtime-change handoff used by Battle start");
 
 const bootSource = await readFile(new URL("../preview.js", import.meta.url), "utf8");
 assert.match(bootSource,
@@ -59,4 +61,4 @@ assert.match(bootSource, /__maplessBattleStartTrace = trace/,
 assert.match(bootSource, /pageshowFallbackUsed/,
   "legacy pageshow rendering may remain only as a conservative fallback during blocker recovery");
 
-console.log("Safari cold board -> Battle owner -> first scene/move handoff smoke passed");
+console.log("Safari cold board -> Battle owner -> runtime render handoff -> first scene/move handoff smoke passed");
