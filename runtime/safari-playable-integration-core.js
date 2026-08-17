@@ -6,11 +6,22 @@ import { resolveBattleStartCore } from "./battle-core-start-handoff.js";
 import { resolvePokemonRuntimeMasters } from "./pokemon-runtime-masters.js";
 import { movePartyPokemonToLead } from "./party-order-management.js";
 import { ensureSafariEncounterSeed, nextSafariEncounterSpeciesIndex } from "./safari-encounter-randomization.js";
-import { generateSafariDynamicTrainer } from "./mapless-dynamic-trainer-generator.js";
+import { safariGeneralCombatModules, safariGeneralCombatReady } from "./safari-general-data-demand.js";
 import { SAFARI_MOVE_MASTERS, SAFARI_NATURE_MASTERS, SAFARI_SPECIES_MASTERS, SAFARI_ZERO_STAT_VALUES } from "./safari-playable-data.js";
-import { SAFARI_GENERAL_TYPES, SAFARI_GENERAL_TYPE_NAMES, resolveSafariGeneralEncounter } from "./safari-general-encounter-runtime.js";
 
 export * from "./safari-playable-integration-base.js";
+
+const SAFARI_GENERAL_TYPES = Object.freeze([
+  "BUG", "DARK", "DRAGON", "ELECTRIC", "FAIRY", "FIGHTING", "FIRE", "FLYING", "GHOST",
+  "GRASS", "GROUND", "ICE", "NORMAL", "POISON", "PSYCHIC", "ROCK", "STEEL", "WATER",
+]);
+const SAFARI_GENERAL_TYPE_NAMES = Object.freeze({
+  BUG: "むし", DARK: "あく", DRAGON: "ドラゴン", ELECTRIC: "でんき",
+  FAIRY: "フェアリー", FIGHTING: "かくとう", FIRE: "ほのお", FLYING: "ひこう",
+  GHOST: "ゴースト", GRASS: "くさ", GROUND: "じめん", ICE: "こおり",
+  NORMAL: "ノーマル", POISON: "どく", PSYCHIC: "エスパー", ROCK: "いわ",
+  STEEL: "はがね", WATER: "みず",
+});
 
 function stateOf(runtime) { const state = runtime?.variables?.mapless; if (!state || typeof state !== "object" || Array.isArray(state)) throw new TypeError("runtime variables.mapless state is required"); return state; }
 function moveId(move) { return typeof move === "string" ? move : move?.id; }
@@ -45,27 +56,37 @@ function setBattle(runtime, index, kind, opponent, operations, trainer = null, e
   state.last_operations = lastOperations;
 }
 function startWild(runtime, event, index, operations) {
+  const { encounterRuntime } = safariGeneralCombatModules();
   const state = stateOf(runtime);
   const speciesRoll = unitFromUint32(nextSafariEncounterSpeciesIndex(state, { day: state.day, boardIndex: index }));
   const varianceRoll = unitFromUint32(nextSafariEncounterSpeciesIndex(state, { day: state.day, boardIndex: index }));
-  const generated = resolveSafariGeneralEncounter({ day: state.day, requiredType: event.type, enemyRank: "NORMAL", extraModifier: 0, speciesRoll, varianceRoll });
+  const generated = encounterRuntime.resolveSafariGeneralEncounter({ day: state.day, requiredType: event.type, enemyRank: "NORMAL", extraModifier: 0, speciesRoll, varianceRoll });
   const encounterResolution = resolveBrowserMaplessWildEncounter({ day: state.day, event, boardIndex: index, generated, variance: generated.variance, minLevel: generated.min_level, maxLevel: generated.max_level, gameTempPresent: true }); const encounter = encounterResolution.encounter;
   const opponent = materializePokemon({ species: encounter.species_id, level: encounter.level, status: "NONE", moves: encounter.move_ids }); setBattle(runtime, index, "wild", opponent, operations, null, encounterResolution, generated); state.notice = `野生の${encounter.species_name}が現れた！`;
 }
 function startTrainer(runtime, event, index, operations) {
-  const state = stateOf(runtime); const trainer = generateSafariDynamicTrainer({ day: state.day, seed: event.trainer_seed }); const party = trainer.party.map(materializePokemon); setBattle(runtime, index, "trainer", party[0], operations, trainer); state.battle.trainer_party = party; state.notice = `${trainer.trainer_full_name}が勝負を仕掛けてきた！`;
+  const { trainerGenerator } = safariGeneralCombatModules();
+  const state = stateOf(runtime); const trainer = trainerGenerator.generateSafariDynamicTrainer({ day: state.day, seed: event.trainer_seed }); const party = trainer.party.map(materializePokemon); setBattle(runtime, index, "trainer", party[0], operations, trainer); state.battle.trainer_party = party; state.notice = `${trainer.trainer_full_name}が勝負を仕掛けてきた！`;
 }
 
 export function createSafariPlayableRuntime() { const runtime = base.createSafariPlayableRuntime(); const state = stateOf(runtime); ensureSafariEncounterSeed(state); assignFullWildTypes(state); ensureTrainerSeeds(state); return runtime; }
 export function boardCellPresentation(runtime, index) { const state = stateOf(runtime); if (!Number.isInteger(index) || index < 0 || index >= state.board_events.length) throw new RangeError("board index must be 0..7"); const event = state.board_events[index]; if (event.kind !== "wild") return base.boardCellPresentation(runtime, index); const revealed = Boolean(state.board_revealed[index]); return { index, kind: event.kind, label: revealed ? projectDayBoardEventName(event, SAFARI_GENERAL_TYPE_NAMES) : "？？？", revealed, consumed: Boolean(state.board_consumed[index]), disabled: Boolean(state.board_consumed[index]) }; }
+function activateCombatCell(runtime, index, event) {
+  const state = stateOf(runtime);
+  if (!safariGeneralCombatReady()) {
+    state.notice = "戦闘データを読み込んでいます…";
+    return { runtime, result: "combat_data_required", boundary: event.kind, notice: state.notice, operations: [] };
+  }
+  const dispatch = resolveDayBoardCellDispatch({ ...baseTurnInput(state, index), reusable: false }); state.board_events = dispatch.state.board_events; state.board_revealed = dispatch.state.board_revealed; state.board_consumed = dispatch.state.board_consumed; state.last_operations = dispatch.operations; state.notice = dispatch.notice;
+  if (dispatch.result === "dispatched") { if (event.kind === "wild") startWild(runtime, event, index, dispatch.operations); else startTrainer(runtime, event, index, dispatch.operations); }
+  return { runtime, result: dispatch.result, boundary: event.kind, notice: state.notice, operations: state.battle?.last_operations ?? dispatch.operations, presentation: state.battle?.presentation ?? [], trainer: state.battle?.trainer ?? null };
+}
 export function activateSafariDayBoardCell(runtime, index) {
   const state = stateOf(runtime), event = state.board_events[index];
   if (!event || !["wild", "trainer"].includes(event.kind)) { const result = base.activateSafariDayBoardCell(runtime, index); if (result.result === "day_advanced") { const next = stateOf(runtime); assignFullWildTypes(next); ensureTrainerSeeds(next); } return result; }
   if (state.battle && !state.battle.completed) return { runtime, result: "battle_active", boundary: "battle", notice: "戦闘を先に終えてください。", operations: [] };
   if (state.shop) return { runtime, result: "shop_active", boundary: "shop", notice: "ショップを先に終了してください。", operations: [] };
-  const dispatch = resolveDayBoardCellDispatch({ ...baseTurnInput(state, index), reusable: false }); state.board_events = dispatch.state.board_events; state.board_revealed = dispatch.state.board_revealed; state.board_consumed = dispatch.state.board_consumed; state.last_operations = dispatch.operations; state.notice = dispatch.notice;
-  if (dispatch.result === "dispatched") { if (event.kind === "wild") startWild(runtime, event, index, dispatch.operations); else startTrainer(runtime, event, index, dispatch.operations); }
-  return { runtime, result: dispatch.result, boundary: event.kind, notice: state.notice, operations: state.battle?.last_operations ?? dispatch.operations, presentation: state.battle?.presentation ?? [], trainer: state.battle?.trainer ?? null };
+  return activateCombatCell(runtime, index, event);
 }
 export function setSafariPartyLead(runtime, index) { const state = stateOf(runtime); if (state.battle) throw new Error("戦闘中は先頭を変更できません。"); const result = movePartyPokemonToLead(runtime.player.party, index); state.notice = result.changed ? `${result.pokemon.species}を先頭にしました。` : `${result.pokemon.species}はすでに先頭です。`; return { ...result, runtime, notice: state.notice }; }
 export function loadSafariPlayableRun(storage, currentRuntime = createSafariPlayableRuntime()) { const loaded = base.loadSafariPlayableRun(storage, currentRuntime); if (loaded.found) { const state = stateOf(loaded.state); ensureSafariEncounterSeed(state); assignFullWildTypes(state); ensureTrainerSeeds(state); } return loaded; }

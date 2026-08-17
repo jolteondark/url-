@@ -1,4 +1,5 @@
-import { SAFARI_GENERAL_SPECIES_MASTERS } from './safari-general-encounter-data-loader.js';
+import "./safari-general-data-demand.js";
+import { SAFARI_SPECIES_MASTERS } from "./safari-playable-data.js";
 
 export const SAFARI_WOUNDED_GENERAL_POOL_SOURCE = Object.freeze({
   canonical: 'source-v0.9.108',
@@ -7,9 +8,9 @@ export const SAFARI_WOUNDED_GENERAL_POOL_SOURCE = Object.freeze({
   expectedGeneralSpecies: 875,
 });
 
-/** Safari adapter for private M0393. The imported master is already GENERAL-only. */
+/** Safari adapter for private M0393. GENERAL masters are demand-installed in browsers. */
 export function safariWoundedGeneralSpeciesPoolV108() {
-  const ranked = Object.entries(SAFARI_GENERAL_SPECIES_MASTERS).map(([speciesId, master]) => {
+  const ranked = Object.entries(SAFARI_SPECIES_MASTERS).map(([speciesId, master]) => {
     if (!master || master.id !== speciesId) throw new TypeError(`invalid Safari GENERAL species master: ${speciesId}`);
     const dexNumber = Number(master.dex_number);
     if (!Number.isInteger(dexNumber) || dexNumber <= 0) throw new TypeError(`canonical dex_number is required: ${speciesId}`);
