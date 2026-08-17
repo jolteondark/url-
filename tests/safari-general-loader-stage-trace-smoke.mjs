@@ -27,4 +27,8 @@ for (const stage of [
 assert.match(source, /__maplessGeneralCombatTrace/, "loader stages must join the existing Battle-start GENERAL trace");
 assert.doesNotMatch(source, /fallback Battle|fallbackBattle|fallback_battle/, "diagnostics must not introduce fallback Battle state");
 
+// test:battle-entry ends with this smoke. Keep the post-render full-runtime
+// prewarm contract in that blocker gate without moving any runtime ownership.
+await import("./safari-battle-runtime-prewarm-smoke.mjs");
+
 console.log("Safari GENERAL loader exposes exact chunk/decode/decompress/JSON/projection Battle-start stages: ok");
