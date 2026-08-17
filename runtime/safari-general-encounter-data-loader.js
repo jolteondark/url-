@@ -3,30 +3,12 @@ import { safariGeneralMoveAiFacts } from "./safari-general-move-ai-facts.js";
 import { safariGeneralSpeciesIndividualFacts } from "./safari-general-species-individual-facts.js";
 
 const CHUNK_COUNT = 20;
-const BROWSER_IMPORT_BATCH = 4;
+const BROWSER_FETCH_BATCH = 4;
 const LOAD_TIMEOUT_MS = 20_000;
-const CHUNK_LOADERS = [
-  () => import("./generated/safari-general-encounter-data-v2-00.js"),
-  () => import("./generated/safari-general-encounter-data-v2-01.js"),
-  () => import("./generated/safari-general-encounter-data-v2-02.js"),
-  () => import("./generated/safari-general-encounter-data-v2-03.js"),
-  () => import("./generated/safari-general-encounter-data-v2-04.js"),
-  () => import("./generated/safari-general-encounter-data-v2-05.js"),
-  () => import("./generated/safari-general-encounter-data-v2-06.js"),
-  () => import("./generated/safari-general-encounter-data-v2-07.js"),
-  () => import("./generated/safari-general-encounter-data-v2-08.js"),
-  () => import("./generated/safari-general-encounter-data-v2-09.js"),
-  () => import("./generated/safari-general-encounter-data-v2-10.js"),
-  () => import("./generated/safari-general-encounter-data-v2-11.js"),
-  () => import("./generated/safari-general-encounter-data-v2-12.js"),
-  () => import("./generated/safari-general-encounter-data-v2-13.js"),
-  () => import("./generated/safari-general-encounter-data-v2-14.js"),
-  () => import("./generated/safari-general-encounter-data-v2-15.js"),
-  () => import("./generated/safari-general-encounter-data-v2-16.js"),
-  () => import("./generated/safari-general-encounter-data-v2-17.js"),
-  () => import("./generated/safari-general-encounter-data-v2-18.js"),
-  () => import("./generated/safari-general-encounter-data-v2-19.js"),
-];
+const CHUNK_PATHS = Object.freeze(Array.from(
+  { length: CHUNK_COUNT },
+  (_, index) => `./generated/safari-general-encounter-data-v2-${String(index).padStart(2, "0")}.js`,
+));
 
 function withTimeout(promise, timeoutMs, label) {
   let timer = null;
@@ -45,26 +27,45 @@ function reportBrowserLoadProgress(loaded, phase = "chunks") {
   }));
 }
 
+function encodedChunkFromModuleSource(source, path) {
+  const prefix = "export default ";
+  const trimmed = String(source ?? "").trim();
+  if (!trimmed.startsWith(prefix)) throw new Error(`invalid Safari GENERAL chunk source: ${path}`);
+  const literal = trimmed.slice(prefix.length).replace(/;\s*$/, "");
+  const encoded = JSON.parse(literal);
+  if (typeof encoded !== "string" || encoded.length === 0) {
+    throw new Error(`empty Safari GENERAL chunk: ${path}`);
+  }
+  return encoded;
+}
+
+async function fetchEncodedChunk(path) {
+  const url = new URL(path, import.meta.url);
+  const response = await fetch(url, { cache: "force-cache", credentials: "same-origin" });
+  if (!response.ok) throw new Error(`Safari GENERAL chunk fetch failed: ${response.status} ${path}`);
+  return encodedChunkFromModuleSource(await response.text(), path);
+}
+
 async function loadBrowserEncodedChunks() {
   const chunks = [];
-  for (let start = 0; start < CHUNK_COUNT; start += BROWSER_IMPORT_BATCH) {
-    const end = Math.min(start + BROWSER_IMPORT_BATCH, CHUNK_COUNT);
-    const modules = await withTimeout(
-      Promise.all(CHUNK_LOADERS.slice(start, end).map((load) => load())),
+  for (let start = 0; start < CHUNK_COUNT; start += BROWSER_FETCH_BATCH) {
+    const end = Math.min(start + BROWSER_FETCH_BATCH, CHUNK_COUNT);
+    const batch = await withTimeout(
+      Promise.all(CHUNK_PATHS.slice(start, end).map(fetchEncodedChunk)),
       LOAD_TIMEOUT_MS,
-      `Safari GENERAL chunks ${start + 1}-${end}`,
+      `Safari GENERAL data ${start + 1}-${end}`,
     );
-    chunks.push(...modules.map((module) => module.default));
+    chunks.push(...batch);
     reportBrowserLoadProgress(chunks.length);
-    // Keep WebKit responsive between small module-parse batches.
+    // Yield once per small network batch so WebKit can paint progress/input.
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
   return chunks;
 }
 
 async function loadNodeEncodedChunks() {
-  const chunks = await Promise.all(CHUNK_LOADERS.map((load) => load()));
-  return chunks.map((chunk) => chunk.default);
+  const modules = await Promise.all(CHUNK_PATHS.map((path) => import(new URL(path, import.meta.url).href)));
+  return modules.map((module) => module.default);
 }
 
 const encodedChunks = typeof window !== "undefined"
