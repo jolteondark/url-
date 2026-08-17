@@ -1,6 +1,5 @@
 import { applySafariBoundaryTrialEntry, applySafariCampRecovery, prepareSafariCampNextDay } from "./runtime/safari-camp-next-day-command.js";
-import { saveSafariPlayableRun } from "./runtime/safari-playable-integration.js?canonical-base=1";
-import "./boundary-trial-presentation.js";
+import { saveSafariPlayableRun } from "./runtime/safari-playable-integration.js";
 
 const style = document.createElement("style");
 style.textContent = `
