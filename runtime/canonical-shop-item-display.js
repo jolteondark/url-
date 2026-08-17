@@ -22,17 +22,18 @@ export function resolveCanonicalShopItemDisplay(itemId) {
 
 export function projectCanonicalResolvedShopBrowserDisplay(shop) {
   if (!shop || typeof shop !== "object" || Array.isArray(shop)) {
-    throw new TypeError("shop must be an object");
+    throw new TypeError("resolved shop must be an object");
   }
-  if (!Array.isArray(shop.stock)) throw new TypeError("shop.stock must be an array");
+  if (!Array.isArray(shop.stock)) throw new TypeError("resolved shop stock must be an array");
   if (!shop.prices || typeof shop.prices !== "object" || Array.isArray(shop.prices)) {
-    throw new TypeError("shop.prices must be an object");
+    throw new TypeError("resolved shop prices must be an object");
   }
+
   const stock = shop.stock.map((itemId) => {
     const item = resolveCanonicalShopItemDisplay(itemId);
     const price = shop.prices[item.id];
     if (!price || typeof price !== "object") {
-      throw new RangeError(`missing canonical shop price: ${item.id}`);
+      throw new RangeError(`resolved shop price missing for display item: ${item.id}`);
     }
     return Object.freeze({
       ...item,
@@ -40,6 +41,7 @@ export function projectCanonicalResolvedShopBrowserDisplay(shop) {
       sellPrice: Number(price.sellPrice),
     });
   });
+
   const result = {
     schema: "mapless.browser-resolved-shop-display.v1",
     id: String(shop.id ?? ""),
