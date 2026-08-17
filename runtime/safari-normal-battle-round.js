@@ -158,7 +158,6 @@ function resolveWild(runtime, selectedMoveId) {
     moveMasters: SAFARI_MOVE_MASTERS,
     playerRandomRoll: 0,
     foeRandomRoll: 0,
-    playerBattleExpInput: normalBattleExpInput(player, battle.foe, false),
   });
   if (Array.isArray(resolved.battleContinuationHandoff?.playerParty)) runtime.player.party = structuredClone(resolved.battleContinuationHandoff.playerParty);
   else runtime.player.party[0] = structuredClone(resolved.player);
