@@ -1,7 +1,6 @@
-import { prepareSafariBattleRuntime } from "./safari-web-playable-integration.js";
-
 let scheduled = false;
 let warming = false;
+let runtimeModulePromise = null;
 
 function battleActive() {
   const battle = globalThis.__maplessSafariRuntime?.variables?.mapless?.battle;
@@ -16,11 +15,21 @@ function publishStage(stage, error = null) {
   };
 }
 
+function prepareBattleRuntimeModule() {
+  if (!runtimeModulePromise) {
+    runtimeModulePromise = import("./safari-playable-integration.js").catch((error) => {
+      runtimeModulePromise = null;
+      throw error;
+    });
+  }
+  return runtimeModulePromise;
+}
+
 function prewarmAfterBattleRender() {
   if (!battleActive() || warming) return;
   warming = true;
   publishStage("runtime_prewarm_start");
-  prepareSafariBattleRuntime()
+  prepareBattleRuntimeModule()
     .then(() => {
       publishStage("runtime_prewarm_ready");
       if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
@@ -29,6 +38,7 @@ function prewarmAfterBattleRender() {
     })
     .catch((error) => {
       globalThis.__maplessLastError = error;
+      globalThis.__maplessBattleRuntimeError = error;
       publishStage("runtime_prewarm_error", error);
       if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
         window.dispatchEvent(new CustomEvent("safari-battle-runtime-error", { detail: { error } }));
