@@ -25,6 +25,13 @@ function hasStatus(pokemon) {
   return Boolean(status && status !== "NONE" && status !== "OK");
 }
 
+function hpPercent(pokemon) {
+  const hp = Number(pokemon?.hp ?? 0);
+  const maxHp = Number(pokemon?.max_hp ?? 0);
+  if (!(maxHp > 0)) return 0;
+  return Math.max(0, Math.min(100, (hp / maxHp) * 100));
+}
+
 function teamState(battle) {
   const party = Array.isArray(battle?.trainer_party) ? battle.trainer_party : [];
   const active = Math.max(0, Number(battle?.trainer_party_index ?? 0));
@@ -38,6 +45,23 @@ function latestReplacementEvent(battle) {
     if (events[index]?.type === "trainer_next") return events[index];
   }
   return null;
+}
+
+function syncReplacementFoePresentation(battle) {
+  const foe = battle?.foe;
+  if (!foe) return;
+  const name = byId("foe-name");
+  const level = byId("foe-level");
+  const hp = byId("foe-hp");
+  const hpBar = byId("foe-hp-bar");
+  const species = pokemonName(foe);
+  const levelText = `Lv.${Number(foe.level ?? 0)}`;
+  const hpText = `${Number(foe.hp ?? 0)} / ${Number(foe.max_hp ?? 0)}`;
+  const width = `${hpPercent(foe)}%`;
+  if (name && name.textContent !== species) name.textContent = species;
+  if (level && level.textContent !== levelText) level.textContent = levelText;
+  if (hp && hp.textContent !== hpText) hp.textContent = hpText;
+  if (hpBar && hpBar.style.width !== width) hpBar.style.width = width;
 }
 
 function scheduleReplacementMessage(battle) {
@@ -54,6 +78,7 @@ function scheduleReplacementMessage(battle) {
     replacementMessageTimer = 0;
     const current = trainerBattle();
     if (!current || current.completed || Number(current.trainer_party_index ?? 0) !== partyIndex) return;
+    syncReplacementFoePresentation(current);
     const message = byId("battle-message");
     if (message) message.textContent = `${trainer}は${species}を繰り出した！`;
   }, 360);
