@@ -31,11 +31,10 @@ function assertKoPresentation(result, expectedSemanticTypes) {
   for (const type of expectedSemanticTypes) assert.equal(types.includes(type), true, `missing ${type} semantic event`);
 }
 
-// Guard the architecture itself: intermediate trainer KO must never return to
-// the old finalize -> snapshot rollback -> synthetic next-slot compensation,
-// browser combat must consume Battle Runtime HP directly, intermediate EXP and
-// opponent choice must be owned inside the same party-aware Battle transition,
-// and the public entry must not rewrite the completed owner presentation.
+// Guard the architecture itself: trainer KO must never return to the old
+// finalize -> rerun/rollback path, browser combat must consume Battle Runtime HP
+// directly, EXP and opponent choice must live inside the same party-aware Battle
+// transition, and Safari may not signal trainer AI by mutating move order.
 {
   const legacySource = fs.readFileSync(new URL("../runtime/safari-playable-integration-legacy.js", import.meta.url), "utf8");
   const preWoundedSource = fs.readFileSync(new URL("../runtime/safari-playable-integration-pre-wounded.js", import.meta.url), "utf8");
@@ -45,15 +44,18 @@ function assertKoPresentation(result, expectedSemanticTypes) {
   assert.doesNotMatch(legacySource, /snapshotRoundSideEffects|restoreIntermediateSideEffects/);
   assert.doesNotMatch(legacySource, /op:\s*["']trainer_send_next["']/);
   assert.doesNotMatch(legacySource, /awardSafariTrainerIntermediateExp|safari-trainer-intermediate-exp/);
+  assert.doesNotMatch(legacySource, /function trainerHasReserve/);
   assert.doesNotMatch(legacySource, /foeMoveId\s*=\s*moveId\(battle\.foe/);
   assert.match(legacySource, /playerBattleExpInput:\s*trainerBattleExpInput/);
   assert.match(legacySource, /ownedOpponentInput/);
   assert.match(legacySource, /resolved\.expIntegration\?\.commits/);
   assert.match(legacySource, /resolveBrowserTrainerBattleRound/);
+  assert.match(legacySource, /if \(battle\.kind === "trainer"\) \{\s*return resolvePartyAwareTrainerRound/);
+  assert.match(legacySource, /finalizeResolvedTrainerBattle\(runtime\)/);
   assert.match(trainerRoundSource, /resolveBrowserBattleRoundWithOwnedOpponent/);
   assert.match(trainerRoundSource, /ownedOpponentInput/);
-  assert.match(preWoundedSource, /trainerUsesPartyAwareOwnedOpponent/);
-  assert.match(preWoundedSource, /if \(trainerUsesPartyAwareOwnedOpponent\(battle\)\) return null/);
+  assert.doesNotMatch(preWoundedSource, /trainerUsesPartyAwareOwnedOpponent/);
+  assert.match(preWoundedSource, /if \(battle\.kind === "trainer"\) return null/);
   assert.doesNotMatch(publicSource, /continueSafariTrainerAfterFirstKo/);
   assert.doesNotMatch(publicSource, /finalizeSafariRoundPresentation|safariKoPresentationImmediate|isKoRound/);
   assert.match(roundSource, /attachDefeatedFoeExpInput/);
@@ -143,11 +145,15 @@ function assertKoPresentation(result, expectedSemanticTypes) {
 
   preparePlayerForKo(runtime);
   primeFoeAtOneHp(state.battle);
+  const expBeforeFinal = Number(runtime.player.party[state.battle.player_party_index ?? 0].exp ?? 0);
   const finalKo = await Promise.resolve(resolveSafariBattleRound(runtime, selectedMoveId));
   assert.equal(finalKo.decision, 1);
   assert.equal(state.battle.completed, true);
   assert.equal(state.battle.trainer_party_index, 1);
   assert.equal(Number(finalKo.player?.hp), Number(runtime.player.party[state.battle.player_party_index ?? 0]?.hp), "terminal player HP must be the same owner state persisted to Safari");
+  assert.equal(finalKo.expIntegration?.commits?.length, 1, "final trainer KO must create exactly one Battle-owned EXP commit");
+  const finalExp = Number(finalKo.expIntegration.commits[0].expGained ?? 0);
+  assert.equal(Number(runtime.player.party[state.battle.player_party_index ?? 0].exp ?? 0), expBeforeFinal + finalExp, "terminal finalization must not award the final foe EXP twice");
   assert.ok(Number(runtime.bag.money) >= moneyBefore, "final victory may pay the trainer prize exactly at terminal completion");
   assertKoPresentation(finalKo, ["move_started", "damage_applied", "faint", "battle_result"]);
 }
