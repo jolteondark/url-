@@ -12,8 +12,16 @@ export { SAFARI_MOVE_PRESENTATION, clearSafariPlayableRun, createSafariPlayableR
 
 let fullModule = null;
 let fullModulePromise = null;
-let normalBattleModule = null;
-let normalBattleModulePromise = null;
+let normalRoundModule = null;
+let normalRoundModulePromise = null;
+let normalLifecycleModule = null;
+let normalLifecycleModulePromise = null;
+
+function rememberImportFailure(error) {
+  globalThis.__maplessBattleRuntimeError = error;
+  globalThis.__maplessLastError = error;
+  throw error;
+}
 
 async function full() {
   if (fullModule) return fullModule;
@@ -26,31 +34,43 @@ async function full() {
       })
       .catch((error) => {
         fullModulePromise = null;
-        globalThis.__maplessBattleRuntimeError = error;
-        globalThis.__maplessLastError = error;
-        throw error;
+        return rememberImportFailure(error);
       });
   }
   return fullModulePromise;
 }
 
-async function normalBattle() {
-  if (normalBattleModule) return normalBattleModule;
-  if (!normalBattleModulePromise) {
-    normalBattleModulePromise = import("./safari-playable-integration-pre-wounded.js")
+async function normalRound() {
+  if (normalRoundModule) return normalRoundModule;
+  if (!normalRoundModulePromise) {
+    normalRoundModulePromise = import("./safari-normal-battle-round.js?v=20260818-0813")
       .then((module) => {
-        normalBattleModule = module;
+        normalRoundModule = module;
         globalThis.__maplessBattleRuntimeError = null;
         return module;
       })
       .catch((error) => {
-        normalBattleModulePromise = null;
-        globalThis.__maplessBattleRuntimeError = error;
-        globalThis.__maplessLastError = error;
-        throw error;
+        normalRoundModulePromise = null;
+        return rememberImportFailure(error);
       });
   }
-  return normalBattleModulePromise;
+  return normalRoundModulePromise;
+}
+
+async function normalLifecycle() {
+  if (normalLifecycleModule) return normalLifecycleModule;
+  if (!normalLifecycleModulePromise) {
+    normalLifecycleModulePromise = import("./safari-playable-integration-pre-wounded.js")
+      .then((module) => {
+        normalLifecycleModule = module;
+        return module;
+      })
+      .catch((error) => {
+        normalLifecycleModulePromise = null;
+        return rememberImportFailure(error);
+      });
+  }
+  return normalLifecycleModulePromise;
 }
 
 function stateOf(runtime) {
@@ -61,10 +81,6 @@ function stateOf(runtime) {
 
 function needsFullBattleIntegration(runtime) {
   return stateOf(runtime).battle?.origin === "boundary_trial";
-}
-
-async function battleModule(runtime) {
-  return needsFullBattleIntegration(runtime) ? full() : normalBattle();
 }
 
 export function boardCellPresentation(runtime, index) {
@@ -88,19 +104,23 @@ export async function activateSafariDayBoardCell(runtime, index) {
 
 export async function prepareSafariBattleRuntime(runtime = globalThis.__maplessSafariRuntime) {
   if (!runtime?.variables?.mapless?.battle) return false;
-  await battleModule(runtime);
+  if (needsFullBattleIntegration(runtime)) await full();
+  else await normalRound();
   return true;
 }
 
 export async function resolveSafariBattleRound(runtime, selectedMoveId) {
-  return (await battleModule(runtime)).resolveSafariBattleRound(runtime, selectedMoveId);
+  if (needsFullBattleIntegration(runtime)) return (await full()).resolveSafariBattleRound(runtime, selectedMoveId);
+  return (await normalRound()).resolveSafariNormalBattleRound(runtime, selectedMoveId);
 }
 export async function attemptSafariCapture(runtime) {
-  if (stateOf(runtime).battle) return (await battleModule(runtime)).attemptSafariCapture(runtime);
+  if (needsFullBattleIntegration(runtime)) return (await full()).attemptSafariCapture(runtime);
+  if (stateOf(runtime).battle) return (await normalLifecycle()).attemptSafariCapture(runtime);
   return (await full()).attemptSafariCapture(runtime);
 }
 export async function returnSafariToDayBoard(runtime) {
-  if (stateOf(runtime).battle) return (await battleModule(runtime)).returnSafariToDayBoard(runtime);
+  if (needsFullBattleIntegration(runtime)) return (await full()).returnSafariToDayBoard(runtime);
+  if (stateOf(runtime).battle) return (await normalLifecycle()).returnSafariToDayBoard(runtime);
   return (await full()).returnSafariToDayBoard(runtime);
 }
 export async function enterSafariVillage(runtime) {
