@@ -34,49 +34,29 @@ function reportBrowserLoadProgress(loaded, phase = "chunks") {
   }));
 }
 
-function encodedChunkFromModuleSource(source, path) {
-  const prefix = "export default ";
-  const trimmed = String(source ?? "").trim();
-  if (!trimmed.startsWith(prefix)) throw new Error(`invalid Safari GENERAL chunk source: ${path}`);
-  const literal = trimmed.slice(prefix.length).replace(/;\s*$/, "");
-  const encoded = JSON.parse(literal);
-  if (typeof encoded !== "string" || encoded.length === 0) {
-    throw new Error(`empty Safari GENERAL chunk: ${path}`);
-  }
-  return encoded;
-}
-
-async function fetchEncodedChunk(path) {
-  const url = new URL(path, import.meta.url);
-  const response = await fetch(url, { cache: "force-cache", credentials: "same-origin" });
-  if (!response.ok) throw new Error(`Safari GENERAL chunk fetch failed: ${response.status} ${path}`);
-  return encodedChunkFromModuleSource(await response.text(), path);
-}
-
-async function loadBrowserEncodedChunks() {
+async function loadEncodedChunks() {
   const chunks = [];
   for (let start = 0; start < CHUNK_COUNT; start += BROWSER_FETCH_BATCH) {
     const end = Math.min(start + BROWSER_FETCH_BATCH, CHUNK_COUNT);
     const batch = await withTimeout(
-      Promise.all(CHUNK_PATHS.slice(start, end).map(fetchEncodedChunk)),
+      Promise.all(CHUNK_PATHS.slice(start, end).map(async (path) => {
+        const module = await import(new URL(path, import.meta.url).href);
+        if (typeof module.default !== "string" || module.default.length === 0) {
+          throw new Error(`empty Safari GENERAL chunk: ${path}`);
+        }
+        return module.default;
+      })),
       LOAD_TIMEOUT_MS,
       `Safari GENERAL data ${start + 1}-${end}`,
     );
     chunks.push(...batch);
     reportBrowserLoadProgress(chunks.length);
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    if (typeof window !== "undefined") await new Promise((resolve) => setTimeout(resolve, 0));
   }
   return chunks;
 }
 
-async function loadNodeEncodedChunks() {
-  const modules = await Promise.all(CHUNK_PATHS.map((path) => import(new URL(path, import.meta.url).href)));
-  return modules.map((module) => module.default);
-}
-
-const encodedChunks = typeof window !== "undefined"
-  ? await loadBrowserEncodedChunks()
-  : await loadNodeEncodedChunks();
+const encodedChunks = await loadEncodedChunks();
 const encoded = encodedChunks.join("");
 const binary = typeof atob === "function"
   ? Uint8Array.from(atob(encoded), (char) => char.charCodeAt(0))
