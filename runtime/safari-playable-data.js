@@ -32,12 +32,43 @@ const BOOT_SPECIES = Object.freeze({
 export const SAFARI_SPECIES_MASTERS = { ...BOOT_SPECIES };
 let generalInstalled = false;
 
+function installLazyMasterProjection(target, source) {
+  const ids = Object.keys(source);
+  for (const id of ids) {
+    Object.defineProperty(target, id, {
+      configurable: true,
+      enumerable: true,
+      get() {
+        return source[id];
+      },
+      set(value) {
+        Object.defineProperty(target, id, {
+          configurable: true,
+          enumerable: true,
+          writable: true,
+          value,
+        });
+      },
+    });
+  }
+  return ids.length;
+}
+
 export function installSafariGeneralMasters(speciesMasters, moveMasters) {
   if (!speciesMasters || !moveMasters) throw new TypeError("general species and move masters are required");
-  Object.assign(SAFARI_SPECIES_MASTERS, speciesMasters);
-  Object.assign(SAFARI_MOVE_MASTERS, moveMasters, EXACT_BOOT_MOVES);
+
+  // safari-general-encounter-data-loader exposes lazy Proxy projections. A
+  // direct Object.assign here enumerated and read every value, eagerly
+  // materializing all 875 species and 608 moves before Battle entry could
+  // continue. Preserve ordinary keyed access while deferring each source read
+  // until that exact species/move is requested. The setter intentionally lets
+  // encounter/trainer owners concretize only their selected masters with their
+  // existing Object.assign calls.
+  const speciesCount = installLazyMasterProjection(SAFARI_SPECIES_MASTERS, speciesMasters);
+  const moveCount = installLazyMasterProjection(SAFARI_MOVE_MASTERS, moveMasters);
+  Object.assign(SAFARI_MOVE_MASTERS, EXACT_BOOT_MOVES);
   generalInstalled = true;
-  return { speciesCount: Object.keys(speciesMasters).length, moveCount: Object.keys(moveMasters).length };
+  return { speciesCount, moveCount };
 }
 
 export function safariGeneralMastersInstalled() {
