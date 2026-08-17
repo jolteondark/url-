@@ -283,7 +283,7 @@ async function playPresentation(events) {
     } else if (event.type === "battle_result") {
       note("Battle result: decision " + event.decision);
       if (event.expGained) note("EXP +" + event.expGained);
-      if (event.reward?.item) note(event.reward.item + " +" + event.reward.quantity);
+      if (event.reward?.item) note(event.reward.item + "+" + event.reward.quantity);
       if (event.moneyGained) note("Money +" + moneyFormat.format(event.moneyGained) + "円");
     } else if (event.type === "capture") {
       note("Capture → " + event.destination);
@@ -568,5 +568,6 @@ window.addEventListener("safari-party-lead-request", async (event) => {
   window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
 });
 
+window.addEventListener("safari-runtime-changed", render);
 window.addEventListener("pageshow", render);
 render();
