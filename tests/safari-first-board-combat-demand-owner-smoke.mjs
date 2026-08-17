@@ -4,6 +4,7 @@ import fs from "node:fs";
 const boot = fs.readFileSync(new URL("../preview.js", import.meta.url), "utf8");
 const app = fs.readFileSync(new URL("../preview-app.js", import.meta.url), "utf8");
 const demand = fs.readFileSync(new URL("../runtime/safari-general-data-demand.js", import.meta.url), "utf8");
+const publicEntry = fs.readFileSync(new URL("../runtime/safari-web-playable-integration.js", import.meta.url), "utf8");
 const combat = fs.readFileSync(new URL("../runtime/safari-web-combat-start.js", import.meta.url), "utf8");
 
 assert.doesNotMatch(
@@ -32,6 +33,11 @@ assert.match(
   "post-boot Day Board clicks must continue into the same public combat owner",
 );
 assert.match(
+  publicEntry,
+  /try\s*\{[\s\S]*import\("\.\/safari-web-combat-start\.js"\)[\s\S]*await activateSafariWebCombatCell\(runtime, index\)[\s\S]*globalThis\.__maplessLastError = error[\s\S]*throw error/,
+  "public wild/trainer entry must preserve the exact error even if the combat-owner module itself fails to import",
+);
+assert.match(
   combat,
   /await ensureSafariGeneralCombatData\(event\.kind\)/,
   "wild/trainer GENERAL demand must remain event-specific inside safari-web-combat-start",
@@ -47,4 +53,4 @@ assert.match(
   "Day Board mutation must remain committed only after combat materialization returns",
 );
 
-console.log("Safari boot and post-boot combat GENERAL demand stay inside the Battle-start owner: ok");
+console.log("Safari boot/post-boot Battle entry retains one owner and exact import/runtime failures: ok");
