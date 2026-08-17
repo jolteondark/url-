@@ -8,5 +8,11 @@
 #battle-card .canonical-status-badge[data-status="PARALYSIS"],#battle-card .canonical-status-badge[data-status="PARALYZED"]{background-position:0 -48px}
 #battle-card .canonical-status-badge[data-status="FROZEN"],#battle-card .canonical-status-badge[data-status="FREEZE"]{background-position:0 -64px}
 #battle-card .canonical-status-badge[data-status="TOXIC"]{background-position:0 -112px}
+#battle-card .canonical-gender{position:absolute;z-index:5;top:8px;width:18px;height:20px;font:900 17px/20px Arial,"Hiragino Kaku Gothic ProN","Yu Gothic UI",sans-serif;text-align:center;text-shadow:0 1px #fff}
+#battle-card .canonical-gender[hidden]{display:none}
+#battle-card .foe-info>.canonical-gender{left:116px}
+#battle-card .player-info>.canonical-gender{left:141px}
+#battle-card .canonical-gender[data-gender="male"]{color:#3b78d8}
+#battle-card .canonical-gender[data-gender="female"]{color:#e05a82}
 #battle-card .battle-info-panel[data-hp-zone="1"] .hp-track span{background-position:0 -6px}
 #battle-card .battle-info-panel[data-hp-zone="2"] .hp-track span{background-position:0 -12px}
