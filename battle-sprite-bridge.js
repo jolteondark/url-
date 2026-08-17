@@ -6,7 +6,6 @@ const SIDES = [
   { side: "player", nameId: "player-name", combatantId: "player-combatant", battlerIndex: 0 },
   { side: "foe", nameId: "foe-name", combatantId: "foe-combatant", battlerIndex: 1 },
 ];
-let ownerBattlePresentation = null;
 
 function ensureStyle() {
   if (document.getElementById("battle-sprite-bridge-style")) return;
@@ -17,10 +16,21 @@ function ensureStyle() {
 }
 
 function ownerSide(side) {
-  const value = ownerBattlePresentation?.[side];
-  if (!value || typeof value.species !== "string" || !value.species) return null;
-  if (!Number.isInteger(value.form) || value.form < 0) return null;
-  return value;
+  const runtime = globalThis.__maplessSafariRuntime;
+  const battle = runtime?.variables?.mapless?.battle;
+  if (!battle) return null;
+  let pokemon = battle.foe ?? null;
+  if (side === "player") {
+    const party = Array.isArray(runtime?.player?.party) ? runtime.player.party : [];
+    const requestedIndex = Number(battle.player_party_index ?? 0);
+    if (!Number.isInteger(requestedIndex) || requestedIndex < 0 || requestedIndex >= party.length) return null;
+    pokemon = party[requestedIndex] ?? null;
+  }
+  const species = typeof pokemon?.species === "string" ? pokemon.species.trim() : "";
+  if (!species) return null;
+  const form = pokemon.form == null ? 0 : Number(pokemon.form);
+  if (!Number.isInteger(form) || form < 0) return null;
+  return { species, form };
 }
 
 function renderSide({ side, nameId, combatantId, battlerIndex }) {
@@ -161,11 +171,7 @@ function renderBattlePresentation() {
   renderCommandHud();
 }
 
-window.addEventListener("safari-runtime-changed", (event) => {
-  ownerBattlePresentation = event.detail?.battle ?? null;
-  renderBattlePresentation();
-}, { passive: true });
-
+window.addEventListener("safari-runtime-changed", renderBattlePresentation, { passive: true });
 ensureStyle();
 ensureCommandHud();
 renderBattlePresentation();
