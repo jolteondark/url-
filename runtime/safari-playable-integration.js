@@ -38,11 +38,10 @@ function stateOf(runtime) {
 
 function battleNeedsGeneralData(battle) {
   if (!battle || battle.completed) return false;
-  if (battle.origin === "boundary_trial") return true;
-  if (battle.general_selection != null) return true;
-  return battle.kind === "trainer"
-    && battle.origin !== "village_bounty"
-    && Array.isArray(battle.trainer?.party);
+  // Normal GENERAL wild/trainer battles install only the selected species and
+  // their moves before Battle start. The boundary owner may project arbitrary
+  // leader content, so keep the full-master fallback for that path only.
+  return battle.origin === "boundary_trial";
 }
 
 function trainerAiSeed(battle) {
