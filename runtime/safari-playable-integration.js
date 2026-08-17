@@ -162,6 +162,11 @@ function trainerAiCompatibility(result, battleKind, preparedBoundary) {
   };
 }
 
+function notifySafariRuntimeChanged() {
+  if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") return;
+  queueMicrotask(() => window.dispatchEvent(new CustomEvent("safari-runtime-changed")));
+}
+
 function finishRound(runtime, result, battleKind, preparedBoundary) {
   if (preparedBoundary) {
     const currentBattle = stateOf(runtime).battle;
@@ -173,6 +178,7 @@ function finishRound(runtime, result, battleKind, preparedBoundary) {
     }
   }
   const trainerAi = trainerAiCompatibility(result, battleKind, preparedBoundary);
+  notifySafariRuntimeChanged();
   return trainerAi ? { ...result, trainerAi } : result;
 }
 
