@@ -9,29 +9,24 @@ const combat = fs.readFileSync(new URL("../runtime/safari-web-combat-start.js", 
 
 assert.doesNotMatch(
   boot,
-  /ensureSafariGeneralCombatData\s*\(/,
-  "first-board boot must not preload combat GENERAL outside the Battle-start owner",
+  /activateSafariDayBoardCell|data-boot-board-index|onBootBoardChoice|activateInitialBoardChoice/,
+  "boot must not own a shadow first-board activation path",
 );
 assert.match(
   boot,
-  /await activateSafariDayBoardCell\(runtime, index\)/,
-  "first-board boot must enter the existing public Day Board owner directly",
+  /await appPromise;[\s\S]*safari-preview-start[\s\S]*preview_ready_for_board_click/,
+  "New/Continue must load the real preview app before the player can choose a Board cell",
 );
 assert.match(
-  boot,
-  /normal_event[\s\S]*wounded_pokemon[\s\S]*ensureSafariGeneralData\(\)/,
-  "non-combat wounded Pokemon may still demand canonical GENERAL masters before its own owner runs",
+  app,
+  /byId\("board"\)\.addEventListener\("click"[\s\S]*await ensureBoardActionData\(index\);[\s\S]*await activateSafariDayBoardCell\(runtime, index\)/,
+  "the first and later Board clicks must share the same real Day Board owner path",
 );
 
 const implicitGuard = demand.indexOf("if (implicitKind) {");
 const masterDemand = demand.indexOf("await ensureSafariGeneralData();", implicitGuard);
 assert.ok(implicitGuard >= 0 && masterDemand > implicitGuard,
-  "kind-less post-boot combat preflight must return before any async GENERAL master demand");
-assert.match(
-  app,
-  /await ensureBoardActionData\(index\);[\s\S]*await activateSafariDayBoardCell\(runtime, index\)/,
-  "post-boot Day Board clicks must continue into the same public combat owner",
-);
+  "kind-less presentation preflight must return before any async GENERAL master demand");
 assert.match(
   publicEntry,
   /try\s*\{[\s\S]*import\("\.\/safari-web-combat-start\.js"\)[\s\S]*await activateSafariWebCombatCell\(runtime, index\)[\s\S]*globalThis\.__maplessLastError = error[\s\S]*throw error/,
@@ -49,38 +44,34 @@ assert.match(
 );
 assert.match(
   combat,
-  /state\.board_events = dispatch\.state\.board_events/[\s\S]*state\.board_consumed = dispatch\.state\.board_consumed/,
+  /state\.board_events = dispatch\.state\.board_events[\s\S]*state\.board_consumed = dispatch\.state\.board_consumed/,
   "Day Board mutation must remain committed only after combat materialization returns",
 );
 
 assert.match(
   app,
   /window\.addEventListener\("safari-runtime-changed", render\)/,
-  "Battle state publication must have a loaded render consumer",
+  "Battle state publication must have a loaded render consumer before Board input",
 );
 for (const stage of [
-  "board_click",
+  "preview_start_request",
   "preview_app_import_start",
   "preview_app_import_ready",
   "preview_start_dispatched",
-  "combat_entry_import_start",
-  "combat_entry_import_ready",
-  "board_owner_start",
-  "board_owner_ready",
-  "scene_handoff_dispatch",
+  "preview_ready_for_board_click",
   "scene_handoff_frame",
   "scene_handoff_ready",
 ]) {
   assert.match(
     boot,
     new RegExp(`traceBattleStart\\(\\"${stage}\\"`),
-    `first-board entry gate must retain lifecycle stage: ${stage}`,
+    `Battle entry gate must retain lifecycle stage: ${stage}`,
   );
 }
 assert.match(
   boot,
   /window\.addEventListener\("error", captureBattleRenderError\)/,
-  "first-board boot must capture an exact render exception that DOM event dispatch would otherwise swallow",
+  "boot must preserve an exact Battle render exception",
 );
 assert.match(
   boot,
@@ -89,18 +80,13 @@ assert.match(
 );
 assert.match(
   boot,
-  /const exactRenderError = exactRenderErrorOrNull\(\);[\s\S]*if \(exactRenderError\) throw exactRenderError;[\s\S]*scene_pageshow_fallback/,
-  "an exact Safari render failure must escape before the legacy pageshow fallback can mask it",
+  /window\.addEventListener\("safari-runtime-changed", traceSceneAfterRuntimeChange\)/,
+  "runtime publication must leave a post-render scene/move trace without owning the transition",
 );
 assert.match(
   boot,
-  /if \(!trace\.sceneVisible\)[\s\S]*throw new Error\("Battle state created but Battle scene did not become visible"\)/,
-  "first-board entry must still fail explicitly when Battle state exists but the scene is not visible and no exact render exception exists",
-);
-assert.match(
-  boot,
-  /if \(trace\.moveButtonCount === 0\)[\s\S]*throw new Error\("Battle state created but no move buttons were rendered"\)/,
-  "first-board entry must still fail explicitly when Battle state exists but owner-backed moves are absent and no exact render exception exists",
+  /sceneVisible:[\s\S]*moveButtonCount:[\s\S]*__maplessBattleStartTrace = trace/,
+  "post-render trace must distinguish Battle state, visible scene, and move controls",
 );
 
-console.log("Safari boot/post-boot Battle entry retains one owner, render handoff, exact render failures, lifecycle trace, and retryable startup: ok");
+console.log("Safari first and later Board clicks share one real owner path with exact error retention and post-render scene trace: ok");
