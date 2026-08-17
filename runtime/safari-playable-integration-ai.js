@@ -7,6 +7,7 @@ import {
 } from "./safari-playable-integration.js?canonical-base=1";
 import { resolveTrainerMoveChoiceWithPriorityFlinchCanonical } from "./battle-core-trainer-choice-priority-flinch-integration.js";
 import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
+import { ensureSafariGeneralData, safariGeneralDataReady } from "./safari-general-data-demand.js";
 
 function exposeRuntime(runtime) {
   globalThis.__maplessSafariRuntime = runtime;
@@ -28,6 +29,12 @@ function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
   if (!state || typeof state !== "object" || Array.isArray(state)) throw new TypeError("runtime variables.mapless state is required");
   return state;
+}
+function battleNeedsGeneralData(battle) {
+  if (!battle || battle.completed) return false;
+  if (battle.origin === "boundary_trial") return true;
+  if (battle.general_selection != null) return true;
+  return battle.kind === "trainer" && battle.origin !== "village_bounty" && Array.isArray(battle.trainer?.party);
 }
 function usableTrainerMoves(foe) {
   return (Array.isArray(foe?.moves) ? foe.moves : [])
@@ -136,12 +143,16 @@ function applyResolvedHp(runtime, result) {
   }
 }
 export function resolveSafariBattleRound(runtime, selectedMoveId) {
+  const battle = stateOf(runtime).battle;
+  if (battleNeedsGeneralData(battle) && !safariGeneralDataReady()) {
+    return ensureSafariGeneralData().then(() => resolveSafariBattleRound(runtime, selectedMoveId));
+  }
   const prepared = prepareTrainerMove(runtime);
   const result = resolveSafariBattleRoundBase(runtime, selectedMoveId);
   applyResolvedHp(runtime, result);
   if (!prepared) return result;
   const state = stateOf(runtime);
-  const battle = state.battle;
-  if (battle && battle.kind === "trainer" && battle.trainer_party_index === prepared.trainerPartyIndex && battle.foe?.species === prepared.foeSpecies) restoreMoveOrder(battle.foe, prepared.originalIds);
+  const currentBattle = state.battle;
+  if (currentBattle && currentBattle.kind === "trainer" && currentBattle.trainer_party_index === prepared.trainerPartyIndex && currentBattle.foe?.species === prepared.foeSpecies) restoreMoveOrder(currentBattle.foe, prepared.originalIds);
   return { ...result, trainerAi: { selectedMoveId: prepared.selectedMoveId, command: prepared.resolution.command, reason: prepared.resolution.reason, choices: prepared.resolution.choices, weightedChoices: prepared.resolution.weightedChoices, randomRolls: prepared.resolution.randomRolls } };
 }
