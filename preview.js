@@ -16,6 +16,16 @@ function traceBattleStart(stage, detail = {}) {
   globalThis.__maplessBattleStartLifecycleTrace = trace;
 }
 
+function captureBattleRenderError(event) {
+  const state = globalThis.__maplessSafariRuntime?.variables?.mapless;
+  if (!state?.battle || !(event?.error instanceof Error)) return;
+  globalThis.__maplessLastError = event.error;
+  traceBattleStart("scene_render_error", {
+    error_name: event.error.name,
+    error_message: event.error.message,
+  });
+}
+
 function notice(text) {
   const node = byId("notice");
   if (node) node.textContent = text;
@@ -66,6 +76,10 @@ function nextFrame() {
   return new Promise((resolve) => window.requestAnimationFrame(resolve));
 }
 
+function exactRenderErrorOrNull() {
+  return globalThis.__maplessLastError instanceof Error ? globalThis.__maplessLastError : null;
+}
+
 async function ensureInitialSceneHandoff(state) {
   traceBattleStart("scene_handoff_dispatch", { hasBattle: Boolean(state.battle) });
   window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
@@ -83,6 +97,8 @@ async function ensureInitialSceneHandoff(state) {
   traceBattleStart("scene_handoff_frame", trace);
 
   if (!trace.sceneVisible || trace.moveButtonCount === 0) {
+    const exactRenderError = exactRenderErrorOrNull();
+    if (exactRenderError) throw exactRenderError;
     trace.pageshowFallbackUsed = true;
     traceBattleStart("scene_pageshow_fallback", trace);
     window.dispatchEvent(new Event("pageshow"));
@@ -96,6 +112,8 @@ async function ensureInitialSceneHandoff(state) {
   }
 
   globalThis.__maplessBattleStartTrace = trace;
+  const exactRenderError = exactRenderErrorOrNull();
+  if ((!trace.sceneVisible || trace.moveButtonCount === 0) && exactRenderError) throw exactRenderError;
   if (!trace.sceneVisible) {
     throw new Error("Battle state created but Battle scene did not become visible");
   }
@@ -175,6 +193,7 @@ function onBootBoardChoice(event) {
   loadPreviewApp(Number(cell.dataset.bootBoardIndex));
 }
 
+window.addEventListener("error", captureBattleRenderError);
 newRun?.addEventListener("click", onNewRun);
 continueRun?.addEventListener("click", onContinueRun);
 board?.addEventListener("click", onBootBoardChoice);
