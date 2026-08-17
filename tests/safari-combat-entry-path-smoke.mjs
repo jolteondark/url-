@@ -13,7 +13,6 @@ globalThis.window = {
 
 const demand = await import("../runtime/safari-general-data-demand.js");
 const { createSafariPlayableRuntime } = await import("../runtime/safari-web-startup.js");
-const { activateSafariWebCombatCell } = await import("../runtime/safari-web-combat-start.js");
 const webPlayable = await import("../runtime/safari-web-playable-integration.js");
 
 function state(runtime) {
@@ -78,13 +77,12 @@ assert.equal(demand.safariGeneralCombatReady(), false);
 assert.equal(demand.safariGeneralCombatReady("wild"), false);
 assert.equal(demand.safariGeneralCombatReady("trainer"), false);
 
-// Real web entry: board action -> Battle object -> nonterminal turn with HP
-// carryover -> terminal KO -> board return. This keeps the #158 carryover and
-// #159 KO-decision contracts on the actual web combat entry instead of only on
-// lower-level Battle fixtures.
+// Real public web entry: board action -> Battle object -> nonterminal turn with
+// HP carryover -> terminal KO -> board return. This keeps the #158 carryover
+// and #159 KO-decision contracts on the same entrypoint used by preview-app.
 const wildRuntime = createSafariPlayableRuntime();
 prepareCell(wildRuntime, { kind: "wild", type: "BUG" });
-const wildResult = await activateSafariWebCombatCell(wildRuntime, 0);
+const wildResult = await webPlayable.activateSafariDayBoardCell(wildRuntime, 0);
 assertBattleStarted(wildRuntime, wildResult, "wild");
 await Promise.resolve();
 assert.ok(runtimeEvents.includes("safari-runtime-changed"), "Battle creation must notify the Safari scene owner after async combat load");
@@ -123,11 +121,11 @@ const wildReturn = await webPlayable.returnSafariToDayBoard(wildRuntime);
 assert.equal(wildReturn.target, "day_board");
 assert.equal(state(wildRuntime).battle, null, "wild terminal Battle must return to the board without a stale Battle object");
 
-// Trainer real web entry: first KO stays nonterminal, canonical replacement is
-// applied once, final KO terminates, and the same public entry returns to Board.
+// Trainer uses the same public web entry: first KO stays nonterminal, canonical
+// replacement is applied once, final KO terminates, and the entry returns Board.
 const trainerRuntime = createSafariPlayableRuntime();
 prepareCell(trainerRuntime, { kind: "trainer", trainer_seed: 12345 });
-const trainerResult = await activateSafariWebCombatCell(trainerRuntime, 0);
+const trainerResult = await webPlayable.activateSafariDayBoardCell(trainerRuntime, 0);
 assertBattleStarted(trainerRuntime, trainerResult, "trainer");
 assert.equal(demand.safariGeneralCombatReady("trainer"), true, "trainer cell must load the trainer owner");
 assert.ok(state(trainerRuntime).battle.trainer_party?.length > 0, "trainer Battle must materialize its Party");
@@ -165,7 +163,7 @@ const failedState = state(failedRuntime);
 const previousNotice = failedState.notice;
 const previousCounter = failedState.preview_encounter_counter;
 await assert.rejects(
-  () => activateSafariWebCombatCell(failedRuntime, 0),
+  () => webPlayable.activateSafariDayBoardCell(failedRuntime, 0),
   /unknown General Encounter type/,
 );
 assert.equal(failedState.board_consumed[0], false, "failed Battle start must not consume the Day Board cell");
@@ -174,4 +172,4 @@ assert.equal(failedState.battle, null, "failed Battle start must not leave parti
 assert.equal(failedState.notice, previousNotice, "failed Battle start must restore the prior board notice");
 assert.equal(failedState.preview_encounter_counter, previousCounter, "failed Battle start must roll back encounter RNG state");
 
-console.log("Safari real board -> Battle start -> HP carryover -> KO/replacement -> board return: ok");
+console.log("Safari public web entry -> Battle start -> HP carryover -> KO/replacement -> board return: ok");
