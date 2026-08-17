@@ -4,8 +4,8 @@ import { resolveSafariCanonicalFileBattleSprite } from "./runtime/safari-canonic
 
 let scheduled = false;
 const SIDES = [
-  { battlerIndex: 0, nameId: "player-name", combatantId: "player-combatant" },
-  { battlerIndex: 1, nameId: "foe-name", combatantId: "foe-combatant" },
+  { side: "player", battlerIndex: 0, nameId: "player-name", combatantId: "player-combatant" },
+  { side: "foe", battlerIndex: 1, nameId: "foe-name", combatantId: "foe-combatant" },
 ];
 
 function ensureStyle() {
@@ -28,6 +28,26 @@ function setHidden(node, hidden) {
   if (node && node.hidden !== hidden) node.hidden = hidden;
 }
 
+function ownerPokemon(side) {
+  const runtime = globalThis.__maplessSafariRuntime;
+  const battle = runtime?.variables?.mapless?.battle;
+  if (!battle) return null;
+  if (side === "foe") return battle.foe ?? null;
+  const party = Array.isArray(runtime?.player?.party) ? runtime.player.party : [];
+  const requestedIndex = Number(battle.player_party_index ?? 0);
+  if (!Number.isInteger(requestedIndex) || requestedIndex < 0 || requestedIndex >= party.length) return null;
+  return party[requestedIndex] ?? null;
+}
+
+function ownerIdentity(side) {
+  const pokemon = ownerPokemon(side);
+  const species = typeof pokemon?.species === "string" ? pokemon.species.trim() : "";
+  if (!species) return null;
+  const form = pokemon.form == null ? 0 : Number(pokemon.form);
+  if (!Number.isInteger(form) || form < 0) return null;
+  return { species, form };
+}
+
 function resolveCanonicalAsset({ species, form, battlerIndex }) {
   const inline = resolveInlineCanonicalBattleSprite({ species, form, battlerIndex });
   if (inline) return inline;
@@ -37,11 +57,14 @@ function resolveCanonicalAsset({ species, form, battlerIndex }) {
   return resolveSafariCanonicalBugBattleSprite({ species, form, side });
 }
 
-function renderSide({ battlerIndex, nameId, combatantId }) {
+function renderSide({ side, battlerIndex, nameId, combatantId }) {
   const combatant = document.getElementById(combatantId);
-  const species = document.getElementById(nameId)?.textContent?.trim();
-  if (!combatant || !species) return;
-  const asset = resolveCanonicalAsset({ species, form: Number(combatant.dataset.form ?? 0), battlerIndex });
+  if (!combatant) return;
+  const owner = ownerIdentity(side);
+  const species = owner?.species ?? document.getElementById(nameId)?.textContent?.trim();
+  const form = owner?.form ?? Number(combatant.dataset.form ?? 0);
+  if (!species) return;
+  const asset = resolveCanonicalAsset({ species, form, battlerIndex });
   let image = combatant.querySelector(".canonical-battle-sprite");
   const fallback = combatant.querySelector(".text-mon");
   const legacy = combatant.querySelector(".battle-sprite-image");

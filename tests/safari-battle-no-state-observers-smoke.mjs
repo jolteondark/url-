@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const stateProjectionFiles = [
-  "battle-sprite-bridge.js",
   "battle-menu-presentation.js",
   "canonical-battle-sprite-bridge.js",
   "canonical-battle-status-bridge.js",
@@ -19,8 +18,9 @@ const menu = fs.readFileSync(new URL("../battle-menu-presentation.js", import.me
 assert.doesNotMatch(menu, /addEventListener\("pointerdown"/, "battle menu decoration must not poll state through pointer events");
 assert.doesNotMatch(menu, /addEventListener\("click"/, "battle menu decoration must not poll state through click events");
 
-const legacySprite = fs.readFileSync(new URL("../battle-sprite-bridge.js", import.meta.url), "utf8");
-assert.match(legacySprite, /function ownerSide\(side\)/, "legacy fallback sprite projection must remain owner-backed");
-assert.match(legacySprite, /pageshow/, "sprite projection should keep a lifecycle refresh fallback");
+const activeSprite = fs.readFileSync(new URL("../canonical-battle-sprite-bridge.js", import.meta.url), "utf8");
+assert.match(activeSprite, /function ownerIdentity\(side\)/, "active canonical sprite projection must remain owner-backed");
+assert.match(activeSprite, /pageshow/, "active sprite projection should keep a lifecycle refresh fallback");
+assert.equal(fs.existsSync(new URL("../battle-sprite-bridge.js", import.meta.url)), false, "unused legacy battle sprite bridge must stay removed");
 
 console.log("Safari Battle state projection observer guard: ok");
