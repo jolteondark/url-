@@ -82,10 +82,26 @@ export function normalBattleExpInput(player, defeatedFoe, trainerBattle = false)
   };
 }
 
+function givePotion(runtime, battle) {
+  const receipt = resolveItemReceipt({
+    slots: runtime.bag.slots,
+    maxSlots: 20,
+    maxPerSlot: 99,
+    item: "POTION",
+    quantity: 1,
+    itemValid: true,
+    kind: "prize",
+    pocket: "MEDICINE",
+  });
+  runtime.bag.slots = receipt.slots;
+  battle.reward = receipt.success ? { item: "POTION", quantity: 1 } : null;
+  return receipt.operations.map((operation) => ({ ...operation, scope: "reward" }));
+}
+
 function awardWildWin(runtime, battle) {
   const player = runtime.player.party[0];
   const foeMaster = SAFARI_SPECIES_MASTERS[battle.foe.species];
-  if (!foeMaster) return [];
+  if (!foeMaster) return givePotion(runtime, battle);
   const expFlow = resolveExpLevelMoveFlow({
     pokemon: { exp: player.exp ?? 0, level: player.level, moves: player.moves.map(moveId) },
     maximumExp: 1_000_000,
@@ -116,21 +132,9 @@ function awardWildWin(runtime, battle) {
     moves: expFlow.pokemon.moves.map((id) => currentMoves.get(normalizeMoveId(id)) ?? normalizeMoveId(id)),
   });
   battle.exp_gained = expFlow.expGained;
-  const receipt = resolveItemReceipt({
-    slots: runtime.bag.slots,
-    maxSlots: 20,
-    maxPerSlot: 99,
-    item: "POTION",
-    quantity: 1,
-    itemValid: true,
-    kind: "prize",
-    pocket: "MEDICINE",
-  });
-  runtime.bag.slots = receipt.slots;
-  battle.reward = receipt.success ? { item: "POTION", quantity: 1 } : null;
   return [
     ...expFlow.operations.map((operation) => ({ ...operation, scope: "exp" })),
-    ...receipt.operations.map((operation) => ({ ...operation, scope: "reward" })),
+    ...givePotion(runtime, battle),
   ];
 }
 
@@ -183,6 +187,7 @@ export function finalizeNormalBattle(runtime) {
   if (!battle || battle.completed || Number(battle.decision) === 0) return [];
   const operations = completeBoardEvent(state, battle);
   if (battle.decision === 1 && battle.kind === "wild") operations.push(...awardWildWin(runtime, battle));
+  if (battle.decision === 1 && battle.kind === "trainer") operations.push(...givePotion(runtime, battle));
   if (battle.kind === "trainer") operations.push(...payTrainerPrize(runtime, battle));
   battle.completed = true;
   battle.return_target = "day_board";
