@@ -4,6 +4,9 @@ import {
 } from "./safari-playable-data.js";
 
 let loading = null;
+let combatLoading = null;
+let encounterRuntime = null;
+let trainerGenerator = null;
 
 export function safariGeneralDataReady() {
   return safariGeneralMastersInstalled();
@@ -28,4 +31,34 @@ export async function ensureSafariGeneralData() {
       });
   }
   return loading;
+}
+
+export function safariGeneralCombatReady() {
+  return safariGeneralMastersInstalled() && encounterRuntime !== null && trainerGenerator !== null;
+}
+
+export async function ensureSafariGeneralCombatData() {
+  if (safariGeneralCombatReady()) return { loaded: false, alreadyLoaded: true };
+  if (!combatLoading) {
+    combatLoading = ensureSafariGeneralData()
+      .then(async (dataResult) => {
+        const [encounter, trainer] = await Promise.all([
+          import("./safari-general-encounter-runtime.js"),
+          import("./mapless-dynamic-trainer-generator.js"),
+        ]);
+        encounterRuntime = encounter;
+        trainerGenerator = trainer;
+        return { ...dataResult, combatModulesLoaded: true };
+      })
+      .catch((error) => {
+        combatLoading = null;
+        throw error;
+      });
+  }
+  return combatLoading;
+}
+
+export function safariGeneralCombatModules() {
+  if (!safariGeneralCombatReady()) throw new Error("Safari GENERAL combat data is not ready");
+  return { encounterRuntime, trainerGenerator };
 }
