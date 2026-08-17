@@ -5,11 +5,14 @@ const loader = await readFile(new URL("../runtime/safari-general-encounter-data-
 const demand = await readFile(new URL("../runtime/safari-general-data-demand.js", import.meta.url), "utf8");
 const deferred = await readFile(new URL("../deferred-ui-loader.js", import.meta.url), "utf8");
 
+assert.match(loader, /const BROWSER_IMPORT_BATCH = 4/);
 assert.match(loader, /function withTimeout/);
+assert.match(loader, /CHUNK_PATHS\.slice\(start, end\)/);
+assert.match(loader, /import\(new URL\(path, import\.meta\.url\)\.href\)/);
 assert.match(loader, /new DecompressionStream\("deflate"\)/);
 assert.match(loader, /Safari GENERAL decompression/);
-assert.match(loader, /safari-general-encounter-data-v2-00\.js/);
-assert.match(loader, /safari-general-encounter-data-v2-19\.js/);
+assert.match(loader, /safari-general-encounter-data-v2-\$\{String\(index\)\.padStart\(2, "0"\)\}\.js/);
+assert.doesNotMatch(loader, /^import chunk\d+/m, "GENERAL chunks must not all become static module dependencies again");
 assert.doesNotMatch(loader, /fetch\(/, "GENERAL generated chunks must not be refetched as source text");
 
 assert.match(demand, /let encounterLoading = null/);
