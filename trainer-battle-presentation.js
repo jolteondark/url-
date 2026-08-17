@@ -18,6 +18,11 @@ function isFainted(pokemon) {
   return Number(pokemon?.hp ?? 0) <= 0;
 }
 
+function hasStatus(pokemon) {
+  const status = String(pokemon?.status ?? "NONE").trim().toUpperCase();
+  return Boolean(status && status !== "NONE" && status !== "OK");
+}
+
 function teamState(battle) {
   const party = Array.isArray(battle?.trainer_party) ? battle.trainer_party : [];
   const active = Math.max(0, Number(battle?.trainer_party_index ?? 0));
@@ -52,6 +57,23 @@ function syncFleePresentation(battle) {
   flee.removeAttribute("aria-disabled");
 }
 
+function lineupPip(pokemon, index, active, completed) {
+  const item = document.createElement("span");
+  item.className = "trainer-party-pip";
+  if (!pokemon) {
+    item.classList.add("empty");
+    item.setAttribute("aria-label", `${index + 1}: 空き`);
+    return item;
+  }
+  const fainted = index < active || isFainted(pokemon);
+  if (index === active && !completed) item.classList.add("active");
+  if (fainted) item.classList.add("fainted");
+  else if (hasStatus(pokemon)) item.classList.add("status");
+  item.title = pokemonName(pokemon);
+  item.setAttribute("aria-label", `${index + 1}: ${pokemonName(pokemon)}${index === active ? " 使用中" : ""}${fainted ? " ひんし" : hasStatus(pokemon) ? " 状態異常" : ""}`);
+  return item;
+}
+
 function render() {
   const hud = ensureHud();
   if (!hud) return;
@@ -65,15 +87,8 @@ function render() {
   byId("trainer-battle-name").textContent = battle.trainer?.trainer_full_name ?? "トレーナー";
   byId("trainer-battle-count").textContent = battle.completed ? "RESULT" : `残り ${remaining} / ${party.length || 1}`;
 
-  const pips = (party.length ? party : [battle.foe]).map((pokemon, index) => {
-    const item = document.createElement("span");
-    item.className = "trainer-party-pip";
-    if (index === active && !battle.completed) item.classList.add("active");
-    if (index < active || isFainted(pokemon)) item.classList.add("fainted");
-    item.title = pokemonName(pokemon);
-    item.setAttribute("aria-label", `${index + 1}: ${pokemonName(pokemon)}${index === active ? " 使用中" : ""}${isFainted(pokemon) ? " ひんし" : ""}`);
-    return item;
-  });
+  const lineup = Array.from({ length: Math.max(6, party.length || 1) }, (_, index) => party[index] ?? (index === 0 ? battle.foe : null));
+  const pips = lineup.map((pokemon, index) => lineupPip(pokemon, index, active, battle.completed));
   byId("trainer-battle-party").replaceChildren(...pips);
 }
 
