@@ -29,10 +29,18 @@ function postBattlePersistenceInput(runtime) {
   };
 }
 
-function commitTerminalPlayer(runtime, terminalStateHandoff) {
-  const reflected = terminalStateHandoff?.playerParty?.[0];
-  if (!reflected || !runtime?.player?.party?.[0]) return;
-  runtime.player.party[0] = structuredClone(reflected);
+function activePartyIndex(battle, runtime) {
+  const index = Number(battle?.player_party_index ?? 0);
+  if (!Number.isInteger(index) || index < 0 || index >= (runtime?.player?.party?.length ?? 0)) {
+    throw new RangeError("active player party index is outside the current Party");
+  }
+  return index;
+}
+
+function commitTerminalPlayer(runtime, terminalStateHandoff, partyIndex) {
+  const reflected = terminalStateHandoff?.playerParty?.[partyIndex];
+  if (!reflected || !runtime?.player?.party?.[partyIndex]) return;
+  runtime.player.party[partyIndex] = structuredClone(reflected);
 }
 
 export function attemptSafariCapture(runtime) {
@@ -42,14 +50,16 @@ export function attemptSafariCapture(runtime) {
     throw new Error("active wild battle is required");
   }
 
+  const playerPartyIndex = activePartyIndex(battle, runtime);
+  const player = runtime?.player?.party?.[playerPartyIndex];
   const owner = resolveBrowserWildBattleCommand({
     command: "capture",
-    player: runtime?.player?.party?.[0],
+    player,
     foe: battle.foe,
     trainerBattle: false,
     decision: Number(battle.decision ?? 0),
     postBattlePersistenceInput: postBattlePersistenceInput(runtime),
-    reflectedPartyIndex: 0,
+    reflectedPartyIndex: playerPartyIndex,
     captureInput: captureInputForBattle(battle),
   });
 
@@ -87,15 +97,15 @@ export function attemptSafariCapture(runtime) {
 
   // Party/Storage routing and Day Board completion remain owned by the existing
   // Safari adapter. The Battle owner now supplies the terminal player snapshot;
-  // commit only that active slot after routing so newly caught Party members are
+  // commit only the active slot after routing so newly caught Party members are
   // not replaced by the pre-capture persistence snapshot.
   const applied = applyLegacySafariCaptureState(runtime);
   if (applied.result !== owner.capture.result) {
     throw new Error(`Safari capture adapter diverged from Battle owner: ${applied.result} != ${owner.capture.result}`);
   }
-  commitTerminalPlayer(runtime, owner.terminalStateHandoff);
+  commitTerminalPlayer(runtime, owner.terminalStateHandoff, playerPartyIndex);
   state.last_terminal_wild = structuredClone(owner.terminalStateHandoff);
-  const terminalOperation = { op: "terminal_wild_state_committed", resultKind: owner.terminalStateHandoff?.resultKind ?? "captured" };
+  const terminalOperation = { op: "terminal_wild_state_committed", resultKind: owner.terminalStateHandoff?.resultKind ?? "captured", playerPartyIndex };
   state.last_operations = [...owner.operations, ...(applied.operations ?? []), terminalOperation];
   return {
     ...applied,

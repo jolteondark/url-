@@ -18,10 +18,18 @@ function postBattlePersistenceInput(runtime) {
   };
 }
 
-function commitTerminalPlayer(runtime, terminalStateHandoff) {
-  const reflected = terminalStateHandoff?.playerParty?.[0];
-  if (!reflected || !runtime?.player?.party?.[0]) return;
-  runtime.player.party[0] = structuredClone(reflected);
+function activePartyIndex(battle, runtime) {
+  const index = Number(battle?.player_party_index ?? 0);
+  if (!Number.isInteger(index) || index < 0 || index >= (runtime?.player?.party?.length ?? 0)) {
+    throw new RangeError("active player party index is outside the current Party");
+  }
+  return index;
+}
+
+function commitTerminalPlayer(runtime, terminalStateHandoff, partyIndex) {
+  const reflected = terminalStateHandoff?.playerParty?.[partyIndex];
+  if (!reflected || !runtime?.player?.party?.[partyIndex]) return;
+  runtime.player.party[partyIndex] = structuredClone(reflected);
 }
 
 export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), randomRoll = undefined } = {}) {
@@ -29,7 +37,8 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
   const battle = state?.battle;
   if (!state || !battle || battle.completed) throw new Error("active battle is required");
 
-  const player = runtime?.player?.party?.[0];
+  const playerPartyIndex = activePartyIndex(battle, runtime);
+  const player = runtime?.player?.party?.[playerPartyIndex];
   const foe = battle.foe;
   const trainerBattle = battle.kind === "trainer";
   const facilityBlocked = battle.origin === "village_bounty";
@@ -40,7 +49,7 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
     trainerBattle,
     decision: Number(battle.decision ?? 0),
     postBattlePersistenceInput: postBattlePersistenceInput(runtime),
-    reflectedPartyIndex: 0,
+    reflectedPartyIndex: playerPartyIndex,
     runInput: {
       internalBattle: true,
       canRun: battle.kind === "wild" && !facilityBlocked,
@@ -80,7 +89,7 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
     return { runtime, escaped: false, blocked, resolution: resolved, availability: command.availability, terminalStateHandoff: command.terminalStateHandoff, operations };
   }
 
-  commitTerminalPlayer(runtime, command.terminalStateHandoff);
+  commitTerminalPlayer(runtime, command.terminalStateHandoff, playerPartyIndex);
   state.last_terminal_wild = structuredClone(command.terminalStateHandoff);
 
   const index = Number(battle.board_index);
@@ -91,7 +100,7 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
 
   const operations = [
     baseOperation,
-    { op: "terminal_wild_state_committed", resultKind: command.terminalStateHandoff?.resultKind ?? "fled" },
+    { op: "terminal_wild_state_committed", resultKind: command.terminalStateHandoff?.resultKind ?? "fled", playerPartyIndex },
     { op: "return_to_day_board" },
     { op: "request_save", reason: "battle_flee" },
   ];
