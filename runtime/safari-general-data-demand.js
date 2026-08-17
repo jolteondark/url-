@@ -81,6 +81,7 @@ export function safariGeneralCombatReady(kind = null) {
 }
 
 export async function ensureSafariGeneralCombatData(kind = null) {
+  const implicitKind = kind == null;
   const normalized = normalizeCombatKind(kind);
   const needEncounter = normalized === "both" || normalized === "wild";
   const needTrainer = normalized === "both" || normalized === "trainer";
@@ -90,6 +91,22 @@ export async function ensureSafariGeneralCombatData(kind = null) {
   // A loaded encounter/trainer module alone is therefore not combat-ready.
   // Install the canonical GENERAL masters before allowing combat-start to run.
   await ensureSafariGeneralData();
+
+  // Browser UI preflight historically omitted kind and therefore waited for both
+  // encounter and trainer modules. Keep omitted-kind preflight master-only; the
+  // actual combat entry always calls this function again with event.kind, so an
+  // unrelated module can no longer strand a valid wild/trainer Battle start.
+  // Explicit "both" remains available for focused/Node consumers.
+  if (implicitKind) {
+    return {
+      loaded: !wasReady && safariGeneralMastersInstalled(),
+      alreadyLoaded: wasReady,
+      combatModulesLoaded: safariGeneralCombatReady(normalized),
+      fullMastersInstalled: safariGeneralMastersInstalled(),
+      encounterLoaded: encounterRuntime !== null,
+      trainerLoaded: trainerGenerator !== null,
+    };
+  }
 
   const tasks = [];
   if (needEncounter && !encounterRuntime) {
@@ -108,9 +125,7 @@ export async function ensureSafariGeneralCombatData(kind = null) {
   const results = await Promise.all(tasks);
   if (!safariGeneralCombatReady(normalized)) {
     const failure = results.find((entry) => !entry.ok && (normalized === "both" || entry.kind === normalized));
-    if (normalized !== "both" || (!encounterRuntime && !trainerGenerator)) {
-      throw failure?.error ?? new Error(`Safari GENERAL ${normalized} combat module failed to load`);
-    }
+    throw failure?.error ?? new Error(`Safari GENERAL ${normalized} combat module failed to load`);
   }
 
   return {
@@ -129,4 +144,4 @@ export function safariGeneralCombatModules(kind = null) {
   return { encounterRuntime, trainerGenerator };
 }
 
-if (typeof window === "undefined") await ensureSafariGeneralCombatData();
+if (typeof window === "undefined") await ensureSafariGeneralCombatData("both");
