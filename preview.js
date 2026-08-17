@@ -55,19 +55,20 @@ function detachBootListeners() {
 }
 
 async function activateInitialBoardChoice(index) {
-  const [{ activateSafariDayBoardCell }, general] = await Promise.all([
-    import("./runtime/safari-web-playable-integration.js"),
-    import("./runtime/safari-general-data-demand.js"),
-  ]);
+  const { activateSafariDayBoardCell } = await import("./runtime/safari-web-playable-integration.js");
   const runtime = globalThis.__maplessSafariRuntime;
   const state = runtime?.variables?.mapless;
   if (!state) throw new Error("Safari runtime unavailable after preview start");
   const cell = state.board_events?.[index];
-  if ((cell?.kind === "wild" || cell?.kind === "trainer") && !general.safariGeneralCombatReady(cell.kind)) {
-    await general.ensureSafariGeneralCombatData(cell.kind);
-  } else if (cell?.kind === "normal_event" && cell.normal_event_id === "wounded_pokemon" && !general.safariGeneralDataReady()) {
-    await general.ensureSafariGeneralData();
+
+  // Wild/trainer GENERAL demand belongs to safari-web-combat-start so its
+  // readiness, rollback and exact exception surface remain one atomic owner.
+  // Only non-combat consumers that need the GENERAL masters preflight here.
+  if (cell?.kind === "normal_event" && cell.normal_event_id === "wounded_pokemon") {
+    const general = await import("./runtime/safari-general-data-demand.js");
+    if (!general.safariGeneralDataReady()) await general.ensureSafariGeneralData();
   }
+
   await activateSafariDayBoardCell(runtime, index);
   window.dispatchEvent(new Event("pageshow"));
   window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
