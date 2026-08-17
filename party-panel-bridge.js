@@ -45,9 +45,9 @@ function ensureStyle() {
     .party-moves li span:last-child{flex:0 0 auto;color:#879ab4}
     .party-lead-row{display:flex;justify-content:flex-end;margin-top:9px}
     .party-lead-badge{display:inline-flex;align-items:center;border:1px solid #557bb0;border-radius:999px;padding:5px 9px;color:#c9dcf5;font-size:.69rem;font-weight:750}
-    .party-lead-button{min-height:34px;border-radius:10px;padding:6px 10px;background:#253f61;color:#e8f1ff;font-size:.72rem;font-weight:750}
+    .party-lead-button{min-height:48px;border-radius:12px;padding:9px 14px;background:#253f61;color:#e8f1ff;font-size:.78rem;font-weight:750;touch-action:manipulation}
     .party-lead-button:disabled{opacity:.45}
-    @media(max-width:520px){.party-detail-grid{grid-template-columns:1fr}}
+    @media(max-width:520px){.party-detail-grid{grid-template-columns:1fr}.party-lead-button{min-height:56px;min-width:132px;font-size:.82rem}}
   `;
   document.head.append(style);
 }
