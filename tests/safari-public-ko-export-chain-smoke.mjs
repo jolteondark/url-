@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import {
   activateSafariDayBoardCell,
   createSafariPlayableRuntime,
@@ -33,7 +34,18 @@ function assertImmediateKoPresentation(result, expectedSemanticTypes) {
   for (const type of expectedSemanticTypes) assert.equal(types.includes(type), true, `missing ${type} semantic event`);
 }
 
-// Wild terminal KO through the same AI facade selected by index.html importmap.
+// Guard the architecture itself: intermediate trainer KO must never return to
+// the old finalize -> snapshot rollback -> synthetic next-slot compensation.
+{
+  const legacySource = fs.readFileSync(new URL("../runtime/safari-playable-integration-legacy.js", import.meta.url), "utf8");
+  const publicSource = fs.readFileSync(new URL("../runtime/safari-playable-integration.js", import.meta.url), "utf8");
+  assert.doesNotMatch(legacySource, /snapshotRoundSideEffects|restoreIntermediateSideEffects/);
+  assert.doesNotMatch(legacySource, /op:\s*["']trainer_send_next["']/);
+  assert.match(legacySource, /resolveBrowserTrainerBattleRound/);
+  assert.doesNotMatch(publicSource, /continueSafariTrainerAfterFirstKo/);
+}
+
+// Wild terminal KO through the same AI facade selected by the public shell.
 {
   const runtime = createSafariPlayableRuntime();
   const state = runtime.variables.mapless;
@@ -52,8 +64,8 @@ function assertImmediateKoPresentation(result, expectedSemanticTypes) {
   assertImmediateKoPresentation(result, ["faint", "battle_result"]);
 }
 
-// Two-Pokemon trainer: first KO must return with the reserve active, then the
-// second KO must terminalize. This catches regressions hidden by helper-only tests.
+// Two-Pokemon trainer: the first KO is born nonterminal in the party-aware
+// round. It must award EXP and switch without ever touching rewards/board/money.
 {
   const runtime = createSafariPlayableRuntime();
   const state = runtime.variables.mapless;
@@ -75,12 +87,28 @@ function assertImmediateKoPresentation(result, expectedSemanticTypes) {
   state.battle.trainer_party_order = [0, 1];
   state.battle.foe = structuredClone(first);
 
+  const moneyBefore = Number(runtime.bag.money);
+  const bagBefore = structuredClone(runtime.bag.slots);
+  const boardEventsBefore = structuredClone(state.board_events);
+  const boardConsumedBefore = structuredClone(state.board_consumed);
+  const boardRevealedBefore = structuredClone(state.board_revealed);
+  const expBefore = Number(runtime.player.party[0].exp ?? 0);
+
   const firstKo = await Promise.resolve(resolveSafariBattleRound(runtime, selectedMoveId));
   assert.equal(firstKo.decision, 0);
   assert.equal(state.battle.completed, false);
   assert.equal(state.battle.trainer_party_index, 1);
+  assert.equal(Number(state.battle.trainer_party[0].hp), 0);
   assert.ok(Number(state.battle.foe.hp) > 0, "replacement foe must remain able");
   assert.equal(firstKo.foeReplacementApplied === true || firstKo.replacementApplied === true, true);
+  assert.ok(Number(runtime.player.party[0].exp ?? 0) > expBefore, "intermediate defeated trainer Pokemon must award EXP immediately");
+  assert.equal(Number(runtime.bag.money), moneyBefore, "intermediate KO must not pay trainer prize");
+  assert.deepEqual(runtime.bag.slots, bagBefore, "intermediate KO must not grant/rollback item rewards");
+  assert.deepEqual(state.board_events, boardEventsBefore, "intermediate KO must not finalize/rollback Board events");
+  assert.deepEqual(state.board_consumed, boardConsumedBefore, "intermediate KO must not finalize/rollback Board consumption");
+  assert.deepEqual(state.board_revealed, boardRevealedBefore, "intermediate KO must not finalize/rollback Board reveal state");
+  assert.equal((firstKo.operations ?? []).some((operation) => operation?.op === "trainer_send_next"), false, "replacement must come from trainer replacement owner, not a synthetic Safari op");
+  assert.equal((firstKo.presentation ?? []).filter((event) => event.type === "trainer_next").length, 1);
   assertImmediateKoPresentation(firstKo, ["faint", "trainer_next"]);
 
   preparePlayerForKo(runtime);
@@ -89,6 +117,7 @@ function assertImmediateKoPresentation(result, expectedSemanticTypes) {
   assert.equal(finalKo.decision, 1);
   assert.equal(state.battle.completed, true);
   assert.equal(state.battle.trainer_party_index, 1);
+  assert.ok(Number(runtime.bag.money) >= moneyBefore, "final victory may pay the trainer prize exactly at terminal completion");
   assertImmediateKoPresentation(finalKo, ["faint", "battle_result"]);
 }
 
