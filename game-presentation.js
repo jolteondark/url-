@@ -76,7 +76,7 @@ function decorateBoard(){
 }
 
 function hpTone(id){const bar=byId(id);if(!bar)return;const value=Math.max(0,Math.min(100,parseFloat(bar.style.width)||0));const tone=value<=20?"danger":value<=50?"warn":"safe";if(bar.dataset.hpTone!==tone)bar.dataset.hpTone=tone}
-function decorateMoves(){const moves=byId("moves");if(!moves)return;[...moves.children].forEach((button,index)=>{button.dataset.command=String(index+1);if(!button.querySelector(".command-index")){const tag=document.createElement("span");tag.className="command-index";tag.textContent=String(index+1);button.prepend(tag)}})}
+function decorateMoves(){const moves=byId("moves");if(!moves)return;[...moves.children].forEach((button,index)=>{const command=String(index+1);if(button.dataset.command!==command)button.dataset.command=command;if(!button.querySelector(".command-index")){const tag=document.createElement("span");tag.className="command-index";tag.textContent=command;button.prepend(tag)}})}
 function decorateBattle(){hpTone("player-hp-bar");hpTone("foe-hp-bar");decorateMoves();const battle=byId("battle-card");if(!battle)return;const title=byId("battle-title")?.textContent||"Battle";const kind=/trainer|bounty/i.test(title)?"trainer":/wild/i.test(title)?"wild":"other";if(battle.dataset.battleKind!==kind)battle.dataset.battleKind=kind}
 function decorateHud(){const hud=document.querySelector(".hud");if(!hud)return;[...hud.children].forEach((item,index)=>{const slot=String(index+1);if(item.dataset.hudSlot!==slot)item.dataset.hudSlot=slot})}
 function decorateScenes(){for(const scene of document.querySelectorAll(".scene"))scene.classList.toggle("scene-active",!scene.hidden);const current=byId("battle-card")&&!byId("battle-card").hidden?"battle":byId("shop-card")&&!byId("shop-card").hidden?"shop":byId("village-card")&&!byId("village-card").hidden?"village":byId("event-card")&&!byId("event-card").hidden?"event":"board";if(document.body.dataset.scene!==current)document.body.dataset.scene=current;document.body.classList.add("presentation-ready")}
@@ -88,5 +88,5 @@ function schedulePresentation(){if(queued)return;queued=true;requestAnimationFra
 syncViewport();ensureEventScene();schedulePresentation();
 window.visualViewport?.addEventListener("resize",syncViewport,{passive:true});window.addEventListener("orientationchange",syncViewport,{passive:true});
 const board=byId("board");if(board)new MutationObserver(schedulePresentation).observe(board,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:["class","disabled"]});
-const battle=byId("battle-card");if(battle)new MutationObserver(schedulePresentation).observe(battle,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:["hidden","style"]});
+const battle=byId("battle-card");if(battle)new MutationObserver(schedulePresentation).observe(battle,{subtree:true,childList:true,characterData:true});
 const stage=document.querySelector(".game-stage");if(stage)new MutationObserver(schedulePresentation).observe(stage,{subtree:true,attributes:true,attributeFilter:["hidden"]});
