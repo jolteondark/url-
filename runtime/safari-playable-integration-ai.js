@@ -1,4 +1,5 @@
 export * from "./safari-playable-integration.js?canonical-base=1";
+export { SAFARI_MOVE_PRESENTATION } from "./safari-move-presentation-live.js";
 
 import {
   createSafariPlayableRuntime as createSafariPlayableRuntimeBase,
