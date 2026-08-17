@@ -1,6 +1,5 @@
 import { resolveDefaultChooseNewEnemyCanonical } from "./battle-core-trainer-replacement.js";
-import { canSwitchIn } from "./battle-switch-flow.js";
-import { resolveTrainerReplacementSwitch } from "./trainer-replacement-switch-integration.js";
+import { canSwitchIn, resolveSwitchFlow } from "./battle-switch-flow.js";
 function clone(value) { return structuredClone(value); }
 function normalizePartyForSwitch(party, activePartyIndex) {
   const source = Array.isArray(party) ? clone(party) : [];
@@ -21,7 +20,18 @@ export function resolveBrowserTrainerReplacementContinuation({ battleContinuatio
   const replacementResolution = resolveDefaultChooseNewEnemyCanonical({ ...replacementDecisionInput, party: chooserParty });
   const replacementPartyIndex = Number(replacementResolution.replacementPartyIndex);
   if (!Number.isInteger(replacementPartyIndex) || replacementPartyIndex < 0) return { result: "replacement_unavailable", replacementResolution, switchResolution: null, operations: [], battleContinuationHandoff: handoff, activeFoe: null };
-  const switchResolution = resolveTrainerReplacementSwitch({ trainerParty: party, activePartyIndex: handoff.foeActivePartyIndex, partyOrder, replacementPartyIndex, idxBattler, sideSize, recalculateTurnOrder: false });
+  if (replacementPartyIndex >= party.length) throw new RangeError("trainer party index out of range");
+  const activePartyIndex = Number(handoff.foeActivePartyIndex);
+  const switchResolution = resolveSwitchFlow({
+    idxBattler: Number(idxBattler),
+    idxParty: replacementPartyIndex,
+    battlerPartyIndex: activePartyIndex,
+    partyOrder: Array.isArray(partyOrder) ? [...partyOrder] : party.map((_, index) => index),
+    party: clone(party),
+    battler: { fainted: Boolean(party[activePartyIndex]?.fainted) },
+    sideSize: Number(sideSize),
+    recalculateTurnOrder: false,
+  });
   if (switchResolution.result !== "switched") return { result: "switch_rejected", replacementResolution, switchResolution, operations: switchResolution.operations ?? [], battleContinuationHandoff: handoff, activeFoe: null };
   const nextParty = applyActiveReference(party, switchResolution.activePartyIndex);
   const nextHandoff = { ...handoff, foeParty: nextParty, foeActivePartyIndex: switchResolution.activePartyIndex, foeActiveFainted: false, foeReplacementRequired: false };
