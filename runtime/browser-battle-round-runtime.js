@@ -68,7 +68,34 @@ function presentationOperations(turnOperations, preparedRound, selection) {
   }
   return operations;
 }
-export function resolveBrowserBattleRound({ player, foe, playerParty = null, foeParty = null, playerActivePartyIndex = 0, foeActivePartyIndex = 0, selectedMoveId, foeMoveId, moveMasters, combatRandomSeed = browserCombatSeed(), priorityRandomSeed = browserCombatSeed(), playerRandomRoll = null, foeRandomRoll = null, postBattlePersistenceInput = null, reflectedPartyIndex = 0 } = {}) {
+function attachDefeatedFoeExpInput(preparedBattleInput, { foePartyIndex, initialFoeHp, battleExpInput } = {}) {
+  if (!battleExpInput || Number(initialFoeHp ?? 0) <= 0) return preparedBattleInput;
+  let previousFoeHp = Number(initialFoeHp);
+  for (const round of preparedBattleInput.rounds ?? []) {
+    const actions = Array.isArray(round.actions) ? round.actions : [];
+    const order = Array.isArray(round.priorityOrder) ? round.priorityOrder.map(Number) : actions.map((_, index) => index);
+    for (const actionIndex of order) {
+      const action = actions[actionIndex];
+      if (!action || action.kind !== "move") continue;
+      const currentFoeHp = Number(action?.judgeState?.foeParty?.[Number(foePartyIndex)]?.hp ?? previousFoeHp);
+      if (previousFoeHp > 0 && currentFoeHp <= 0) {
+        action.battleExpInput = structuredClone(battleExpInput);
+        return preparedBattleInput;
+      }
+      previousFoeHp = currentFoeHp;
+    }
+  }
+  return preparedBattleInput;
+}
+function expFlowOperations(expIntegration) {
+  return (expIntegration?.commits ?? []).flatMap((commit) => (commit.operations ?? []).map((operation) => ({
+    ...operation,
+    scope: "exp",
+    action: Number(commit.actionIndex),
+    round: Number(commit.roundIndex) + 1,
+  })));
+}
+export function resolveBrowserBattleRound({ player, foe, playerParty = null, foeParty = null, playerActivePartyIndex = 0, foeActivePartyIndex = 0, selectedMoveId, foeMoveId, moveMasters, combatRandomSeed = browserCombatSeed(), priorityRandomSeed = browserCombatSeed(), playerRandomRoll = null, foeRandomRoll = null, playerBattleExpInput = null, postBattlePersistenceInput = null, reflectedPartyIndex = 0 } = {}) {
   requireBattleStats(player, "player"); requireBattleStats(foe, "foe");
   const playerPartyState = materializeBattleParty(playerParty, playerActivePartyIndex, player, "player"); const foePartyState = materializeBattleParty(foeParty, foeActivePartyIndex, foe, "foe");
   const playerHasPp = hasPpBearingMove(player); const foeHasPp = hasPpBearingMove(foe);
@@ -80,11 +107,15 @@ export function resolveBrowserBattleRound({ player, foe, playerParty = null, foe
   const round = { attackPhaseInput: { priorityRandomSeed: Number(priorityRandomSeed) & 0x7fffffff, battlers: [{ battlerIndex: 0, choiceKind: "UseMove", fainted: player.hp <= 0, choseRageFunction: false }, { battlerIndex: 1, choiceKind: "UseMove", fainted: foe.hp <= 0, choseRageFunction: false }] }, commandEntries: [commandEntry(0, true, playerResolved, 1), commandEntry(1, false, foeResolved, 0)], priorityEntries: [{ actionIndex: 0, battlerIndex: 0, speed: player.stats.SPEED, movePriority: playerMove.priority }, { actionIndex: 1, battlerIndex: 1, speed: foe.stats.SPEED, movePriority: foeMove.priority }], actions: [actionInput({ actor: player, target: foe, move: playerMove, moveIndex: playerMoveIndex, battlerIndex: 0, targetBattlerIndex: 1, randomRoll: playerRandomRoll, reflectPp: !playerResolved.struggle, struggle: playerResolved.struggle }), actionInput({ actor: foe, target: player, move: foeMove, moveIndex: foeMoveIndex, battlerIndex: 1, targetBattlerIndex: 0, randomRoll: foeRandomRoll, reflectPp: !foeResolved.struggle, struggle: foeResolved.struggle })] };
   const battleInput = { useAttackPhaseScheduler: true, useCanonicalAccuracyDamage: true, combatRandomSeed: Number(combatRandomSeed) & 0x7fffffff, rounds: [round] };
   const partyAwareJudgeTransform = (preparedBattleInput) => prepareBrowserPartyAwareJudgeStates(preparedBattleInput, { playerParty: playerPartyState.party, foeParty: foePartyState.party, playerPartyIndex: playerPartyState.activePartyIndex, foePartyIndex: foePartyState.activePartyIndex });
-  const playerRuntime = resolveBattleRuntimeIntegration({ pokemon: player, sendOuts: [[0, player.species], [1, foe.species]], battleInput, preparedBattleInputTransform: partyAwareJudgeTransform, ppActionIndexes: playerResolved.struggle ? [] : [0], reflectedActionIndex: 1, reflectedTryUseMoveActionIndex: 0, reflectedBattlerIndex: 0, reflectedPartyIndex, postBattlePersistenceInput, allowIncompleteBattle: true });
+  const playerRuntimeTransform = (preparedBattleInput) => attachDefeatedFoeExpInput(
+    partyAwareJudgeTransform(preparedBattleInput),
+    { foePartyIndex: foePartyState.activePartyIndex, initialFoeHp: foe.hp, battleExpInput: playerBattleExpInput },
+  );
+  const playerRuntime = resolveBattleRuntimeIntegration({ pokemon: player, sendOuts: [[0, player.species], [1, foe.species]], battleInput, preparedBattleInputTransform: playerRuntimeTransform, ppActionIndexes: playerResolved.struggle ? [] : [0], reflectedActionIndex: 1, reflectedTryUseMoveActionIndex: 0, reflectedBattlerIndex: 0, reflectedPartyIndex, postBattlePersistenceInput, allowIncompleteBattle: true });
   const foeRuntime = resolveBattleRuntimeIntegration({ pokemon: foe, sendOuts: [[0, player.species], [1, foe.species]], battleInput, preparedBattleInputTransform: partyAwareJudgeTransform, ppActionIndexes: foeResolved.struggle ? [] : [1], reflectedActionIndex: 0, reflectedTryUseMoveActionIndex: 1, reflectedBattlerIndex: 1, allowIncompleteBattle: true });
-  const scheduling = playerRuntime.attackPhaseScheduling; const combat = playerRuntime.combatTrace; const preparedRound = combat.rounds[0]; const decision = Number(playerRuntime.turn.decision); const operations = presentationOperations(playerRuntime.turn.operations, preparedRound, selection); const playerPp = playerRuntime.battlePpIntegration ?? { prepared: [], commits: [] }; const foePp = foeRuntime.battlePpIntegration ?? { prepared: [], commits: [] }; const postBattlePersistence = playerRuntime.postBattlePersistence ?? null;
+  const scheduling = playerRuntime.attackPhaseScheduling; const combat = playerRuntime.combatTrace; const preparedRound = combat.rounds[0]; const decision = Number(playerRuntime.turn.decision); const playerExp = playerRuntime.battleExpIntegration ?? { commits: [] }; const operations = [...presentationOperations(playerRuntime.turn.operations, preparedRound, selection), ...expFlowOperations(playerExp)]; const playerPp = playerRuntime.battlePpIntegration ?? { prepared: [], commits: [] }; const foePp = foeRuntime.battlePpIntegration ?? { prepared: [], commits: [] }; const postBattlePersistence = playerRuntime.postBattlePersistence ?? null;
   const resolvedPlayer = playerRuntime.pokemon;
   const resolvedFoe = foeRuntime.pokemon;
   const battleContinuationHandoff = buildBrowserBattleContinuationHandoff({ playerParty: playerPartyState.party, foeParty: foePartyState.party, playerPartyIndex: playerPartyState.activePartyIndex, foePartyIndex: foePartyState.activePartyIndex, playerPokemon: resolvedPlayer, foePokemon: resolvedFoe, decision });
-  return { player: resolvedPlayer, foe: resolvedFoe, decision, operations, selection, scheduling, combatRandomSeed: Number(combatRandomSeed) & 0x7fffffff, priorityRandomSeed: Number(priorityRandomSeed) & 0x7fffffff, struggle: { player: playerResolved.struggle, foe: foeResolved.struggle }, ppIntegration: { prepared: playerPp.prepared, commits: [...playerPp.commits.map((commit) => ({ ...commit, actor: "player" })), ...foePp.commits.map((commit) => ({ ...commit, actor: "foe" }))] }, battleContinuationHandoff, battleResultHandoff: { ...playerRuntime.battleResultHandoff, postBattlePersistence }, battleRuntimeIntegration: { start: playerRuntime.start, combatTrace: combat, awaitingNextRound: Boolean(playerRuntime.turn.awaitingNextRound), playerPpCommits: playerPp.commits.length, foePpCommits: foePp.commits.length, postBattlePersistenceApplied: postBattlePersistence !== null, partyAwareJudge: true } };
+  return { player: resolvedPlayer, foe: resolvedFoe, decision, operations, selection, scheduling, combatRandomSeed: Number(combatRandomSeed) & 0x7fffffff, priorityRandomSeed: Number(priorityRandomSeed) & 0x7fffffff, struggle: { player: playerResolved.struggle, foe: foeResolved.struggle }, ppIntegration: { prepared: playerPp.prepared, commits: [...playerPp.commits.map((commit) => ({ ...commit, actor: "player" })), ...foePp.commits.map((commit) => ({ ...commit, actor: "foe" }))] }, expIntegration: { commits: playerExp.commits }, battleContinuationHandoff, battleResultHandoff: { ...playerRuntime.battleResultHandoff, postBattlePersistence }, battleRuntimeIntegration: { start: playerRuntime.start, combatTrace: combat, awaitingNextRound: Boolean(playerRuntime.turn.awaitingNextRound), playerPpCommits: playerPp.commits.length, foePpCommits: foePp.commits.length, playerExpCommits: playerExp.commits.length, postBattlePersistenceApplied: postBattlePersistence !== null, partyAwareJudge: true } };
 }

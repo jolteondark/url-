@@ -8,8 +8,7 @@ import {
   resolveCanonicalBoardShop,
   resolveCanonicalBoardShopType,
 } from "./canonical-shop-catalog.js";
-import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
-import { awardSafariTrainerIntermediateExp } from "./safari-trainer-intermediate-exp.js";
+import { SAFARI_MOVE_MASTERS, SAFARI_NATURE_MASTERS, SAFARI_SPECIES_MASTERS } from "./safari-playable-data.js";
 
 export * from "./safari-playable-integration-core.js";
 
@@ -242,6 +241,41 @@ function battlePresentation(operations) {
   return events;
 }
 
+function trainerBattleExpInput(player, defeatedFoe) {
+  const foeMaster = SAFARI_SPECIES_MASTERS[defeatedFoe?.species];
+  const speciesMaster = SAFARI_SPECIES_MASTERS[player?.species];
+  if (!foeMaster || !speciesMaster) throw new RangeError("trainer EXP species is outside the Safari projection");
+  const natureId = player.nature_for_stats_id ?? player.nature_id ?? "HARDY";
+  const natureMaster = SAFARI_NATURE_MASTERS[natureId];
+  if (!natureMaster) throw new RangeError(`trainer EXP nature is outside the Safari projection: ${natureId}`);
+  return {
+    maximumExp: 1_000_000,
+    maxMoves: 4,
+    expContext: {
+      defeatedLevel: defeatedFoe.level,
+      baseExp: foeMaster.base_exp,
+      numParticipants: 1,
+      expShareCount: 0,
+      participant: true,
+      hasExpShare: false,
+      expAll: false,
+      splitExpBetweenGainers: true,
+      moreExpFromTrainerPokemon: true,
+      trainerBattle: true,
+      scaledExpFormula: false,
+      outsiderMultiplier: 1,
+    },
+    levelThresholds: { 6: 216, 7: 343, 8: 512, 9: 729, 10: 1000 },
+    movesByLevel: { 10: ["QUICKATTACK"] },
+    moveDecisions: {},
+    runtimeMasters: {
+      species_master: speciesMaster,
+      nature_master: natureMaster,
+      move_masters: SAFARI_MOVE_MASTERS,
+    },
+  };
+}
+
 function payTrainerPrize(runtime, state, result) {
   const battle = state.battle;
   if (battle?.kind !== "trainer" || battle.decision !== 1) return result;
@@ -302,6 +336,7 @@ function resolvePartyAwareTrainerRound(runtime, selectedMoveId) {
       moveMasters: SAFARI_MOVE_MASTERS,
       playerRandomRoll: 0,
       foeRandomRoll: 0,
+      playerBattleExpInput: trainerBattleExpInput(player, defeatedFoe),
     },
     partyOrder: Array.isArray(battle.trainer_party_order) ? battle.trainer_party_order : null,
     idxBattler: 1,
@@ -330,21 +365,14 @@ function resolvePartyAwareTrainerRound(runtime, selectedMoveId) {
   battle.reward = null;
   battle.money_gained = 0;
 
-  const expOperations = [];
   if (resolved.foeReplacementApplied) {
-    const activePlayerIndex = Number(battle.player_party_index ?? 0);
-    const exp = awardSafariTrainerIntermediateExp(runtime.player.party[activePlayerIndex], defeatedFoe);
-    runtime.player.party[activePlayerIndex] = exp.pokemon;
-    battle.trainer_exp_gained = Number(battle.trainer_exp_gained ?? 0) + exp.expGained;
-    expOperations.push(...exp.operations);
+    const expGained = (resolved.expIntegration?.commits ?? []).reduce((sum, commit) => sum + Number(commit.expGained ?? 0), 0);
+    battle.trainer_exp_gained = Number(battle.trainer_exp_gained ?? 0) + expGained;
   }
   battle.exp_gained = 0;
   battle.turn += 1;
 
-  const operations = [
-    ...(resolved.presentationOperations ?? resolved.operations ?? []).map((operation) => ({ ...operation, battleTurn: battle.turn - 1 })),
-    ...expOperations,
-  ];
+  const operations = (resolved.presentationOperations ?? resolved.operations ?? []).map((operation) => ({ ...operation, battleTurn: battle.turn - 1 }));
   battle.last_operations = operations;
   battle.presentation = battlePresentation(operations);
   if (resolved.foeReplacementApplied) {

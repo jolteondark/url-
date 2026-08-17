@@ -36,18 +36,24 @@ function assertImmediateKoPresentation(result, expectedSemanticTypes) {
 
 // Guard the architecture itself: intermediate trainer KO must never return to
 // the old finalize -> snapshot rollback -> synthetic next-slot compensation,
-// and browser combat must consume Battle Runtime HP directly rather than replaying
-// presentation operations through a second HP projection owner.
+// browser combat must consume Battle Runtime HP directly, and intermediate EXP
+// must be committed inside the Battle round rather than by a Safari post-KO wrapper.
 {
   const legacySource = fs.readFileSync(new URL("../runtime/safari-playable-integration-legacy.js", import.meta.url), "utf8");
   const publicSource = fs.readFileSync(new URL("../runtime/safari-playable-integration.js", import.meta.url), "utf8");
   const roundSource = fs.readFileSync(new URL("../runtime/browser-battle-round-runtime.js", import.meta.url), "utf8");
   assert.doesNotMatch(legacySource, /snapshotRoundSideEffects|restoreIntermediateSideEffects/);
   assert.doesNotMatch(legacySource, /op:\s*["']trainer_send_next["']/);
+  assert.doesNotMatch(legacySource, /awardSafariTrainerIntermediateExp|safari-trainer-intermediate-exp/);
+  assert.match(legacySource, /playerBattleExpInput:\s*trainerBattleExpInput/);
+  assert.match(legacySource, /resolved\.expIntegration\?\.commits/);
   assert.match(legacySource, /resolveBrowserTrainerBattleRound/);
   assert.doesNotMatch(publicSource, /continueSafariTrainerAfterFirstKo/);
+  assert.match(roundSource, /attachDefeatedFoeExpInput/);
+  assert.match(roundSource, /playerExpCommits/);
   assert.doesNotMatch(roundSource, /projectBrowserBattleResolvedHp|browser-battle-round-hp-projection/);
   assert.equal(fs.existsSync(new URL("../runtime/browser-battle-round-hp-projection.js", import.meta.url)), false);
+  assert.equal(fs.existsSync(new URL("../runtime/safari-trainer-intermediate-exp.js", import.meta.url)), false);
 }
 
 // Wild terminal KO through the direct playable integration selected by the public shell.
@@ -71,7 +77,8 @@ function assertImmediateKoPresentation(result, expectedSemanticTypes) {
 }
 
 // Two-Pokemon trainer: the first KO is born nonterminal in the party-aware
-// round. It must award EXP and switch without ever touching rewards/board/money.
+// round. It must award EXP through Battle Runtime before canonical replacement,
+// without ever touching rewards/board/money or a Safari EXP compensation wrapper.
 {
   const runtime = createSafariPlayableRuntime();
   const state = runtime.variables.mapless;
@@ -109,7 +116,11 @@ function assertImmediateKoPresentation(result, expectedSemanticTypes) {
   assert.equal(Number(firstKo.foe?.hp), Number(state.battle.foe.hp), "replacement HP must come from the owner state, not stale KO operations");
   assert.equal(Number(firstKo.player?.hp), Number(runtime.player.party[state.battle.player_party_index ?? 0]?.hp), "player HP must stay identical across Battle Runtime and Safari state");
   assert.equal(firstKo.foeReplacementApplied === true || firstKo.replacementApplied === true, true);
+  assert.equal(firstKo.expIntegration?.commits?.length, 1, "intermediate KO must create exactly one Battle-owned EXP commit");
+  assert.ok(Number(firstKo.expIntegration.commits[0].expGained ?? 0) > 0, "Battle-owned intermediate EXP commit must gain EXP");
+  assert.equal(Number(state.battle.trainer_exp_gained ?? 0), Number(firstKo.expIntegration.commits[0].expGained ?? 0), "Safari cumulative trainer EXP must consume the Battle-owned commit, not recalculate it");
   assert.ok(Number(runtime.player.party[0].exp ?? 0) > expBefore, "intermediate defeated trainer Pokemon must award EXP immediately");
+  assert.ok((firstKo.operations ?? []).some((operation) => operation?.scope === "exp"), "Battle EXP flow operations must travel through the real round result");
   assert.equal(Number(runtime.bag.money), moneyBefore, "intermediate KO must not pay trainer prize");
   assert.deepEqual(runtime.bag.slots, bagBefore, "intermediate KO must not grant/rollback item rewards");
   assert.deepEqual(state.board_events, boardEventsBefore, "intermediate KO must not finalize/rollback Board events");
