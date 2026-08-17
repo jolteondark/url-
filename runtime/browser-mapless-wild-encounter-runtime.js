@@ -1,4 +1,4 @@
-import { buildWildEncounterIntegrationPlan } from "./mapless-wild-encounter-integration.js";
+import { clampEncounterLevel } from "./mapless-general-encounter-level-clamp.js";
 
 function requireGeneratedEncounter(generated) {
   if (!generated || typeof generated !== "object" || Array.isArray(generated)) {
@@ -20,12 +20,12 @@ function requireGeneratedEncounter(generated) {
 }
 
 /**
- * Browser transport for one already-generated general-type wild encounter.
+ * Browser owner for one already-generated general-type wild encounter.
  *
- * Existing Mapless modules own request normalization, deterministic level
- * clamping, Day Board consumption, canLose launch and battle-rule cleanup.
- * Species selection, base-level generation and variance sampling remain an
- * explicit injected boundary until their private-main domains are available.
+ * The Web runtime now performs the canonical Day Board request -> level clamp
+ * -> consume/canLose/start transition directly instead of routing through
+ * request/launch/integration wrappers. Species selection, base-level generation
+ * and variance sampling remain owned by the existing GENERAL data runtime.
  */
 export function resolveBrowserMaplessWildEncounter({
   day,
@@ -38,40 +38,55 @@ export function resolveBrowserMaplessWildEncounter({
   gameTempPresent = true,
 } = {}) {
   const projection = requireGeneratedEncounter(generated);
-  const plan = buildWildEncounterIntegrationPlan({
-    day,
-    event,
-    board_index: boardIndex,
-    species_id: projection.species_id,
-    base_level: projection.base_level,
-    variance,
-    min_level: minLevel,
-    max_level: maxLevel,
-    game_temp_present: gameTempPresent,
-  });
-  if (projection.required_type !== plan.request.required_type) {
+  if (!event || event.kind !== "wild" || !event.type) {
+    throw new Error("wild event with type is required");
+  }
+  if (!Number.isInteger(boardIndex) || boardIndex < 0 || boardIndex > 7) {
+    throw new Error("board index must be an integer from 0 to 7");
+  }
+  if (typeof gameTempPresent !== "boolean") {
+    throw new Error("gameTempPresent must be boolean");
+  }
+
+  const normalizedDay = Math.max(Number.isFinite(Number(day)) ? Math.trunc(Number(day)) : 0, 1);
+  const request = {
+    required_type: event.type,
+    day: normalizedDay,
+    enemy_rank: "NORMAL",
+    extra_modifier: 0,
+    use_variance: true,
+  };
+  if (projection.required_type !== request.required_type) {
     throw new RangeError("generated encounter type does not match the Day Board request");
   }
+
+  const level = clampEncounterLevel(projection.base_level, variance, minLevel, maxLevel);
+  const launch = [
+    { op: "consume_cell", index: boardIndex, value: true },
+    { op: "set_battle_rule", rule: "canLose" },
+    { op: "start_wild_battle", species_id: projection.species_id, level },
+  ];
+  const cleanup = gameTempPresent ? [{ op: "clear_battle_rules" }] : [];
   const encounter = {
     species_id: projection.species_id,
     species_name: projection.species_name,
-    level: plan.level,
+    level,
     move_ids: [...projection.move_ids],
     source: "generated_browser_projection",
   };
   const requestOperation = {
     op: "create_general_type_encounter",
-    type: plan.request.required_type,
-    day: plan.request.day,
-    category: plan.request.enemy_rank,
-    modifier: plan.request.extra_modifier,
-    final_flag: plan.request.use_variance,
+    type: request.required_type,
+    day: request.day,
+    category: request.enemy_rank,
+    modifier: request.extra_modifier,
+    final_flag: request.use_variance,
   };
   return {
-    request: plan.request,
+    request,
     encounter,
-    launch: plan.launch,
-    cleanup: plan.cleanup,
-    operations: [requestOperation, ...plan.launch],
+    launch,
+    cleanup,
+    operations: [requestOperation, ...launch],
   };
 }
