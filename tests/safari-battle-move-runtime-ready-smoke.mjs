@@ -5,13 +5,18 @@ const source = fs.readFileSync(new URL("../runtime/safari-web-playable-integrati
 
 assert.match(
   source,
+  /if \(event\?\.kind === "wild" \|\| event\?\.kind === "trainer"\)[\s\S]*?import\("\.\/safari-web-combat-start\.js"\)/,
+  "combat board activation must use the lightweight combat-start path",
+);
+assert.doesNotMatch(
+  source,
   /if \(event\?\.kind === "wild" \|\| event\?\.kind === "trainer"\)[\s\S]*?await full\(\);[\s\S]*?import\("\.\/safari-web-combat-start\.js"\)/,
-  "combat activation must finish loading the full Battle round runtime before creating a visible Battle",
+  "combat board activation must not block on the full Battle runtime import",
 );
 assert.match(
   source,
   /\.catch\(\(error\) => \{\s*fullModulePromise = null;/,
-  "a failed full runtime import must be retryable instead of poisoning every later move tap",
+  "a failed full runtime import must remain retryable",
 );
 
-console.log("Safari Battle visible commands require ready round runtime: PASS");
+console.log("Safari combat board activation stays lightweight: PASS");
