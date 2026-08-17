@@ -26,15 +26,11 @@ async function loadCampPresentation() {
 }
 
 async function loadBattleUi() {
-  // Battle UI stays scene-demand only. Runtime-backed projections refresh from
-  // explicit Safari events instead of inferring state from DOM mutations.
-  loadStyle("./canonical-battle-ui.css");
-  loadStyle("./canonical-battle-status.css");
-  loadStyle("./trainer-battle-presentation.css");
+  // The core battle DOM/CSS already renders HP, moves, capture and flee. Keep
+  // battle entry minimal on iPhone Safari: add canonical sprites only. Extra
+  // HUD/status/trainer presentation can be restored later behind explicit
+  // scene controls without blocking the first playable battle frame.
   await loadModule("./canonical-battle-sprite-bridge.js");
-  await loadModule("./canonical-battle-ui-bridge.js");
-  await loadModule("./canonical-battle-status-bridge.js");
-  await loadModule("./trainer-battle-presentation.js");
 }
 
 async function loadShopUi() {
