@@ -222,6 +222,16 @@ function trainerHasReserve(battle) {
       index !== Number(battle.trainer_party_index) && Number(pokemon?.hp ?? 0) > 0);
 }
 
+function trainerOpponentAiSeed(battle) {
+  const turn = Math.max(1, Math.trunc(Number(battle?.turn ?? 1)));
+  return (Number(battle?.trainer_seed ?? 0) ^ Math.imul(turn, 0x45d9f3b)) & 0x7fffffff;
+}
+
+function reserveCount(party, activeIndex) {
+  return Math.max(0, (Array.isArray(party) ? party : []).filter((pokemon, index) =>
+    index !== Number(activeIndex) && Number(pokemon?.hp ?? 0) > 0).length);
+}
+
 function battlePresentation(operations) {
   const events = [];
   for (const operation of operations ?? []) {
@@ -319,8 +329,6 @@ function resolvePartyAwareTrainerRound(runtime, selectedMoveId) {
   const playerIndex = Number(battle.player_party_index ?? 0);
   const player = runtime.player.party[playerIndex];
   if (!player) throw new Error("active player Pokemon is required");
-  const foeMoveId = moveId(battle.foe?.moves?.[0]);
-  if (!foeMoveId || !SAFARI_MOVE_MASTERS[foeMoveId]) throw new RangeError(`trainer foe move is outside the Safari projection: ${foeMoveId}`);
   const defeatedFoe = structuredClone(battle.foe);
 
   const resolved = resolveBrowserTrainerBattleRound({
@@ -332,11 +340,21 @@ function resolvePartyAwareTrainerRound(runtime, selectedMoveId) {
       playerActivePartyIndex: playerIndex,
       foeActivePartyIndex: Number(battle.trainer_party_index),
       selectedMoveId,
-      foeMoveId,
       moveMasters: SAFARI_MOVE_MASTERS,
       playerRandomRoll: 0,
       foeRandomRoll: 0,
       playerBattleExpInput: trainerBattleExpInput(player, defeatedFoe),
+    },
+    ownedOpponentInput: {
+      battleKind: "trainer",
+      foeAiRandomSeed: trainerOpponentAiSeed(battle),
+      trainerSkill: Number(battle.skill_level ?? 0),
+      trainerFlags: Array.isArray(battle.trainer_flags) ? battle.trainer_flags : [],
+      foeReserveCount: reserveCount(battle.trainer_party, battle.trainer_party_index),
+      playerReserveCount: reserveCount(runtime.player.party, playerIndex),
+      mechanicsGeneration: 9,
+      turnCount: Math.max(0, Number(battle.turn ?? 1) - 1),
+      canSwitchLax: false,
     },
     partyOrder: Array.isArray(battle.trainer_party_order) ? battle.trainer_party_order : null,
     idxBattler: 1,
