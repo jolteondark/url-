@@ -53,4 +53,41 @@ assert.match(
   "Day Board mutation must remain committed only after combat materialization returns",
 );
 
-console.log("Safari boot/post-boot Battle entry retains one owner and exact import/runtime failures: ok");
+// #216/#218 are part of the actual first-board Battle entry contract, not just
+// optional diagnostics. Keep them inside the default test:battle-entry gate.
+assert.match(
+  app,
+  /window\.addEventListener\("safari-runtime-changed", render\)/,
+  "Battle state publication must have a loaded render consumer",
+);
+for (const stage of [
+  "board_click",
+  "preview_app_import_start",
+  "preview_app_import_ready",
+  "preview_start_dispatched",
+  "combat_entry_import_start",
+  "combat_entry_import_ready",
+  "board_owner_start",
+  "board_owner_ready",
+  "scene_handoff_dispatch",
+  "scene_handoff_frame",
+  "scene_handoff_ready",
+]) {
+  assert.match(
+    boot,
+    new RegExp(`traceBattleStart\\(\\"${stage}\\"`),
+    `first-board entry gate must retain lifecycle stage: ${stage}`,
+  );
+}
+assert.match(
+  boot,
+  /if \(!trace\.sceneVisible\)[\s\S]*throw new Error\("Battle state created but Battle scene did not become visible"\)/,
+  "first-board entry must fail explicitly when Battle state exists but the scene is not visible",
+);
+assert.match(
+  boot,
+  /if \(trace\.moveButtonCount === 0\)[\s\S]*throw new Error\("Battle state created but no move buttons were rendered"\)/,
+  "first-board entry must fail explicitly when Battle state exists but owner-backed moves are absent",
+);
+
+console.log("Safari boot/post-boot Battle entry retains one owner, render handoff, lifecycle trace, and exact failures: ok");
