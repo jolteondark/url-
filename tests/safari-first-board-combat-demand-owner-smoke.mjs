@@ -59,6 +59,21 @@ assert.match(
 );
 assert.match(
   combat,
+  /state\.notice = "戦闘データを読み込んでいます…";[\s\S]*notifySafariRuntimeChanged\(\);[\s\S]*await ensureSafariGeneralCombatData\(event\.kind\)/,
+  "GENERAL loading state must publish through the same runtime handoff before the selected async demand begins",
+);
+assert.match(
+  combat,
+  /if \(state\.battle\) globalThis\.__maplessLastError = null;[\s\S]*if \(state\.battle\) notifySafariRuntimeChanged\(\);/,
+  "materialized Battle state must publish a second runtime handoff after loading completes",
+);
+assert.match(
+  combat,
+  /state\.notice = previousNotice;[\s\S]*notifySafariRuntimeChanged\(\);[\s\S]*throw error;/,
+  "failed GENERAL demand must repaint the restored Board state before preserving the exact rejection",
+);
+assert.match(
+  combat,
   /state\.board_events = dispatch\.state\.board_events[\s\S]*state\.board_consumed = dispatch\.state\.board_consumed/,
   "Day Board mutation must remain committed only after combat materialization returns",
 );
@@ -104,4 +119,4 @@ assert.match(
   "post-render trace must distinguish Battle state, visible scene, and move controls",
 );
 
-console.log("Safari Board combat owner keeps materialization and first render atomic, with exact error retention and deterministic retry: ok");
+console.log("Safari Board combat owner keeps materialization/loading/render atomic, with exact error retention and deterministic retry: ok");
