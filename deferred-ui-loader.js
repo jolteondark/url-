@@ -21,15 +21,20 @@ function loadModule(path) {
   return promise;
 }
 
+async function loadBoardPresentation() {
+  loadStyle("./game-presentation.css");
+  loadStyle("./event-presentation.css");
+  return loadModule("./game-presentation.js");
+}
+
 async function loadCampPresentation() {
   return loadModule("./camp-presentation.js");
 }
 
 async function loadBattleUi() {
-  // The core battle DOM/CSS already renders HP, moves, capture and flee. Keep
-  // battle entry minimal on iPhone Safari: add canonical sprites only. Extra
-  // HUD/status/trainer presentation can be restored later behind explicit
-  // scene controls without blocking the first playable battle frame.
+  // Core battle safety is battle-scene-only; do not make initial page paint wait
+  // for it. The core battle DOM/CSS already renders HP, moves, capture and flee.
+  loadStyle("./battle-core-safety.css");
   await loadModule("./canonical-battle-sprite-bridge.js");
 }
 
@@ -39,6 +44,7 @@ async function loadShopUi() {
 }
 
 async function loadMenuUi() {
+  loadStyle("./bridge-shell.css");
   loadStyle("./game-menu.css");
   await Promise.all([
     loadModule("./game-menu-bridge.js"),
@@ -72,6 +78,15 @@ function scheduleSceneBundleSync() {
 }
 
 document.addEventListener("click", (event) => {
+  const start = event.target.closest("#new-run,#continue-run");
+  if (start) {
+    // Let preview.js arm the static board immediately, then add decorative board
+    // presentation without putting it back on the document startup path.
+    queueMicrotask(() => loadBoardPresentation());
+    scheduleSceneBundleSync();
+    return;
+  }
+
   const menu = event.target.closest("#menu-party,#menu-bag,#menu-box");
   if (menu) {
     loadMenuUi();
