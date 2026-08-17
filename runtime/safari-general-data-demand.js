@@ -62,3 +62,8 @@ export function safariGeneralCombatModules() {
   if (!safariGeneralCombatReady()) throw new Error("Safari GENERAL combat data is not ready");
   return { encounterRuntime, trainerGenerator };
 }
+
+// Existing Node smoke/integration tests call combat owners directly instead of
+// going through the browser click gate. Preserve that test contract without
+// reintroducing Safari startup cost.
+if (typeof window === "undefined") await ensureSafariGeneralCombatData();
