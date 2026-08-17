@@ -30,11 +30,13 @@ async function loadBoardPresentation() {
 }
 
 async function loadBattleUi() {
-  // Battle UI stays scene-demand only. The canonical HUD stylesheet and the
-  // move-info bridge are scoped to the battle scene; no body-wide observer.
+  // Battle UI stays scene-demand only. The canonical HUD/status styles and
+  // bridges are scoped to the battle scene; no body-wide observer.
   loadStyle("./canonical-battle-ui.css");
+  loadStyle("./canonical-battle-status.css");
   await loadModule("./canonical-battle-sprite-bridge.js");
   await loadModule("./canonical-battle-ui-bridge.js");
+  await loadModule("./canonical-battle-status-bridge.js");
 }
 
 async function loadShopUi() {
