@@ -39,14 +39,6 @@ function opponentAiSeed(state, battle) {
   return (Number(ownerSeed) ^ Math.imul(turn, 0x45d9f3b)) & 0x7fffffff;
 }
 
-function trainerUsesPartyAwareOwnedOpponent(battle) {
-  return battle?.kind === "trainer"
-    && Array.isArray(battle.trainer_party)
-    && Number.isInteger(Number(battle.trainer_party_index))
-    && battle.trainer_party.some((pokemon, index) =>
-      index !== Number(battle.trainer_party_index) && Number(pokemon?.hp ?? 0) > 0);
-}
-
 function restoreMoveOrder(foe, originalIds) {
   if (!foe || !Array.isArray(foe.moves)) return;
   const buckets = new Map();
@@ -69,15 +61,14 @@ function prepareOwnedOpponentMove(runtime) {
   const state = stateOf(runtime);
   const battle = state.battle;
   if (!battle || battle.completed) return null;
-  if (trainerUsesPartyAwareOwnedOpponent(battle)) return null;
+  // Trainer rounds own opponent choice inside the party-aware Battle transition.
+  // The move-order signaling shim remains only for the older wild path.
+  if (battle.kind === "trainer") return null;
   const player = runtime.player?.party?.[0];
   if (!player) throw new Error("active player Pokemon is required for Battle-owned opponent choice");
   const originalMoves = [...(battle.foe?.moves ?? [])];
   const originalIds = originalMoves.map(moveId);
   const playerReserveCount = Math.max(0, (runtime.player?.party ?? []).filter((pokemon) => Number(pokemon?.hp ?? 0) > 0).length - 1);
-  const foeReserveCount = battle.kind === "trainer" && Array.isArray(battle.trainer_party)
-    ? Math.max(0, battle.trainer_party.length - Number(battle.trainer_party_index ?? 0) - 1)
-    : 0;
   const resolution = resolveBrowserOpponentMoveChoiceCanonical({
     battleKind: battle.kind,
     player,
@@ -86,7 +77,7 @@ function prepareOwnedOpponentMove(runtime) {
     aiRandomSeed: opponentAiSeed(state, battle),
     trainerSkill: Number(battle.skill_level ?? 0),
     trainerFlags: Array.isArray(battle.trainer_flags) ? battle.trainer_flags : [],
-    ownReserveCount: foeReserveCount,
+    ownReserveCount: 0,
     foeReserveCount: playerReserveCount,
     mechanicsGeneration: 9,
     turnCount: Math.max(0, Number(battle.turn ?? 1) - 1),
