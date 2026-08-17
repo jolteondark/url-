@@ -22,6 +22,21 @@ assert.match(
   /byId\("board"\)\.addEventListener\("click"[\s\S]*await ensureBoardActionData\(index\);[\s\S]*await activateSafariDayBoardCell\(runtime, index\)/,
   "the first and later Board clicks must share the same real Day Board owner path",
 );
+assert.match(
+  app,
+  /const combatSnapshot = snapshotBoardCombatState\(index\)[\s\S]*finally\s*\{[\s\S]*try\s*\{\s*render\(\);\s*\}\s*catch \(error\)[\s\S]*restoreBoardCombatState\(combatSnapshot\)[\s\S]*throw error/,
+  "a Battle-scene render failure after successful materialization must restore the pre-click Board state and keep the exact rejection",
+);
+assert.match(
+  app,
+  /state\.board_events = snapshot\.board_events[\s\S]*state\.board_revealed = snapshot\.board_revealed[\s\S]*state\.board_consumed = snapshot\.board_consumed[\s\S]*state\.battle = snapshot\.battle/,
+  "presentation rollback must uncommit both the Board cell and newly-created Battle state",
+);
+assert.match(
+  app,
+  /hadEncounterSeed[\s\S]*preview_encounter_seed[\s\S]*hadEncounterCounter[\s\S]*preview_encounter_counter/,
+  "presentation rollback must preserve deterministic encounter retry state",
+);
 
 const implicitGuard = demand.indexOf("if (implicitKind) {");
 const masterDemand = demand.indexOf("await ensureSafariGeneralData();", implicitGuard);
@@ -89,4 +104,4 @@ assert.match(
   "post-render trace must distinguish Battle state, visible scene, and move controls",
 );
 
-console.log("Safari first and later Board clicks share one real owner path with exact error retention and post-render scene trace: ok");
+console.log("Safari Board combat owner keeps materialization and first render atomic, with exact error retention and deterministic retry: ok");
