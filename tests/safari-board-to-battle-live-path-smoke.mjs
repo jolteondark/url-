@@ -46,6 +46,14 @@ assert.match(previewApp, /card\.hidden = !battle/,
 assert.match(previewApp, /returnSafariToDayBoard\(runtime\)/,
   "terminal Battle UI must retain the canonical return-to-board owner path");
 
+const demandSource = await readFile(new URL("../runtime/safari-general-data-demand.js", import.meta.url), "utf8");
+assert.match(demandSource, /const implicitKind = kind == null;/,
+  "kind-less UI preflight must be distinguishable from explicit wild/trainer/both combat demand");
+assert.match(demandSource, /if \(implicitKind\) \{[\s\S]*fullMastersInstalled: safariGeneralMastersInstalled\(\)/,
+  "kind-less UI preflight must stop after canonical GENERAL masters instead of waiting for both combat modules");
+assert.match(demandSource, /typeof window === "undefined"\) await ensureSafariGeneralCombatData\("both"\)/,
+  "Node/focused consumers must retain the explicit both-module readiness contract");
+
 const previewBoot = await readFile(new URL("../preview.js", import.meta.url), "utf8");
 const activationIndex = previewBoot.indexOf("await activateInitialBoardChoice(boardIndex);");
 const detachIndex = previewBoot.indexOf("detachBootListeners();", activationIndex);
