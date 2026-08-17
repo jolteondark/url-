@@ -1,5 +1,6 @@
 const loadedStyles = new Set();
 const loadedModules = new Map();
+const replayingCombatClicks = new WeakSet();
 
 function loadStyle(href) {
   if (loadedStyles.has(href)) return;
@@ -67,6 +68,72 @@ function syncSceneBundles() {
   if (sceneIsVisible("battle-card")) loadBattleUi();
   if (sceneIsVisible("shop-card")) loadShopUi();
 }
+
+function battleNeedsGeneralData(battle) {
+  if (!battle || battle.completed) return false;
+  if (battle.origin === "boundary_trial") return true;
+  if (battle.general_selection != null) return true;
+  return battle.kind === "trainer" && battle.origin !== "village_bounty" && Array.isArray(battle.trainer?.party);
+}
+
+function setCombatLoadingNotice(text) {
+  const battleMessage = document.getElementById("battle-message");
+  const notice = document.getElementById("notice");
+  if (battleMessage && !document.getElementById("battle-card")?.hidden) battleMessage.textContent = text;
+  else if (notice) notice.textContent = text;
+}
+
+// A click gate is cheaper and safer on iPhone Safari than loading the entire
+// 875-species/608-move projection on preview bootstrap. No DOM subtree observer
+// is involved: only actual combat entry/resume clicks can wake this path.
+document.addEventListener("click", async (event) => {
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target) return;
+
+  const boardButton = target.closest("#board button[data-board-index]");
+  const moveButton = target.closest("#moves button[data-move-id]");
+  const button = boardButton ?? moveButton;
+  if (!button) return;
+  if (replayingCombatClicks.has(button)) {
+    replayingCombatClicks.delete(button);
+    return;
+  }
+
+  const runtime = globalThis.__maplessSafariRuntime;
+  const state = runtime?.variables?.mapless;
+  if (!state) return;
+
+  let loader = null;
+  if (boardButton) {
+    const index = Number(boardButton.dataset.boardIndex);
+    const kind = state.board_events?.[index]?.kind;
+    if (kind !== "wild" && kind !== "trainer") return;
+    const demand = await import("./runtime/safari-general-data-demand.js");
+    if (demand.safariGeneralCombatReady()) return;
+    loader = demand.ensureSafariGeneralCombatData;
+  } else {
+    if (!battleNeedsGeneralData(state.battle)) return;
+    const demand = await import("./runtime/safari-general-data-demand.js");
+    if (demand.safariGeneralDataReady()) return;
+    loader = demand.ensureSafariGeneralData;
+  }
+
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  const disabledBefore = button.disabled;
+  button.disabled = true;
+  setCombatLoadingNotice("戦闘データを読み込んでいます…");
+  try {
+    await loader();
+    button.disabled = disabledBefore;
+    replayingCombatClicks.add(button);
+    button.click();
+  } catch (error) {
+    button.disabled = disabledBefore;
+    setCombatLoadingNotice("戦闘データの読み込みに失敗しました。もう一度お試しください。");
+    console.error("[Mapless] combat data demand load failed", error);
+  }
+}, { capture: true });
 
 document.addEventListener("click", (event) => {
   if (event.target.closest("#menu-party,#menu-bag,#menu-box")) {
