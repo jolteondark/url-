@@ -1,3 +1,5 @@
+import { resolveSafariCanonicalHpZone } from "./runtime/safari-canonical-hp-zone.js";
+
 const battleCard = document.getElementById("battle-card");
 const STATUS_LABELS = Object.freeze({
   SLEEP: "SLP",
@@ -36,25 +38,35 @@ function ensureBadge(panel) {
   return badge;
 }
 
-function syncStatus() {
+function maxHp(pokemon) {
+  return pokemon?.max_hp ?? pokemon?.totalhp ?? pokemon?.maxHp ?? pokemon?.hp ?? 1;
+}
+
+function syncPanel(panel, pokemon) {
+  if (!panel) return;
+  const badge = ensureBadge(panel);
+  const status = pokemon?.status;
+  const label = statusLabel(status);
+  if (badge) {
+    badge.textContent = label;
+    badge.dataset.status = String(status ?? "NONE").toUpperCase();
+    badge.hidden = !label;
+  }
+  panel.dataset.hpZone = String(resolveSafariCanonicalHpZone({
+    hp: pokemon?.hp,
+    maxHp: maxHp(pokemon),
+  }));
+}
+
+function syncDataboxState() {
   if (!battleCard || battleCard.hidden) return;
   const runtime = runtimeState();
   const state = runtime?.variables?.mapless;
   const battle = state?.battle;
   const player = runtime?.player?.party?.[0] ?? battle?.player ?? null;
   const foe = battle?.foe ?? null;
-  const pairs = [
-    [document.querySelector("#battle-card .player-info"), player?.status],
-    [document.querySelector("#battle-card .foe-info"), foe?.status],
-  ];
-  for (const [panel, status] of pairs) {
-    const badge = ensureBadge(panel);
-    if (!badge) continue;
-    const label = statusLabel(status);
-    badge.textContent = label;
-    badge.dataset.status = String(status ?? "NONE").toUpperCase();
-    badge.hidden = !label;
-  }
+  syncPanel(document.querySelector("#battle-card .player-info"), player);
+  syncPanel(document.querySelector("#battle-card .foe-info"), foe);
 }
 
 function scheduleSync() {
@@ -62,7 +74,7 @@ function scheduleSync() {
   scheduled = true;
   requestAnimationFrame(() => {
     scheduled = false;
-    syncStatus();
+    syncDataboxState();
   });
 }
 
@@ -74,5 +86,5 @@ if (battleCard) {
   });
   battleCard.addEventListener("pointerdown", scheduleSync, { passive: true });
   battleCard.addEventListener("click", scheduleSync, { passive: true });
-  syncStatus();
+  syncDataboxState();
 }
