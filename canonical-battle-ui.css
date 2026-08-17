@@ -4,9 +4,11 @@
 #battle-card .battle-info-panel{width:260px;height:auto;border:0;border-radius:0;padding:0;background-color:transparent;background-repeat:no-repeat;background-position:0 0;background-size:260px auto;box-shadow:none;color:#303038;text-shadow:0 1px rgba(255,255,255,.75);font-family:Arial,"Hiragino Kaku Gothic ProN","Yu Gothic UI",sans-serif}
 #battle-card .foe-info{height:62px;background-image:url("./assets/canonical-battle-ui/databox_normal_foe.png")}
 #battle-card .player-info{height:84px;background-image:url("./assets/canonical-battle-ui/databox_normal.png")}
-#battle-card .pokemon-name{position:absolute;left:8px;top:10px;display:block;width:190px;height:22px;margin:0}
+#battle-card .pokemon-name{position:absolute;top:10px;display:block;width:190px;height:22px;margin:0}
+#battle-card .foe-info .pokemon-name{left:8px}
+#battle-card .player-info .pokemon-name{left:33px}
 #battle-card .pokemon-name strong{position:absolute;left:0;top:0;max-width:104px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#26262b;font-size:.84rem;font-weight:900;letter-spacing:.015em;text-shadow:0 1px #fff}
-#battle-card .pokemon-name span{position:absolute;left:146px;top:2px;width:52px;color:#33343a;font-size:.64rem;font-weight:800;text-shadow:0 1px #fff;white-space:nowrap}
+#battle-card .pokemon-name span{position:absolute;left:138px;top:2px;width:52px;color:#33343a;font-size:.64rem;font-weight:800;text-shadow:0 1px #fff;white-space:nowrap}
 #battle-card .battle-info-panel .hp-row{position:absolute;display:block;width:96px;height:6px;margin:0}
 #battle-card .battle-info-panel .hp-row>span{display:none}
 #battle-card .foe-info .hp-row{left:118px;top:40px}
