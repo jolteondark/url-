@@ -16,6 +16,8 @@ const chest = resolve({
     day: 3,
     bag_operations: [{ kind: 'add', item_id: 'NUGGET', quantity: 2 }],
     money_operations: [{ kind: 'gain', amount: 500 }],
+    state_operations: [{ op: 'mark_chest_opened', chest_id: 'chest-1' }],
+    save_requested: true,
   },
   pockets: pockets(),
   itemMeta,
@@ -25,8 +27,13 @@ const chest = resolve({
 assert.equal(chest.bagTransactions[0].success, true);
 assert.deepEqual(chest.pockets['1'].slots[0], ['NUGGET', 2]);
 assert.equal(chest.money, 600);
+assert.equal('operations' in chest.facility, false);
+assert.equal(chest.operations.some((operation) => operation.op === 'bag_boundary' || operation.op === 'money_boundary'), false);
+assert.equal(chest.operations[2].op, 'mark_chest_opened');
+assert.equal(chest.operations[3].op, 'persistence_boundary');
 assert.equal(chest.operations.at(-1).op, 'return_to_facility_surface');
 assert.equal(chest.operations.at(-1).surface, 'day_board');
+assert.equal(chest.facility.return_to.day, 3);
 
 const fullBag = resolve({
   facilityInput: {
@@ -61,5 +68,6 @@ assert.throws(() => resolve({
 console.log(JSON.stringify({
   chest: { result: chest.bagTransactions[0].result, count: chest.pockets['1'].slots[0][1], money: chest.money },
   fullBag: { result: fullBag.bagTransactions[0].result, money: fullBag.money, moneyDelta: fullBag.moneyDelta },
+  directTransition: true,
   shopDelegated: true,
 }));
