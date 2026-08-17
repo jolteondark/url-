@@ -46,4 +46,14 @@ assert.match(previewApp, /card\.hidden = !battle/,
 assert.match(previewApp, /returnSafariToDayBoard\(runtime\)/,
   "terminal Battle UI must retain the canonical return-to-board owner path");
 
+const previewBoot = await readFile(new URL("../preview.js", import.meta.url), "utf8");
+const activationIndex = previewBoot.indexOf("await activateInitialBoardChoice(boardIndex);");
+const detachIndex = previewBoot.indexOf("detachBootListeners();", activationIndex);
+assert.ok(activationIndex >= 0 && detachIndex > activationIndex,
+  "boot listeners must stay attached until the initial Board choice has created its destination state");
+assert.match(previewBoot, /const failedAction = selectedAction;\s*armBoard\(failedAction\);/,
+  "failed async Battle startup must restore a tappable boot Day Board for retry");
+assert.match(previewBoot, /マスを選び直せます/,
+  "failed startup must tell the player that the Day Board can be retried");
+
 console.log("Safari board -> Battle live-path smoke passed");
