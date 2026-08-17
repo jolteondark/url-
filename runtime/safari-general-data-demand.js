@@ -87,26 +87,25 @@ export async function ensureSafariGeneralCombatData(kind = null) {
   const needTrainer = normalized === "both" || normalized === "trainer";
   const wasReady = safariGeneralCombatReady(normalized);
 
-  // Battle materialization consumes SAFARI_SPECIES_MASTERS / SAFARI_MOVE_MASTERS.
-  // A loaded encounter/trainer module alone is therefore not combat-ready.
-  // Install the canonical GENERAL masters before allowing combat-start to run.
-  await ensureSafariGeneralData();
-
-  // Browser UI preflight historically omitted kind and therefore waited for both
-  // encounter and trainer modules. Keep omitted-kind preflight master-only; the
-  // actual combat entry always calls this function again with event.kind, so an
-  // unrelated module can no longer strand a valid wild/trainer Battle start.
-  // Explicit "both" remains available for focused/Node consumers.
+  // Browser presentation may probe combat readiness without knowing the selected
+  // event kind. Do not start any async GENERAL demand from that non-owner probe:
+  // the actual wild/trainer click enters safari-web-combat-start with event.kind,
+  // where loading, rollback and exact error identity are one atomic transition.
   if (implicitKind) {
     return {
-      loaded: !wasReady && safariGeneralMastersInstalled(),
+      loaded: false,
       alreadyLoaded: wasReady,
-      combatModulesLoaded: safariGeneralCombatReady(normalized),
+      combatModulesLoaded: wasReady,
       fullMastersInstalled: safariGeneralMastersInstalled(),
       encounterLoaded: encounterRuntime !== null,
       trainerLoaded: trainerGenerator !== null,
     };
   }
+
+  // Battle materialization consumes SAFARI_SPECIES_MASTERS / SAFARI_MOVE_MASTERS.
+  // A loaded encounter/trainer module alone is therefore not combat-ready.
+  // Install the canonical GENERAL masters before allowing combat-start to run.
+  await ensureSafariGeneralData();
 
   const tasks = [];
   if (needEncounter && !encounterRuntime) {
