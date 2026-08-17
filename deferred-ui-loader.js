@@ -59,14 +59,10 @@ async function loadMenuUi() {
   ]);
 }
 
-function sceneIsVisible(id) {
-  const node = document.getElementById(id);
-  return Boolean(node && !node.hidden);
-}
-
 function syncSceneBundles() {
-  if (sceneIsVisible("battle-card")) loadBattleUi();
-  if (sceneIsVisible("shop-card")) loadShopUi();
+  const state = globalThis.__maplessSafariRuntime?.variables?.mapless;
+  if (state?.battle) loadBattleUi();
+  if (state?.shop) loadShopUi();
 }
 
 function scheduleSceneBundleSync() {
@@ -84,8 +80,6 @@ document.addEventListener("click", (event) => {
   } else if (event.target.closest("#board button[data-board-index]")) {
     loadBoardPresentation();
   }
-  // Target handlers have already committed their synchronous DOM render by the
-  // time the event bubbles here. rAF batches scene-demand checks after that render.
   scheduleSceneBundleSync();
 }, { passive: true });
 
