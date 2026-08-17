@@ -30,13 +30,26 @@ function hasTrainerReserve(battle) {
       index !== battle.trainer_party_index && Number(pokemon?.hp ?? 0) > 0);
 }
 
+function legacyPreappliedReplacement(result, battle) {
+  const operation = [...(result?.operations ?? [])].reverse().find((entry) =>
+    entry?.op === "trainer_send_next" && Number.isInteger(Number(entry?.partyIndex)));
+  if (!operation) return null;
+  const nextPartyIndex = Number(operation.partyIndex);
+  const priorActivePartyIndex = nextPartyIndex - 1;
+  if (!Array.isArray(battle?.trainer_party)
+    || priorActivePartyIndex < 0
+    || priorActivePartyIndex >= battle.trainer_party.length) return null;
+  return { priorActivePartyIndex, nextPartyIndex };
+}
+
 function ownerHandoff(result, battle, runtime) {
   const exact = result?.battleContinuationHandoff;
   if (exact?.foeReplacementRequired && Array.isArray(exact.foeParty)) return clone(exact);
 
+  const preapplied = legacyPreappliedReplacement(result, battle);
   const party = clone(battle.trainer_party);
-  const activeIndex = Number(battle.trainer_party_index);
-  if (party[activeIndex]) party[activeIndex] = { ...party[activeIndex], ...clone(battle.foe), hp: 0, fainted: true };
+  const activeIndex = preapplied?.priorActivePartyIndex ?? Number(battle.trainer_party_index);
+  if (party[activeIndex]) party[activeIndex] = { ...party[activeIndex], hp: 0, fainted: true };
   return {
     decision: 0,
     playerParty: clone(runtime?.player?.party ?? []),
@@ -74,9 +87,10 @@ export function continueSafariTrainerAfterFirstKo(runtime, result = {}) {
 
   const trainerName = battle.trainer?.trainer_full_name ?? "トレーナー";
   const switchOperations = clone(continuation.operations ?? []);
-  battle.last_operations = [...(result.operations ?? []), ...switchOperations];
+  const roundOperations = (result.operations ?? []).filter((operation) => operation?.op !== "trainer_send_next");
+  battle.last_operations = [...roundOperations, ...switchOperations];
   battle.presentation = [
-    ...(result.presentation ?? []).filter((event) => event?.type !== "battle_result"),
+    ...(result.presentation ?? []).filter((event) => event?.type !== "battle_result" && event?.type !== "trainer_next"),
     {
       type: "trainer_next",
       actor: "foe",
