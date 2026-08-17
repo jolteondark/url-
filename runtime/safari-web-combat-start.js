@@ -123,6 +123,10 @@ export async function activateSafariWebCombatCell(runtime, index) {
   if (state.battle && !state.battle.completed) return { runtime, result: "battle_active", boundary: "battle", notice: "戦闘を先に終えてください。", operations: [] };
   if (state.shop) return { runtime, result: "shop_active", boundary: "shop", notice: "ショップを先に終了してください。", operations: [] };
 
+  const previousBoardEvents = state.board_events;
+  const previousBoardRevealed = state.board_revealed;
+  const previousBoardConsumed = state.board_consumed;
+  const previousBattle = state.battle;
   const previousNotice = state.notice;
   const previousLastOperations = state.last_operations;
   const hadEncounterSeed = Object.prototype.hasOwnProperty.call(state, "preview_encounter_seed");
@@ -164,6 +168,10 @@ export async function activateSafariWebCombatCell(runtime, index) {
     };
   } catch (error) {
     globalThis.__maplessLastError = error;
+    state.board_events = previousBoardEvents;
+    state.board_revealed = previousBoardRevealed;
+    state.board_consumed = previousBoardConsumed;
+    state.battle = previousBattle;
     state.notice = previousNotice;
     state.last_operations = previousLastOperations;
     if (hadEncounterSeed) state.preview_encounter_seed = previousEncounterSeed;
