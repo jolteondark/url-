@@ -13,6 +13,10 @@ function stateOf(runtime) {
 }
 function moveId(move) { return typeof move === "string" ? move : move?.id; }
 function unitFromUint32(value) { return (Number(value) >>> 0) / 0x100000000; }
+function notifySafariRuntimeChanged() {
+  if (typeof window === "undefined" || typeof window.dispatchEvent !== "function" || typeof CustomEvent !== "function") return;
+  queueMicrotask(() => window.dispatchEvent(new CustomEvent("safari-runtime-changed")));
+}
 function baseTurnInput(state, index) {
   return {
     index,
@@ -127,8 +131,10 @@ export async function activateSafariWebCombatCell(runtime, index) {
   const previousEncounterCounter = state.preview_encounter_counter;
 
   try {
+    globalThis.__maplessSafariRuntime = runtime;
     if (!safariGeneralCombatReady(event.kind)) {
       state.notice = "戦闘データを読み込んでいます…";
+      notifySafariRuntimeChanged();
       await ensureSafariGeneralCombatData(event.kind);
     }
     const dispatch = resolveDayBoardCellDispatch({ ...baseTurnInput(state, index), reusable: false });
@@ -145,11 +151,8 @@ export async function activateSafariWebCombatCell(runtime, index) {
       state.notice = dispatch.notice;
     }
 
-    globalThis.__maplessSafariRuntime = runtime;
     if (state.battle) globalThis.__maplessLastError = null;
-    if (state.battle && typeof window !== "undefined" && typeof window.dispatchEvent === "function" && typeof CustomEvent === "function") {
-      queueMicrotask(() => window.dispatchEvent(new CustomEvent("safari-runtime-changed")));
-    }
+    if (state.battle) notifySafariRuntimeChanged();
     return {
       runtime,
       result: dispatch.result,
@@ -167,6 +170,7 @@ export async function activateSafariWebCombatCell(runtime, index) {
     else delete state.preview_encounter_seed;
     if (hadEncounterCounter) state.preview_encounter_counter = previousEncounterCounter;
     else delete state.preview_encounter_counter;
+    notifySafariRuntimeChanged();
     throw error;
   }
 }
