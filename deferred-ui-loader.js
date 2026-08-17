@@ -1,6 +1,7 @@
 const loadedStyles = new Set();
 const loadedModules = new Map();
 const replayingCombatClicks = new WeakSet();
+let activeGeneralLoadLabel = null;
 
 function loadStyle(href) {
   if (loadedStyles.has(href)) return;
@@ -83,6 +84,18 @@ function setCombatLoadingNotice(text) {
   else if (notice) notice.textContent = text;
 }
 
+window.addEventListener("safari-general-load-progress", (event) => {
+  if (!activeGeneralLoadLabel) return;
+  const loaded = Number(event.detail?.loaded ?? 0);
+  const total = Number(event.detail?.total ?? 0);
+  const phase = event.detail?.phase;
+  let progress = "";
+  if (phase === "decompress") progress = " 展開中…";
+  else if (phase === "ready") progress = " 準備完了";
+  else if (loaded > 0 && total > 0) progress = ` ${loaded}/${total}`;
+  setCombatLoadingNotice(activeGeneralLoadLabel + progress);
+}, { passive: true });
+
 // A click gate is cheaper and safer on iPhone Safari than loading the entire
 // 875-species/608-move projection on preview bootstrap. No DOM subtree observer
 // is involved: only an actual combat/wounded-event entry can wake this path.
@@ -125,7 +138,8 @@ document.addEventListener("click", async (event) => {
   event.stopImmediatePropagation();
   const disabledBefore = button.disabled;
   button.disabled = true;
-  setCombatLoadingNotice(mode === "combat" ? "戦闘データを読み込んでいます…" : "ポケモンデータを読み込んでいます…");
+  activeGeneralLoadLabel = mode === "combat" ? "戦闘データを読み込んでいます…" : "ポケモンデータを読み込んでいます…";
+  setCombatLoadingNotice(activeGeneralLoadLabel);
   try {
     const demand = await import("./runtime/safari-general-data-demand.js");
     if (mode === "combat") {
@@ -134,10 +148,12 @@ document.addEventListener("click", async (event) => {
       await demand.ensureSafariGeneralData();
     }
     button.disabled = disabledBefore;
+    activeGeneralLoadLabel = null;
     replayingCombatClicks.add(button);
     button.click();
   } catch (error) {
     button.disabled = disabledBefore;
+    activeGeneralLoadLabel = null;
     setCombatLoadingNotice("データの読み込みに失敗しました。もう一度お試しください。");
     console.error("[Mapless] demand load failed", error);
   }
