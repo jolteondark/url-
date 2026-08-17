@@ -1,5 +1,6 @@
 import * as base from "./safari-playable-integration-wounded.js";
 import { resolveBrowserBattleRound } from "./browser-battle-round-runtime.js";
+import { resolveBrowserPlayerReplacementContinuation } from "./browser-player-replacement-continuation.js";
 import { resolveBoundaryTrialBattleHandoff } from "./mapless-boundary-trial-battle-handoff.js";
 import { pokemonMoveTotalPp, setPokemonRuntimeMovePp, updatePokemonRuntime } from "./pokemon-runtime.js";
 import { SAFARI_MOVE_PRESENTATION } from "./safari-playable-integration-base.js";
@@ -13,6 +14,7 @@ function stateOf(runtime) {
   if (!state || typeof state !== "object" || Array.isArray(state)) throw new TypeError("runtime variables.mapless state is required");
   return state;
 }
+function clone(value) { return value == null ? value : structuredClone(value); }
 function moveId(move) { return typeof move === "string" ? move : move?.id; }
 function requestsSave(operations = []) { return operations.some((operation) => operation.op === "request_save" || operation.op === "autosave_request"); }
 
@@ -90,10 +92,36 @@ function finalizeBoundaryBattle(runtime, battle, decision) {
   return handoff;
 }
 
+function pendingPlayerReplacement(battle) {
+  if (!battle?.player_replacement_required || !battle.player_replacement_handoff) return null;
+  return resolveBrowserPlayerReplacementContinuation({
+    battleContinuationHandoff: battle.player_replacement_handoff,
+    replacementPartyIndex: null,
+    partyOrder: Array.isArray(battle.player_party_order) ? battle.player_party_order : null,
+    idxBattler: 0,
+    sideSize: 1,
+  });
+}
+
 function resolveBoundaryRound(runtime, selectedMoveId) {
   const state = stateOf(runtime);
   const battle = state.battle;
-  const player = runtime.player?.party?.[0];
+  const pendingReplacement = pendingPlayerReplacement(battle);
+  if (pendingReplacement?.result === "replacement_selection_required") {
+    return {
+      runtime,
+      result: "player_replacement_selection_required",
+      decision: 0,
+      operations: [],
+      presentation: battle.presentation ?? [],
+      playerReplacementContinuation: pendingReplacement,
+      battleContinuationHandoff: clone(battle.player_replacement_handoff),
+      persistenceRequested: false,
+    };
+  }
+
+  const playerActiveIndex = Number(battle.player_party_index ?? 0);
+  const player = runtime.player?.party?.[playerActiveIndex];
   if (!player) throw new Error("active player Pokemon is required");
   const selected = moveId(selectedMoveId);
   if (!player.moves.some((move) => moveId(move) === selected)) throw new RangeError("selected move is not known by the active Pokemon");
@@ -106,14 +134,20 @@ function resolveBoundaryRound(runtime, selectedMoveId) {
     foe: battle.foe,
     playerParty: runtime.player.party,
     foeParty: battle.trainer_party,
-    playerActivePartyIndex: 0,
+    playerActivePartyIndex: playerActiveIndex,
     foeActivePartyIndex: Number(battle.trainer_party_index ?? 0),
     selectedMoveId: selected,
     foeMoveId,
     moveMasters: SAFARI_MOVE_MASTERS,
   });
   const operations = resolved.operations.map((operation) => ({ ...operation, battleTurn: battle.turn }));
-  runtime.player.party[0] = resolved.player;
+  const continuationHandoff = resolved.battleContinuationHandoff;
+  if (Array.isArray(continuationHandoff?.playerParty)) runtime.player.party = clone(continuationHandoff.playerParty);
+  else runtime.player.party[playerActiveIndex] = resolved.player;
+  battle.player_party_index = Number(continuationHandoff?.playerActivePartyIndex ?? playerActiveIndex);
+  battle.player_replacement_required = Boolean(continuationHandoff?.playerReplacementRequired);
+  battle.player_replacement_handoff = battle.player_replacement_required ? clone(continuationHandoff) : null;
+
   const activeIndex = Number(battle.trainer_party_index ?? 0);
   battle.trainer_party[activeIndex] = structuredClone(resolved.foe);
   battle.foe = structuredClone(resolved.foe);
@@ -123,7 +157,12 @@ function resolveBoundaryRound(runtime, selectedMoveId) {
   battle.presentation = battlePresentation(operations);
   state.last_operations = operations;
   let handoff = null;
-  if (battle.decision > 0) handoff = finalizeBoundaryBattle(runtime, battle, battle.decision);
+  if (battle.decision > 0) {
+    battle.player_replacement_required = false;
+    battle.player_replacement_handoff = null;
+    handoff = finalizeBoundaryBattle(runtime, battle, battle.decision);
+  }
+  const playerReplacementContinuation = pendingPlayerReplacement(battle);
   return {
     runtime,
     decision: battle.decision,
@@ -134,8 +173,63 @@ function resolveBoundaryRound(runtime, selectedMoveId) {
     battleRuntimeIntegration: resolved.battleRuntimeIntegration,
     battleContinuationHandoff: resolved.battleContinuationHandoff,
     battleResultHandoff: resolved.battleResultHandoff,
+    playerReplacementContinuation,
+    playerReplacementRequired: Boolean(battle.player_replacement_required),
     boundaryTrialHandoff: handoff,
     persistenceRequested: requestsSave(battle.last_operations),
+  };
+}
+
+export function resolveSafariBoundaryPlayerReplacement(runtime, replacementPartyIndex = null) {
+  const state = stateOf(runtime);
+  const battle = state.battle;
+  if (battle?.origin !== "boundary_trial" || battle.completed) throw new Error("active boundary battle is required");
+  if (!battle.player_replacement_required || !battle.player_replacement_handoff) {
+    return {
+      runtime,
+      result: "no_replacement_required",
+      decision: Number(battle.decision ?? 0),
+      operations: [],
+      playerReplacementContinuation: null,
+    };
+  }
+
+  const continuation = resolveBrowserPlayerReplacementContinuation({
+    battleContinuationHandoff: battle.player_replacement_handoff,
+    replacementPartyIndex,
+    partyOrder: Array.isArray(battle.player_party_order) ? battle.player_party_order : null,
+    idxBattler: 0,
+    sideSize: 1,
+  });
+  if (continuation.result !== "continued_with_replacement") {
+    return {
+      runtime,
+      result: continuation.result,
+      decision: 0,
+      operations: clone(continuation.operations ?? []),
+      playerReplacementContinuation: continuation,
+      playerReplacementRequired: true,
+    };
+  }
+
+  runtime.player.party = clone(continuation.battleContinuationHandoff.playerParty);
+  battle.player_party_index = Number(continuation.battleContinuationHandoff.playerActivePartyIndex);
+  battle.player_party_order = clone(continuation.partyOrder ?? battle.player_party_order ?? null);
+  battle.player_replacement_required = false;
+  battle.player_replacement_handoff = null;
+  const operations = (continuation.operations ?? []).map((operation) => ({ ...clone(operation), battleTurn: battle.turn }));
+  battle.last_operations = [...(battle.last_operations ?? []), ...operations];
+  state.last_operations = operations;
+  return {
+    runtime,
+    result: "continued_with_replacement",
+    decision: 0,
+    operations,
+    playerReplacementContinuation: continuation,
+    playerReplacementRequired: false,
+    activePlayer: clone(continuation.activePlayer),
+    playerActivePartyIndex: battle.player_party_index,
+    playerPartyOrder: clone(battle.player_party_order),
   };
 }
 
