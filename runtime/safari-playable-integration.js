@@ -1,9 +1,10 @@
-import * as playable from "./safari-playable-integration-boundary.js";
+import * as playable from "./safari-playable-integration-boundary-return.js";
 import { resolveTrainerMoveChoiceWithPriorityFlinchCanonical } from "./battle-core-trainer-choice-priority-flinch-integration.js";
 import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
 import { ensureSafariGeneralData, safariGeneralDataReady } from "./safari-general-data-demand.js";
+import { stabilizeSafariKoPresentation } from "./safari-ko-presentation-safety.js";
 
-export * from "./safari-playable-integration-boundary.js";
+export * from "./safari-playable-integration-boundary-return.js";
 export { SAFARI_MOVE_PRESENTATION } from "./safari-move-presentation-live.js";
 export { activateSafariDayBoardCell } from "./safari-pokemon-center-command.js";
 export { attemptSafariCapture } from "./safari-capture-command.js";
@@ -34,23 +35,6 @@ function stateOf(runtime) {
     throw new TypeError("runtime variables.mapless state is required");
   }
   return state;
-}
-
-export function returnSafariToDayBoard(runtime) {
-  const state = stateOf(runtime);
-  const wasBoundary = state.battle?.origin === "boundary_trial";
-  const decision = Number(state.battle?.decision ?? 0);
-  const result = playable.returnSafariToDayBoard(runtime);
-  if (wasBoundary && decision === 1 && result?.target === "day_board") {
-    state.boundary_trial = {
-      ...(state.boundary_trial ?? {}),
-      trial_cleared: false,
-      trial_floor: null,
-      result: "returned_to_board",
-      battle_request: null,
-    };
-  }
-  return result;
 }
 
 function battleNeedsGeneralData(battle) {
@@ -90,9 +74,6 @@ function restoreMoveOrder(foe, originalIds) {
   if (restored.length === foe.moves.length) foe.moves = restored;
 }
 
-// Normal wild/trainer battles already choose the opponent move once in
-// safari-playable-integration-pre-wounded.js. Boundary battles bypass that
-// layer, so only they need this small compatibility chooser here.
 function prepareBoundaryTrainerMove(runtime) {
   const battle = stateOf(runtime).battle;
   if (!battle || battle.completed || battle.kind !== "trainer" || battle.origin !== "boundary_trial") {
@@ -187,26 +168,8 @@ function notifySafariRuntimeChanged() {
   queueMicrotask(() => window.dispatchEvent(new CustomEvent("safari-runtime-changed")));
 }
 
-function isKoRound(result = {}) {
-  if (Number(result?.decision ?? 0) > 0) return true;
-  if (result?.foeReplacementApplied === true || result?.replacementApplied === true) return true;
-  if (result?.trainerReplacementContinuation?.result === "continued_with_replacement") return true;
-  return (result?.operations ?? []).some((operation) =>
-    operation?.op === "faint"
-    || operation?.op === "faint_self"
-    || ((operation?.op === "reduce_hp" || operation?.op === "reduce_self_hp")
-      && Number(operation?.hpAfter) <= 0));
-}
-
 function finalizeSafariRoundPresentation(result) {
-  const stabilized = isKoRound(result)
-    ? {
-      ...result,
-      presentation: (result.presentation ?? []).filter((event) =>
-        event?.type !== "move_started" && event?.type !== "damage_applied"),
-      safariKoPresentationImmediate: true,
-    }
-    : result;
+  const stabilized = stabilizeSafariKoPresentation(result);
   notifySafariRuntimeChanged();
   return stabilized;
 }
