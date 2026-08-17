@@ -25,61 +25,90 @@ export function loadSafariPlayableRun(storage, currentRuntime = createSafariPlay
   return loaded;
 }
 
-function moveId(move) { return typeof move === "string" ? move : move?.id; }
+function moveId(move) {
+  return typeof move === "string" ? move : move?.id;
+}
+
 function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
-  if (!state || typeof state !== "object" || Array.isArray(state)) throw new TypeError("runtime variables.mapless state is required");
+  if (!state || typeof state !== "object" || Array.isArray(state)) {
+    throw new TypeError("runtime variables.mapless state is required");
+  }
   return state;
 }
+
 function battleNeedsGeneralData(battle) {
   if (!battle || battle.completed) return false;
   if (battle.origin === "boundary_trial") return true;
   if (battle.general_selection != null) return true;
-  return battle.kind === "trainer" && battle.origin !== "village_bounty" && Array.isArray(battle.trainer?.party);
+  return battle.kind === "trainer"
+    && battle.origin !== "village_bounty"
+    && Array.isArray(battle.trainer?.party);
 }
-function usableTrainerMoves(foe) {
-  return (Array.isArray(foe?.moves) ? foe.moves : [])
-    .map((move, moveIndex) => ({ move, moveIndex, id: moveId(move) }))
-    .filter(({ move, id }) => id && SAFARI_MOVE_MASTERS[id] && (typeof move === "string" || Number(move.pp ?? 0) > 0));
-}
-function allTrainerMovesOutOfPp(foe) {
-  const moves = Array.isArray(foe?.moves) ? foe.moves : [];
-  return moves.length > 0 && moves.every((move) => typeof move !== "string" && Number(move?.pp ?? 0) <= 0);
-}
+
 function trainerAiSeed(battle) {
   const trainerSeed = Number(battle?.trainer_seed ?? 0) & 0x7fffffff;
   const turn = Math.max(1, Math.trunc(Number(battle?.turn ?? 1)));
   return (trainerSeed ^ Math.imul(turn, 0x45d9f3b)) & 0x7fffffff;
 }
-function speedOf(pokemon) { return Number(pokemon?.stats?.SPEED ?? pokemon?.stats?.speed ?? 0); }
+
+function speedOf(pokemon) {
+  return Number(pokemon?.stats?.SPEED ?? pokemon?.stats?.speed ?? 0);
+}
+
 function restoreMoveOrder(foe, originalIds) {
   if (!foe || !Array.isArray(foe.moves)) return;
   const buckets = new Map();
-  for (const move of foe.moves) { const id = moveId(move); const bucket = buckets.get(id) ?? []; bucket.push(move); buckets.set(id, bucket); }
+  for (const move of foe.moves) {
+    const id = moveId(move);
+    const bucket = buckets.get(id) ?? [];
+    bucket.push(move);
+    buckets.set(id, bucket);
+  }
   const restored = [];
-  for (const id of originalIds) { const bucket = buckets.get(id); if (bucket?.length) restored.push(bucket.shift()); }
+  for (const id of originalIds) {
+    const bucket = buckets.get(id);
+    if (bucket?.length) restored.push(bucket.shift());
+  }
   for (const bucket of buckets.values()) restored.push(...bucket);
   if (restored.length === foe.moves.length) foe.moves = restored;
 }
-function prepareTrainerMove(runtime) {
-  const state = stateOf(runtime);
-  const battle = state.battle;
-  if (!battle || battle.completed || battle.kind !== "trainer") return null;
+
+// Normal wild/trainer battles already choose the opponent move once in
+// safari-playable-integration-pre-wounded.js. Boundary battles bypass that
+// layer, so only they need this small compatibility chooser here.
+function prepareBoundaryTrainerMove(runtime) {
+  const battle = stateOf(runtime).battle;
+  if (!battle || battle.completed || battle.kind !== "trainer" || battle.origin !== "boundary_trial") {
+    return null;
+  }
   const player = runtime.player?.party?.[0];
   if (!player) throw new Error("active player Pokemon is required for trainer AI");
-  const usable = usableTrainerMoves(battle.foe);
   const originalMoves = [...(battle.foe?.moves ?? [])];
   const originalIds = originalMoves.map(moveId);
+  const usable = originalMoves
+    .map((move, moveIndex) => ({ move, moveIndex, id: moveId(move) }))
+    .filter(({ move, id }) => id && SAFARI_MOVE_MASTERS[id] && (typeof move === "string" || Number(move.pp ?? 0) > 0));
+
   if (!usable.length) {
-    if (!allTrainerMovesOutOfPp(battle.foe)) throw new Error("trainer AI has no usable projected move");
+    const allOut = originalMoves.length > 0
+      && originalMoves.every((move) => typeof move !== "string" && Number(move?.pp ?? 0) <= 0);
+    if (!allOut) throw new Error("trainer AI has no usable projected move");
     return {
       trainerPartyIndex: battle.trainer_party_index,
       foeSpecies: battle.foe.species,
       originalIds,
-      resolution: { command: "struggle", reason: "all_moves_out_of_pp", choices: [], weightedChoices: [], randomRolls: [] },
+      resolution: {
+        command: "struggle",
+        reason: "all_moves_out_of_pp",
+        choices: [],
+        weightedChoices: [],
+        randomRolls: [],
+      },
       selectedMoveId: "STRUGGLE",
     };
   }
+
   const skill = Number(battle.skill_level ?? 0);
   const foeSpeed = speedOf(battle.foe);
   const playerSpeed = speedOf(player);
@@ -103,57 +132,64 @@ function prepareTrainerMove(runtime) {
     canSwitchLax: false,
     aiRandomSeed: trainerAiSeed(battle),
   });
-  if (resolution.command !== "move" || !Number.isInteger(resolution.moveIndex)) throw new Error(`trainer AI command is not connected to Safari round execution: ${resolution.command}`);
+  if (resolution.command !== "move" || !Number.isInteger(resolution.moveIndex)) {
+    throw new Error(`trainer AI command is not connected to Safari round execution: ${resolution.command}`);
+  }
   const selected = originalMoves[resolution.moveIndex];
   if (!selected) throw new RangeError("trainer AI selected an invalid move index");
   battle.foe.moves = [selected, ...originalMoves.filter((_, index) => index !== resolution.moveIndex)];
-  return { trainerPartyIndex: battle.trainer_party_index, foeSpecies: battle.foe.species, originalIds, resolution, selectedMoveId: moveId(selected) };
+  return {
+    trainerPartyIndex: battle.trainer_party_index,
+    foeSpecies: battle.foe.species,
+    originalIds,
+    resolution,
+    selectedMoveId: moveId(selected),
+  };
 }
-function lastHpAfter(operations, target) {
-  let hp = null;
-  for (const operation of operations ?? []) {
-    if (operation?.target !== target) continue;
-    if ((operation.op === "reduce_hp" || operation.op === "reduce_self_hp") && Number.isFinite(Number(operation.hpAfter))) {
-      hp = Math.max(0, Math.trunc(Number(operation.hpAfter)));
-    } else if (operation.op === "faint" || operation.op === "faint_self") {
-      hp = 0;
+
+function trainerAiCompatibility(result, battleKind, preparedBoundary) {
+  if (preparedBoundary) {
+    return {
+      selectedMoveId: preparedBoundary.selectedMoveId,
+      command: preparedBoundary.resolution.command,
+      reason: preparedBoundary.resolution.reason,
+      choices: preparedBoundary.resolution.choices,
+      weightedChoices: preparedBoundary.resolution.weightedChoices,
+      randomRolls: preparedBoundary.resolution.randomRolls,
+    };
+  }
+  if (battleKind !== "trainer" || !result?.opponentChoice) return null;
+  const choice = result.opponentChoice;
+  return {
+    ...choice,
+    selectedMoveId: choice.command === "struggle" ? "STRUGGLE" : choice.selectedMoveId,
+  };
+}
+
+function finishRound(runtime, result, battleKind, preparedBoundary) {
+  if (preparedBoundary) {
+    const currentBattle = stateOf(runtime).battle;
+    if (currentBattle
+      && currentBattle.kind === "trainer"
+      && currentBattle.trainer_party_index === preparedBoundary.trainerPartyIndex
+      && currentBattle.foe?.species === preparedBoundary.foeSpecies) {
+      restoreMoveOrder(currentBattle.foe, preparedBoundary.originalIds);
     }
   }
-  return hp;
+  const trainerAi = trainerAiCompatibility(result, battleKind, preparedBoundary);
+  return trainerAi ? { ...result, trainerAi } : result;
 }
-function foeWasReplaced(result) {
-  return result?.foeReplacementApplied === true
-    || result?.replacementApplied === true
-    || result?.trainerReplacementContinuation?.result === "continued_with_replacement";
-}
-function applyResolvedHp(runtime, result) {
-  const state = stateOf(runtime);
-  const battle = state.battle;
-  if (!battle) return;
-  const foeHp = lastHpAfter(result?.operations, "foe");
-  // A trainer replacement is applied before this AI facade regains control.
-  // The foe HP operations belong to the Pokemon that just fainted, not the
-  // newly active reserve. Never replay the old foe's HP=0 onto its replacement.
-  if (!foeWasReplaced(result) && foeHp !== null && battle.foe) {
-    battle.foe.hp = Math.min(Number(battle.foe.max_hp ?? foeHp), foeHp);
-  }
-  const playerHp = lastHpAfter(result?.operations, "player");
-  if (playerHp !== null && runtime.player?.party?.[0]) {
-    const player = runtime.player.party[0];
-    player.hp = Math.min(Number(player.max_hp ?? playerHp), playerHp);
-  }
-}
+
 export function resolveSafariBattleRound(runtime, selectedMoveId) {
   const battle = stateOf(runtime).battle;
   if (battleNeedsGeneralData(battle) && !safariGeneralDataReady()) {
     return ensureSafariGeneralData().then(() => resolveSafariBattleRound(runtime, selectedMoveId));
   }
-  const prepared = prepareTrainerMove(runtime);
+  const battleKind = battle?.kind ?? null;
+  const preparedBoundary = prepareBoundaryTrainerMove(runtime);
   const result = resolveSafariBattleRoundBase(runtime, selectedMoveId);
-  applyResolvedHp(runtime, result);
-  if (!prepared) return result;
-  const state = stateOf(runtime);
-  const currentBattle = state.battle;
-  if (currentBattle && currentBattle.kind === "trainer" && currentBattle.trainer_party_index === prepared.trainerPartyIndex && currentBattle.foe?.species === prepared.foeSpecies) restoreMoveOrder(currentBattle.foe, prepared.originalIds);
-  return { ...result, trainerAi: { selectedMoveId: prepared.selectedMoveId, command: prepared.resolution.command, reason: prepared.resolution.reason, choices: prepared.resolution.choices, weightedChoices: prepared.resolution.weightedChoices, randomRolls: prepared.resolution.randomRolls } };
+  if (result && typeof result.then === "function") {
+    return result.then((resolved) => finishRound(runtime, resolved, battleKind, preparedBoundary));
+  }
+  return finishRound(runtime, result, battleKind, preparedBoundary);
 }
