@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const presentation = fs.readFileSync(new URL("../game-presentation.js", import.meta.url), "utf8");
+const presentationCss = fs.readFileSync(new URL("../game-presentation.css", import.meta.url), "utf8");
 const statusBridge = fs.readFileSync(new URL("../canonical-battle-status-bridge.js", import.meta.url), "utf8");
 
 assert.doesNotMatch(
@@ -13,6 +14,16 @@ assert.doesNotMatch(
   presentation,
   /function decorateBattle|function hpTone|function decorateMoves/,
   "legacy Battle decoration must stay out of the generic presentation layer",
+);
+assert.doesNotMatch(
+  presentationCss,
+  /data-hp-tone|command-index|data-battle-kind/,
+  "generic presentation CSS must not retain selectors for removed Battle decorators",
+);
+assert.doesNotMatch(
+  presentationCss,
+  /\.move-grid button\{[^}]*padding-left:40px/,
+  "move buttons must not reserve space for the removed command index badge",
 );
 assert.match(
   statusBridge,
