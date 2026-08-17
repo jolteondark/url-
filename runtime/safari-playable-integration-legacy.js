@@ -279,7 +279,7 @@ function payTrainerPrize(runtime, state, result) {
   };
 }
 
-function resolveIntermediateTrainerRound(runtime, selectedMoveId) {
+function resolvePartyAwareTrainerRound(runtime, selectedMoveId) {
   const state = stateOf(runtime);
   const battle = state.battle;
   const playerIndex = Number(battle.player_party_index ?? 0);
@@ -310,11 +310,12 @@ function resolveIntermediateTrainerRound(runtime, selectedMoveId) {
     playerIdxBattler: 0,
   });
 
-  // If this was not a nonterminal foe KO, do not commit the pure probe. Let the
-  // established core execute the terminal win/loss exactly once.
-  if (!resolved.foeReplacementApplied) return null;
-
   const next = resolved.nextRoundState;
+  // Terminal outcomes still use the established core finalizer exactly once.
+  // Player replacement selection for normal Safari battles is not owned here yet,
+  // so preserve the existing path rather than silently auto-selecting a reserve.
+  if (Number(next?.decision ?? resolved.decision ?? 0) !== 0 || next?.playerReplacementRequired) return null;
+
   if (Array.isArray(next.playerParty)) runtime.player.party = structuredClone(next.playerParty);
   else runtime.player.party[playerIndex] = structuredClone(resolved.player);
   battle.player_party_index = Number(next.playerActivePartyIndex ?? playerIndex);
@@ -329,30 +330,35 @@ function resolveIntermediateTrainerRound(runtime, selectedMoveId) {
   battle.reward = null;
   battle.money_gained = 0;
 
-  const exp = awardSafariTrainerIntermediateExp(runtime.player.party[0], defeatedFoe);
-  runtime.player.party[0] = exp.pokemon;
-  battle.trainer_exp_gained = Number(battle.trainer_exp_gained ?? 0) + exp.expGained;
+  const expOperations = [];
+  if (resolved.foeReplacementApplied) {
+    const activePlayerIndex = Number(battle.player_party_index ?? 0);
+    const exp = awardSafariTrainerIntermediateExp(runtime.player.party[activePlayerIndex], defeatedFoe);
+    runtime.player.party[activePlayerIndex] = exp.pokemon;
+    battle.trainer_exp_gained = Number(battle.trainer_exp_gained ?? 0) + exp.expGained;
+    expOperations.push(...exp.operations);
+  }
   battle.exp_gained = 0;
   battle.turn += 1;
 
   const operations = [
     ...(resolved.presentationOperations ?? resolved.operations ?? []).map((operation) => ({ ...operation, battleTurn: battle.turn - 1 })),
-    ...exp.operations,
+    ...expOperations,
   ];
-  const trainerName = battle.trainer?.trainer_full_name ?? "トレーナー";
   battle.last_operations = operations;
-  battle.presentation = [
-    ...battlePresentation(operations),
-    {
+  battle.presentation = battlePresentation(operations);
+  if (resolved.foeReplacementApplied) {
+    const trainerName = battle.trainer?.trainer_full_name ?? "トレーナー";
+    battle.presentation.push({
       type: "trainer_next",
       actor: "foe",
       trainer: trainerName,
       species: battle.foe?.species ?? null,
       partyIndex: battle.trainer_party_index,
-    },
-  ];
+    });
+    state.notice = `${trainerName}は${battle.foe?.species ?? "次のポケモン"}を繰り出した！`;
+  }
   state.last_operations = operations;
-  state.notice = `${trainerName}は${battle.foe?.species ?? "次のポケモン"}を繰り出した！`;
 
   return {
     ...resolved,
@@ -370,8 +376,8 @@ export function resolveSafariBattleRound(runtime, selectedMoveId) {
   if (!battle || battle.completed) throw new Error("active battle is required");
 
   if (trainerHasReserve(battle)) {
-    const intermediate = resolveIntermediateTrainerRound(runtime, selectedMoveId);
-    if (intermediate) return intermediate;
+    const partyAware = resolvePartyAwareTrainerRound(runtime, selectedMoveId);
+    if (partyAware) return partyAware;
   }
 
   return payTrainerPrize(runtime, state, core.resolveSafariBattleRound(runtime, selectedMoveId));
