@@ -1,5 +1,5 @@
 import { applySafariBoundaryTrialEntry, applySafariCampRecovery, prepareSafariCampNextDay } from "./runtime/safari-camp-next-day-command.js";
-import { saveSafariPlayableRun } from "./runtime/safari-web-playable-integration.js";
+import { activateSafariDayBoardCell, saveSafariPlayableRun } from "./runtime/safari-web-playable-integration.js";
 
 const style = document.createElement("style");
 style.textContent = `
@@ -59,7 +59,6 @@ byId("camp-confirm").addEventListener("click",async()=>{
   const boundaryEntry=applySafariBoundaryTrialEntry(rt,owner);
   backdrop.hidden=true; pendingButton=null;
   if(!boundaryEntry.entered){
-    const { activateSafariDayBoardCell }=await import("./runtime/safari-web-playable-integration.js");
     await activateSafariDayBoardCell(rt,index);
   }
   window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
