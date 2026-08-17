@@ -1,10 +1,8 @@
 let appPromise = null;
-let selectedAction = null;
 let loading = false;
 
 const SAVE_KEY = "mapless.safari.playable.v4";
 const byId = (id) => document.getElementById(id);
-const board = byId("board");
 const newRun = byId("new-run");
 const continueRun = byId("continue-run");
 
@@ -42,115 +40,34 @@ function setBootControls() {
   if (saveRun) saveRun.disabled = true;
 }
 
-function armBoard(action) {
-  selectedAction = action;
-  if (board) {
-    [...board.querySelectorAll("button")].forEach((button, index) => {
-      button.type = "button";
-      button.disabled = false;
-      button.className = "board-cell";
-      button.dataset.bootBoardIndex = String(index);
-      delete button.dataset.boardIndex;
-      button.replaceChildren();
-      const number = document.createElement("span");
-      number.className = "cell-number";
-      number.textContent = String(index + 1);
-      const label = document.createElement("strong");
-      label.textContent = "？？？";
-      button.append(number, label);
-    });
-  }
-  if (byId("mode")) byId("mode").textContent = "探索";
-  notice(selectedAction === "continue"
-    ? "つづきから開始します。マスを選ぶと保存データを読み込みます。"
-    : "Day Boardを準備しました。マスを選んでください。");
-}
-
 function detachBootListeners() {
   newRun?.removeEventListener("click", onNewRun);
   continueRun?.removeEventListener("click", onContinueRun);
-  board?.removeEventListener("click", onBootBoardChoice);
 }
 
-function nextFrame() {
-  return new Promise((resolve) => window.requestAnimationFrame(resolve));
-}
-
-function exactRenderErrorOrNull() {
-  return globalThis.__maplessLastError instanceof Error ? globalThis.__maplessLastError : null;
-}
-
-async function ensureInitialSceneHandoff(state) {
-  traceBattleStart("scene_handoff_dispatch", { hasBattle: Boolean(state.battle) });
-  window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
-  await nextFrame();
-
-  if (!state.battle) return;
-  const card = byId("battle-card");
-  const moves = byId("moves");
-  let trace = {
-    battleState: true,
-    sceneVisible: Boolean(card && !card.hidden),
-    moveButtonCount: moves?.querySelectorAll("button[data-move-id]").length ?? 0,
-    pageshowFallbackUsed: false,
-  };
-  traceBattleStart("scene_handoff_frame", trace);
-
-  if (!trace.sceneVisible || trace.moveButtonCount === 0) {
-    const exactRenderError = exactRenderErrorOrNull();
-    if (exactRenderError) throw exactRenderError;
-    trace.pageshowFallbackUsed = true;
-    traceBattleStart("scene_pageshow_fallback", trace);
-    window.dispatchEvent(new Event("pageshow"));
-    await nextFrame();
-    trace = {
-      ...trace,
+function traceSceneAfterRuntimeChange() {
+  window.requestAnimationFrame(() => {
+    const state = globalThis.__maplessSafariRuntime?.variables?.mapless;
+    if (!state?.battle) return;
+    const card = byId("battle-card");
+    const moves = byId("moves");
+    const trace = {
+      battleState: true,
       sceneVisible: Boolean(card && !card.hidden),
       moveButtonCount: moves?.querySelectorAll("button[data-move-id]").length ?? 0,
     };
-    traceBattleStart("scene_pageshow_frame", trace);
-  }
-
-  globalThis.__maplessBattleStartTrace = trace;
-  const exactRenderError = exactRenderErrorOrNull();
-  if ((!trace.sceneVisible || trace.moveButtonCount === 0) && exactRenderError) throw exactRenderError;
-  if (!trace.sceneVisible) {
-    throw new Error("Battle state created but Battle scene did not become visible");
-  }
-  if (trace.moveButtonCount === 0) {
-    throw new Error("Battle state created but no move buttons were rendered");
-  }
-  traceBattleStart("scene_handoff_ready", trace);
+    globalThis.__maplessBattleStartTrace = trace;
+    traceBattleStart("scene_handoff_frame", trace);
+    if (trace.sceneVisible && trace.moveButtonCount > 0) traceBattleStart("scene_handoff_ready", trace);
+  });
 }
 
-async function activateInitialBoardChoice(index) {
-  traceBattleStart("combat_entry_import_start", { index });
-  const { activateSafariDayBoardCell } = await import("./runtime/safari-web-playable-integration.js");
-  traceBattleStart("combat_entry_import_ready", { index });
-  const runtime = globalThis.__maplessSafariRuntime;
-  const state = runtime?.variables?.mapless;
-  if (!state) throw new Error("Safari runtime unavailable after preview start");
-  const cell = state.board_events?.[index];
-  traceBattleStart("board_owner_start", { index, kind: cell?.kind ?? null });
-
-  if (cell?.kind === "normal_event" && cell.normal_event_id === "wounded_pokemon") {
-    const general = await import("./runtime/safari-general-data-demand.js");
-    if (!general.safariGeneralDataReady()) await general.ensureSafariGeneralData();
-  }
-
-  await activateSafariDayBoardCell(runtime, index);
-  traceBattleStart("board_owner_ready", { index, hasBattle: Boolean(state.battle) });
-  await ensureInitialSceneHandoff(state);
-  const target = state.battle ? byId("battle-card") : state.shop ? byId("shop-card") : null;
-  if (target) window.setTimeout(() => target.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
-}
-
-async function loadPreviewApp(boardIndex) {
-  if (loading || !selectedAction) return;
+async function startPreview(action) {
+  if (loading) return;
   loading = true;
   globalThis.__maplessBattleStartLifecycleTrace = [];
-  traceBattleStart("board_click", { boardIndex, action: selectedAction });
-  notice("選択したマスを読み込んでいます…");
+  traceBattleStart("preview_start_request", { action });
+  notice(action === "continue" ? "保存データを読み込んでいます…" : "Day Boardを準備しています…");
   if (!appPromise) {
     traceBattleStart("preview_app_import_start");
     appPromise = import("./preview-app.js");
@@ -158,44 +75,34 @@ async function loadPreviewApp(boardIndex) {
   try {
     await appPromise;
     traceBattleStart("preview_app_import_ready");
-    window.dispatchEvent(new CustomEvent("safari-preview-start", { detail: { action: selectedAction } }));
+    window.dispatchEvent(new CustomEvent("safari-preview-start", { detail: { action } }));
     traceBattleStart("preview_start_dispatched", {
       runtimeReady: Boolean(globalThis.__maplessSafariRuntime?.variables?.mapless),
     });
-    await activateInitialBoardChoice(boardIndex);
-    traceBattleStart("initial_board_activation_ready");
     detachBootListeners();
+    traceBattleStart("preview_ready_for_board_click");
   } catch (error) {
-    traceBattleStart("initial_board_activation_error", {
+    traceBattleStart("preview_start_error", {
       error_name: error?.name ?? "Error",
       error_message: error?.message ?? String(error),
     });
     loading = false;
     appPromise = null;
     globalThis.__maplessLastError = error;
-    const failedAction = selectedAction;
-    armBoard(failedAction);
-    notice("ゲームの読み込みに失敗しました: " + (error?.message ?? error) + "。マスを選び直せます。");
+    notice("ゲームの読み込みに失敗しました: " + (error?.message ?? error) + "。もう一度開始できます。");
     console.error("[Mapless] preview app load failed", error);
   }
 }
 
-function onNewRun() { armBoard("new"); }
+function onNewRun() { startPreview("new"); }
 function onContinueRun() {
   if (!hasStoredRun()) return notice("つづきから再開できるセーブがありません。");
-  armBoard("continue");
-}
-function onBootBoardChoice(event) {
-  if (loading) return;
-  const cell = event.target.closest("button[data-boot-board-index]");
-  if (!cell) return;
-  if (!selectedAction) return notice("先に新規またはつづきを選んでください。");
-  loadPreviewApp(Number(cell.dataset.bootBoardIndex));
+  startPreview("continue");
 }
 
 window.addEventListener("error", captureBattleRenderError);
+window.addEventListener("safari-runtime-changed", traceSceneAfterRuntimeChange);
 newRun?.addEventListener("click", onNewRun);
 continueRun?.addEventListener("click", onContinueRun);
-board?.addEventListener("click", onBootBoardChoice);
 setBootControls();
-notice("新規またはつづきを押すと、すぐDay Boardを表示します。");
+notice("新規またはつづきを押すと、実際のDay Boardを読み込みます。");
