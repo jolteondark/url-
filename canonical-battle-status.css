@@ -7,3 +7,5 @@
 #battle-card .canonical-status-badge[data-status="BURN"],#battle-card .canonical-status-badge[data-status="BURNED"]{background:#d55a45}
 #battle-card .canonical-status-badge[data-status="PARALYSIS"],#battle-card .canonical-status-badge[data-status="PARALYZED"]{background:#c69d2a}
 #battle-card .canonical-status-badge[data-status="FROZEN"],#battle-card .canonical-status-badge[data-status="FREEZE"]{background:#4597b7}
+#battle-card .battle-info-panel[data-hp-zone="1"] .hp-track span{background-position:0 -6px}
+#battle-card .battle-info-panel[data-hp-zone="2"] .hp-track span{background-position:0 -12px}
