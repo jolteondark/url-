@@ -1,8 +1,13 @@
 import { projectGeneralEncounterRules } from "./general-encounter-rules-master.js";
 import { resolvePokemonRuntimeMasters } from "./pokemon-runtime-masters.js";
-import { SAFARI_NATURE_MASTERS } from "./safari-playable-data.js";
+import { installSafariGeneralMasters, SAFARI_NATURE_MASTERS } from "./safari-playable-data.js";
 import { SAFARI_GENERAL_MOVE_MASTERS, SAFARI_GENERAL_SPECIES_MASTERS } from "./safari-general-encounter-data-loader.js";
 import { boundaryParty3DefinitionV108 } from "./mapless-boundary-trial-party3-v108.js";
+
+// This module is imported only after the user presses the boundary challenge
+// button. Install the already-loaded exact masters into the shared Safari
+// registry so Battle/AI never sees bootstrap placeholders during the trial.
+installSafariGeneralMasters(SAFARI_GENERAL_SPECIES_MASTERS, SAFARI_GENERAL_MOVE_MASTERS);
 
 const STATS = Object.freeze(["HP","ATTACK","DEFENSE","SPECIAL_ATTACK","SPECIAL_DEFENSE","SPEED"]);
 const IV31 = Object.freeze(Object.fromEntries(STATS.map((stat) => [stat, 31])));
