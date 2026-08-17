@@ -7,11 +7,11 @@ const source = fs.readFileSync(
 );
 
 assert.match(source, /const CHUNK_PATHS = Object\.freeze/, "GENERAL chunks should have one data path manifest");
-assert.match(source, /async function fetchEncodedChunk\(path\)/, "Safari should fetch encoded chunks as static data");
-assert.match(source, /fetch\(url, \{ cache: "force-cache", credentials: "same-origin" \}\)/, "Safari data fetch should use same-origin cacheable requests");
-assert.match(source, /encodedChunkFromModuleSource/, "existing generated data files should be decoded without module execution");
-assert.doesNotMatch(source, /const CHUNK_LOADERS = \[/, "Safari loader must not maintain twenty hand-written module loader functions");
-assert.match(source, /typeof window !== "undefined"\s*\? await loadBrowserEncodedChunks\(\)\s*:\s*await loadNodeEncodedChunks\(\)/, "browser and Node loading strategies should remain explicit");
-assert.match(source, /import\(new URL\(path, import\.meta\.url\)\.href\)/, "Node smoke path may still import generated modules directly");
+assert.match(source, /async function loadEncodedChunks\(\)/, "GENERAL chunks should use one module-loading path");
+assert.match(source, /import\(new URL\(path, import\.meta\.url\)\.href\)/, "generated chunks should be loaded through the browser module loader");
+assert.doesNotMatch(source, /fetch\(/, "GENERAL loader should not refetch JavaScript modules as text");
+assert.doesNotMatch(source, /encodedChunkFromModuleSource/, "GENERAL loader should not parse export-default source strings");
+assert.doesNotMatch(source, /loadBrowserEncodedChunks|loadNodeEncodedChunks/, "browser and Node should not maintain duplicate chunk adapters");
+assert.doesNotMatch(source, /const CHUNK_LOADERS = \[/, "GENERAL loader must not maintain twenty hand-written module loader functions");
 
-console.log("Safari GENERAL data fetch loader smoke: ok");
+console.log("Safari GENERAL module loader demolition smoke: ok");
