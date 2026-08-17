@@ -38,8 +38,13 @@ export async function activateSafariDayBoardCell(runtime, index) {
   const state = stateOf(runtime);
   const event = state.board_events?.[index];
   if (event?.kind === "wild" || event?.kind === "trainer") {
-    const { activateSafariWebCombatCell } = await import("./safari-web-combat-start.js");
-    return activateSafariWebCombatCell(runtime, index);
+    try {
+      const { activateSafariWebCombatCell } = await import("./safari-web-combat-start.js");
+      return await activateSafariWebCombatCell(runtime, index);
+    } catch (error) {
+      globalThis.__maplessLastError = error;
+      throw error;
+    }
   }
   return (await full()).activateSafariDayBoardCell(runtime, index);
 }
