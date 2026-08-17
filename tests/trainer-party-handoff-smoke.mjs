@@ -41,6 +41,7 @@ assert.equal(state.battle.completed, false);
 assert.equal(state.battle.trainer_party_index, 1);
 assert.equal(runtime.bag.money, moneyBefore);
 assert.ok(state.battle.presentation.some((event) => event.type === "trainer_next"));
+assert.ok(firstRound.operations.some((operation) => operation.op === "send_out" && operation.source === "trainer_replacement_continuation"));
 
 const secondRound = resolveSafariBattleRound(runtime, "TACKLE");
 assert.equal(secondRound.decision, 0);
@@ -48,6 +49,7 @@ assert.equal(state.battle.completed, false);
 assert.equal(state.battle.trainer_party_index, 2);
 assert.equal(runtime.bag.money, moneyBefore);
 assert.ok(state.battle.presentation.some((event) => event.type === "trainer_next"));
+assert.ok(secondRound.operations.some((operation) => operation.op === "send_out" && operation.source === "trainer_replacement_continuation"));
 
 const finalRound = resolveSafariBattleRound(runtime, "TACKLE");
 assert.equal(finalRound.decision, 1);
