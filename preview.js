@@ -54,6 +54,47 @@ function detachBootListeners() {
   board?.removeEventListener("click", onBootBoardChoice);
 }
 
+function nextFrame() {
+  return new Promise((resolve) => window.requestAnimationFrame(resolve));
+}
+
+async function ensureInitialSceneHandoff(state) {
+  window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
+  await nextFrame();
+
+  if (!state.battle) return;
+  const card = byId("battle-card");
+  const moves = byId("moves");
+  let trace = {
+    battleState: true,
+    sceneVisible: Boolean(card && !card.hidden),
+    moveButtonCount: moves?.querySelectorAll("button[data-move-id]").length ?? 0,
+    pageshowFallbackUsed: false,
+  };
+
+  // preview-app historically rendered first-entry state only from a synthetic
+  // pageshow. Prefer the explicit runtime-change handoff, but retain one
+  // conservative fallback while older presentation listeners are still present.
+  if (!trace.sceneVisible || trace.moveButtonCount === 0) {
+    trace.pageshowFallbackUsed = true;
+    window.dispatchEvent(new Event("pageshow"));
+    await nextFrame();
+    trace = {
+      ...trace,
+      sceneVisible: Boolean(card && !card.hidden),
+      moveButtonCount: moves?.querySelectorAll("button[data-move-id]").length ?? 0,
+    };
+  }
+
+  globalThis.__maplessBattleStartTrace = trace;
+  if (!trace.sceneVisible) {
+    throw new Error("Battle state created but Battle scene did not become visible");
+  }
+  if (trace.moveButtonCount === 0) {
+    throw new Error("Battle state created but no move buttons were rendered");
+  }
+}
+
 async function activateInitialBoardChoice(index) {
   const { activateSafariDayBoardCell } = await import("./runtime/safari-web-playable-integration.js");
   const runtime = globalThis.__maplessSafariRuntime;
@@ -70,8 +111,7 @@ async function activateInitialBoardChoice(index) {
   }
 
   await activateSafariDayBoardCell(runtime, index);
-  window.dispatchEvent(new Event("pageshow"));
-  window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
+  await ensureInitialSceneHandoff(state);
   const target = state.battle ? byId("battle-card") : state.shop ? byId("shop-card") : null;
   if (target) window.setTimeout(() => target.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
 }

@@ -47,4 +47,16 @@ assert.match(previewSource, /card\.hidden = !battle/,
 assert.match(previewSource, /button\.dataset\.moveId = id/,
   "core Battle rendering must create tappable owner-backed move buttons");
 
-console.log("Safari cold board -> Battle owner smoke passed");
+const bootSource = await readFile(new URL("../preview.js", import.meta.url), "utf8");
+assert.match(bootSource,
+  /await activateSafariDayBoardCell\(runtime, index\);[\s\S]*await ensureInitialSceneHandoff\(state\)/,
+  "first-board Battle state creation must be followed by an explicit scene handoff");
+assert.match(bootSource,
+  /safari-runtime-changed[\s\S]*requestAnimationFrame[\s\S]*battle-card[\s\S]*button\[data-move-id\]/,
+  "first-entry handoff must wait for runtime-driven render and verify both scene visibility and move controls");
+assert.match(bootSource, /__maplessBattleStartTrace = trace/,
+  "first-entry handoff must retain stage diagnostics without replacing the runtime exception surface");
+assert.match(bootSource, /pageshowFallbackUsed/,
+  "legacy pageshow rendering may remain only as a conservative fallback during blocker recovery");
+
+console.log("Safari cold board -> Battle owner -> first scene/move handoff smoke passed");
