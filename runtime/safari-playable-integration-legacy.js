@@ -2,6 +2,8 @@ import * as core from "./safari-playable-integration-core.js";
 import { quantity, setMoney } from "./bag-economy-mart-flow.js";
 import { resolveResolvedShopTransaction } from "./bag-economy-resolved-shop-transaction.js";
 import { resolveBrowserTrainerBattleRound } from "./browser-trainer-battle-round-runtime.js";
+import { resolveDayBoardPlayableTurn } from "./mapless-day-board-playable-turn.js";
+import { resolveItemReceipt } from "./bag-economy-item-receipt.js";
 import {
   canonicalResolvedShopOffer,
   canonicalShopPrice,
@@ -214,14 +216,6 @@ export function sellSafariShopItem(runtime, input = {}) {
   return commitCanonicalShopTransaction(runtime, "sell", input);
 }
 
-function trainerHasReserve(battle) {
-  return battle?.kind === "trainer"
-    && Array.isArray(battle.trainer_party)
-    && Number.isInteger(Number(battle.trainer_party_index))
-    && battle.trainer_party.some((pokemon, index) =>
-      index !== Number(battle.trainer_party_index) && Number(pokemon?.hp ?? 0) > 0);
-}
-
 function trainerOpponentAiSeed(battle) {
   const turn = Math.max(1, Math.trunc(Number(battle?.turn ?? 1)));
   return (Number(battle?.trainer_seed ?? 0) ^ Math.imul(turn, 0x45d9f3b)) & 0x7fffffff;
@@ -230,6 +224,10 @@ function trainerOpponentAiSeed(battle) {
 function reserveCount(party, activeIndex) {
   return Math.max(0, (Array.isArray(party) ? party : []).filter((pokemon, index) =>
     index !== Number(activeIndex) && Number(pokemon?.hp ?? 0) > 0).length);
+}
+
+function requestsSave(operations = []) {
+  return operations.some((operation) => operation?.op === "request_save");
 }
 
 function battlePresentation(operations) {
@@ -323,6 +321,73 @@ function payTrainerPrize(runtime, state, result) {
   };
 }
 
+function finalizeResolvedTrainerBattle(runtime) {
+  const state = stateOf(runtime);
+  const battle = state.battle;
+  const event = state.board_events[battle.board_index];
+  const turn = resolveDayBoardPlayableTurn({
+    index: battle.board_index,
+    day: state.day,
+    board_events: state.board_events,
+    board_revealed: state.board_revealed,
+    board_consumed: state.board_consumed,
+    board_visited: state.board_visited,
+    notice: state.notice,
+    scene_is_self: true,
+    scene_same: true,
+    event_stage_active: true,
+    pending_hatches: [],
+    trainer: {
+      can_battle: true,
+      dynamic_result: {
+        outcome: battle.decision,
+        trainer_full_name: event.trainer_full_name,
+      },
+      last_error: null,
+    },
+  });
+  state.board_events = turn.state.board_events;
+  state.board_revealed = turn.state.board_revealed;
+  state.board_consumed = turn.state.board_consumed;
+  const completionOperations = [...turn.operations];
+
+  if (battle.decision === 1) {
+    const receipt = resolveItemReceipt({
+      slots: runtime.bag.slots,
+      maxSlots: 20,
+      maxPerSlot: 99,
+      item: "POTION",
+      quantity: 1,
+      itemValid: true,
+      kind: "prize",
+      pocket: "MEDICINE",
+    });
+    runtime.bag.slots = receipt.slots;
+    battle.reward = receipt.success ? { item: "POTION", quantity: 1 } : null;
+    completionOperations.push(...receipt.operations.map((operation) => ({ ...operation, scope: "reward" })));
+  }
+
+  battle.completed = true;
+  battle.last_operations = [...battle.last_operations, ...completionOperations];
+  battle.presentation = [
+    ...battle.presentation,
+    {
+      type: "battle_result",
+      decision: battle.decision,
+      captured: false,
+      expGained: battle.exp_gained ?? 0,
+      reward: battle.reward ?? null,
+      moneyGained: 0,
+      returnTarget: "day_board",
+    },
+  ];
+  state.last_operations = completionOperations;
+  state.notice = battle.decision === 1
+    ? `${event.trainer_full_name}に勝利しました。`
+    : "戦闘に敗北しました。";
+  return completionOperations;
+}
+
 function resolvePartyAwareTrainerRound(runtime, selectedMoveId) {
   const state = stateOf(runtime);
   const battle = state.battle;
@@ -364,30 +429,27 @@ function resolvePartyAwareTrainerRound(runtime, selectedMoveId) {
   });
 
   const next = resolved.nextRoundState;
-  // Terminal outcomes still use the established core finalizer exactly once.
-  // Player replacement selection for normal Safari battles is not owned here yet,
-  // so preserve the existing path rather than silently auto-selecting a reserve.
-  if (Number(next?.decision ?? resolved.decision ?? 0) !== 0 || next?.playerReplacementRequired) return null;
-
-  if (Array.isArray(next.playerParty)) runtime.player.party = structuredClone(next.playerParty);
+  if (Array.isArray(next?.playerParty)) runtime.player.party = structuredClone(next.playerParty);
   else runtime.player.party[playerIndex] = structuredClone(resolved.player);
-  battle.player_party_index = Number(next.playerActivePartyIndex ?? playerIndex);
-  battle.player_party_order = structuredClone(next.playerPartyOrder ?? battle.player_party_order ?? null);
-  battle.trainer_party = structuredClone(next.foeParty);
-  battle.trainer_party_index = Number(next.foeActivePartyIndex);
-  battle.trainer_party_order = structuredClone(next.partyOrder ?? battle.trainer_party_order ?? null);
+  battle.player_party_index = Number(next?.playerActivePartyIndex ?? playerIndex);
+  battle.player_party_order = structuredClone(next?.playerPartyOrder ?? battle.player_party_order ?? null);
+  if (Array.isArray(next?.foeParty)) battle.trainer_party = structuredClone(next.foeParty);
+  battle.trainer_party_index = Number(next?.foeActivePartyIndex ?? battle.trainer_party_index ?? 0);
+  battle.trainer_party_order = structuredClone(next?.partyOrder ?? battle.trainer_party_order ?? null);
   battle.foe = structuredClone(resolved.foe);
-  battle.decision = 0;
+  battle.decision = Number(next?.decision ?? resolved.decision ?? 0);
   battle.completed = false;
   battle.captured = false;
   battle.reward = null;
   battle.money_gained = 0;
 
+  const roundExpGained = (resolved.expIntegration?.commits ?? []).reduce((sum, commit) => sum + Number(commit.expGained ?? 0), 0);
   if (resolved.foeReplacementApplied) {
-    const expGained = (resolved.expIntegration?.commits ?? []).reduce((sum, commit) => sum + Number(commit.expGained ?? 0), 0);
-    battle.trainer_exp_gained = Number(battle.trainer_exp_gained ?? 0) + expGained;
+    battle.trainer_exp_gained = Number(battle.trainer_exp_gained ?? 0) + roundExpGained;
+    battle.exp_gained = 0;
+  } else {
+    battle.exp_gained = battle.decision === 1 ? roundExpGained : 0;
   }
-  battle.exp_gained = 0;
   battle.turn += 1;
 
   const operations = (resolved.presentationOperations ?? resolved.operations ?? []).map((operation) => ({ ...operation, battleTurn: battle.turn - 1 }));
@@ -406,6 +468,18 @@ function resolvePartyAwareTrainerRound(runtime, selectedMoveId) {
   }
   state.last_operations = operations;
 
+  if (battle.decision !== 0) {
+    finalizeResolvedTrainerBattle(runtime);
+    return payTrainerPrize(runtime, state, {
+      ...resolved,
+      runtime,
+      decision: battle.decision,
+      operations: battle.last_operations,
+      presentation: battle.presentation,
+      persistenceRequested: requestsSave(battle.last_operations),
+    });
+  }
+
   return {
     ...resolved,
     runtime,
@@ -421,10 +495,9 @@ export function resolveSafariBattleRound(runtime, selectedMoveId) {
   const battle = state.battle;
   if (!battle || battle.completed) throw new Error("active battle is required");
 
-  if (trainerHasReserve(battle)) {
-    const partyAware = resolvePartyAwareTrainerRound(runtime, selectedMoveId);
-    if (partyAware) return partyAware;
+  if (battle.kind === "trainer") {
+    return resolvePartyAwareTrainerRound(runtime, selectedMoveId);
   }
 
-  return payTrainerPrize(runtime, state, core.resolveSafariBattleRound(runtime, selectedMoveId));
+  return core.resolveSafariBattleRound(runtime, selectedMoveId);
 }
