@@ -33,19 +33,27 @@ function assertKoPresentation(result, expectedSemanticTypes) {
 
 // Guard the architecture itself: intermediate trainer KO must never return to
 // the old finalize -> snapshot rollback -> synthetic next-slot compensation,
-// browser combat must consume Battle Runtime HP directly, intermediate EXP
-// must be committed inside the Battle round, and the public entry must no
-// longer rewrite a completed Battle presentation after the owner returns it.
+// browser combat must consume Battle Runtime HP directly, intermediate EXP and
+// opponent choice must be owned inside the same party-aware Battle transition,
+// and the public entry must not rewrite the completed owner presentation.
 {
   const legacySource = fs.readFileSync(new URL("../runtime/safari-playable-integration-legacy.js", import.meta.url), "utf8");
+  const preWoundedSource = fs.readFileSync(new URL("../runtime/safari-playable-integration-pre-wounded.js", import.meta.url), "utf8");
+  const trainerRoundSource = fs.readFileSync(new URL("../runtime/browser-trainer-battle-round-runtime.js", import.meta.url), "utf8");
   const publicSource = fs.readFileSync(new URL("../runtime/safari-playable-integration.js", import.meta.url), "utf8");
   const roundSource = fs.readFileSync(new URL("../runtime/browser-battle-round-runtime.js", import.meta.url), "utf8");
   assert.doesNotMatch(legacySource, /snapshotRoundSideEffects|restoreIntermediateSideEffects/);
   assert.doesNotMatch(legacySource, /op:\s*["']trainer_send_next["']/);
   assert.doesNotMatch(legacySource, /awardSafariTrainerIntermediateExp|safari-trainer-intermediate-exp/);
+  assert.doesNotMatch(legacySource, /foeMoveId\s*=\s*moveId\(battle\.foe/);
   assert.match(legacySource, /playerBattleExpInput:\s*trainerBattleExpInput/);
+  assert.match(legacySource, /ownedOpponentInput/);
   assert.match(legacySource, /resolved\.expIntegration\?\.commits/);
   assert.match(legacySource, /resolveBrowserTrainerBattleRound/);
+  assert.match(trainerRoundSource, /resolveBrowserBattleRoundWithOwnedOpponent/);
+  assert.match(trainerRoundSource, /ownedOpponentInput/);
+  assert.match(preWoundedSource, /trainerUsesPartyAwareOwnedOpponent/);
+  assert.match(preWoundedSource, /if \(trainerUsesPartyAwareOwnedOpponent\(battle\)\) return null/);
   assert.doesNotMatch(publicSource, /continueSafariTrainerAfterFirstKo/);
   assert.doesNotMatch(publicSource, /finalizeSafariRoundPresentation|safariKoPresentationImmediate|isKoRound/);
   assert.match(roundSource, /attachDefeatedFoeExpInput/);
@@ -76,8 +84,8 @@ function assertKoPresentation(result, expectedSemanticTypes) {
 }
 
 // Two-Pokemon trainer: the first KO is born nonterminal in the party-aware
-// round. It must award EXP through Battle Runtime before canonical replacement,
-// without ever touching rewards/board/money or a Safari EXP compensation wrapper.
+// round. The same Battle transition must choose the opponent move, award EXP,
+// and apply canonical replacement without touching reward/Board finalization.
 {
   const runtime = createSafariPlayableRuntime();
   const state = runtime.variables.mapless;
@@ -98,6 +106,7 @@ function assertKoPresentation(result, expectedSemanticTypes) {
   state.battle.trainer_party_index = 0;
   state.battle.trainer_party_order = [0, 1];
   state.battle.foe = structuredClone(first);
+  const foeMoveOrderBefore = state.battle.foe.moves.map(moveId);
 
   const moneyBefore = Number(runtime.bag.money);
   const bagBefore = structuredClone(runtime.bag.slots);
@@ -109,6 +118,9 @@ function assertKoPresentation(result, expectedSemanticTypes) {
   const firstKo = await Promise.resolve(resolveSafariBattleRound(runtime, selectedMoveId));
   assert.equal(firstKo.decision, 0);
   assert.equal(state.battle.completed, false);
+  assert.ok(firstKo.opponentChoice?.moveId, "party-aware trainer round must expose its Battle-owned opponent choice");
+  assert.equal(firstKo.opponentChoice.command, "move");
+  assert.deepEqual(first.moves.map(moveId), foeMoveOrderBefore, "Battle AI must not signal its choice by mutating the source move order");
   assert.equal(state.battle.trainer_party_index, 1);
   assert.equal(Number(state.battle.trainer_party[0].hp), 0);
   assert.ok(Number(state.battle.foe.hp) > 0, "replacement foe must remain able");
