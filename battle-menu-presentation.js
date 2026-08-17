@@ -78,12 +78,12 @@ function renderBattleChrome(){
   }else{
     if(owner&&owner.textContent!=="野生ポケモン")owner.textContent="野生ポケモン";
     if(kicker&&kicker.textContent!=="WILD")kicker.textContent="WILD";
-    delete card.dataset.ownerName;
+    if(card.dataset.ownerName)delete card.dataset.ownerName;
   }
   renderPips(byId("player-roster-pips"),partyCount());
   renderPips(byId("foe-roster-pips"),1);
   const completed=/Result/i.test(byId("turn")?.textContent??"");
-  card.classList.toggle("battle-complete",completed);
+  if(card.classList.contains("battle-complete")!==completed)card.classList.toggle("battle-complete",completed);
 }
 function decorateParty(){
   document.querySelectorAll("#party-detail-grid .party-slot:not(.empty)").forEach((slot,index)=>{
@@ -96,7 +96,7 @@ function decorateParty(){
     slot.querySelectorAll(".party-moves li span:first-child").forEach((node)=>{
       const id=node.dataset.moveId||node.textContent?.trim()||"";
       if(!id)return;
-      node.dataset.moveId=id;
+      if(node.dataset.moveId!==id)node.dataset.moveId=id;
       const label=SAFARI_MOVE_LABELS[id];
       if(label&&node.textContent!==label){node.textContent=label;node.title=id}
     });
@@ -108,7 +108,7 @@ function decorateBag(){
     if(!strong)return;
     const id=slot.dataset.itemId||strong.textContent?.trim()||"";
     if(!id)return;
-    slot.dataset.itemId=id;
+    if(slot.dataset.itemId!==id)slot.dataset.itemId=id;
     const master=SAFARI_SHOP_ITEM_MASTERS[id];
     if(master&&strong.textContent!==master.label){strong.textContent=master.label;strong.title=id}
     let meta=slot.querySelector(".bag-item-meta");
@@ -123,8 +123,17 @@ function schedule(){if(scheduled)return;scheduled=true;requestAnimationFrame(ren
 ensureStyles();
 ensureBattleChrome();
 render();
-new MutationObserver(schedule).observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:["hidden","style","class"]});
-window.addEventListener("pageshow",schedule);
+
+// Keep the observer inside the battle scene and do not observe attributes.
+// HP-bar/style/class writes are frequent during damage/faint presentation and
+// must never be able to reschedule this renderer through its own mutations.
+const battleRoot=byId("battle-card");
+if(battleRoot){
+  new MutationObserver(schedule).observe(battleRoot,{subtree:true,childList:true,characterData:true});
+  battleRoot.addEventListener("pointerdown",schedule,{passive:true});
+  battleRoot.addEventListener("click",schedule,{passive:true});
+}
+window.addEventListener("pageshow",schedule,{passive:true});
 window.addEventListener("storage",schedule);
 window.addEventListener("safari-runtime-changed",schedule);
 window.addEventListener("safari-game-menu-opened",schedule);
