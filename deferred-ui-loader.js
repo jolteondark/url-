@@ -30,13 +30,15 @@ async function loadBoardPresentation() {
 }
 
 async function loadBattleUi() {
-  // Battle UI stays scene-demand only. The canonical HUD/status styles and
-  // bridges are scoped to the battle scene; no body-wide observer.
+  // Battle UI stays scene-demand only. All observers are scoped below the
+  // battle scene and avoid attribute/hidden self-observation on Safari.
   loadStyle("./canonical-battle-ui.css");
   loadStyle("./canonical-battle-status.css");
+  loadStyle("./trainer-battle-presentation.css");
   await loadModule("./canonical-battle-sprite-bridge.js");
   await loadModule("./canonical-battle-ui-bridge.js");
   await loadModule("./canonical-battle-status-bridge.js");
+  await loadModule("./trainer-battle-presentation.js");
 }
 
 async function loadShopUi() {
