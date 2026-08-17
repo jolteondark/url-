@@ -1,0 +1,15 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+const command=await readFile(new URL("../runtime/safari-camp-next-day-command.js",import.meta.url),"utf8");
+const camp=await readFile(new URL("../camp-presentation.js",import.meta.url),"utf8");
+const presentation=await readFile(new URL("../boundary-trial-presentation.js",import.meta.url),"utf8");
+assert.match(command,/isBoundaryTrialFloor\(nextDay\)/);
+assert.match(command,/resolveBoundaryTrialFlow/);
+assert.match(command,/state\.location = "boundary_trial"/);
+assert.match(command,/board_suspended_for_boundary = true/);
+assert.match(camp,/applySafariBoundaryTrialEntry/);
+assert.match(camp,/if\(!boundaryEntry\.entered\)/);
+assert.match(camp,/safari-runtime-changed/);
+assert.match(presentation,/state\?\.location==="boundary_trial"/);
+assert.doesNotMatch(presentation,/MutationObserver/);
+console.log("Safari boundary trial entry smoke: ok");
