@@ -1,5 +1,5 @@
 import { applySafariBoundaryTrialEntry, applySafariCampRecovery, prepareSafariCampNextDay } from "./runtime/safari-camp-next-day-command.js";
-import { saveSafariPlayableRun } from "./runtime/safari-playable-integration.js";
+import { saveSafariPlayableRun } from "./runtime/safari-web-playable-integration.js";
 
 const style = document.createElement("style");
 style.textContent = `
@@ -17,7 +17,6 @@ night.innerHTML = `<div><strong id="camp-day-change">DAY</strong><span id="camp-
 document.body.append(night);
 
 let pendingButton = null;
-let bypass = false;
 const byId = (id) => document.getElementById(id);
 function runtime(){return globalThis.__maplessSafariRuntime ?? null;}
 function pokemonId(p,index){return p?.personal_id ?? p?.id ?? p?.uuid ?? index;}
@@ -35,16 +34,23 @@ function openCamp(button,index){
   byId("camp-confirm").focus();
 }
 
+export function openSafariCamp(button,index){
+  openCamp(button,index);
+}
+
 byId("camp-cancel").addEventListener("click",()=>{backdrop.hidden=true;pendingButton=null;});
-byId("camp-confirm").addEventListener("click",()=>{
+byId("camp-confirm").addEventListener("click",async()=>{
   const button=pendingButton; if(!button) return;
   const rt=runtime(); const index=Number(button.dataset.campIndex); const before=rt.variables.mapless.day;
   const owner=prepareSafariCampNextDay(rt,index,true);
   applySafariCampRecovery(rt,owner);
   const boundaryEntry=applySafariBoundaryTrialEntry(rt,owner);
   backdrop.hidden=true; pendingButton=null;
-  if(!boundaryEntry.entered){bypass=true;button.click();bypass=false;}
-  else window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
+  if(!boundaryEntry.entered){
+    const { activateSafariDayBoardCell }=await import("./runtime/safari-web-playable-integration.js");
+    await activateSafariDayBoardCell(rt,index);
+  }
+  window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
   queueMicrotask(()=>{
     try{saveSafariPlayableRun(window.localStorage,rt);}catch(_){}
     byId("camp-day-change").textContent=`DAY ${before} → ${rt.variables.mapless.day}`;
@@ -54,12 +60,4 @@ byId("camp-confirm").addEventListener("click",()=>{
       : `HP +${owner.normal_recovery.hp_percent}% / PP +${owner.normal_recovery.pp_percent}% ・ ${extra}`;
     night.classList.add("show"); window.setTimeout(()=>night.classList.remove("show"),900);
   });
-});
-
-document.getElementById("board")?.addEventListener("click",(event)=>{
-  if(bypass) return;
-  const button=event.target.closest("button[data-board-index]"); if(!button) return;
-  const rt=runtime(); const index=Number(button.dataset.boardIndex);
-  if(rt?.variables?.mapless?.board_events?.[index]?.kind!=="next_day") return;
-  event.preventDefault(); event.stopImmediatePropagation(); openCamp(button,index);
 });
