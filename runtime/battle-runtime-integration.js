@@ -18,15 +18,23 @@ export function reflectBattleCoreHpToPokemonRuntime(runtime, turnResult, actionI
   return updatePokemonRuntime(runtime, { hp: Number(matches.at(-1).hpAfter) });
 }
 
-export function reflectBattleCoreBattlerHpToPokemonRuntime(runtime, turnResult, battlerIndex) {
+export function reflectBattleCoreBattlerHpToPokemonRuntime(runtime, turnResult, battlerIndex, fallbackActionIndex = null) {
   const operations = Array.isArray(turnResult?.operations) ? turnResult.operations : [];
   const index = Number(battlerIndex);
   const matches = operations.filter((entry) =>
     (entry.op === "reduce_hp" && Number(entry.targetBattlerIndex) === index) ||
     (entry.op === "reduce_self_hp" && Number(entry.battlerIndex) === index)
   );
-  if (matches.length === 0) return updatePokemonRuntime(runtime, {});
-  return updatePokemonRuntime(runtime, { hp: Number(matches.at(-1).hpAfter) });
+  if (matches.length > 0) return updatePokemonRuntime(runtime, { hp: Number(matches.at(-1).hpAfter) });
+
+  // Some canonical damage operations identify the hit by action index only. In that
+  // shape, requiring targetBattlerIndex silently drops the HP commit and the next
+  // browser round starts again from the pre-hit HP. Fall back to the owning action
+  // index so multi-turn Safari battles carry resolved damage forward.
+  if (fallbackActionIndex !== null && fallbackActionIndex !== undefined) {
+    return reflectBattleCoreHpToPokemonRuntime(runtime, turnResult, fallbackActionIndex);
+  }
+  return updatePokemonRuntime(runtime, {});
 }
 
 export function reflectBattleCoreTryUseMoveHpToPokemonRuntime(runtime, preparedBattleInput, actionIndex) {
@@ -64,7 +72,13 @@ export function commitBattleRuntimePokemonRound({
   const ppCommitted = commitBattleSystemsPpRuntime({ battleInput: ppInput, turn, pokemon });
   let pokemonAfter;
   if (reflectedBattlerIndex !== null && reflectedBattlerIndex !== undefined) {
-    pokemonAfter = reflectBattleCoreBattlerHpToPokemonRuntime(ppCommitted.pokemon, turn, reflectedBattlerIndex);
+    const hpReflected = reflectBattleCoreBattlerHpToPokemonRuntime(
+      ppCommitted.pokemon,
+      turn,
+      reflectedBattlerIndex,
+      reflectedActionIndex,
+    );
+    pokemonAfter = reflectBattleCoreTryUseMoveHpToPokemonRuntime(hpReflected, battleInput, reflectedTryUseMoveActionIndex);
   } else {
     const hpReflected = reflectBattleCoreHpToPokemonRuntime(ppCommitted.pokemon, turn, reflectedActionIndex);
     pokemonAfter = reflectBattleCoreTryUseMoveHpToPokemonRuntime(hpReflected, battleInput, reflectedTryUseMoveActionIndex);
