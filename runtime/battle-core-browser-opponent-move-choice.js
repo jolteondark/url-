@@ -27,6 +27,20 @@ function requireMoveResolution(resolution, legal) {
   return { ...resolution, moveId: selected.moveId };
 }
 
+function struggleResolution(foe) {
+  const moves = Array.isArray(foe?.moves) ? foe.moves : [];
+  if (!moves.length) throw new RangeError('opponent has no moves');
+  return {
+    command: 'struggle',
+    reason: 'all_moves_out_of_pp',
+    moveIndex: 0,
+    moveId: 'STRUGGLE',
+    choices: [],
+    weightedChoices: [],
+    randomRolls: [],
+  };
+}
+
 export function resolveBrowserOpponentMoveChoiceCanonical({
   battleKind = 'wild',
   player,
@@ -45,9 +59,7 @@ export function resolveBrowserOpponentMoveChoiceCanonical({
   badMoveSwitchPartyIndex = -1,
 } = {}) {
   const legal = legalMoveEntries(foe, moveMasters);
-  if (!legal.length) {
-    throw new RangeError('opponent has no PP-bearing move; Struggle command composition is not connected here yet');
-  }
+  if (!legal.length) return struggleResolution(foe);
 
   if (String(battleKind).toLowerCase() !== 'trainer') {
     const resolution = resolveEnemyMoveChoiceCanonical({
