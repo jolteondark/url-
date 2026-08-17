@@ -54,6 +54,7 @@ async function loadPreviewApp(boardIndex) {
   if (!appPromise) appPromise = import("./preview-app.js");
   try {
     await appPromise;
+    await import("./preview-board-start-bridge.js");
     document.removeEventListener("click", interceptBoot, true);
     window.dispatchEvent(new CustomEvent("safari-preview-start", {
       detail: { action: selectedAction, boardIndex },
