@@ -1,5 +1,5 @@
 import { applySafariBoundaryTrialEntry, applySafariCampRecovery, prepareSafariCampNextDay } from "./runtime/safari-camp-next-day-command.js";
-import { saveSafariPlayableRun } from "./runtime/safari-web-playable-integration.js";
+import { activateSafariDayBoardCell, saveSafariPlayableRun } from "./runtime/safari-web-playable-integration.js";
 
 const style = document.createElement("style");
 style.textContent = `
@@ -21,6 +21,11 @@ const byId = (id) => document.getElementById(id);
 function runtime(){return globalThis.__maplessSafariRuntime ?? null;}
 function pokemonId(p,index){return p?.personal_id ?? p?.id ?? p?.uuid ?? index;}
 function pokemonLabel(p,index){return p?.name ?? p?.species_name ?? p?.species ?? `Pokemon ${index+1}`;}
+function boardEventForButton(button){
+  const index=Number(button?.dataset?.boardIndex);
+  if(!Number.isInteger(index)) return null;
+  return runtime()?.variables?.mapless?.board_events?.[index] ?? null;
+}
 
 function openCamp(button,index){
   const rt=runtime(); if(!rt) return;
@@ -38,6 +43,13 @@ export function openSafariCamp(button,index){
   openCamp(button,index);
 }
 
+document.addEventListener("click",(event)=>{
+  const button=event.target.closest("#board button[data-board-index]");
+  if(!button || boardEventForButton(button)?.kind!=="next_day") return;
+  event.stopPropagation();
+  openCamp(button,Number(button.dataset.boardIndex));
+},{capture:true});
+
 byId("camp-cancel").addEventListener("click",()=>{backdrop.hidden=true;pendingButton=null;});
 byId("camp-confirm").addEventListener("click",async()=>{
   const button=pendingButton; if(!button) return;
@@ -47,7 +59,6 @@ byId("camp-confirm").addEventListener("click",async()=>{
   const boundaryEntry=applySafariBoundaryTrialEntry(rt,owner);
   backdrop.hidden=true; pendingButton=null;
   if(!boundaryEntry.entered){
-    const { activateSafariDayBoardCell }=await import("./runtime/safari-web-playable-integration.js");
     await activateSafariDayBoardCell(rt,index);
   }
   window.dispatchEvent(new CustomEvent("safari-runtime-changed"));

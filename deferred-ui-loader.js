@@ -27,10 +27,6 @@ async function loadBoardPresentation() {
   return loadModule("./game-presentation.js");
 }
 
-async function loadCampPresentation() {
-  return loadModule("./camp-presentation.js");
-}
-
 async function loadBattleUi() {
   // Core battle safety is battle-scene-only; do not make initial page paint wait
   // for it. The core battle DOM/CSS already renders HP, moves, capture and flee.
@@ -54,12 +50,6 @@ async function loadMenuUi() {
     loadModule("./species-form-metadata-bridge.js"),
     loadModule("./species-sprite-atlas-bridge.js"),
   ]);
-}
-
-function boardEventForButton(button) {
-  const index = Number(button?.dataset?.boardIndex);
-  if (!Number.isInteger(index)) return null;
-  return globalThis.__maplessSafariRuntime?.variables?.mapless?.board_events?.[index] ?? null;
 }
 
 function syncSceneBundles() {
@@ -94,20 +84,8 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  const button = event.target.closest("#board button[data-board-index]");
-  if (button && boardEventForButton(button)?.kind === "next_day") {
-    // Camp carries Pokemon Runtime + boundary preparation. Keep it completely
-    // off wild/trainer/shop/normal-event clicks. Capture this one interaction
-    // so the first next_day click cannot race the dynamic module import.
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    const index = Number(button.dataset.boardIndex);
-    loadCampPresentation().then((camp) => camp?.openSafariCamp?.(button, index));
-    return;
-  }
-
   scheduleSceneBundleSync();
-}, { capture: true });
+});
 
 window.addEventListener("pageshow", scheduleSceneBundleSync, { passive: true });
 window.addEventListener("safari-runtime-changed", scheduleSceneBundleSync, { passive: true });
