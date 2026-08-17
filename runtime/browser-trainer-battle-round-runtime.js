@@ -14,7 +14,13 @@ export function resolveBrowserTrainerBattleRound({
   playerPartyOrder = null,
   playerIdxBattler = 0,
 } = {}) {
-  const round = resolveBrowserBattleRound(roundInput);
+  const preparedRoundInput = {
+    ...roundInput,
+    reflectedPartyIndex: roundInput.reflectedPartyIndex
+      ?? roundInput.playerActivePartyIndex
+      ?? 0,
+  };
+  const round = resolveBrowserBattleRound(preparedRoundInput);
   const foeContinuation = resolveBrowserTrainerReplacementContinuation({
     battleContinuationHandoff: round.battleContinuationHandoff,
     replacementDecisionInput,
