@@ -85,7 +85,7 @@ function setCombatLoadingNotice(text) {
 
 // A click gate is cheaper and safer on iPhone Safari than loading the entire
 // 875-species/608-move projection on preview bootstrap. No DOM subtree observer
-// is involved: only actual combat entry/resume clicks can wake this path.
+// is involved: only an actual combat/wounded-event entry can wake this path.
 document.addEventListener("click", async (event) => {
   const target = event.target instanceof Element ? event.target : null;
   if (!target) return;
@@ -106,9 +106,14 @@ document.addEventListener("click", async (event) => {
   let mode = null;
   if (boardButton) {
     const index = Number(boardButton.dataset.boardIndex);
-    const kind = state.board_events?.[index]?.kind;
-    if (kind !== "wild" && kind !== "trainer") return;
-    mode = "combat";
+    const boardEvent = state.board_events?.[index];
+    if (boardEvent?.kind === "wild" || boardEvent?.kind === "trainer") {
+      mode = "combat";
+    } else if (boardEvent?.kind === "normal_event" && boardEvent?.normal_event_id === "wounded_pokemon") {
+      mode = "masters";
+    } else {
+      return;
+    }
   } else {
     if (!battleNeedsGeneralData(state.battle)) return;
     mode = "masters";
@@ -120,7 +125,7 @@ document.addEventListener("click", async (event) => {
   event.stopImmediatePropagation();
   const disabledBefore = button.disabled;
   button.disabled = true;
-  setCombatLoadingNotice("戦闘データを読み込んでいます…");
+  setCombatLoadingNotice(mode === "combat" ? "戦闘データを読み込んでいます…" : "ポケモンデータを読み込んでいます…");
   try {
     const demand = await import("./runtime/safari-general-data-demand.js");
     if (mode === "combat") {
@@ -133,8 +138,8 @@ document.addEventListener("click", async (event) => {
     button.click();
   } catch (error) {
     button.disabled = disabledBefore;
-    setCombatLoadingNotice("戦闘データの読み込みに失敗しました。もう一度お試しください。");
-    console.error("[Mapless] combat data demand load failed", error);
+    setCombatLoadingNotice("データの読み込みに失敗しました。もう一度お試しください。");
+    console.error("[Mapless] demand load failed", error);
   }
 }, { capture: true });
 
