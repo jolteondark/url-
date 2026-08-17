@@ -5,24 +5,25 @@ const loader = await readFile(new URL("../runtime/safari-general-encounter-data-
 const demand = await readFile(new URL("../runtime/safari-general-data-demand.js", import.meta.url), "utf8");
 const deferred = await readFile(new URL("../deferred-ui-loader.js", import.meta.url), "utf8");
 
-assert.doesNotMatch(loader, /fetchEncodedChunk/);
-assert.doesNotMatch(loader, /fetch\(chunkUrl/);
-assert.match(loader, /const BROWSER_IMPORT_BATCH = 4/);
 assert.match(loader, /function withTimeout/);
-assert.match(loader, /CHUNK_LOADERS\.slice\(start, end\)/);
-assert.match(loader, /safari-general-load-progress/);
+assert.match(loader, /new DecompressionStream\("deflate"\)/);
 assert.match(loader, /Safari GENERAL decompression/);
+assert.match(loader, /safari-general-encounter-data-v2-00\.js/);
+assert.match(loader, /safari-general-encounter-data-v2-19\.js/);
+assert.doesNotMatch(loader, /fetch\(/, "GENERAL generated chunks must not be refetched as source text");
 
-assert.match(demand, /const DATA_IMPORT_TIMEOUT_MS = 60_000/);
-assert.match(demand, /const COMBAT_IMPORT_TIMEOUT_MS = 20_000/);
-assert.match(demand, /Safari GENERAL data import/);
-assert.match(demand, /Safari GENERAL combat modules/);
-assert.match(demand, /loading = null/);
-assert.match(demand, /combatLoading = null/);
+assert.match(demand, /let encounterLoading = null/);
+assert.match(demand, /let trainerLoading = null/);
+assert.match(demand, /loadEncounterRuntime/);
+assert.match(demand, /loadTrainerGenerator/);
+assert.match(demand, /safariGeneralCombatReady\(kind = null\)/);
+assert.match(demand, /ensureSafariGeneralCombatData\(kind = null\)/);
+assert.doesNotMatch(
+  demand,
+  /Promise\.all\(\[\s*import\("\.\/safari-general-encounter-runtime\.js"\),\s*import\("\.\/mapless-dynamic-trainer-generator\.js"\)/s,
+  "wild and trainer combat imports must not be one all-or-nothing Promise.all gate",
+);
 
-assert.match(deferred, /safari-general-load-progress/);
-assert.match(deferred, /activeGeneralLoadLabel/);
-assert.match(deferred, /loaded > 0 && total > 0/);
-assert.match(deferred, /データの読み込みに失敗しました/);
+assert.doesNotMatch(deferred, /safari-general-data-demand\.js/, "presentation loader must not own combat data demand");
 
-console.log("Safari GENERAL browser loader finite smoke: ok");
+console.log("Safari GENERAL finite combat-demand smoke: ok");

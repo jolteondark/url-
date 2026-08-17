@@ -6,12 +6,17 @@ const source = fs.readFileSync(
   "utf8",
 );
 
-assert.match(source, /const CHUNK_PATHS = Object\.freeze/, "GENERAL chunks should have one data path manifest");
-assert.match(source, /async function loadEncodedChunks\(\)/, "GENERAL chunks should use one module-loading path");
-assert.match(source, /import\(new URL\(path, import\.meta\.url\)\.href\)/, "generated chunks should be loaded through the browser module loader");
-assert.doesNotMatch(source, /fetch\(/, "GENERAL loader should not refetch JavaScript modules as text");
-assert.doesNotMatch(source, /encodedChunkFromModuleSource/, "GENERAL loader should not parse export-default source strings");
-assert.doesNotMatch(source, /loadBrowserEncodedChunks|loadNodeEncodedChunks/, "browser and Node should not maintain duplicate chunk adapters");
-assert.doesNotMatch(source, /const CHUNK_LOADERS = \[/, "GENERAL loader must not maintain twenty hand-written module loader functions");
+const chunkImports = [...source.matchAll(/from "\.\/generated\/safari-general-encounter-data-v2-(\d{2})\.js"/g)];
+assert.equal(chunkImports.length, 20, "GENERAL loader must reference all 20 generated canonical payload chunks");
+assert.deepEqual(
+  chunkImports.map((match) => match[1]),
+  Array.from({ length: 20 }, (_, index) => String(index).padStart(2, "0")),
+  "GENERAL chunk imports must remain contiguous from 00 through 19",
+);
+assert.doesNotMatch(source, /fetch\(/, "GENERAL loader must not refetch JavaScript modules as text");
+assert.doesNotMatch(source, /encodedChunkFromModuleSource/, "GENERAL loader must not parse export-default source strings");
+assert.doesNotMatch(source, /import\(new URL\(path, import\.meta\.url\)\.href\)/, "generated payload imports are already explicit and must not have a second runtime import path");
+assert.match(source, /const encoded = \[/);
+assert.match(source, /new DecompressionStream\("deflate"\)/);
 
-console.log("Safari GENERAL module loader demolition smoke: ok");
+console.log("Safari GENERAL current import-graph smoke: ok");
