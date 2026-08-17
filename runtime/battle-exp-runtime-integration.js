@@ -35,9 +35,9 @@ export function commitBattleSystemsExpRuntime({ battleInput = {}, turn = {}, pok
         exp: Number(flow.pokemon.exp),
         level: Number(flow.pokemon.level),
         moves: structuredClone(flow.pokemon.moves),
+        operations: structuredClone(flow.operations ?? []),
       });
     }
   }
   return { pokemon: runtime, commits };
 }
-
