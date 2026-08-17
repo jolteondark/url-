@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { safariGeneralMoveAiFacts } from '../runtime/safari-general-move-ai-facts.js';
+import { safariGeneralMoveAiFacts } from '../runtime/safari-general-encounter-data-loader.js';
 import { SAFARI_MOVE_MASTERS } from '../runtime/safari-playable-data.js';
 import { buildTrainerMoveChoicesFromBattleStateCanonical } from '../runtime/battle-core-trainer-choice-pipeline.js';
 
