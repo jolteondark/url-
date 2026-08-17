@@ -44,10 +44,6 @@ export async function activateSafariDayBoardCell(runtime, index) {
   const event = state.board_events?.[index];
   if (event?.kind === "wild" || event?.kind === "trainer") {
     try {
-      // A visible Battle command must already have its round runtime available.
-      // Previously the first move tap performed this full import, which left an
-      // apparently enabled move button waiting on a large module graph in Safari.
-      await full();
       const { activateSafariWebCombatCell } = await import("./safari-web-combat-start.js");
       return await activateSafariWebCombatCell(runtime, index);
     } catch (error) {
