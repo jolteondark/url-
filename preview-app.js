@@ -19,27 +19,25 @@ import {
   saveSafariPlayableRun,
   setSafariPartyLead,
   startSafariVillageBounty,
-} from "./runtime/safari-playable-integration.js";
-import { attemptSafariFlee } from "./runtime/safari-flee-command.js";
+} from "./runtime/safari-web-playable-integration.js";
 import {
   ensureSafariGeneralCombatData,
   ensureSafariGeneralData,
   safariGeneralCombatReady,
   safariGeneralDataReady,
 } from "./runtime/safari-general-data-demand.js";
-import {
-  leaveSafariVillageFixedShop,
-  openSafariVillageFixedShop,
-  purchaseSafariVillageFixedShopItem,
-} from "./runtime/safari-village-fixed-shop-integration.js";
 
 let runtime = createSafariPlayableRuntime();
 let busy = false;
 let logLines = ["real domain縦線を開始しました。"];
+let fixedShopModulePromise = null;
+let fleeModulePromise = null;
 const byId = (id) => document.getElementById(id);
 const sleep = (milliseconds) => new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 const moveId = (move) => typeof move === "string" ? move : move.id;
 const moneyFormat = new Intl.NumberFormat("ja-JP");
+const fixedShopModule = () => fixedShopModulePromise ??= import("./runtime/safari-village-fixed-shop-integration.js");
+const fleeModule = () => fleeModulePromise ??= import("./runtime/safari-flee-command.js");
 
 function mapless() {
   return runtime.variables.mapless;
@@ -301,7 +299,7 @@ byId("board").addEventListener("click", async (event) => {
   render();
   try {
     await ensureBoardActionData(index);
-    const result = activateSafariDayBoardCell(runtime, index);
+    const result = await activateSafariDayBoardCell(runtime, index);
     note(result.boundary + ": " + result.result);
     if (mapless().battle) {
       window.setTimeout(() => byId("battle-card").scrollIntoView({ behavior: "smooth", block: "start" }), 0);
@@ -316,10 +314,10 @@ byId("board").addEventListener("click", async (event) => {
   }
 });
 
-byId("enter-village").addEventListener("click", () => {
+byId("enter-village").addEventListener("click", async () => {
   if (busy) return;
   try {
-    const result = enterSafariVillage(runtime);
+    const result = await enterSafariVillage(runtime);
     note("Village: " + result.result);
   } catch (error) {
     note("Village entry error: " + (error?.message ?? error));
@@ -328,11 +326,12 @@ byId("enter-village").addEventListener("click", () => {
   byId("village-card").scrollIntoView({ behavior: "smooth", block: "start" });
 });
 
-byId("village-shop-open")?.addEventListener("click", () => {
+byId("village-shop-open")?.addEventListener("click", async () => {
   if (busy) return;
   busy = true;
   render();
   try {
+    const { openSafariVillageFixedShop } = await fixedShopModule();
     const result = openSafariVillageFixedShop(runtime, byId("village-shop-select").value);
     note("Village shop: " + result.shop.facility_id);
   } catch (error) {
@@ -344,12 +343,12 @@ byId("village-shop-open")?.addEventListener("click", () => {
   if (mapless().shop) byId("shop-card").scrollIntoView({ behavior: "smooth", block: "start" });
 });
 
-byId("bounty-accept").addEventListener("click", () => {
+byId("bounty-accept").addEventListener("click", async () => {
   if (busy) return;
   busy = true;
   render();
   try {
-    const result = acceptSafariVillageBounty(runtime, { choice: 0, confirmed: true });
+    const result = await acceptSafariVillageBounty(runtime, { choice: 0, confirmed: true });
     note("Bounty accept: " + result.accepted);
     autoSaveIfRequested(result, "Bounty acceptance auto-save");
   } catch (error) {
@@ -360,12 +359,12 @@ byId("bounty-accept").addEventListener("click", () => {
   }
 });
 
-byId("bounty-depart").addEventListener("click", () => {
+byId("bounty-depart").addEventListener("click", async () => {
   if (busy) return;
   busy = true;
   render();
   try {
-    const result = startSafariVillageBounty(runtime);
+    const result = await startSafariVillageBounty(runtime);
     note("Bounty depart: " + result.result);
   } catch (error) {
     note("Bounty depart error: " + (error?.message ?? error));
@@ -376,10 +375,10 @@ byId("bounty-depart").addEventListener("click", () => {
   if (mapless().battle) byId("battle-card").scrollIntoView({ behavior: "smooth", block: "start" });
 });
 
-byId("leave-village").addEventListener("click", () => {
+byId("leave-village").addEventListener("click", async () => {
   if (busy) return;
   try {
-    const result = leaveSafariVillage(runtime);
+    const result = await leaveSafariVillage(runtime);
     note("Village: " + result.result);
   } catch (error) {
     note("Village return error: " + (error?.message ?? error));
@@ -388,7 +387,7 @@ byId("leave-village").addEventListener("click", () => {
   byId("board-card").scrollIntoView({ behavior: "smooth", block: "start" });
 });
 
-byId("shop-confirm").addEventListener("click", () => {
+byId("shop-confirm").addEventListener("click", async () => {
   if (busy) return;
   const itemId = byId("shop-item").value;
   const quantity = Number(byId("shop-quantity").value);
@@ -396,9 +395,13 @@ byId("shop-confirm").addEventListener("click", () => {
   busy = true;
   render();
   try {
-    const result = villageShop
-      ? purchaseSafariVillageFixedShopItem(runtime, { itemId, quantity })
-      : purchaseSafariShopItem(runtime, { itemId, quantity, confirmed: true });
+    let result;
+    if (villageShop) {
+      const { purchaseSafariVillageFixedShopItem } = await fixedShopModule();
+      result = purchaseSafariVillageFixedShopItem(runtime, { itemId, quantity });
+    } else {
+      result = await purchaseSafariShopItem(runtime, { itemId, quantity, confirmed: true });
+    }
     note("Shop transaction: " + result.transaction_result);
     autoSaveIfRequested(result, "Shop transaction auto-save");
   } catch (error) {
@@ -410,11 +413,17 @@ byId("shop-confirm").addEventListener("click", () => {
   if (!mapless().shop) byId(villageShop ? "village-card" : "board-card").scrollIntoView({ behavior: "smooth", block: "start" });
 });
 
-byId("shop-cancel").addEventListener("click", () => {
+byId("shop-cancel").addEventListener("click", async () => {
   if (busy) return;
   const villageShop = Boolean(mapless().shop?.village_fixed_shop);
   try {
-    const result = villageShop ? leaveSafariVillageFixedShop(runtime) : leaveSafariShop(runtime);
+    let result;
+    if (villageShop) {
+      const { leaveSafariVillageFixedShop } = await fixedShopModule();
+      result = leaveSafariVillageFixedShop(runtime);
+    } else {
+      result = await leaveSafariShop(runtime);
+    }
     note("Shop: " + result.result);
   } catch (error) {
     note("Shop return error: " + (error?.message ?? error));
@@ -445,7 +454,7 @@ byId("capture").addEventListener("click", async () => {
   busy = true;
   render();
   try {
-    const result = attemptSafariCapture(runtime);
+    const result = await attemptSafariCapture(runtime);
     await playPresentation(result.presentation);
     note("捕獲先: " + result.destination);
     autoSaveIfRequested(result, "Capture result auto-save");
@@ -457,12 +466,13 @@ byId("capture").addEventListener("click", async () => {
   }
 });
 
-byId("flee").addEventListener("click", () => {
+byId("flee").addEventListener("click", async () => {
   if (busy) return;
   busy = true;
   render();
   let escaped = false;
   try {
+    const { attemptSafariFlee } = await fleeModule();
     const result = attemptSafariFlee(runtime);
     escaped = result.escaped;
     note(result.escaped ? "Battle: escaped" : "Battle: escape blocked");
@@ -476,10 +486,10 @@ byId("flee").addEventListener("click", () => {
   if (escaped) byId("board-card").scrollIntoView({ behavior: "smooth", block: "start" });
 });
 
-byId("return-board").addEventListener("click", () => {
+byId("return-board").addEventListener("click", async () => {
   let target = "day_board";
   try {
-    const result = returnSafariToDayBoard(runtime);
+    const result = await returnSafariToDayBoard(runtime);
     target = result.target;
     note((target === "village" ? "Village" : "Day Board") + " return / decision " + result.summary.decision);
   } catch (error) {
@@ -545,10 +555,10 @@ window.addEventListener("safari-preview-start", (event) => {
   }
 });
 
-window.addEventListener("safari-party-lead-request", (event) => {
+window.addEventListener("safari-party-lead-request", async (event) => {
   if (busy) return;
   try {
-    const result = setSafariPartyLead(runtime, Number(event.detail?.index));
+    const result = await setSafariPartyLead(runtime, Number(event.detail?.index));
     const saved = saveSafariPlayableRun(window.localStorage, runtime);
     note(`${result.notice} / auto-save: ${saved.key}`);
   } catch (error) {
