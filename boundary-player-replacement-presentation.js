@@ -76,7 +76,11 @@ function syncActivePlayerChrome(runtime, battle, presentation) {
   const moves = byId("moves");
   if (!moves) return;
   const fingerprint = `${index}|${(player.moves ?? []).map((move) => `${moveId(move)}:${typeof move === "string" ? "s" : Number(move?.pp ?? 0)}`).join("|")}`;
-  if (moves.dataset.boundaryPlayerFingerprint === fingerprint) return;
+  const currentButtons = [...moves.querySelectorAll("button[data-move-id]")];
+  const alreadySynced = moves.dataset.boundaryPlayerFingerprint === fingerprint
+    && currentButtons.length > 0
+    && currentButtons.every((button) => button.dataset.boundaryPlayerIndex === String(index));
+  if (alreadySynced) return;
   const buttons = (player.moves ?? []).map((move) => {
     const id = moveId(move);
     const details = presentation?.[id];
@@ -85,6 +89,7 @@ function syncActivePlayerChrome(runtime, battle, presentation) {
     const button = document.createElement("button");
     button.type = "button";
     button.dataset.moveId = id;
+    button.dataset.boundaryPlayerIndex = String(index);
     button.disabled = choosing || pp <= 0 || Boolean(battle.player_replacement_required);
     const title = document.createElement("strong");
     title.textContent = details.name;
