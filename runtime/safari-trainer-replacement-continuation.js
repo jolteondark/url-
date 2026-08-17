@@ -42,6 +42,27 @@ function legacyPreappliedReplacement(result, battle) {
   return { priorActivePartyIndex, nextPartyIndex };
 }
 
+function playerFallbackState(battle, runtime) {
+  const playerParty = clone(runtime?.player?.party ?? []);
+  const requestedIndex = Number(battle?.player_party_index ?? 0);
+  const playerActivePartyIndex = Number.isInteger(requestedIndex)
+    && requestedIndex >= 0
+    && requestedIndex < playerParty.length
+    ? requestedIndex
+    : 0;
+  const playerActiveFainted = Boolean(playerParty[playerActivePartyIndex])
+    && Number(playerParty[playerActivePartyIndex]?.hp ?? 0) <= 0;
+  const playerReplacementRequired = playerActiveFainted
+    && playerParty.some((pokemon, index) =>
+      index !== playerActivePartyIndex && Number(pokemon?.hp ?? 0) > 0);
+  return {
+    playerParty,
+    playerActivePartyIndex,
+    playerActiveFainted,
+    playerReplacementRequired,
+  };
+}
+
 function ownerHandoff(result, battle, runtime) {
   const exact = result?.battleContinuationHandoff;
   if (exact?.foeReplacementRequired && Array.isArray(exact.foeParty)) return clone(exact);
@@ -50,13 +71,15 @@ function ownerHandoff(result, battle, runtime) {
   const party = clone(battle.trainer_party);
   const activeIndex = preapplied?.priorActivePartyIndex ?? Number(battle.trainer_party_index);
   if (party[activeIndex]) party[activeIndex] = { ...party[activeIndex], hp: 0, fainted: true };
+  const player = playerFallbackState(battle, runtime);
   return {
     decision: 0,
-    playerParty: clone(runtime?.player?.party ?? []),
+    playerParty: player.playerParty,
     foeParty: party,
-    playerActivePartyIndex: 0,
+    playerActivePartyIndex: player.playerActivePartyIndex,
     foeActivePartyIndex: activeIndex,
-    playerReplacementRequired: false,
+    playerActiveFainted: player.playerActiveFainted,
+    playerReplacementRequired: player.playerReplacementRequired,
     foeReplacementRequired: true,
   };
 }
