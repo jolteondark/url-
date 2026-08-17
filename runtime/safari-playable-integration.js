@@ -2,7 +2,6 @@ import * as playable from "./safari-playable-integration-boundary-return.js";
 import { resolveTrainerMoveChoiceWithPriorityFlinchCanonical } from "./battle-core-trainer-choice-priority-flinch-integration.js";
 import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
 import { ensureSafariGeneralData, safariGeneralDataReady } from "./safari-general-data-demand.js";
-import { stabilizeSafariKoPresentation } from "./safari-ko-presentation-safety.js";
 
 export * from "./safari-playable-integration-boundary-return.js";
 export { SAFARI_MOVE_PRESENTATION } from "./safari-move-presentation-live.js";
@@ -168,10 +167,28 @@ function notifySafariRuntimeChanged() {
   queueMicrotask(() => window.dispatchEvent(new CustomEvent("safari-runtime-changed")));
 }
 
+function isKoRound(result = {}) {
+  if (Number(result?.decision ?? 0) > 0) return true;
+  if (result?.foeReplacementApplied === true || result?.replacementApplied === true) return true;
+  if (result?.trainerReplacementContinuation?.result === "continued_with_replacement") return true;
+  return (result?.operations ?? []).some((operation) =>
+    operation?.op === "faint"
+    || operation?.op === "faint_self"
+    || ((operation?.op === "reduce_hp" || operation?.op === "reduce_self_hp")
+      && Number(operation?.hpAfter) <= 0));
+}
+
 function finalizeSafariRoundPresentation(result) {
-  const stabilized = stabilizeSafariKoPresentation(result);
+  const resolved = isKoRound(result)
+    ? {
+        ...result,
+        presentation: (result.presentation ?? []).filter((event) =>
+          event?.type !== "move_started" && event?.type !== "damage_applied"),
+        safariKoPresentationImmediate: true,
+      }
+    : result;
   notifySafariRuntimeChanged();
-  return stabilized;
+  return resolved;
 }
 
 function finishRound(runtime, result, battleKind, preparedBoundary) {
