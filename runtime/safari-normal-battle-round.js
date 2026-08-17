@@ -129,8 +129,10 @@ function resolveTrainer(runtime, selectedMoveId) {
 function resolveWild(runtime, selectedMoveId) {
   const state = stateOf(runtime);
   const battle = state.battle;
-  const player = runtime.player.party[0];
+  const playerIndex = Number(battle.player_party_index ?? 0);
+  const player = runtime.player.party[playerIndex];
   if (!player) throw new Error("active player Pokemon is required");
+  const defeatedFoe = structuredClone(battle.foe);
   const choice = resolveBrowserOpponentMoveChoiceCanonical({
     battleKind: "wild",
     player,
@@ -140,7 +142,7 @@ function resolveWild(runtime, selectedMoveId) {
     trainerSkill: 0,
     trainerFlags: [],
     ownReserveCount: 0,
-    foeReserveCount: reserveCount(runtime.player.party, 0),
+    foeReserveCount: reserveCount(runtime.player.party, playerIndex),
     mechanicsGeneration: 9,
     turnCount: Math.max(0, Number(battle.turn ?? 1) - 1),
     canSwitchLax: false,
@@ -151,18 +153,25 @@ function resolveWild(runtime, selectedMoveId) {
     foe: battle.foe,
     playerParty: runtime.player.party,
     foeParty: [battle.foe],
-    playerActivePartyIndex: 0,
+    playerActivePartyIndex: playerIndex,
     foeActivePartyIndex: 0,
+    reflectedPartyIndex: playerIndex,
     selectedMoveId,
     foeMoveId,
     moveMasters: SAFARI_MOVE_MASTERS,
     playerRandomRoll: 0,
     foeRandomRoll: 0,
+    playerBattleExpInput: normalBattleExpInput(player, defeatedFoe, false),
   });
-  if (Array.isArray(resolved.battleContinuationHandoff?.playerParty)) runtime.player.party = structuredClone(resolved.battleContinuationHandoff.playerParty);
-  else runtime.player.party[0] = structuredClone(resolved.player);
+  const handoff = resolved.battleContinuationHandoff;
+  if (Array.isArray(handoff?.playerParty)) runtime.player.party = structuredClone(handoff.playerParty);
+  else runtime.player.party[playerIndex] = structuredClone(resolved.player);
+  battle.player_party_index = Number(handoff?.playerActivePartyIndex ?? playerIndex);
+  battle.player_party_order = structuredClone(handoff?.playerPartyOrder ?? battle.player_party_order ?? null);
   battle.foe = structuredClone(resolved.foe);
   battle.decision = Number(resolved.decision);
+  const roundExpGained = (resolved.expIntegration?.commits ?? []).reduce((sum, commit) => sum + Number(commit.expGained ?? 0), 0);
+  if (battle.decision === 1) battle.exp_gained = roundExpGained;
   const turn = battle.turn;
   battle.turn += 1;
   const operations = (resolved.operations ?? []).map((operation) => ({ ...operation, battleTurn: turn }));
