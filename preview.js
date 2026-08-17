@@ -63,8 +63,8 @@ async function activateInitialBoardChoice(index) {
   const state = runtime?.variables?.mapless;
   if (!state) throw new Error("Safari runtime unavailable after preview start");
   const cell = state.board_events?.[index];
-  if ((cell?.kind === "wild" || cell?.kind === "trainer") && !general.safariGeneralCombatReady()) {
-    await general.ensureSafariGeneralCombatData();
+  if ((cell?.kind === "wild" || cell?.kind === "trainer") && !general.safariGeneralCombatReady(cell.kind)) {
+    await general.ensureSafariGeneralCombatData(cell.kind);
   } else if (cell?.kind === "normal_event" && cell.normal_event_id === "wounded_pokemon" && !general.safariGeneralDataReady()) {
     await general.ensureSafariGeneralData();
   }
@@ -88,7 +88,8 @@ async function loadPreviewApp(boardIndex) {
   } catch (error) {
     loading = false;
     appPromise = null;
-    notice("ゲームの読み込みに失敗しました。もう一度お試しください。");
+    globalThis.__maplessLastError = error;
+    notice("ゲームの読み込みに失敗しました: " + (error?.message ?? error));
     console.error("[Mapless] preview app load failed", error);
   }
 }

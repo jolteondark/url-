@@ -74,6 +74,7 @@ function loadTrainerGenerator() {
 
 export function safariGeneralCombatReady(kind = null) {
   const normalized = normalizeCombatKind(kind);
+  if (!safariGeneralMastersInstalled()) return false;
   if (normalized === "wild") return encounterRuntime !== null;
   if (normalized === "trainer") return trainerGenerator !== null;
   return encounterRuntime !== null && trainerGenerator !== null;
@@ -84,8 +85,13 @@ export async function ensureSafariGeneralCombatData(kind = null) {
   const needEncounter = normalized === "both" || normalized === "wild";
   const needTrainer = normalized === "both" || normalized === "trainer";
   const wasReady = safariGeneralCombatReady(normalized);
-  const tasks = [];
 
+  // Battle materialization consumes SAFARI_SPECIES_MASTERS / SAFARI_MOVE_MASTERS.
+  // A loaded encounter/trainer module alone is therefore not combat-ready.
+  // Install the canonical GENERAL masters before allowing combat-start to run.
+  await ensureSafariGeneralData();
+
+  const tasks = [];
   if (needEncounter && !encounterRuntime) {
     tasks.push(loadEncounterRuntime().then(
       () => ({ kind: "wild", ok: true }),
@@ -102,9 +108,6 @@ export async function ensureSafariGeneralCombatData(kind = null) {
   const results = await Promise.all(tasks);
   if (!safariGeneralCombatReady(normalized)) {
     const failure = results.find((entry) => !entry.ok && (normalized === "both" || entry.kind === normalized));
-    // For the legacy no-argument preload, one healthy combat path is enough to
-    // continue to the event-specific combat-start owner. This prevents an
-    // unrelated trainer import from blocking a wild cell (and vice versa).
     if (normalized !== "both" || (!encounterRuntime && !trainerGenerator)) {
       throw failure?.error ?? new Error(`Safari GENERAL ${normalized} combat module failed to load`);
     }
@@ -126,7 +129,4 @@ export function safariGeneralCombatModules(kind = null) {
   return { encounterRuntime, trainerGenerator };
 }
 
-// Existing Node smoke/integration tests call combat owners directly instead of
-// going through the browser click gate. Preserve that test contract without
-// reintroducing Safari startup cost.
 if (typeof window === "undefined") await ensureSafariGeneralCombatData();
