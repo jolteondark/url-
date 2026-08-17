@@ -35,14 +35,19 @@ function assertImmediateKoPresentation(result, expectedSemanticTypes) {
 }
 
 // Guard the architecture itself: intermediate trainer KO must never return to
-// the old finalize -> snapshot rollback -> synthetic next-slot compensation.
+// the old finalize -> snapshot rollback -> synthetic next-slot compensation,
+// and browser combat must consume Battle Runtime HP directly rather than replaying
+// presentation operations through a second HP projection owner.
 {
   const legacySource = fs.readFileSync(new URL("../runtime/safari-playable-integration-legacy.js", import.meta.url), "utf8");
   const publicSource = fs.readFileSync(new URL("../runtime/safari-playable-integration.js", import.meta.url), "utf8");
+  const roundSource = fs.readFileSync(new URL("../runtime/browser-battle-round-runtime.js", import.meta.url), "utf8");
   assert.doesNotMatch(legacySource, /snapshotRoundSideEffects|restoreIntermediateSideEffects/);
   assert.doesNotMatch(legacySource, /op:\s*["']trainer_send_next["']/);
   assert.match(legacySource, /resolveBrowserTrainerBattleRound/);
   assert.doesNotMatch(publicSource, /continueSafariTrainerAfterFirstKo/);
+  assert.doesNotMatch(roundSource, /projectBrowserBattleResolvedHp|browser-battle-round-hp-projection/);
+  assert.equal(fs.existsSync(new URL("../runtime/browser-battle-round-hp-projection.js", import.meta.url)), false);
 }
 
 // Wild terminal KO through the same AI facade selected by the public shell.
@@ -61,6 +66,7 @@ function assertImmediateKoPresentation(result, expectedSemanticTypes) {
   assert.equal(result.decision, 1);
   assert.equal(state.battle.completed, true);
   assert.equal(state.battle.foe.hp, 0);
+  assert.equal(Number(result.foe?.hp), 0, "public result must expose Battle Runtime-owned terminal foe HP");
   assertImmediateKoPresentation(result, ["faint", "battle_result"]);
 }
 
@@ -100,6 +106,8 @@ function assertImmediateKoPresentation(result, expectedSemanticTypes) {
   assert.equal(state.battle.trainer_party_index, 1);
   assert.equal(Number(state.battle.trainer_party[0].hp), 0);
   assert.ok(Number(state.battle.foe.hp) > 0, "replacement foe must remain able");
+  assert.equal(Number(firstKo.foe?.hp), Number(state.battle.foe.hp), "replacement HP must come from the owner state, not stale KO operations");
+  assert.equal(Number(firstKo.player?.hp), Number(runtime.player.party[state.battle.player_party_index ?? 0]?.hp), "player HP must stay identical across Battle Runtime and Safari state");
   assert.equal(firstKo.foeReplacementApplied === true || firstKo.replacementApplied === true, true);
   assert.ok(Number(runtime.player.party[0].exp ?? 0) > expBefore, "intermediate defeated trainer Pokemon must award EXP immediately");
   assert.equal(Number(runtime.bag.money), moneyBefore, "intermediate KO must not pay trainer prize");
@@ -117,6 +125,7 @@ function assertImmediateKoPresentation(result, expectedSemanticTypes) {
   assert.equal(finalKo.decision, 1);
   assert.equal(state.battle.completed, true);
   assert.equal(state.battle.trainer_party_index, 1);
+  assert.equal(Number(finalKo.player?.hp), Number(runtime.player.party[state.battle.player_party_index ?? 0]?.hp), "terminal player HP must be the same owner state persisted to Safari");
   assert.ok(Number(runtime.bag.money) >= moneyBefore, "final victory may pay the trainer prize exactly at terminal completion");
   assertImmediateKoPresentation(finalKo, ["faint", "battle_result"]);
 }
