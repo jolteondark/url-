@@ -103,28 +103,31 @@ document.addEventListener("click", async (event) => {
   const state = runtime?.variables?.mapless;
   if (!state) return;
 
-  let loader = null;
+  let mode = null;
   if (boardButton) {
     const index = Number(boardButton.dataset.boardIndex);
     const kind = state.board_events?.[index]?.kind;
     if (kind !== "wild" && kind !== "trainer") return;
-    const demand = await import("./runtime/safari-general-data-demand.js");
-    if (demand.safariGeneralCombatReady()) return;
-    loader = demand.ensureSafariGeneralCombatData;
+    mode = "combat";
   } else {
     if (!battleNeedsGeneralData(state.battle)) return;
-    const demand = await import("./runtime/safari-general-data-demand.js");
-    if (demand.safariGeneralDataReady()) return;
-    loader = demand.ensureSafariGeneralData;
+    mode = "masters";
   }
 
+  // Stop the original synchronous preview listener before the first await.
+  // Event propagation does not wait for async handlers on Safari.
   event.preventDefault();
   event.stopImmediatePropagation();
   const disabledBefore = button.disabled;
   button.disabled = true;
   setCombatLoadingNotice("戦闘データを読み込んでいます…");
   try {
-    await loader();
+    const demand = await import("./runtime/safari-general-data-demand.js");
+    if (mode === "combat") {
+      if (!demand.safariGeneralCombatReady()) await demand.ensureSafariGeneralCombatData();
+    } else if (!demand.safariGeneralDataReady()) {
+      await demand.ensureSafariGeneralData();
+    }
     button.disabled = disabledBefore;
     replayingCombatClicks.add(button);
     button.click();
