@@ -1,5 +1,6 @@
 import { resolveInlineCanonicalBattleSprite } from "./runtime/safari-canonical-battle-sprite-inline.js";
 import { resolveSafariCanonicalBugBattleSprite } from "./runtime/safari-canonical-battle-sprite-bug.js";
+import { resolveSafariCanonicalFileBattleSprite } from "./runtime/safari-canonical-battle-sprite-assets.js";
 
 let scheduled = false;
 const SIDES = [
@@ -31,6 +32,8 @@ function resolveCanonicalAsset({ species, form, battlerIndex }) {
   const inline = resolveInlineCanonicalBattleSprite({ species, form, battlerIndex });
   if (inline) return inline;
   const side = (battlerIndex & 1) === 0 ? "player" : "foe";
+  const fileBacked = resolveSafariCanonicalFileBattleSprite({ species, form, side });
+  if (fileBacked) return fileBacked;
   return resolveSafariCanonicalBugBattleSprite({ species, form, side });
 }
 
