@@ -35,6 +35,27 @@ assert.ok(state.battle.foe?.species, "cold Battle start must materialize a foe")
 assert.equal(globalThis.__maplessLastError, null,
   "a successful cold Battle start must clear stale startup errors");
 
+const generalTrace = globalThis.__maplessGeneralCombatTrace;
+assert.ok(Array.isArray(generalTrace) && generalTrace.length > 0,
+  "cold Battle start must retain GENERAL demand diagnostics for real-device failures");
+const generalStages = generalTrace.map((entry) => entry.stage);
+for (const requiredStage of [
+  "combat_demand_start",
+  "general_data_import_start",
+  "general_data_import_ready",
+  "general_masters_installed",
+  "combat_masters_ready",
+  "wild_module_import_start",
+  "wild_module_import_ready",
+  "combat_demand_ready",
+]) {
+  assert.ok(generalStages.includes(requiredStage), `missing GENERAL trace stage: ${requiredStage}`);
+}
+assert.ok(generalStages.indexOf("general_masters_installed") < generalStages.indexOf("wild_module_import_start"),
+  "canonical GENERAL masters must install before the selected wild runtime is admitted");
+assert.ok(generalStages.indexOf("wild_module_import_ready") < generalStages.indexOf("combat_demand_ready"),
+  "combat readiness must be published only after the selected wild runtime is ready");
+
 const combatSource = await readFile(new URL("../runtime/safari-web-combat-start.js", import.meta.url), "utf8");
 assert.match(combatSource, /await ensureSafariGeneralCombatData\(event\.kind\)/,
   "cold combat demand must remain inside the Battle-start owner and use the selected event kind");
@@ -61,4 +82,4 @@ assert.match(bootSource, /__maplessBattleStartTrace = trace/,
 assert.match(bootSource, /pageshowFallbackUsed/,
   "legacy pageshow rendering may remain only as a conservative fallback during blocker recovery");
 
-console.log("Safari cold board -> Battle owner -> runtime render handoff -> first scene/move handoff smoke passed");
+console.log("Safari cold board -> GENERAL trace -> Battle owner -> runtime render handoff -> first scene/move handoff smoke passed");
