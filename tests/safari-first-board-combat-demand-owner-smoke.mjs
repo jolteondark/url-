@@ -53,8 +53,6 @@ assert.match(
   "Day Board mutation must remain committed only after combat materialization returns",
 );
 
-// #216/#218 are part of the actual first-board Battle entry contract, not just
-// optional diagnostics. Keep them inside the default test:battle-entry gate.
 assert.match(
   app,
   /window\.addEventListener\("safari-runtime-changed", render\)/,
@@ -81,13 +79,28 @@ for (const stage of [
 }
 assert.match(
   boot,
+  /window\.addEventListener\("error", captureBattleRenderError\)/,
+  "first-board boot must capture an exact render exception that DOM event dispatch would otherwise swallow",
+);
+assert.match(
+  boot,
+  /state\?\.battle[\s\S]*event\?\.error instanceof Error[\s\S]*__maplessLastError = event\.error[\s\S]*scene_render_error/,
+  "only a real Battle-scene window error should replace the exact Battle-start error surface",
+);
+assert.match(
+  boot,
+  /const exactRenderError = exactRenderErrorOrNull\(\);[\s\S]*if \(exactRenderError\) throw exactRenderError;[\s\S]*scene_pageshow_fallback/,
+  "an exact Safari render failure must escape before the legacy pageshow fallback can mask it",
+);
+assert.match(
+  boot,
   /if \(!trace\.sceneVisible\)[\s\S]*throw new Error\("Battle state created but Battle scene did not become visible"\)/,
-  "first-board entry must fail explicitly when Battle state exists but the scene is not visible",
+  "first-board entry must still fail explicitly when Battle state exists but the scene is not visible and no exact render exception exists",
 );
 assert.match(
   boot,
   /if \(trace\.moveButtonCount === 0\)[\s\S]*throw new Error\("Battle state created but no move buttons were rendered"\)/,
-  "first-board entry must fail explicitly when Battle state exists but owner-backed moves are absent",
+  "first-board entry must still fail explicitly when Battle state exists but owner-backed moves are absent and no exact render exception exists",
 );
 
-console.log("Safari boot/post-boot Battle entry retains one owner, render handoff, lifecycle trace, and exact failures: ok");
+console.log("Safari boot/post-boot Battle entry retains one owner, render handoff, exact render failures, lifecycle trace, and retryable startup: ok");
