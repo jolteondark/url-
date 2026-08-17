@@ -26,18 +26,16 @@ function primeFoeAtOneHp(battle) {
   }
 }
 
-function assertImmediateKoPresentation(result, expectedSemanticTypes) {
-  assert.equal(result.safariKoPresentationImmediate, true);
+function assertKoPresentation(result, expectedSemanticTypes) {
   const types = (result.presentation ?? []).map((event) => event.type);
-  assert.equal(types.includes("move_started"), false, "KO round must not replay timed old-target move animation");
-  assert.equal(types.includes("damage_applied"), false, "KO round must not replay timed old-target HP animation");
   for (const type of expectedSemanticTypes) assert.equal(types.includes(type), true, `missing ${type} semantic event`);
 }
 
 // Guard the architecture itself: intermediate trainer KO must never return to
 // the old finalize -> snapshot rollback -> synthetic next-slot compensation,
-// browser combat must consume Battle Runtime HP directly, and intermediate EXP
-// must be committed inside the Battle round rather than by a Safari post-KO wrapper.
+// browser combat must consume Battle Runtime HP directly, intermediate EXP
+// must be committed inside the Battle round, and the public entry must no
+// longer rewrite a completed Battle presentation after the owner returns it.
 {
   const legacySource = fs.readFileSync(new URL("../runtime/safari-playable-integration-legacy.js", import.meta.url), "utf8");
   const publicSource = fs.readFileSync(new URL("../runtime/safari-playable-integration.js", import.meta.url), "utf8");
@@ -49,6 +47,7 @@ function assertImmediateKoPresentation(result, expectedSemanticTypes) {
   assert.match(legacySource, /resolved\.expIntegration\?\.commits/);
   assert.match(legacySource, /resolveBrowserTrainerBattleRound/);
   assert.doesNotMatch(publicSource, /continueSafariTrainerAfterFirstKo/);
+  assert.doesNotMatch(publicSource, /finalizeSafariRoundPresentation|safariKoPresentationImmediate|isKoRound/);
   assert.match(roundSource, /attachDefeatedFoeExpInput/);
   assert.match(roundSource, /playerExpCommits/);
   assert.doesNotMatch(roundSource, /projectBrowserBattleResolvedHp|browser-battle-round-hp-projection/);
@@ -73,7 +72,7 @@ function assertImmediateKoPresentation(result, expectedSemanticTypes) {
   assert.equal(state.battle.completed, true);
   assert.equal(state.battle.foe.hp, 0);
   assert.equal(Number(result.foe?.hp), 0, "public result must expose Battle Runtime-owned terminal foe HP");
-  assertImmediateKoPresentation(result, ["faint", "battle_result"]);
+  assertKoPresentation(result, ["move_started", "damage_applied", "faint", "battle_result"]);
 }
 
 // Two-Pokemon trainer: the first KO is born nonterminal in the party-aware
@@ -128,7 +127,7 @@ function assertImmediateKoPresentation(result, expectedSemanticTypes) {
   assert.deepEqual(state.board_revealed, boardRevealedBefore, "intermediate KO must not finalize/rollback Board reveal state");
   assert.equal((firstKo.operations ?? []).some((operation) => operation?.op === "trainer_send_next"), false, "replacement must come from trainer replacement owner, not a synthetic Safari op");
   assert.equal((firstKo.presentation ?? []).filter((event) => event.type === "trainer_next").length, 1);
-  assertImmediateKoPresentation(firstKo, ["faint", "trainer_next"]);
+  assertKoPresentation(firstKo, ["move_started", "damage_applied", "faint", "trainer_next"]);
 
   preparePlayerForKo(runtime);
   primeFoeAtOneHp(state.battle);
@@ -138,7 +137,7 @@ function assertImmediateKoPresentation(result, expectedSemanticTypes) {
   assert.equal(state.battle.trainer_party_index, 1);
   assert.equal(Number(finalKo.player?.hp), Number(runtime.player.party[state.battle.player_party_index ?? 0]?.hp), "terminal player HP must be the same owner state persisted to Safari");
   assert.ok(Number(runtime.bag.money) >= moneyBefore, "final victory may pay the trainer prize exactly at terminal completion");
-  assertImmediateKoPresentation(finalKo, ["faint", "battle_result"]);
+  assertKoPresentation(finalKo, ["move_started", "damage_applied", "faint", "battle_result"]);
 }
 
 console.log("Safari public KO export-chain smoke: ok");
