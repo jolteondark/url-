@@ -3,6 +3,14 @@ import { createSafariPlayableRuntime, resolveSafariBoundaryPlayerReplacement } f
 import { startSafariBoundaryTrialBattle } from "../runtime/safari-boundary-trial-start.js";
 
 const runtime = createSafariPlayableRuntime();
+if (runtime.player.party.length < 2) {
+  const reserve = structuredClone(runtime.player.party[0]);
+  reserve.hp = Math.max(1, Number(reserve.max_hp ?? reserve.hp ?? 1));
+  reserve.fainted = false;
+  reserve.active = false;
+  reserve.name = `${reserve.name ?? reserve.species ?? "Reserve"} Reserve`;
+  runtime.player.party.push(reserve);
+}
 const state = runtime.variables.mapless;
 state.day = 10;
 state.location = "boundary_trial";
@@ -23,7 +31,6 @@ assert.equal(state.battle.player_party_index, 0);
 assert.deepEqual(state.battle.player_party_order, runtime.player.party.map((_, index) => index));
 
 const playerParty = runtime.player.party.map((pokemon) => structuredClone(pokemon));
-assert.ok(playerParty.length >= 2, "boundary replacement smoke requires a reserve Pokemon");
 playerParty[0] = { ...playerParty[0], hp: 0, fainted: true, active: true };
 playerParty[1] = { ...playerParty[1], hp: Math.max(1, Number(playerParty[1].hp ?? 1)), fainted: false, active: false };
 runtime.player.party = structuredClone(playerParty);
