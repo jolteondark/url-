@@ -34,21 +34,32 @@ export async function ensureSafariGeneralData() {
 }
 
 export function safariGeneralCombatReady() {
-  return safariGeneralMastersInstalled() && encounterRuntime !== null && trainerGenerator !== null;
+  return encounterRuntime !== null && trainerGenerator !== null;
 }
 
 export async function ensureSafariGeneralCombatData() {
-  if (safariGeneralCombatReady()) return { loaded: false, alreadyLoaded: true };
+  if (safariGeneralCombatReady()) {
+    return {
+      loaded: false,
+      alreadyLoaded: true,
+      combatModulesLoaded: true,
+      fullMastersInstalled: safariGeneralMastersInstalled(),
+    };
+  }
   if (!combatLoading) {
-    combatLoading = ensureSafariGeneralData()
-      .then(async (dataResult) => {
-        const [encounter, trainer] = await Promise.all([
-          import("./safari-general-encounter-runtime.js"),
-          import("./mapless-dynamic-trainer-generator.js"),
-        ]);
+    combatLoading = Promise.all([
+      import("./safari-general-encounter-runtime.js"),
+      import("./mapless-dynamic-trainer-generator.js"),
+    ])
+      .then(([encounter, trainer]) => {
         encounterRuntime = encounter;
         trainerGenerator = trainer;
-        return { ...dataResult, combatModulesLoaded: true };
+        return {
+          loaded: true,
+          alreadyLoaded: false,
+          combatModulesLoaded: true,
+          fullMastersInstalled: safariGeneralMastersInstalled(),
+        };
       })
       .catch((error) => {
         combatLoading = null;

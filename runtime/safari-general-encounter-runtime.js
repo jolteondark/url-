@@ -6,9 +6,11 @@ import {
 } from "./general-encounter-species-pools.js";
 import { projectGeneralEncounterRules } from "./general-encounter-rules-master.js";
 import {
+  SAFARI_GENERAL_MOVE_MASTERS,
   SAFARI_GENERAL_SPECIES_MASTERS,
   safariCanonicalResetMoves,
 } from "./safari-general-encounter-data-loader.js";
+import { installSafariGeneralMasterSubset } from "./safari-general-master-subset-install.js";
 
 const POOLS = projectGeneralEncounterSpeciesPools();
 export const SAFARI_GENERAL_TYPES = Object.freeze(Object.keys(POOLS));
@@ -74,6 +76,12 @@ export function resolveSafariGeneralEncounter({
   const speciesMaster = SAFARI_GENERAL_SPECIES_MASTERS[resolved.species_id];
   if (!speciesMaster) throw new RangeError(`missing Safari General species master: ${resolved.species_id}`);
   const moveIds = safariCanonicalResetMoves(resolved.species_id, resolved.level);
+  const moveMasters = Object.fromEntries(moveIds.map((id) => {
+    const master = SAFARI_GENERAL_MOVE_MASTERS[id];
+    if (!master) throw new RangeError(`missing Safari General move master: ${id}`);
+    return [id, master];
+  }));
+  installSafariGeneralMasterSubset({ [resolved.species_id]: speciesMaster }, moveMasters);
   return {
     required_type: resolved.required_type,
     species_id: resolved.species_id,

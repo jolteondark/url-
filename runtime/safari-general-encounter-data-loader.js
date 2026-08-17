@@ -133,12 +133,42 @@ function moveMaster(id, row, moveIndex) {
   });
 }
 
-export const SAFARI_GENERAL_SPECIES_MASTERS = Object.freeze(Object.fromEntries(
-  speciesIds.map((id, index) => [id, speciesMaster(id, payload.speciesRows[index], index)]),
-));
-export const SAFARI_GENERAL_MOVE_MASTERS = Object.freeze(Object.fromEntries(
-  payload.moveIds.map((id, index) => [id, moveMaster(id, payload.moveRows[index], index)]),
-));
+function lazyMasterProjection(ids, rows, factory) {
+  const indexById = new Map(ids.map((id, index) => [id, index]));
+  const cache = new Map();
+  const projection = new Proxy(Object.create(null), {
+    get(_target, property) {
+      if (typeof property !== "string") return undefined;
+      const index = indexById.get(property);
+      if (index === undefined) return undefined;
+      if (!cache.has(property)) cache.set(property, factory(property, rows[index], index));
+      return cache.get(property);
+    },
+    has(_target, property) {
+      return typeof property === "string" && indexById.has(property);
+    },
+    ownKeys() {
+      return [...ids];
+    },
+    getOwnPropertyDescriptor(_target, property) {
+      if (typeof property !== "string" || !indexById.has(property)) return undefined;
+      return { configurable: true, enumerable: true };
+    },
+  });
+  return { projection, cache };
+}
+
+const lazySpecies = lazyMasterProjection(speciesIds, payload.speciesRows, speciesMaster);
+const lazyMoves = lazyMasterProjection(payload.moveIds, payload.moveRows, moveMaster);
+
+// These projections preserve ordinary object access/Object.keys/Object.assign
+// semantics, but only construct a master object when that specific key is read.
+export const SAFARI_GENERAL_SPECIES_MASTERS = lazySpecies.projection;
+export const SAFARI_GENERAL_MOVE_MASTERS = lazyMoves.projection;
+
+export function safariGeneralMaterializedMasterCounts() {
+  return Object.freeze({ species: lazySpecies.cache.size, moves: lazyMoves.cache.size });
+}
 
 export const SAFARI_GENERAL_DATA_METADATA = Object.freeze({
   speciesCount: speciesIds.length,
