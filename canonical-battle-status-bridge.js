@@ -26,6 +26,15 @@ function statusLabel(value) {
   return STATUS_LABELS[key] ?? key.slice(0, 3);
 }
 
+function canonicalGender(value) {
+  if (value === 0) return "male";
+  if (value === 1) return "female";
+  const key = String(value ?? "").trim().toUpperCase();
+  if (key === "M" || key === "MALE" || key === "♂") return "male";
+  if (key === "F" || key === "FEMALE" || key === "♀") return "female";
+  return "";
+}
+
 function ensureBadge(panel) {
   if (!panel) return null;
   let badge = panel.querySelector(":scope > .canonical-status-badge");
@@ -38,6 +47,17 @@ function ensureBadge(panel) {
   return badge;
 }
 
+function ensureGender(panel) {
+  if (!panel) return null;
+  let gender = panel.querySelector(":scope > .canonical-gender");
+  if (gender) return gender;
+  gender = document.createElement("span");
+  gender.className = "canonical-gender";
+  gender.hidden = true;
+  panel.append(gender);
+  return gender;
+}
+
 function maxHp(pokemon) {
   return pokemon?.max_hp ?? pokemon?.totalhp ?? pokemon?.maxHp ?? pokemon?.hp ?? 1;
 }
@@ -45,12 +65,20 @@ function maxHp(pokemon) {
 function syncPanel(panel, pokemon) {
   if (!panel) return;
   const badge = ensureBadge(panel);
+  const genderNode = ensureGender(panel);
   const status = pokemon?.status;
   const label = statusLabel(status);
   if (badge) {
     badge.textContent = label;
     badge.dataset.status = String(status ?? "NONE").toUpperCase();
     badge.hidden = !label;
+  }
+  if (genderNode) {
+    const gender = canonicalGender(pokemon?.gender ?? pokemon?.sex);
+    genderNode.dataset.gender = gender;
+    genderNode.textContent = gender === "male" ? "♂" : gender === "female" ? "♀" : "";
+    genderNode.setAttribute("aria-label", gender === "male" ? "オス" : gender === "female" ? "メス" : "");
+    genderNode.hidden = !gender;
   }
   panel.dataset.hpZone = String(resolveSafariCanonicalHpZone({
     hp: pokemon?.hp,
