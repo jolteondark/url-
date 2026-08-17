@@ -3,8 +3,9 @@ import { safariGeneralMoveAiFacts } from "./safari-general-move-ai-facts.js";
 import { safariGeneralSpeciesIndividualFacts } from "./safari-general-species-individual-facts.js";
 
 const CHUNK_COUNT = 20;
-const BROWSER_FETCH_BATCH = 4;
-const NODE_CHUNK_LOADERS = [
+const BROWSER_IMPORT_BATCH = 4;
+const LOAD_TIMEOUT_MS = 20_000;
+const CHUNK_LOADERS = [
   () => import("./generated/safari-general-encounter-data-v2-00.js"),
   () => import("./generated/safari-general-encounter-data-v2-01.js"),
   () => import("./generated/safari-general-encounter-data-v2-02.js"),
@@ -27,40 +28,46 @@ const NODE_CHUNK_LOADERS = [
   () => import("./generated/safari-general-encounter-data-v2-19.js"),
 ];
 
-function chunkUrl(index) {
-  return new URL(`./generated/safari-general-encounter-data-v2-${String(index).padStart(2, "0")}.js`, import.meta.url);
+function withTimeout(promise, timeoutMs, label) {
+  let timer = null;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer !== null) clearTimeout(timer);
+  });
 }
 
-async function fetchEncodedChunk(index) {
-  const response = await fetch(chunkUrl(index), { cache: "force-cache" });
-  if (!response.ok) throw new Error(`Safari GENERAL chunk ${index} fetch failed: ${response.status}`);
-  const source = (await response.text()).trim();
-  const match = /^export default "([A-Za-z0-9+/=]+)";$/.exec(source);
-  if (!match) throw new Error(`Safari GENERAL chunk ${index} format mismatch`);
-  return match[1];
+function reportBrowserLoadProgress(loaded, phase = "chunks") {
+  if (typeof window === "undefined" || typeof window.dispatchEvent !== "function" || typeof CustomEvent !== "function") return;
+  window.dispatchEvent(new CustomEvent("safari-general-load-progress", {
+    detail: { loaded, total: CHUNK_COUNT, phase },
+  }));
 }
 
 async function loadBrowserEncodedChunks() {
   const chunks = [];
-  for (let start = 0; start < CHUNK_COUNT; start += BROWSER_FETCH_BATCH) {
-    const indexes = Array.from(
-      { length: Math.min(BROWSER_FETCH_BATCH, CHUNK_COUNT - start) },
-      (_, offset) => start + offset,
+  for (let start = 0; start < CHUNK_COUNT; start += BROWSER_IMPORT_BATCH) {
+    const end = Math.min(start + BROWSER_IMPORT_BATCH, CHUNK_COUNT);
+    const modules = await withTimeout(
+      Promise.all(CHUNK_LOADERS.slice(start, end).map((load) => load())),
+      LOAD_TIMEOUT_MS,
+      `Safari GENERAL chunks ${start + 1}-${end}`,
     );
-    chunks.push(...await Promise.all(indexes.map(fetchEncodedChunk)));
-    // Yield between small network/decode batches so iPhone Safari can paint and
-    // process input instead of parsing 20 giant JS string modules in one burst.
+    chunks.push(...modules.map((module) => module.default));
+    reportBrowserLoadProgress(chunks.length);
+    // Keep WebKit responsive between small module-parse batches.
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
   return chunks;
 }
 
 async function loadNodeEncodedChunks() {
-  const chunks = await Promise.all(NODE_CHUNK_LOADERS.map((load) => load()));
+  const chunks = await Promise.all(CHUNK_LOADERS.map((load) => load()));
   return chunks.map((chunk) => chunk.default);
 }
 
-const encodedChunks = typeof window !== "undefined" && typeof fetch === "function"
+const encodedChunks = typeof window !== "undefined"
   ? await loadBrowserEncodedChunks()
   : await loadNodeEncodedChunks();
 const encoded = encodedChunks.join("");
@@ -68,8 +75,15 @@ const binary = typeof atob === "function"
   ? Uint8Array.from(atob(encoded), (char) => char.charCodeAt(0))
   : Uint8Array.from(Buffer.from(encoded, "base64"));
 if (typeof DecompressionStream !== "function") throw new Error("Safari General Encounter data requires DecompressionStream support");
+reportBrowserLoadProgress(CHUNK_COUNT, "decompress");
 const stream = new Blob([binary]).stream().pipeThrough(new DecompressionStream("deflate"));
-const payload = JSON.parse(await new Response(stream).text());
+const payloadText = await withTimeout(
+  new Response(stream).text(),
+  LOAD_TIMEOUT_MS,
+  "Safari GENERAL decompression",
+);
+const payload = JSON.parse(payloadText);
+reportBrowserLoadProgress(CHUNK_COUNT, "ready");
 
 const STAT_IDS = ["HP", "ATTACK", "DEFENSE", "SPEED", "SPECIAL_ATTACK", "SPECIAL_DEFENSE"];
 const CATEGORY_NAMES = ["Physical", "Special", "Status"];
