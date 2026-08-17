@@ -2,7 +2,6 @@ import { projectGeneralEncounterSpeciesPools } from "./general-encounter-species
 
 const CHUNK_COUNT = 20;
 const BROWSER_IMPORT_BATCH = 4;
-const LOAD_TIMEOUT_MS = 20_000;
 const CHUNK_PATHS = Object.freeze(Array.from(
   { length: CHUNK_COUNT },
   (_, index) => `./generated/safari-general-encounter-data-v2-${String(index).padStart(2, "0")}.js`,
@@ -17,16 +16,6 @@ const TYPE_IDS = Object.freeze([
 const TYPE_INDEX_PACKED = "9fddd7c7ce77eegf9hhhhh6594180c53bbgb54ddc71dccc166bccaac79725h1h005ag96e3347b522d5d1c8eccce995cch45d1c8c11440c785adc43hccc53c222222245e7a9275aac3333336ccc9c6ececc44c11c7c026c5666660ac66666g11h44975c5c591bbc0cedgg9cg2c999ecc8eecd7g5cbccafcee66gc8ca51cc9c7hccccebbbbbbbbbe6609eggg1heg11cc86999909c8hehcc55e059eee33g9c90cc1ggg5gccccceb444cdhaa61c181c531h5c2236c311c7c9980c47dddddd0ccbfeee19cceeeeeeceed61c5080c6hc9hccececc55ccfff5fffef7ac5cfafahccc95c8888cbc6g3a0ccce0c7ccc9cdddfgdc1hcbhc993he9a9g488cc9fg0ccaffe5c900c95c16c5chcc4cc1c99c0cc7cf1cccec1c1333333cc161dddcce8eh59e2c05dd9c53hhhhhhhchcf367che9c9c0c3e3";
 const THAWS_USER_MOVE_IDS = new Set(["BURNUP", "FLAMEWHEEL", "FLAREBLITZ", "MATCHAGOTCHA", "PYROBALL", "SCALD"]);
 
-function withTimeout(promise, timeoutMs, label) {
-  let timer = null;
-  const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
-  });
-  return Promise.race([promise, timeout]).finally(() => {
-    if (timer !== null) clearTimeout(timer);
-  });
-}
-
 function reportBrowserLoadProgress(loaded, phase = "chunks") {
   if (typeof window === "undefined" || typeof window.dispatchEvent !== "function" || typeof CustomEvent !== "function") return;
   window.dispatchEvent(new CustomEvent("safari-general-load-progress", {
@@ -38,17 +27,13 @@ async function loadEncodedChunks() {
   const chunks = [];
   for (let start = 0; start < CHUNK_COUNT; start += BROWSER_IMPORT_BATCH) {
     const end = Math.min(start + BROWSER_IMPORT_BATCH, CHUNK_COUNT);
-    const batch = await withTimeout(
-      Promise.all(CHUNK_PATHS.slice(start, end).map(async (path) => {
-        const module = await import(new URL(path, import.meta.url).href);
-        if (typeof module.default !== "string" || module.default.length === 0) {
-          throw new Error(`empty Safari GENERAL chunk: ${path}`);
-        }
-        return module.default;
-      })),
-      LOAD_TIMEOUT_MS,
-      `Safari GENERAL data ${start + 1}-${end}`,
-    );
+    const batch = await Promise.all(CHUNK_PATHS.slice(start, end).map(async (path) => {
+      const module = await import(new URL(path, import.meta.url).href);
+      if (typeof module.default !== "string" || module.default.length === 0) {
+        throw new Error(`empty Safari GENERAL chunk: ${path}`);
+      }
+      return module.default;
+    }));
     chunks.push(...batch);
     reportBrowserLoadProgress(chunks.length);
     if (typeof window !== "undefined") await new Promise((resolve) => setTimeout(resolve, 0));
@@ -67,11 +52,7 @@ const binary = typeof atob === "function"
 if (typeof DecompressionStream !== "function") throw new Error("Safari General Encounter data requires DecompressionStream support");
 reportBrowserLoadProgress(CHUNK_COUNT, "decompress");
 const stream = new Blob([binary]).stream().pipeThrough(new DecompressionStream("deflate"));
-const payloadText = await withTimeout(
-  new Response(stream).text(),
-  LOAD_TIMEOUT_MS,
-  "Safari GENERAL decompression",
-);
+const payloadText = await new Response(stream).text();
 const payload = JSON.parse(payloadText);
 reportBrowserLoadProgress(CHUNK_COUNT, "ready");
 
