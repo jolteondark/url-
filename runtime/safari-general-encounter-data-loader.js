@@ -1,12 +1,33 @@
 import { projectGeneralEncounterSpeciesPools } from "./general-encounter-species-pools.js";
+import chunk00 from "./generated/safari-general-encounter-data-v2-00.js";
+import chunk01 from "./generated/safari-general-encounter-data-v2-01.js";
+import chunk02 from "./generated/safari-general-encounter-data-v2-02.js";
+import chunk03 from "./generated/safari-general-encounter-data-v2-03.js";
+import chunk04 from "./generated/safari-general-encounter-data-v2-04.js";
+import chunk05 from "./generated/safari-general-encounter-data-v2-05.js";
+import chunk06 from "./generated/safari-general-encounter-data-v2-06.js";
+import chunk07 from "./generated/safari-general-encounter-data-v2-07.js";
+import chunk08 from "./generated/safari-general-encounter-data-v2-08.js";
+import chunk09 from "./generated/safari-general-encounter-data-v2-09.js";
+import chunk10 from "./generated/safari-general-encounter-data-v2-10.js";
+import chunk11 from "./generated/safari-general-encounter-data-v2-11.js";
+import chunk12 from "./generated/safari-general-encounter-data-v2-12.js";
+import chunk13 from "./generated/safari-general-encounter-data-v2-13.js";
+import chunk14 from "./generated/safari-general-encounter-data-v2-14.js";
+import chunk15 from "./generated/safari-general-encounter-data-v2-15.js";
+import chunk16 from "./generated/safari-general-encounter-data-v2-16.js";
+import chunk17 from "./generated/safari-general-encounter-data-v2-17.js";
+import chunk18 from "./generated/safari-general-encounter-data-v2-18.js";
+import chunk19 from "./generated/safari-general-encounter-data-v2-19.js";
 
 const CHUNK_COUNT = 20;
-const BROWSER_FETCH_BATCH = 4;
 const LOAD_TIMEOUT_MS = 20_000;
-const CHUNK_PATHS = Object.freeze(Array.from(
-  { length: CHUNK_COUNT },
-  (_, index) => `./generated/safari-general-encounter-data-v2-${String(index).padStart(2, "0")}.js`,
-));
+const ENCODED_CHUNKS = Object.freeze([
+  chunk00, chunk01, chunk02, chunk03, chunk04,
+  chunk05, chunk06, chunk07, chunk08, chunk09,
+  chunk10, chunk11, chunk12, chunk13, chunk14,
+  chunk15, chunk16, chunk17, chunk18, chunk19,
+]);
 
 const GENDER_RATIO_IDS = Object.freeze(["AlwaysMale","AlwaysFemale","Genderless","FemaleOneEighth","Female25Percent","Female50Percent","Female75Percent","FemaleSevenEighths"]);
 const GENDER_RATIO_INDEX_PACKED = "54555554155555555555455555555555652555555535555255555555533515555551355053225553555555552555555555551535335553353355563555266655555336455655555555533525556553553535556535352555255555555555555555555355555555555555555355544524535355355555255553355555515535555131555555533153555055555555525525356555555555525255556665565555350333455554551411155555555550005555555555556103535335563551451555555525552255555555555555355555551557355555535525655554444554422245515555555553552555335522555515155625553505055535535555555011010565555555555555556535555555333555555555551555555535555553555552255322235355555675533333535555553555555553355555523055531355555055355355555555555335552555555555555553332255535565555555555555515535355635255555555355355552251555555555555355555355525555055535034111555333353335555555355551535535035255555355555315555550521655535555555555655555555155555555555553355";
@@ -27,37 +48,17 @@ function withTimeout(promise, timeoutMs, label) {
   });
 }
 
-function reportBrowserLoadProgress(loaded, phase = "chunks") {
+function reportBrowserLoadProgress(loaded, phase) {
   if (typeof window === "undefined" || typeof window.dispatchEvent !== "function" || typeof CustomEvent !== "function") return;
   window.dispatchEvent(new CustomEvent("safari-general-load-progress", {
     detail: { loaded, total: CHUNK_COUNT, phase },
   }));
 }
 
-async function loadEncodedChunks() {
-  const chunks = [];
-  for (let start = 0; start < CHUNK_COUNT; start += BROWSER_FETCH_BATCH) {
-    const end = Math.min(start + BROWSER_FETCH_BATCH, CHUNK_COUNT);
-    const batch = await withTimeout(
-      Promise.all(CHUNK_PATHS.slice(start, end).map(async (path) => {
-        const module = await import(new URL(path, import.meta.url).href);
-        if (typeof module.default !== "string" || module.default.length === 0) {
-          throw new Error(`empty Safari GENERAL chunk: ${path}`);
-        }
-        return module.default;
-      })),
-      LOAD_TIMEOUT_MS,
-      `Safari GENERAL data ${start + 1}-${end}`,
-    );
-    chunks.push(...batch);
-    reportBrowserLoadProgress(chunks.length);
-    if (typeof window !== "undefined") await new Promise((resolve) => setTimeout(resolve, 0));
-  }
-  return chunks;
+if (ENCODED_CHUNKS.length !== CHUNK_COUNT || ENCODED_CHUNKS.some((chunk) => typeof chunk !== "string" || chunk.length === 0)) {
+  throw new Error("Safari GENERAL static chunk projection mismatch");
 }
-
-const encodedChunks = await loadEncodedChunks();
-const encoded = encodedChunks.join("");
+const encoded = ENCODED_CHUNKS.join("");
 const binary = typeof atob === "function"
   ? Uint8Array.from(atob(encoded), (char) => char.charCodeAt(0))
   : Uint8Array.from(Buffer.from(encoded, "base64"));
