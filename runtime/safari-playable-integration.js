@@ -4,6 +4,7 @@ import { continueSafariTrainerAfterFirstKo } from "./safari-trainer-replacement-
 export * from "./safari-playable-integration-boundary-return.js";
 export { activateSafariDayBoardCell } from "./safari-pokemon-center-command.js";
 export { attemptSafariCapture } from "./safari-capture-command.js";
+export { safariShopPresentation } from "./safari-shop-display-presentation.js";
 
 export function resolveSafariBattleRound(runtime, selectedMoveId) {
   const result = playable.resolveSafariBattleRound(runtime, selectedMoveId);
