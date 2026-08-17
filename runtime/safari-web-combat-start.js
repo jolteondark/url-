@@ -146,6 +146,7 @@ export async function activateSafariWebCombatCell(runtime, index) {
     }
 
     globalThis.__maplessSafariRuntime = runtime;
+    if (state.battle) globalThis.__maplessLastError = null;
     if (state.battle && typeof window !== "undefined" && typeof window.dispatchEvent === "function" && typeof CustomEvent === "function") {
       queueMicrotask(() => window.dispatchEvent(new CustomEvent("safari-runtime-changed")));
     }
@@ -159,6 +160,7 @@ export async function activateSafariWebCombatCell(runtime, index) {
       trainer: state.battle?.trainer ?? null,
     };
   } catch (error) {
+    globalThis.__maplessLastError = error;
     state.notice = previousNotice;
     state.last_operations = previousLastOperations;
     if (hadEncounterSeed) state.preview_encounter_seed = previousEncounterSeed;
