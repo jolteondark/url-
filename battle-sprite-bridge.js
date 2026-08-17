@@ -171,18 +171,8 @@ function renderBattlePresentation() {
   renderCommandHud();
 }
 
+window.addEventListener("pageshow", renderBattlePresentation, { passive: true });
 window.addEventListener("safari-runtime-changed", renderBattlePresentation, { passive: true });
 ensureStyle();
 ensureCommandHud();
 renderBattlePresentation();
-const observer = new MutationObserver(renderBattlePresentation);
-const battleCard = document.getElementById("battle-card");
-if (battleCard) {
-  observer.observe(battleCard, {
-    subtree: true,
-    childList: true,
-    characterData: true,
-    attributes: true,
-    attributeFilter: ["hidden", "style"],
-  });
-}

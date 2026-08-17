@@ -124,15 +124,6 @@ ensureStyles();
 ensureBattleChrome();
 render();
 
-// Keep the observer inside the battle scene and do not observe attributes.
-// HP-bar/style/class writes are frequent during damage/faint presentation and
-// must never be able to reschedule this renderer through its own mutations.
-const battleRoot=byId("battle-card");
-if(battleRoot){
-  new MutationObserver(schedule).observe(battleRoot,{subtree:true,childList:true,characterData:true});
-  battleRoot.addEventListener("pointerdown",schedule,{passive:true});
-  battleRoot.addEventListener("click",schedule,{passive:true});
-}
 window.addEventListener("pageshow",schedule,{passive:true});
 window.addEventListener("storage",schedule);
 window.addEventListener("safari-runtime-changed",schedule);
