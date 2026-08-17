@@ -82,14 +82,16 @@ async function loadPreviewApp(boardIndex) {
   if (!appPromise) appPromise = import("./preview-app.js");
   try {
     await appPromise;
-    detachBootListeners();
     window.dispatchEvent(new CustomEvent("safari-preview-start", { detail: { action: selectedAction } }));
     await activateInitialBoardChoice(boardIndex);
+    detachBootListeners();
   } catch (error) {
     loading = false;
     appPromise = null;
     globalThis.__maplessLastError = error;
-    notice("ゲームの読み込みに失敗しました: " + (error?.message ?? error));
+    const failedAction = selectedAction;
+    armBoard(failedAction);
+    notice("ゲームの読み込みに失敗しました: " + (error?.message ?? error) + "。マスを選び直せます。");
     console.error("[Mapless] preview app load failed", error);
   }
 }
