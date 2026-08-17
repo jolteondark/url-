@@ -162,35 +162,6 @@ function trainerAiCompatibility(result, battleKind, preparedBoundary) {
   };
 }
 
-function notifySafariRuntimeChanged() {
-  if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") return;
-  queueMicrotask(() => window.dispatchEvent(new CustomEvent("safari-runtime-changed")));
-}
-
-function isKoRound(result = {}) {
-  if (Number(result?.decision ?? 0) > 0) return true;
-  if (result?.foeReplacementApplied === true || result?.replacementApplied === true) return true;
-  if (result?.trainerReplacementContinuation?.result === "continued_with_replacement") return true;
-  return (result?.operations ?? []).some((operation) =>
-    operation?.op === "faint"
-    || operation?.op === "faint_self"
-    || ((operation?.op === "reduce_hp" || operation?.op === "reduce_self_hp")
-      && Number(operation?.hpAfter) <= 0));
-}
-
-function finalizeSafariRoundPresentation(result) {
-  const resolved = isKoRound(result)
-    ? {
-        ...result,
-        presentation: (result.presentation ?? []).filter((event) =>
-          event?.type !== "move_started" && event?.type !== "damage_applied"),
-        safariKoPresentationImmediate: true,
-      }
-    : result;
-  notifySafariRuntimeChanged();
-  return resolved;
-}
-
 function finishRound(runtime, result, battleKind, preparedBoundary) {
   if (preparedBoundary) {
     const currentBattle = stateOf(runtime).battle;
@@ -215,7 +186,7 @@ export function resolveSafariBattleRound(runtime, selectedMoveId) {
   const result = playable.resolveSafariBattleRound(runtime, selectedMoveId);
   const finalize = (resolved) => finishRound(
     runtime,
-    finalizeSafariRoundPresentation(resolved),
+    resolved,
     battleKind,
     preparedBoundary,
   );
