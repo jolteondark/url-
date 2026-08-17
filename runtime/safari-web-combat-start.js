@@ -145,6 +145,9 @@ export async function activateSafariWebCombatCell(runtime, index) {
     if (dispatch.result === "dispatched") {
       if (event.kind === "wild") startWild(runtime, event, index, dispatch.operations);
       else startTrainer(runtime, event, index, dispatch.operations);
+      // Canonical wild/trainer owners consume the cell only once Battle start succeeds.
+      // Keep that commit after materialization so every pre-Battle failure remains retryable.
+      dispatch.state.board_consumed[index] = true;
     }
 
     state.board_events = dispatch.state.board_events;
