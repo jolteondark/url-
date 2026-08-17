@@ -146,6 +146,9 @@ export async function activateSafariWebCombatCell(runtime, index) {
     }
 
     globalThis.__maplessSafariRuntime = runtime;
+    if (state.battle && typeof window !== "undefined" && typeof window.dispatchEvent === "function" && typeof CustomEvent === "function") {
+      queueMicrotask(() => window.dispatchEvent(new CustomEvent("safari-runtime-changed")));
+    }
     return {
       runtime,
       result: dispatch.result,

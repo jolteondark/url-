@@ -50,7 +50,7 @@ function wireBoardPresentation(){
   board.addEventListener("click",(event)=>{
     const button=event.target.closest("button[data-board-index]");if(!button||button.disabled)return;
     pendingBoardPresentation={index:Number(button.dataset.boardIndex),label:button.querySelector("strong")?.textContent?.trim()??"",day:byId("day")?.textContent??""};
-    queueMicrotask(()=>{const snapshot=pendingBoardPresentation;if(!snapshot)return;if(byId("battle-card")?.hidden===false||byId("shop-card")?.hidden===false||byId("village-card")?.hidden===false){pendingBoardPresentation=null;return}showEventScene(snapshot)});
+    queueMicrotask(()=>{const snapshot=pendingBoardPresentation;if(!snapshot)return;const boardEvent=globalThis.__maplessSafariRuntime?.variables?.mapless?.board_events?.[snapshot.index];if(boardEvent?.kind==="wild"||boardEvent?.kind==="trainer"){pendingBoardPresentation=null;return}if(byId("battle-card")?.hidden===false||byId("shop-card")?.hidden===false||byId("village-card")?.hidden===false){pendingBoardPresentation=null;return}showEventScene(snapshot)});
   },true);
   byId("new-run")?.addEventListener("click",()=>hideEventScene(false),true);byId("continue-run")?.addEventListener("click",()=>hideEventScene(false),true);
 }
