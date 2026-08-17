@@ -83,6 +83,8 @@ function renderPresentation(){queued=false;decorateBoard();decorateHud();decorat
 function schedulePresentation(){if(queued)return;queued=true;requestAnimationFrame(renderPresentation)}
 
 syncViewport();ensureEventScene();schedulePresentation();
-window.visualViewport?.addEventListener("resize",syncViewport,{passive:true});window.addEventListener("orientationchange",syncViewport,{passive:true});
-const board=byId("board");if(board)new MutationObserver(schedulePresentation).observe(board,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:["class","disabled"]});
-const stage=document.querySelector(".game-stage");if(stage)new MutationObserver(schedulePresentation).observe(stage,{subtree:true,attributes:true,attributeFilter:["hidden"]});
+window.visualViewport?.addEventListener("resize",syncViewport,{passive:true});
+window.addEventListener("orientationchange",syncViewport,{passive:true});
+window.addEventListener("pageshow",schedulePresentation,{passive:true});
+window.addEventListener("safari-runtime-changed",schedulePresentation,{passive:true});
+document.addEventListener("click",schedulePresentation,{passive:true});

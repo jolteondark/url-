@@ -2,6 +2,7 @@ const loadedStyles = new Set();
 const loadedModules = new Map();
 const replayingCombatClicks = new WeakSet();
 let activeGeneralLoadLabel = null;
+let sceneBundleSyncScheduled = false;
 
 function loadStyle(href) {
   if (loadedStyles.has(href)) return;
@@ -32,8 +33,8 @@ async function loadBoardPresentation() {
 }
 
 async function loadBattleUi() {
-  // Battle UI stays scene-demand only. All observers are scoped below the
-  // battle scene and avoid attribute/hidden self-observation on Safari.
+  // Battle UI stays scene-demand only. Runtime-backed projections refresh from
+  // explicit Safari events instead of inferring state from DOM mutations.
   loadStyle("./canonical-battle-ui.css");
   loadStyle("./canonical-battle-status.css");
   loadStyle("./trainer-battle-presentation.css");
@@ -70,6 +71,15 @@ function syncSceneBundles() {
   if (sceneIsVisible("shop-card")) loadShopUi();
 }
 
+function scheduleSceneBundleSync() {
+  if (sceneBundleSyncScheduled) return;
+  sceneBundleSyncScheduled = true;
+  requestAnimationFrame(() => {
+    sceneBundleSyncScheduled = false;
+    syncSceneBundles();
+  });
+}
+
 function battleNeedsGeneralData(battle) {
   if (!battle || battle.completed) return false;
   if (battle.origin === "boundary_trial") return true;
@@ -97,8 +107,8 @@ window.addEventListener("safari-general-load-progress", (event) => {
 }, { passive: true });
 
 // A click gate is cheaper and safer on iPhone Safari than loading the entire
-// 875-species/608-move projection on preview bootstrap. No DOM subtree observer
-// is involved: only an actual combat/wounded-event entry can wake this path.
+// GENERAL projection on preview bootstrap. No DOM subtree observer is involved:
+// only an actual combat/wounded-event entry can wake this path.
 document.addEventListener("click", async (event) => {
   const target = event.target instanceof Element ? event.target : null;
   if (!target) return;
@@ -162,20 +172,14 @@ document.addEventListener("click", async (event) => {
 document.addEventListener("click", (event) => {
   if (event.target.closest("#menu-party,#menu-bag,#menu-box")) {
     loadMenuUi();
-    return;
-  }
-  if (event.target.closest("#board button[data-board-index]")) {
+  } else if (event.target.closest("#board button[data-board-index]")) {
     loadBoardPresentation();
   }
+  // Target handlers have already committed their synchronous DOM render by the
+  // time the event bubbles here. rAF batches scene-demand checks after that render.
+  scheduleSceneBundleSync();
 }, { passive: true });
 
-for (const id of ["battle-card", "shop-card"]) {
-  const node = document.getElementById(id);
-  if (!node) continue;
-  new MutationObserver(syncSceneBundles).observe(node, {
-    attributes: true,
-    attributeFilter: ["hidden"],
-  });
-}
-
+window.addEventListener("pageshow", scheduleSceneBundleSync, { passive: true });
+window.addEventListener("safari-runtime-changed", scheduleSceneBundleSync, { passive: true });
 syncSceneBundles();
