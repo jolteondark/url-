@@ -21,13 +21,8 @@ function loadModule(path) {
   return promise;
 }
 
-async function loadBoardPresentation() {
-  loadStyle("./game-presentation.css");
-  loadStyle("./event-presentation.css");
-  await Promise.all([
-    loadModule("./game-presentation.js"),
-    loadModule("./camp-presentation.js"),
-  ]);
+async function loadCampPresentation() {
+  await loadModule("./camp-presentation.js");
 }
 
 async function loadBattleUi() {
@@ -78,7 +73,7 @@ document.addEventListener("click", (event) => {
   if (event.target.closest("#menu-party,#menu-bag,#menu-box")) {
     loadMenuUi();
   } else if (event.target.closest("#board button[data-board-index]")) {
-    loadBoardPresentation();
+    loadCampPresentation();
   }
   scheduleSceneBundleSync();
 }, { passive: true });
