@@ -117,20 +117,21 @@ export function buildBrowserBattleContinuationHandoff({
   const player = materializeBattleParty(playerParty, playerPartyIndex, playerPokemon, "player");
   const foe = materializeBattleParty(foeParty, foePartyIndex, foePokemon, "foe");
   const judge = resolveJudgeCanonical({ playerParty: player.party, foeParty: foe.party, drawDecision: 5 });
+  const resolvedDecision = Number(decision) === 0 ? Number(judge.decision) : Number(decision);
   const playerActiveFainted = Number(player.party[player.activePartyIndex]?.hp ?? 0) <= 0;
   const foeActiveFainted = Number(foe.party[foe.activePartyIndex]?.hp ?? 0) <= 0;
   return {
-    decision: Number(decision),
+    decision: resolvedDecision,
     playerParty: player.party,
     foeParty: foe.party,
     playerActivePartyIndex: player.activePartyIndex,
     foeActivePartyIndex: foe.activePartyIndex,
-    playerAllFainted: allFaintedCanonical(player.party),
-    foeAllFainted: allFaintedCanonical(foe.party),
+    playerAllFainted: judge.playerAllFainted,
+    foeAllFainted: judge.foeAllFainted,
     playerActiveFainted,
     foeActiveFainted,
-    playerReplacementRequired: Number(decision) === 0 && playerActiveFainted && !allFaintedCanonical(player.party),
-    foeReplacementRequired: Number(decision) === 0 && foeActiveFainted && !allFaintedCanonical(foe.party),
+    playerReplacementRequired: resolvedDecision === 0 && playerActiveFainted && !judge.playerAllFainted,
+    foeReplacementRequired: resolvedDecision === 0 && foeActiveFainted && !judge.foeAllFainted,
     judgeOwner: {
       sourceSymbol: judge.sourceSymbol,
       sourceBodySha256: judge.sourceBodySha256,
