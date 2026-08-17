@@ -7,6 +7,8 @@ const assets = new Map([
   ["assets/canonical-battle-ui/databox_normal.png", "3033b2023c4272ce00ce24372f92d754e2864c05416719a12a18c360c2135685"],
   ["assets/canonical-battle-ui/overlay_message.png", "2e1cddb017dbc1a6222aeefd5d86ff9052c2d6789d4b83b8fa77a000ec9fcdbd"],
   ["assets/canonical-battle-ui/overlay_fight.png", "0a0df11455a9d122b6d892fe9551b73d40aa4dbd3cd8974c2924d5330d7b8276"],
+  ["assets/canonical-battle-ui/overlay_hp.png", "087d8f80277526e7814a965dfdc27c61312f5e29a1bd5632bfea8e280d2b72b5"],
+  ["assets/canonical-battle-ui/types.png", "9dd259f26d6983ebe738b2a088941dce88f2acc63391dc8a3303190eea26f5ea"],
 ]);
 
 for (const [path, expected] of assets) {
