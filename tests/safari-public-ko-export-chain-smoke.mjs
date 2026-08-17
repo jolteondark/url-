@@ -4,7 +4,7 @@ import {
   activateSafariDayBoardCell,
   createSafariPlayableRuntime,
   resolveSafariBattleRound,
-} from "../runtime/safari-playable-integration-ai.js";
+} from "../runtime/safari-playable-integration.js";
 
 function moveId(move) {
   return typeof move === "string" ? move : move?.id;
@@ -50,7 +50,7 @@ function assertImmediateKoPresentation(result, expectedSemanticTypes) {
   assert.equal(fs.existsSync(new URL("../runtime/browser-battle-round-hp-projection.js", import.meta.url)), false);
 }
 
-// Wild terminal KO through the same AI facade selected by the public shell.
+// Wild terminal KO through the direct playable integration selected by the public shell.
 {
   const runtime = createSafariPlayableRuntime();
   const state = runtime.variables.mapless;
