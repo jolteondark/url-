@@ -22,6 +22,12 @@ import {
 } from "./runtime/safari-playable-integration.js";
 import { attemptSafariFlee } from "./runtime/safari-flee-command.js";
 import {
+  ensureSafariGeneralCombatData,
+  ensureSafariGeneralData,
+  safariGeneralCombatReady,
+  safariGeneralDataReady,
+} from "./runtime/safari-general-data-demand.js";
+import {
   leaveSafariVillageFixedShop,
   openSafariVillageFixedShop,
   purchaseSafariVillageFixedShopItem,
@@ -77,6 +83,24 @@ function renderLog() {
 function percent(hp, maxHp) {
   if (!maxHp) return 0;
   return Math.max(0, Math.min(100, (Number(hp) / Number(maxHp)) * 100));
+}
+
+function boardActionGeneralMode(index) {
+  const event = mapless().board_events?.[index];
+  if (event?.kind === "wild" || event?.kind === "trainer") return "combat";
+  if (event?.kind === "normal_event" && event.normal_event_id === "wounded_pokemon") return "masters";
+  return null;
+}
+
+async function ensureBoardActionData(index) {
+  const mode = boardActionGeneralMode(index);
+  if (mode === "combat" && !safariGeneralCombatReady()) {
+    note("戦闘データを読み込んでいます…");
+    await ensureSafariGeneralCombatData();
+  } else if (mode === "masters" && !safariGeneralDataReady()) {
+    note("ポケモンデータを読み込んでいます…");
+    await ensureSafariGeneralData();
+  }
 }
 
 function renderBoard() {
@@ -269,11 +293,15 @@ async function playPresentation(events) {
   }
 }
 
-byId("board").addEventListener("click", (event) => {
+byId("board").addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-board-index]");
   if (!button || busy) return;
+  const index = Number(button.dataset.boardIndex);
+  busy = true;
+  render();
   try {
-    const result = activateSafariDayBoardCell(runtime, Number(button.dataset.boardIndex));
+    await ensureBoardActionData(index);
+    const result = activateSafariDayBoardCell(runtime, index);
     note(result.boundary + ": " + result.result);
     if (mapless().battle) {
       window.setTimeout(() => byId("battle-card").scrollIntoView({ behavior: "smooth", block: "start" }), 0);
@@ -282,8 +310,10 @@ byId("board").addEventListener("click", (event) => {
     }
   } catch (error) {
     note("Day Board error: " + (error?.message ?? error));
+  } finally {
+    busy = false;
+    render();
   }
-  render();
 });
 
 byId("enter-village").addEventListener("click", () => {
@@ -399,7 +429,7 @@ byId("moves").addEventListener("click", async (event) => {
   busy = true;
   render();
   try {
-    const result = resolveSafariBattleRound(runtime, button.dataset.moveId);
+    const result = await resolveSafariBattleRound(runtime, button.dataset.moveId);
     await playPresentation(result.presentation);
     autoSaveIfRequested(result, "Battle result auto-save");
   } catch (error) {

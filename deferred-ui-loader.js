@@ -1,7 +1,5 @@
 const loadedStyles = new Set();
 const loadedModules = new Map();
-const replayingCombatClicks = new WeakSet();
-let activeGeneralLoadLabel = null;
 let sceneBundleSyncScheduled = false;
 
 function loadStyle(href) {
@@ -79,95 +77,6 @@ function scheduleSceneBundleSync() {
     syncSceneBundles();
   });
 }
-
-function battleNeedsGeneralData(battle) {
-  if (!battle || battle.completed) return false;
-  if (battle.origin === "boundary_trial") return true;
-  if (battle.general_selection != null) return true;
-  return battle.kind === "trainer" && battle.origin !== "village_bounty" && Array.isArray(battle.trainer?.party);
-}
-
-function setCombatLoadingNotice(text) {
-  const battleMessage = document.getElementById("battle-message");
-  const notice = document.getElementById("notice");
-  if (battleMessage && !document.getElementById("battle-card")?.hidden) battleMessage.textContent = text;
-  else if (notice) notice.textContent = text;
-}
-
-window.addEventListener("safari-general-load-progress", (event) => {
-  if (!activeGeneralLoadLabel) return;
-  const loaded = Number(event.detail?.loaded ?? 0);
-  const total = Number(event.detail?.total ?? 0);
-  const phase = event.detail?.phase;
-  let progress = "";
-  if (phase === "decompress") progress = " 展開中…";
-  else if (phase === "ready") progress = " 準備完了";
-  else if (loaded > 0 && total > 0) progress = ` ${loaded}/${total}`;
-  setCombatLoadingNotice(activeGeneralLoadLabel + progress);
-}, { passive: true });
-
-// A click gate is cheaper and safer on iPhone Safari than loading the entire
-// GENERAL projection on preview bootstrap. No DOM subtree observer is involved:
-// only an actual combat/wounded-event entry can wake this path.
-document.addEventListener("click", async (event) => {
-  const target = event.target instanceof Element ? event.target : null;
-  if (!target) return;
-
-  const boardButton = target.closest("#board button[data-board-index]");
-  const moveButton = target.closest("#moves button[data-move-id]");
-  const button = boardButton ?? moveButton;
-  if (!button) return;
-  if (replayingCombatClicks.has(button)) {
-    replayingCombatClicks.delete(button);
-    return;
-  }
-
-  const runtime = globalThis.__maplessSafariRuntime;
-  const state = runtime?.variables?.mapless;
-  if (!state) return;
-
-  let mode = null;
-  if (boardButton) {
-    const index = Number(boardButton.dataset.boardIndex);
-    const boardEvent = state.board_events?.[index];
-    if (boardEvent?.kind === "wild" || boardEvent?.kind === "trainer") {
-      mode = "combat";
-    } else if (boardEvent?.kind === "normal_event" && boardEvent?.normal_event_id === "wounded_pokemon") {
-      mode = "masters";
-    } else {
-      return;
-    }
-  } else {
-    if (!battleNeedsGeneralData(state.battle)) return;
-    mode = "masters";
-  }
-
-  // Stop the original synchronous preview listener before the first await.
-  // Event propagation does not wait for async handlers on Safari.
-  event.preventDefault();
-  event.stopImmediatePropagation();
-  const disabledBefore = button.disabled;
-  button.disabled = true;
-  activeGeneralLoadLabel = mode === "combat" ? "戦闘データを読み込んでいます…" : "ポケモンデータを読み込んでいます…";
-  setCombatLoadingNotice(activeGeneralLoadLabel);
-  try {
-    const demand = await import("./runtime/safari-general-data-demand.js");
-    if (mode === "combat") {
-      if (!demand.safariGeneralCombatReady()) await demand.ensureSafariGeneralCombatData();
-    } else if (!demand.safariGeneralDataReady()) {
-      await demand.ensureSafariGeneralData();
-    }
-    button.disabled = disabledBefore;
-    activeGeneralLoadLabel = null;
-    replayingCombatClicks.add(button);
-    button.click();
-  } catch (error) {
-    button.disabled = disabledBefore;
-    activeGeneralLoadLabel = null;
-    setCombatLoadingNotice("データの読み込みに失敗しました。もう一度お試しください。");
-    console.error("[Mapless] demand load failed", error);
-  }
-}, { capture: true });
 
 document.addEventListener("click", (event) => {
   if (event.target.closest("#menu-party,#menu-bag,#menu-box")) {
