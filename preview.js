@@ -56,7 +56,7 @@ function detachBootListeners() {
 
 async function activateInitialBoardChoice(index) {
   const [{ activateSafariDayBoardCell }, general] = await Promise.all([
-    import("./runtime/safari-playable-integration.js"),
+    import("./runtime/safari-web-playable-integration.js"),
     import("./runtime/safari-general-data-demand.js"),
   ]);
   const runtime = globalThis.__maplessSafariRuntime;
@@ -68,7 +68,7 @@ async function activateInitialBoardChoice(index) {
   } else if (cell?.kind === "normal_event" && cell.normal_event_id === "wounded_pokemon" && !general.safariGeneralDataReady()) {
     await general.ensureSafariGeneralData();
   }
-  activateSafariDayBoardCell(runtime, index);
+  await activateSafariDayBoardCell(runtime, index);
   window.dispatchEvent(new Event("pageshow"));
   window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
   const target = state.battle ? byId("battle-card") : state.shop ? byId("shop-card") : null;
