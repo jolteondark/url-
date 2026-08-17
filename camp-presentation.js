@@ -1,5 +1,6 @@
-import { applySafariCampRecovery, prepareSafariCampNextDay } from "./runtime/safari-camp-next-day-command.js";
+import { applySafariBoundaryTrialEntry, applySafariCampRecovery, prepareSafariCampNextDay } from "./runtime/safari-camp-next-day-command.js";
 import { saveSafariPlayableRun } from "./runtime/safari-playable-integration.js?canonical-base=1";
+import "./boundary-trial-presentation.js";
 
 const style = document.createElement("style");
 style.textContent = `
@@ -41,12 +42,17 @@ byId("camp-confirm").addEventListener("click",()=>{
   const rt=runtime(); const index=Number(button.dataset.campIndex); const before=rt.variables.mapless.day;
   const owner=prepareSafariCampNextDay(rt,index,true);
   applySafariCampRecovery(rt,owner);
-  backdrop.hidden=true; pendingButton=null; bypass=true; button.click(); bypass=false;
+  const boundaryEntry=applySafariBoundaryTrialEntry(rt,owner);
+  backdrop.hidden=true; pendingButton=null;
+  if(!boundaryEntry.entered){bypass=true;button.click();bypass=false;}
+  else window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
   queueMicrotask(()=>{
     try{saveSafariPlayableRun(window.localStorage,rt);}catch(_){}
     byId("camp-day-change").textContent=`DAY ${before} → ${rt.variables.mapless.day}`;
     const extra=owner.fire_watcher?"ほのおタイプの見張りで回復量アップ":"見張り役は回復量が半分";
-    byId("camp-recovery-note").textContent=`HP +${owner.normal_recovery.hp_percent}% / PP +${owner.normal_recovery.pp_percent}% ・ ${extra}`;
+    byId("camp-recovery-note").textContent=boundaryEntry.entered
+      ? `HP +${owner.normal_recovery.hp_percent}% / PP +${owner.normal_recovery.pp_percent}% ・ 境界の試練`
+      : `HP +${owner.normal_recovery.hp_percent}% / PP +${owner.normal_recovery.pp_percent}% ・ ${extra}`;
     night.classList.add("show"); window.setTimeout(()=>night.classList.remove("show"),900);
   });
 });
