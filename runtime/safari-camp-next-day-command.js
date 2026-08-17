@@ -1,4 +1,5 @@
 import { resolveCampNextDay } from "./mapless-camp-next-day-flow.js";
+import { isBoundaryTrialFloor, resolveBoundaryTrialFlow } from "./mapless-boundary-trial-flow.js";
 import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
 import { pokemonMoveTotalPp, setPokemonRuntimeMovePp, updatePokemonRuntime } from "./pokemon-runtime.js";
 
@@ -53,17 +54,38 @@ function recoverPokemon(pokemon, index, operation) {
   return recovered;
 }
 
+function existingBoundaryInput(state, floor) {
+  const prior = state?.boundary_trial && typeof state.boundary_trial === "object"
+    ? state.boundary_trial
+    : {};
+  return {
+    floor,
+    leader_bag: Array.isArray(prior.leader_bag) ? prior.leader_bag : [],
+    last_leader: prior.last_leader ?? null,
+    pending_leader: prior.pending_leader ?? null,
+    trial_count: Number(prior.trial_count ?? 0),
+    trial_started: Boolean(prior.trial_started),
+    trial_cleared: Boolean(prior.trial_cleared),
+    trial_floor: prior.trial_floor ?? null,
+    selected_leader: prior.pending_leader ?? null,
+  };
+}
+
 export function prepareSafariCampNextDay(runtime, index, confirmed = true) {
   const state = runtime?.variables?.mapless;
   if (!state || typeof state !== "object") throw new TypeError("runtime variables.mapless state is required");
   if (state.board_events?.[index]?.kind !== "next_day") throw new Error("next_day board event is required");
-  return resolveCampNextDay({
+  const owner = resolveCampNextDay({
     day: state.day,
     selected_index: index,
     confirmed,
     generation: confirmed ? generationForDay(Number(state.day) + 1) : undefined,
     party: runtime?.player?.party ?? [],
   });
+  const nextDay = Number(owner?.day_board?.day ?? 0);
+  if (!confirmed || !isBoundaryTrialFloor(nextDay)) return owner;
+  const boundaryTrial = resolveBoundaryTrialFlow(existingBoundaryInput(state, nextDay));
+  return { ...owner, boundary_trial: boundaryTrial };
 }
 
 export function applySafariCampRecovery(runtime, ownerResult) {
@@ -76,4 +98,32 @@ export function applySafariCampRecovery(runtime, ownerResult) {
     { ...operation, owner: "mapless-camp-next-day-flow" },
   ];
   return runtime;
+}
+
+export function applySafariBoundaryTrialEntry(runtime, ownerResult) {
+  const boundary = ownerResult?.boundary_trial;
+  if (!boundary) return { runtime, entered: false, boundary: null };
+  const state = runtime?.variables?.mapless;
+  if (!state || typeof state !== "object") throw new TypeError("runtime variables.mapless state is required");
+  const floor = Number(ownerResult?.day_board?.day ?? boundary?.state?.day ?? state.day);
+  state.day = floor;
+  state.location = "boundary_trial";
+  state.boundary_trial = {
+    ...structuredClone(boundary.state),
+    result: boundary.result,
+    battle_request: structuredClone(boundary.battle_request ?? null),
+  };
+  state.board_suspended_for_boundary = true;
+  state.notice = boundary.result === "leader_required"
+    ? `DAY ${floor}：境界の試練。リーダーの選出が必要です。`
+    : `DAY ${floor}：境界の試練。`;
+  const boundaryOperations = (boundary.operations ?? []).map((operation) => ({
+    ...structuredClone(operation),
+    owner: "mapless-boundary-trial-flow",
+  }));
+  state.last_operations = [
+    ...(Array.isArray(state.last_operations) ? state.last_operations : []),
+    ...boundaryOperations,
+  ];
+  return { runtime, entered: true, boundary };
 }
