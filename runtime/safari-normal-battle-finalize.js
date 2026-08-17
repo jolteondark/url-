@@ -99,7 +99,9 @@ function givePotion(runtime, battle) {
 }
 
 function awardWildWin(runtime, battle) {
-  const player = runtime.player.party[0];
+  const playerIndex = Number(battle.player_party_index ?? 0);
+  const player = runtime.player.party[playerIndex];
+  if (!player) throw new Error("active player Pokemon is required for wild EXP");
   const foeMaster = SAFARI_SPECIES_MASTERS[battle.foe.species];
   if (!foeMaster) return givePotion(runtime, battle);
   const expFlow = resolveExpLevelMoveFlow({
@@ -125,7 +127,7 @@ function awardWildWin(runtime, battle) {
     moveDecisions: {},
   });
   const currentMoves = new Map(player.moves.map((move) => [moveId(move), move]));
-  runtime.player.party[0] = materializePokemon({
+  runtime.player.party[playerIndex] = materializePokemon({
     ...player,
     exp: expFlow.pokemon.exp,
     level: expFlow.pokemon.level,
