@@ -12,8 +12,18 @@ assert.match(
 );
 assert.match(
   prewarm,
-  /safari-runtime-changed[\s\S]*requestAnimationFrame[\s\S]*import\("\.\/safari-playable-integration\.js"\)/,
-  "full Battle runtime prewarm must begin only after Battle state publication and one render frame",
+  /window\.addEventListener\("safari-runtime-changed", schedulePrewarm/,
+  "Battle state publication must schedule runtime prewarm",
+);
+assert.match(
+  prewarm,
+  /requestAnimationFrame\(\(\) => \{[\s\S]*prewarmAfterBattleRender\(\)/,
+  "runtime prewarm must wait one render frame after Battle state publication",
+);
+assert.match(
+  prewarm,
+  /import\("\.\/safari-playable-integration\.js"\)/,
+  "prewarm must target the exact full Battle integration URL used by move resolution",
 );
 assert.match(
   prewarm,
