@@ -17,6 +17,11 @@ assert.match(preview, /data-boot-board-index/, "static board cells must own a bo
 assert.match(preview, /loadPreviewApp\(Number\(cell\.dataset\.bootBoardIndex\)\)/, "heavy app must load from the first actual board choice");
 assert.match(preview, /import\("\.\/preview-app\.js"\)/, "heavy preview app must be demand-loaded");
 assert.match(preview, /import\("\.\/preview-board-start-bridge\.js"\)/, "first board choice bridge must be demand-loaded after the app");
+assert.match(preview, /newRun\?\.addEventListener\("click", onNewRun\)/, "New must use a direct element listener");
+assert.match(preview, /continueRun\?\.addEventListener\("click", onContinueRun\)/, "Continue must use a direct element listener");
+assert.match(preview, /board\?\.addEventListener\("click", onBootBoardChoice\)/, "boot board must use a direct board listener");
+assert.doesNotMatch(preview, /document\.addEventListener\("click"/, "boot must not intercept document clicks");
+assert.doesNotMatch(preview, /preventDefault|stopImmediatePropagation/, "boot must not suppress or replay input");
 assert.doesNotMatch(preview, /from\s+["']\.\/runtime\//, "preview entry must not statically import runtime modules");
 assert.doesNotMatch(preview, /^import\s+["']\.\/runtime\//m, "preview entry must not side-effect import runtime modules");
 assert.doesNotMatch(preview, /\.click\(\)|requestAnimationFrame/, "preview loader must not replay synthetic clicks");
