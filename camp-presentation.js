@@ -21,6 +21,11 @@ const byId = (id) => document.getElementById(id);
 function runtime(){return globalThis.__maplessSafariRuntime ?? null;}
 function pokemonId(p,index){return p?.personal_id ?? p?.id ?? p?.uuid ?? index;}
 function pokemonLabel(p,index){return p?.name ?? p?.species_name ?? p?.species ?? `Pokemon ${index+1}`;}
+function boardEventForButton(button){
+  const index=Number(button?.dataset?.boardIndex);
+  if(!Number.isInteger(index)) return null;
+  return runtime()?.variables?.mapless?.board_events?.[index] ?? null;
+}
 
 function openCamp(button,index){
   const rt=runtime(); if(!rt) return;
@@ -37,6 +42,13 @@ function openCamp(button,index){
 export function openSafariCamp(button,index){
   openCamp(button,index);
 }
+
+document.addEventListener("click",(event)=>{
+  const button=event.target.closest("#board button[data-board-index]");
+  if(!button || boardEventForButton(button)?.kind!=="next_day") return;
+  event.stopPropagation();
+  openCamp(button,Number(button.dataset.boardIndex));
+},{capture:true});
 
 byId("camp-cancel").addEventListener("click",()=>{backdrop.hidden=true;pendingButton=null;});
 byId("camp-confirm").addEventListener("click",async()=>{
