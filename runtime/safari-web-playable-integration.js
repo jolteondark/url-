@@ -43,7 +43,7 @@ async function full() {
 async function normalRound() {
   if (normalRoundModule) return normalRoundModule;
   if (!normalRoundModulePromise) {
-    normalRoundModulePromise = import("./safari-normal-battle-round.js?v=20260818-0813")
+    normalRoundModulePromise = import("./safari-normal-battle-round.js?v=20260818-0852")
       .then((module) => {
         normalRoundModule = module;
         globalThis.__maplessBattleRuntimeError = null;
