@@ -2,30 +2,68 @@ import { projectGeneralEncounterSpeciesPools } from "./general-encounter-species
 import { safariGeneralMoveAiFacts } from "./safari-general-move-ai-facts.js";
 import { safariGeneralSpeciesIndividualFacts } from "./safari-general-species-individual-facts.js";
 
-const chunks = await Promise.all([
-  import("./generated/safari-general-encounter-data-v2-00.js"),
-  import("./generated/safari-general-encounter-data-v2-01.js"),
-  import("./generated/safari-general-encounter-data-v2-02.js"),
-  import("./generated/safari-general-encounter-data-v2-03.js"),
-  import("./generated/safari-general-encounter-data-v2-04.js"),
-  import("./generated/safari-general-encounter-data-v2-05.js"),
-  import("./generated/safari-general-encounter-data-v2-06.js"),
-  import("./generated/safari-general-encounter-data-v2-07.js"),
-  import("./generated/safari-general-encounter-data-v2-08.js"),
-  import("./generated/safari-general-encounter-data-v2-09.js"),
-  import("./generated/safari-general-encounter-data-v2-10.js"),
-  import("./generated/safari-general-encounter-data-v2-11.js"),
-  import("./generated/safari-general-encounter-data-v2-12.js"),
-  import("./generated/safari-general-encounter-data-v2-13.js"),
-  import("./generated/safari-general-encounter-data-v2-14.js"),
-  import("./generated/safari-general-encounter-data-v2-15.js"),
-  import("./generated/safari-general-encounter-data-v2-16.js"),
-  import("./generated/safari-general-encounter-data-v2-17.js"),
-  import("./generated/safari-general-encounter-data-v2-18.js"),
-  import("./generated/safari-general-encounter-data-v2-19.js"),
-]);
+const CHUNK_COUNT = 20;
+const BROWSER_FETCH_BATCH = 4;
+const NODE_CHUNK_LOADERS = [
+  () => import("./generated/safari-general-encounter-data-v2-00.js"),
+  () => import("./generated/safari-general-encounter-data-v2-01.js"),
+  () => import("./generated/safari-general-encounter-data-v2-02.js"),
+  () => import("./generated/safari-general-encounter-data-v2-03.js"),
+  () => import("./generated/safari-general-encounter-data-v2-04.js"),
+  () => import("./generated/safari-general-encounter-data-v2-05.js"),
+  () => import("./generated/safari-general-encounter-data-v2-06.js"),
+  () => import("./generated/safari-general-encounter-data-v2-07.js"),
+  () => import("./generated/safari-general-encounter-data-v2-08.js"),
+  () => import("./generated/safari-general-encounter-data-v2-09.js"),
+  () => import("./generated/safari-general-encounter-data-v2-10.js"),
+  () => import("./generated/safari-general-encounter-data-v2-11.js"),
+  () => import("./generated/safari-general-encounter-data-v2-12.js"),
+  () => import("./generated/safari-general-encounter-data-v2-13.js"),
+  () => import("./generated/safari-general-encounter-data-v2-14.js"),
+  () => import("./generated/safari-general-encounter-data-v2-15.js"),
+  () => import("./generated/safari-general-encounter-data-v2-16.js"),
+  () => import("./generated/safari-general-encounter-data-v2-17.js"),
+  () => import("./generated/safari-general-encounter-data-v2-18.js"),
+  () => import("./generated/safari-general-encounter-data-v2-19.js"),
+];
 
-const encoded = chunks.map((chunk) => chunk.default).join("");
+function chunkUrl(index) {
+  return new URL(`./generated/safari-general-encounter-data-v2-${String(index).padStart(2, "0")}.js`, import.meta.url);
+}
+
+async function fetchEncodedChunk(index) {
+  const response = await fetch(chunkUrl(index), { cache: "force-cache" });
+  if (!response.ok) throw new Error(`Safari GENERAL chunk ${index} fetch failed: ${response.status}`);
+  const source = (await response.text()).trim();
+  const match = /^export default "([A-Za-z0-9+/=]+)";$/.exec(source);
+  if (!match) throw new Error(`Safari GENERAL chunk ${index} format mismatch`);
+  return match[1];
+}
+
+async function loadBrowserEncodedChunks() {
+  const chunks = [];
+  for (let start = 0; start < CHUNK_COUNT; start += BROWSER_FETCH_BATCH) {
+    const indexes = Array.from(
+      { length: Math.min(BROWSER_FETCH_BATCH, CHUNK_COUNT - start) },
+      (_, offset) => start + offset,
+    );
+    chunks.push(...await Promise.all(indexes.map(fetchEncodedChunk)));
+    // Yield between small network/decode batches so iPhone Safari can paint and
+    // process input instead of parsing 20 giant JS string modules in one burst.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  return chunks;
+}
+
+async function loadNodeEncodedChunks() {
+  const chunks = await Promise.all(NODE_CHUNK_LOADERS.map((load) => load()));
+  return chunks.map((chunk) => chunk.default);
+}
+
+const encodedChunks = typeof window !== "undefined" && typeof fetch === "function"
+  ? await loadBrowserEncodedChunks()
+  : await loadNodeEncodedChunks();
+const encoded = encodedChunks.join("");
 const binary = typeof atob === "function"
   ? Uint8Array.from(atob(encoded), (char) => char.charCodeAt(0))
   : Uint8Array.from(Buffer.from(encoded, "base64"));
