@@ -54,4 +54,19 @@ assertBattleStarted(trainerRuntime, trainerResult, "trainer");
 assert.equal(demand.safariGeneralCombatReady("trainer"), true, "trainer cell must load the trainer owner");
 assert.ok(state(trainerRuntime).battle.trainer_party?.length > 0, "trainer Battle must materialize its Party");
 
+const failedRuntime = createSafariPlayableRuntime();
+prepareCell(failedRuntime, { kind: "wild", type: "NOT_A_CANONICAL_TYPE" });
+const failedState = state(failedRuntime);
+const previousNotice = failedState.notice;
+const previousCounter = failedState.preview_encounter_counter;
+await assert.rejects(
+  () => activateSafariWebCombatCell(failedRuntime, 0),
+  /unknown General Encounter type/,
+);
+assert.equal(failedState.board_consumed[0], false, "failed Battle start must not consume the Day Board cell");
+assert.equal(failedState.board_revealed[0], false, "failed Battle start must leave the Day Board cell retryable");
+assert.equal(failedState.battle, null, "failed Battle start must not leave partial Battle state");
+assert.equal(failedState.notice, previousNotice, "failed Battle start must restore the prior board notice");
+assert.equal(failedState.preview_encounter_counter, previousCounter, "failed Battle start must roll back encounter RNG state");
+
 console.log("Safari Day Board -> GENERAL demand -> Battle start: ok");

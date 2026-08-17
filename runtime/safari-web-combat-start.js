@@ -118,28 +118,50 @@ export async function activateSafariWebCombatCell(runtime, index) {
   if (!event || !["wild", "trainer"].includes(event.kind)) throw new Error("wild or trainer board event is required");
   if (state.battle && !state.battle.completed) return { runtime, result: "battle_active", boundary: "battle", notice: "戦闘を先に終えてください。", operations: [] };
   if (state.shop) return { runtime, result: "shop_active", boundary: "shop", notice: "ショップを先に終了してください。", operations: [] };
-  if (!safariGeneralCombatReady(event.kind)) {
-    state.notice = "戦闘データを読み込んでいます…";
-    await ensureSafariGeneralCombatData(event.kind);
+
+  const previousNotice = state.notice;
+  const previousLastOperations = state.last_operations;
+  const hadEncounterSeed = Object.prototype.hasOwnProperty.call(state, "preview_encounter_seed");
+  const previousEncounterSeed = state.preview_encounter_seed;
+  const hadEncounterCounter = Object.prototype.hasOwnProperty.call(state, "preview_encounter_counter");
+  const previousEncounterCounter = state.preview_encounter_counter;
+
+  try {
+    if (!safariGeneralCombatReady(event.kind)) {
+      state.notice = "戦闘データを読み込んでいます…";
+      await ensureSafariGeneralCombatData(event.kind);
+    }
+    const dispatch = resolveDayBoardCellDispatch({ ...baseTurnInput(state, index), reusable: false });
+    if (dispatch.result === "dispatched") {
+      if (event.kind === "wild") startWild(runtime, event, index, dispatch.operations);
+      else startTrainer(runtime, event, index, dispatch.operations);
+    }
+
+    state.board_events = dispatch.state.board_events;
+    state.board_revealed = dispatch.state.board_revealed;
+    state.board_consumed = dispatch.state.board_consumed;
+    if (dispatch.result !== "dispatched") {
+      state.last_operations = dispatch.operations;
+      state.notice = dispatch.notice;
+    }
+
+    globalThis.__maplessSafariRuntime = runtime;
+    return {
+      runtime,
+      result: dispatch.result,
+      boundary: event.kind,
+      notice: state.notice,
+      operations: state.battle?.last_operations ?? dispatch.operations,
+      presentation: state.battle?.presentation ?? [],
+      trainer: state.battle?.trainer ?? null,
+    };
+  } catch (error) {
+    state.notice = previousNotice;
+    state.last_operations = previousLastOperations;
+    if (hadEncounterSeed) state.preview_encounter_seed = previousEncounterSeed;
+    else delete state.preview_encounter_seed;
+    if (hadEncounterCounter) state.preview_encounter_counter = previousEncounterCounter;
+    else delete state.preview_encounter_counter;
+    throw error;
   }
-  const dispatch = resolveDayBoardCellDispatch({ ...baseTurnInput(state, index), reusable: false });
-  state.board_events = dispatch.state.board_events;
-  state.board_revealed = dispatch.state.board_revealed;
-  state.board_consumed = dispatch.state.board_consumed;
-  state.last_operations = dispatch.operations;
-  state.notice = dispatch.notice;
-  if (dispatch.result === "dispatched") {
-    if (event.kind === "wild") startWild(runtime, event, index, dispatch.operations);
-    else startTrainer(runtime, event, index, dispatch.operations);
-  }
-  globalThis.__maplessSafariRuntime = runtime;
-  return {
-    runtime,
-    result: dispatch.result,
-    boundary: event.kind,
-    notice: state.notice,
-    operations: state.battle?.last_operations ?? dispatch.operations,
-    presentation: state.battle?.presentation ?? [],
-    trainer: state.battle?.trainer ?? null,
-  };
 }
