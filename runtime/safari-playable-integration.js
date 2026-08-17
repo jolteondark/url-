@@ -1,9 +1,9 @@
-import * as playable from "./safari-playable-integration-boundary-return.js";
+import * as playable from "./safari-playable-integration-boundary.js";
 import { resolveTrainerMoveChoiceWithPriorityFlinchCanonical } from "./battle-core-trainer-choice-priority-flinch-integration.js";
 import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
 import { ensureSafariGeneralData, safariGeneralDataReady } from "./safari-general-data-demand.js";
 
-export * from "./safari-playable-integration-boundary-return.js";
+export * from "./safari-playable-integration-boundary.js";
 export { SAFARI_MOVE_PRESENTATION } from "./safari-move-presentation-live.js";
 export { activateSafariDayBoardCell } from "./safari-pokemon-center-command.js";
 export { attemptSafariCapture } from "./safari-capture-command.js";
@@ -200,4 +200,21 @@ export function resolveSafariBattleRound(runtime, selectedMoveId) {
     return result.then(finalize);
   }
   return finalize(result);
+}
+
+export function returnSafariToDayBoard(runtime) {
+  const state = stateOf(runtime);
+  const wasBoundary = state.battle?.origin === "boundary_trial";
+  const decision = Number(state.battle?.decision ?? 0);
+  const result = playable.returnSafariToDayBoard(runtime);
+  if (wasBoundary && decision === 1 && result?.target === "day_board") {
+    state.boundary_trial = {
+      ...(state.boundary_trial ?? {}),
+      trial_cleared: false,
+      trial_floor: null,
+      result: "returned_to_board",
+      battle_request: null,
+    };
+  }
+  return result;
 }
