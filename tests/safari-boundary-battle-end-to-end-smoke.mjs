@@ -51,4 +51,6 @@ assert.equal(state.boundary_trial.trial_cleared, false);
 assert.equal(state.boundary_trial.trial_floor, null);
 assert.equal(state.boundary_trial.trial_count, 1);
 assert.equal(state.boundary_trial.last_leader, "BROCK");
+assert.equal(state.boundary_trial.result, "returned_to_board");
+assert.equal(state.boundary_trial.battle_request, null);
 console.log("Safari boundary battle end-to-end smoke: ok");
