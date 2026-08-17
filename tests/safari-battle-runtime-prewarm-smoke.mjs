@@ -22,28 +22,48 @@ assert.match(
 );
 assert.match(
   prewarm,
-  /import\("\.\/safari-playable-integration\.js"\)/,
-  "prewarm must target the exact full Battle integration URL used by move resolution",
+  /import\("\.\/safari-web-playable-integration\.js\?v=[^\"]+"\)/,
+  "prewarm must load the lightweight Battle facade rather than the full integration graph directly",
+);
+assert.match(
+  prewarm,
+  /facadePromise = null;[\s\S]*throw error/,
+  "a rejected facade prewarm promise must be retryable",
+);
+assert.match(
+  prewarm,
+  /facade\.prepareSafariBattleRuntime\(globalThis\.__maplessSafariRuntime\)/,
+  "post-render prewarm must delegate runtime selection to the shared Battle facade",
 );
 assert.match(
   prewarm,
   /__maplessLastError = error[\s\S]*__maplessBattleRuntimeError = error/,
   "a rejected prewarm must preserve the exact runtime error instead of masking it as UI state",
 );
-assert.match(
+assert.doesNotMatch(
   prewarm,
-  /runtimeModulePromise = null;[\s\S]*throw error/,
-  "a rejected prewarm promise must be retryable",
+  /import\("\.\/safari-playable-integration\.js"\)/,
+  "normal Battle prewarm must not eagerly import the full integration graph",
+);
+assert.match(
+  publicEntry,
+  /normalBattleModulePromise = import\("\.\/safari-playable-integration-pre-wounded\.js"\)/,
+  "ordinary wild/trainer rounds must use the isolated normal Battle runtime",
+);
+assert.match(
+  publicEntry,
+  /needsFullBattleIntegration\(runtime\)[\s\S]*origin === "boundary_trial"/,
+  "only boundary trials should require the full Battle integration graph",
+);
+assert.match(
+  publicEntry,
+  /prepareSafariBattleRuntime\(runtime = globalThis\.__maplessSafariRuntime\)[\s\S]*await battleModule\(runtime\)/,
+  "prewarm and first-command resolution must share the same Battle runtime selector",
 );
 assert.doesNotMatch(
   publicEntry,
   /event\?\.kind === "wild"[\s\S]*await full\(\)[\s\S]*activateSafariWebCombatCell/,
   "Board combat activation must stay on the lightweight combat-start path",
 );
-assert.match(
-  publicEntry,
-  /fullModulePromise = null;[\s\S]*__maplessLastError = error[\s\S]*throw error/,
-  "the shared full-runtime loader must also clear rejected promises and retain the exact error",
-);
 
-console.log("Safari Battle scene -> post-render full runtime prewarm -> retryable move runtime: ok");
+console.log("Safari Battle scene -> post-render selected runtime prewarm -> retryable first command: ok");
