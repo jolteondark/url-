@@ -34,6 +34,10 @@ function usableTrainerMoves(foe) {
     .map((move, moveIndex) => ({ move, moveIndex, id: moveId(move) }))
     .filter(({ move, id }) => id && SAFARI_MOVE_MASTERS[id] && (typeof move === "string" || Number(move.pp ?? 0) > 0));
 }
+function allTrainerMovesOutOfPp(foe) {
+  const moves = Array.isArray(foe?.moves) ? foe.moves : [];
+  return moves.length > 0 && moves.every((move) => typeof move !== "string" && Number(move?.pp ?? 0) <= 0);
+}
 function trainerAiSeed(battle) {
   const trainerSeed = Number(battle?.trainer_seed ?? 0) & 0x7fffffff;
   const turn = Math.max(1, Math.trunc(Number(battle?.turn ?? 1)));
@@ -56,7 +60,18 @@ function prepareTrainerMove(runtime) {
   const player = runtime.player?.party?.[0];
   if (!player) throw new Error("active player Pokemon is required for trainer AI");
   const usable = usableTrainerMoves(battle.foe);
-  if (!usable.length) throw new Error("trainer AI has no usable projected move; Struggle ownership is not connected yet");
+  const originalMoves = [...(battle.foe?.moves ?? [])];
+  const originalIds = originalMoves.map(moveId);
+  if (!usable.length) {
+    if (!allTrainerMovesOutOfPp(battle.foe)) throw new Error("trainer AI has no usable projected move");
+    return {
+      trainerPartyIndex: battle.trainer_party_index,
+      foeSpecies: battle.foe.species,
+      originalIds,
+      resolution: { command: "struggle", reason: "all_moves_out_of_pp", choices: [], weightedChoices: [], randomRolls: [] },
+      selectedMoveId: "STRUGGLE",
+    };
+  }
   const skill = Number(battle.skill_level ?? 0);
   const foeSpeed = speedOf(battle.foe);
   const playerSpeed = speedOf(player);
@@ -81,8 +96,6 @@ function prepareTrainerMove(runtime) {
     aiRandomSeed: trainerAiSeed(battle),
   });
   if (resolution.command !== "move" || !Number.isInteger(resolution.moveIndex)) throw new Error(`trainer AI command is not connected to Safari round execution: ${resolution.command}`);
-  const originalMoves = [...battle.foe.moves];
-  const originalIds = originalMoves.map(moveId);
   const selected = originalMoves[resolution.moveIndex];
   if (!selected) throw new RangeError("trainer AI selected an invalid move index");
   battle.foe.moves = [selected, ...originalMoves.filter((_, index) => index !== resolution.moveIndex)];
