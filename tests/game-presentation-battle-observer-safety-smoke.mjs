@@ -1,22 +1,33 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
-const source = fs.readFileSync(new URL("../game-presentation.js", import.meta.url), "utf8");
+const presentation = fs.readFileSync(new URL("../game-presentation.js", import.meta.url), "utf8");
+const statusBridge = fs.readFileSync(new URL("../canonical-battle-status-bridge.js", import.meta.url), "utf8");
 
+assert.doesNotMatch(
+  presentation,
+  /new MutationObserver\(schedulePresentation\)\.observe\(battle/,
+  "generic game presentation must not observe the Battle subtree",
+);
+assert.doesNotMatch(
+  presentation,
+  /function decorateBattle|function hpTone|function decorateMoves/,
+  "legacy Battle decoration must stay out of the generic presentation layer",
+);
 assert.match(
-  source,
-  /observe\(battle,\{subtree:true,childList:true,characterData:true\}\)/,
-  "battle presentation must observe semantic child/text changes only",
+  statusBridge,
+  /resolveSafariCanonicalHpZone/,
+  "canonical Battle status bridge must remain the HP-zone owner",
+);
+assert.match(
+  statusBridge,
+  /window\.addEventListener\("safari-runtime-changed", scheduleSync/,
+  "canonical Battle status must stay runtime-event driven",
 );
 assert.doesNotMatch(
-  source,
-  /observe\(battle,[^\n]*attributes:true/,
-  "battle presentation must not observe attributes on Safari",
-);
-assert.doesNotMatch(
-  source,
-  /observe\(battle,[^\n]*(style|hidden)/,
-  "battle presentation must not subscribe to style/hidden mutations",
+  statusBridge,
+  /new MutationObserver/,
+  "canonical Battle status bridge must remain observer-free",
 );
 
-console.log("game presentation battle observer safety smoke: ok");
+console.log("game presentation Battle ownership smoke: ok");
