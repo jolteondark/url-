@@ -87,16 +87,5 @@ function schedule() {
 
 ensureStyle();
 render();
-const battle = document.getElementById("battle-card");
-if (battle) {
-  // Observe semantic battle content only. Do not observe hidden/style changes
-  // made by this renderer itself; doing so can create a self-triggering loop
-  // on WebKit/Safari.
-  new MutationObserver(schedule).observe(battle, {
-    subtree: true,
-    childList: true,
-    characterData: true,
-  });
-}
 window.addEventListener("pageshow", schedule, { passive: true });
 window.addEventListener("safari-runtime-changed", schedule, { passive: true });

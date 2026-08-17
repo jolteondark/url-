@@ -163,22 +163,8 @@ function scheduleRender() {
   });
 }
 
-const root = byId("battle-card");
-const arena = root?.querySelector(".arena");
-if (arena) {
-  // The HUD is a sibling of .arena, so this observer cannot observe its own
-  // writes. Do not observe attributes; battle presentation mutates attributes.
-  new MutationObserver(scheduleRender).observe(arena, {
-    subtree: true,
-    childList: true,
-    characterData: true,
-  });
-}
-if (root) {
-  root.addEventListener("pointerdown", scheduleRender, { passive: true });
-  root.addEventListener("click", scheduleRender, { passive: true });
-}
 window.addEventListener("pageshow", scheduleRender, { passive: true });
+window.addEventListener("safari-runtime-changed", scheduleRender, { passive: true });
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) scheduleRender();
 });

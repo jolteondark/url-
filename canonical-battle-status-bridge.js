@@ -135,13 +135,6 @@ function scheduleSync() {
   });
 }
 
-if (battleCard) {
-  new MutationObserver(scheduleSync).observe(battleCard, {
-    childList: true,
-    characterData: true,
-    subtree: true,
-  });
-  battleCard.addEventListener("pointerdown", scheduleSync, { passive: true });
-  battleCard.addEventListener("click", scheduleSync, { passive: true });
-  syncDataboxState();
-}
+if (battleCard) syncDataboxState();
+window.addEventListener("pageshow", scheduleSync, { passive: true });
+window.addEventListener("safari-runtime-changed", scheduleSync, { passive: true });
