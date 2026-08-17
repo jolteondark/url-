@@ -1,5 +1,6 @@
 import { resolveBrowserBattleRound } from './browser-battle-round-runtime.js';
 import { resolveBrowserOpponentMoveChoiceCanonical } from './battle-core-browser-opponent-move-choice.js';
+import { projectOwnedOpponentRoundInputCanonical } from './browser-battle-owned-opponent-state-handoff.js';
 
 export function resolveBrowserBattleRoundWithOwnedOpponent(input = {}) {
   const opponentChoice = resolveBrowserOpponentMoveChoiceCanonical({
@@ -19,14 +20,6 @@ export function resolveBrowserBattleRoundWithOwnedOpponent(input = {}) {
     badMoveSwitchRegistered: input.badMoveSwitchRegistered,
     badMoveSwitchPartyIndex: input.badMoveSwitchPartyIndex,
   });
-  const round = resolveBrowserBattleRound({
-    player: input.player,
-    foe: input.foe,
-    selectedMoveId: input.selectedMoveId,
-    foeMoveId: opponentChoice.moveId,
-    moveMasters: input.moveMasters,
-    playerRandomRoll: input.playerRandomRoll,
-    foeRandomRoll: input.foeRandomRoll,
-  });
+  const round = resolveBrowserBattleRound(projectOwnedOpponentRoundInputCanonical(input, opponentChoice));
   return { ...round, opponentChoice };
 }
