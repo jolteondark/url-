@@ -1,6 +1,5 @@
 import { resolveBrowserBattleRound } from './browser-battle-round-runtime.js';
 import { resolveBrowserOpponentMoveChoiceCanonical } from './battle-core-browser-opponent-move-choice.js';
-import { projectOwnedOpponentRoundInputCanonical } from './browser-battle-owned-opponent-state-handoff.js';
 
 export function resolveBrowserBattleRoundWithOwnedOpponent(input = {}) {
   const opponentChoice = resolveBrowserOpponentMoveChoiceCanonical({
@@ -20,6 +19,23 @@ export function resolveBrowserBattleRoundWithOwnedOpponent(input = {}) {
     badMoveSwitchRegistered: input.badMoveSwitchRegistered,
     badMoveSwitchPartyIndex: input.badMoveSwitchPartyIndex,
   });
-  const round = resolveBrowserBattleRound(projectOwnedOpponentRoundInputCanonical(input, opponentChoice));
+  const round = resolveBrowserBattleRound({
+    player: input.player,
+    foe: input.foe,
+    playerParty: input.playerParty,
+    foeParty: input.foeParty,
+    playerActivePartyIndex: input.playerActivePartyIndex,
+    foeActivePartyIndex: input.foeActivePartyIndex,
+    selectedMoveId: input.selectedMoveId,
+    foeMoveId: opponentChoice.moveId,
+    moveMasters: input.moveMasters,
+    combatRandomSeed: input.combatRandomSeed,
+    priorityRandomSeed: input.priorityRandomSeed,
+    playerRandomRoll: input.playerRandomRoll,
+    foeRandomRoll: input.foeRandomRoll,
+    playerBattleExpInput: input.playerBattleExpInput,
+    postBattlePersistenceInput: input.postBattlePersistenceInput,
+    reflectedPartyIndex: input.reflectedPartyIndex,
+  });
   return { ...round, opponentChoice };
 }
