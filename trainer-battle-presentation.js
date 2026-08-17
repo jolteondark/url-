@@ -1,5 +1,7 @@
 const byId = (id) => document.getElementById(id);
 let scheduled = false;
+let replacementMessageTimer = 0;
+let lastReplacementSignature = null;
 
 function runtimeState() {
   return globalThis.__maplessSafariRuntime?.variables?.mapless ?? null;
@@ -28,6 +30,33 @@ function teamState(battle) {
   const active = Math.max(0, Number(battle?.trainer_party_index ?? 0));
   const remaining = party.filter((pokemon, index) => index >= active && !isFainted(pokemon)).length;
   return { party, active, remaining };
+}
+
+function latestReplacementEvent(battle) {
+  const events = Array.isArray(battle?.presentation) ? battle.presentation : [];
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    if (events[index]?.type === "trainer_next") return events[index];
+  }
+  return null;
+}
+
+function scheduleReplacementMessage(battle) {
+  const replacement = latestReplacementEvent(battle);
+  if (!replacement) return;
+  const partyIndex = Number(replacement.partyIndex ?? battle.trainer_party_index ?? 0);
+  const species = replacement.species ?? battle.trainer_party?.[partyIndex]?.species ?? battle.foe?.species ?? "次のポケモン";
+  const trainer = replacement.trainer ?? battle.trainer?.trainer_full_name ?? "トレーナー";
+  const signature = `${Number(battle.turn ?? 0)}:${partyIndex}:${species}`;
+  if (signature === lastReplacementSignature) return;
+  lastReplacementSignature = signature;
+  if (replacementMessageTimer) window.clearTimeout(replacementMessageTimer);
+  replacementMessageTimer = window.setTimeout(() => {
+    replacementMessageTimer = 0;
+    const current = trainerBattle();
+    if (!current || current.completed || Number(current.trainer_party_index ?? 0) !== partyIndex) return;
+    const message = byId("battle-message");
+    if (message) message.textContent = `${trainer}は${species}を繰り出した！`;
+  }, 360);
 }
 
 function ensureHud() {
@@ -81,7 +110,14 @@ function render() {
   hud.hidden = !battle;
   document.body.classList.toggle("trainer-battle-active", Boolean(battle));
   syncFleePresentation(battle);
-  if (!battle) return;
+  if (!battle) {
+    lastReplacementSignature = null;
+    if (replacementMessageTimer) {
+      window.clearTimeout(replacementMessageTimer);
+      replacementMessageTimer = 0;
+    }
+    return;
+  }
 
   const { party, active, remaining } = teamState(battle);
   byId("trainer-battle-name").textContent = battle.trainer?.trainer_full_name ?? "トレーナー";
@@ -90,6 +126,7 @@ function render() {
   const lineup = Array.from({ length: Math.max(6, party.length || 1) }, (_, index) => party[index] ?? (index === 0 ? battle.foe : null));
   const pips = lineup.map((pokemon, index) => lineupPip(pokemon, index, active, battle.completed));
   byId("trainer-battle-party").replaceChildren(...pips);
+  if (!battle.completed) scheduleReplacementMessage(battle);
 }
 
 function scheduleRender() {
