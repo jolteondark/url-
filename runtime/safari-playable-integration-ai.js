@@ -100,12 +100,22 @@ function lastHpAfter(operations, target) {
   }
   return hp;
 }
+function foeWasReplaced(result) {
+  return result?.foeReplacementApplied === true
+    || result?.replacementApplied === true
+    || result?.trainerReplacementContinuation?.result === "continued_with_replacement";
+}
 function applyResolvedHp(runtime, result) {
   const state = stateOf(runtime);
   const battle = state.battle;
   if (!battle) return;
   const foeHp = lastHpAfter(result?.operations, "foe");
-  if (foeHp !== null && battle.foe) battle.foe.hp = Math.min(Number(battle.foe.max_hp ?? foeHp), foeHp);
+  // A trainer replacement is applied before this AI facade regains control.
+  // The foe HP operations belong to the Pokemon that just fainted, not the
+  // newly active reserve. Never replay the old foe's HP=0 onto its replacement.
+  if (!foeWasReplaced(result) && foeHp !== null && battle.foe) {
+    battle.foe.hp = Math.min(Number(battle.foe.max_hp ?? foeHp), foeHp);
+  }
   const playerHp = lastHpAfter(result?.operations, "player");
   if (playerHp !== null && runtime.player?.party?.[0]) {
     const player = runtime.player.party[0];
