@@ -75,7 +75,7 @@ function setBattle(runtime, index, kind, opponent, operations, trainer = null, e
   state.last_operations = lastOperations;
 }
 function startWild(runtime, event, index, operations) {
-  const { encounterRuntime } = safariGeneralCombatModules();
+  const { encounterRuntime } = safariGeneralCombatModules("wild");
   const state = stateOf(runtime);
   const speciesRoll = unitFromUint32(nextSafariEncounterSpeciesIndex(state, { day: state.day, boardIndex: index }));
   const varianceRoll = unitFromUint32(nextSafariEncounterSpeciesIndex(state, { day: state.day, boardIndex: index }));
@@ -103,7 +103,7 @@ function startWild(runtime, event, index, operations) {
   state.notice = `野生の${encounter.species_name}が現れた！`;
 }
 function startTrainer(runtime, event, index, operations) {
-  const { trainerGenerator } = safariGeneralCombatModules();
+  const { trainerGenerator } = safariGeneralCombatModules("trainer");
   const state = stateOf(runtime);
   const trainer = trainerGenerator.generateSafariDynamicTrainer({ day: state.day, seed: event.trainer_seed });
   const party = trainer.party.map(materializePokemon);
@@ -118,9 +118,9 @@ export async function activateSafariWebCombatCell(runtime, index) {
   if (!event || !["wild", "trainer"].includes(event.kind)) throw new Error("wild or trainer board event is required");
   if (state.battle && !state.battle.completed) return { runtime, result: "battle_active", boundary: "battle", notice: "戦闘を先に終えてください。", operations: [] };
   if (state.shop) return { runtime, result: "shop_active", boundary: "shop", notice: "ショップを先に終了してください。", operations: [] };
-  if (!safariGeneralCombatReady()) {
+  if (!safariGeneralCombatReady(event.kind)) {
     state.notice = "戦闘データを読み込んでいます…";
-    await ensureSafariGeneralCombatData();
+    await ensureSafariGeneralCombatData(event.kind);
   }
   const dispatch = resolveDayBoardCellDispatch({ ...baseTurnInput(state, index), reusable: false });
   state.board_events = dispatch.state.board_events;
