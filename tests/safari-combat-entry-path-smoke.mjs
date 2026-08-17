@@ -78,7 +78,10 @@ assert.equal(demand.safariGeneralCombatReady(), false);
 assert.equal(demand.safariGeneralCombatReady("wild"), false);
 assert.equal(demand.safariGeneralCombatReady("trainer"), false);
 
-// Real web entry: board action -> Battle object -> first round -> terminal KO -> board return.
+// Real web entry: board action -> Battle object -> nonterminal turn with HP
+// carryover -> terminal KO -> board return. This keeps the #158 carryover and
+// #159 KO-decision contracts on the actual web combat entry instead of only on
+// lower-level Battle fixtures.
 const wildRuntime = createSafariPlayableRuntime();
 prepareCell(wildRuntime, { kind: "wild", type: "BUG" });
 const wildResult = await activateSafariWebCombatCell(wildRuntime, 0);
@@ -87,12 +90,35 @@ await Promise.resolve();
 assert.ok(runtimeEvents.includes("safari-runtime-changed"), "Battle creation must notify the Safari scene owner after async combat load");
 assert.equal(demand.safariGeneralCombatReady("wild"), true, "wild cell must load the encounter owner");
 assert.equal(demand.safariGeneralCombatReady("trainer"), false, "wild cell must not require the trainer generator");
-const wildMoveId = preparePlayerForKo(wildRuntime);
+const wildPlayer = wildRuntime.player.party[0];
+const wildBattle = state(wildRuntime).battle;
+const wildMoveId = moveId(wildPlayer.moves[0]);
+wildPlayer.max_hp = 999;
+wildPlayer.hp = 999;
+wildPlayer.stats.ATTACK = 1;
+wildPlayer.stats.SPECIAL_ATTACK = 1;
+wildPlayer.stats.DEFENSE = 999;
+wildPlayer.stats.SPECIAL_DEFENSE = 999;
+wildBattle.foe.max_hp = 999;
+wildBattle.foe.hp = 999;
+wildBattle.foe.stats.ATTACK = 1;
+wildBattle.foe.stats.SPECIAL_ATTACK = 1;
+wildBattle.foe.stats.DEFENSE = 999;
+wildBattle.foe.stats.SPECIAL_DEFENSE = 999;
+const firstWildRound = await webPlayable.resolveSafariBattleRound(wildRuntime, wildMoveId);
+assert.equal(firstWildRound.decision, 0, "first durable wild round must stay nonterminal");
+assert.equal(state(wildRuntime).battle.turn, 2, "the same Battle object must advance to turn 2");
+const carriedPlayerHp = Number(wildRuntime.player.party[0].hp);
+const carriedFoeHp = Number(state(wildRuntime).battle.foe.hp);
+assert.ok(carriedPlayerHp > 0 && carriedFoeHp > 0, "both combatants must survive the carryover turn");
+wildRuntime.player.party[0].stats.ATTACK = 999;
+wildRuntime.player.party[0].stats.SPEED = 999;
 primeFoeAtOneHp(state(wildRuntime).battle);
 const wildKo = await webPlayable.resolveSafariBattleRound(wildRuntime, wildMoveId);
 assert.equal(wildKo.decision, 1, "wild KO must terminate from the Battle owner");
 assert.equal(state(wildRuntime).battle.completed, true);
 assert.equal(Number(state(wildRuntime).battle.foe.hp), 0);
+assert.equal(Number(wildKo.player?.hp), carriedPlayerHp, "turn-2 Battle input must retain the player HP produced by turn 1");
 const wildReturn = await webPlayable.returnSafariToDayBoard(wildRuntime);
 assert.equal(wildReturn.target, "day_board");
 assert.equal(state(wildRuntime).battle, null, "wild terminal Battle must return to the board without a stale Battle object");
@@ -148,4 +174,4 @@ assert.equal(failedState.battle, null, "failed Battle start must not leave parti
 assert.equal(failedState.notice, previousNotice, "failed Battle start must restore the prior board notice");
 assert.equal(failedState.preview_encounter_counter, previousCounter, "failed Battle start must roll back encounter RNG state");
 
-console.log("Safari real board -> Battle start -> KO/replacement -> board return: ok");
+console.log("Safari real board -> Battle start -> HP carryover -> KO/replacement -> board return: ok");
