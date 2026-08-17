@@ -291,10 +291,44 @@ async function playPresentation(events) {
   }
 }
 
+function snapshotBoardCombatState(index) {
+  const state = mapless();
+  const event = state.board_events?.[index];
+  if (event?.kind !== "wild" && event?.kind !== "trainer") return null;
+  return {
+    board_events: state.board_events,
+    board_revealed: state.board_revealed,
+    board_consumed: state.board_consumed,
+    battle: state.battle,
+    notice: state.notice,
+    last_operations: state.last_operations,
+    hadEncounterSeed: Object.prototype.hasOwnProperty.call(state, "preview_encounter_seed"),
+    encounterSeed: state.preview_encounter_seed,
+    hadEncounterCounter: Object.prototype.hasOwnProperty.call(state, "preview_encounter_counter"),
+    encounterCounter: state.preview_encounter_counter,
+  };
+}
+
+function restoreBoardCombatState(snapshot) {
+  if (!snapshot) return;
+  const state = mapless();
+  state.board_events = snapshot.board_events;
+  state.board_revealed = snapshot.board_revealed;
+  state.board_consumed = snapshot.board_consumed;
+  state.battle = snapshot.battle;
+  state.notice = snapshot.notice;
+  state.last_operations = snapshot.last_operations;
+  if (snapshot.hadEncounterSeed) state.preview_encounter_seed = snapshot.encounterSeed;
+  else delete state.preview_encounter_seed;
+  if (snapshot.hadEncounterCounter) state.preview_encounter_counter = snapshot.encounterCounter;
+  else delete state.preview_encounter_counter;
+}
+
 byId("board").addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-board-index]");
   if (!button || busy) return;
   const index = Number(button.dataset.boardIndex);
+  const combatSnapshot = snapshotBoardCombatState(index);
   busy = true;
   render();
   try {
@@ -310,7 +344,16 @@ byId("board").addEventListener("click", async (event) => {
     note("Day Board error: " + (error?.message ?? error));
   } finally {
     busy = false;
-    render();
+    try {
+      render();
+    } catch (error) {
+      globalThis.__maplessLastError = error;
+      if (combatSnapshot && combatSnapshot.battle == null && mapless().battle) {
+        restoreBoardCombatState(combatSnapshot);
+        try { render(); } catch (_) {}
+      }
+      throw error;
+    }
   }
 });
 
