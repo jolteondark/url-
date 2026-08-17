@@ -30,10 +30,11 @@ async function loadBoardPresentation() {
 }
 
 async function loadBattleUi() {
-  // Battle UI stays scene-demand only. The canonical HUD stylesheet replaces
-  // chrome inside existing anchors; it does not add observers or move sprites.
+  // Battle UI stays scene-demand only. The canonical HUD stylesheet and the
+  // move-info bridge are scoped to the battle scene; no body-wide observer.
   loadStyle("./canonical-battle-ui.css");
   await loadModule("./canonical-battle-sprite-bridge.js");
+  await loadModule("./canonical-battle-ui-bridge.js");
 }
 
 async function loadShopUi() {
