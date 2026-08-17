@@ -39,6 +39,14 @@ function opponentAiSeed(state, battle) {
   return (Number(ownerSeed) ^ Math.imul(turn, 0x45d9f3b)) & 0x7fffffff;
 }
 
+function trainerUsesPartyAwareOwnedOpponent(battle) {
+  return battle?.kind === "trainer"
+    && Array.isArray(battle.trainer_party)
+    && Number.isInteger(Number(battle.trainer_party_index))
+    && battle.trainer_party.some((pokemon, index) =>
+      index !== Number(battle.trainer_party_index) && Number(pokemon?.hp ?? 0) > 0);
+}
+
 function restoreMoveOrder(foe, originalIds) {
   if (!foe || !Array.isArray(foe.moves)) return;
   const buckets = new Map();
@@ -61,6 +69,7 @@ function prepareOwnedOpponentMove(runtime) {
   const state = stateOf(runtime);
   const battle = state.battle;
   if (!battle || battle.completed) return null;
+  if (trainerUsesPartyAwareOwnedOpponent(battle)) return null;
   const player = runtime.player?.party?.[0];
   if (!player) throw new Error("active player Pokemon is required for Battle-owned opponent choice");
   const originalMoves = [...(battle.foe?.moves ?? [])];
