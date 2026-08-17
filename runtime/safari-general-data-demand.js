@@ -9,27 +9,51 @@ let trainerLoading = null;
 let encounterRuntime = null;
 let trainerGenerator = null;
 
+function traceGeneralCombat(stage, detail = {}) {
+  if (typeof globalThis === "undefined") return;
+  const trace = Array.isArray(globalThis.__maplessGeneralCombatTrace)
+    ? globalThis.__maplessGeneralCombatTrace
+    : [];
+  trace.push(Object.freeze({ stage, ...detail }));
+  globalThis.__maplessGeneralCombatTrace = trace;
+}
+
+function traceError(stage, error, detail = {}) {
+  traceGeneralCombat(stage, {
+    ...detail,
+    error_name: error?.name ?? "Error",
+    error_message: error?.message ?? String(error),
+  });
+}
+
 export function safariGeneralDataReady() {
   return safariGeneralMastersInstalled();
 }
 
 export async function ensureSafariGeneralData() {
   if (safariGeneralMastersInstalled()) {
+    traceGeneralCombat("general_masters_already_ready");
     return { loaded: false, alreadyLoaded: true };
   }
   if (!loading) {
+    traceGeneralCombat("general_data_import_start");
     loading = import("./safari-general-encounter-data-loader.js")
       .then((data) => {
+        traceGeneralCombat("general_data_import_ready");
         const installed = installSafariGeneralMasters(
           data.SAFARI_GENERAL_SPECIES_MASTERS,
           data.SAFARI_GENERAL_MOVE_MASTERS,
         );
+        traceGeneralCombat("general_masters_installed", installed);
         return { loaded: true, alreadyLoaded: false, ...installed };
       })
       .catch((error) => {
         loading = null;
+        traceError("general_data_import_error", error);
         throw error;
       });
+  } else {
+    traceGeneralCombat("general_data_import_join");
   }
   return loading;
 }
@@ -43,13 +67,16 @@ function normalizeCombatKind(kind = null) {
 function loadEncounterRuntime() {
   if (encounterRuntime) return Promise.resolve(encounterRuntime);
   if (!encounterLoading) {
+    traceGeneralCombat("wild_module_import_start");
     encounterLoading = import("./safari-general-encounter-runtime.js")
       .then((module) => {
         encounterRuntime = module;
+        traceGeneralCombat("wild_module_import_ready");
         return module;
       })
       .catch((error) => {
         encounterLoading = null;
+        traceError("wild_module_import_error", error);
         throw error;
       });
   }
@@ -59,13 +86,16 @@ function loadEncounterRuntime() {
 function loadTrainerGenerator() {
   if (trainerGenerator) return Promise.resolve(trainerGenerator);
   if (!trainerLoading) {
+    traceGeneralCombat("trainer_module_import_start");
     trainerLoading = import("./mapless-dynamic-trainer-generator.js")
       .then((module) => {
         trainerGenerator = module;
+        traceGeneralCombat("trainer_module_import_ready");
         return module;
       })
       .catch((error) => {
         trainerLoading = null;
+        traceError("trainer_module_import_error", error);
         throw error;
       });
   }
@@ -102,10 +132,14 @@ export async function ensureSafariGeneralCombatData(kind = null) {
     };
   }
 
+  if (typeof globalThis !== "undefined") globalThis.__maplessGeneralCombatTrace = [];
+  traceGeneralCombat("combat_demand_start", { kind: normalized });
+
   // Battle materialization consumes SAFARI_SPECIES_MASTERS / SAFARI_MOVE_MASTERS.
   // A loaded encounter/trainer module alone is therefore not combat-ready.
   // Install the canonical GENERAL masters before allowing combat-start to run.
   await ensureSafariGeneralData();
+  traceGeneralCombat("combat_masters_ready", { kind: normalized });
 
   const tasks = [];
   if (needEncounter && !encounterRuntime) {
@@ -124,9 +158,12 @@ export async function ensureSafariGeneralCombatData(kind = null) {
   const results = await Promise.all(tasks);
   if (!safariGeneralCombatReady(normalized)) {
     const failure = results.find((entry) => !entry.ok && (normalized === "both" || entry.kind === normalized));
-    throw failure?.error ?? new Error(`Safari GENERAL ${normalized} combat module failed to load`);
+    const error = failure?.error ?? new Error(`Safari GENERAL ${normalized} combat module failed to load`);
+    traceError("combat_demand_error", error, { kind: normalized });
+    throw error;
   }
 
+  traceGeneralCombat("combat_demand_ready", { kind: normalized });
   return {
     loaded: !wasReady && safariGeneralCombatReady(normalized),
     alreadyLoaded: wasReady,
