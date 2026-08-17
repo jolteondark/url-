@@ -27,4 +27,8 @@ for (const stage of [
 assert.match(source, /__maplessGeneralCombatTrace/, "loader stages must join the existing Battle-start GENERAL trace");
 assert.doesNotMatch(source, /fallback Battle|fallbackBattle|fallback_battle/, "diagnostics must not introduce fallback Battle state");
 
+// test:battle-entry ends with this smoke. Keep post-render Battle runtime
+// readiness in the same blocker gate as GENERAL load and the complete vertical.
+await import("./safari-battle-runtime-prewarm-smoke.mjs");
+
 console.log("Safari GENERAL loader exposes exact chunk/decode/decompress/JSON/projection Battle-start stages: ok");
