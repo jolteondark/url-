@@ -1,6 +1,5 @@
 import * as playable from "./safari-playable-integration-boundary-return.js";
 import { stabilizeSafariKoPresentation } from "./safari-ko-presentation-safety.js";
-import { continueSafariTrainerAfterFirstKo } from "./safari-trainer-replacement-continuation.js";
 
 export * from "./safari-playable-integration-boundary-return.js";
 export { activateSafariDayBoardCell } from "./safari-pokemon-center-command.js";
@@ -12,11 +11,10 @@ function notifySafariRuntimeChanged() {
   queueMicrotask(() => window.dispatchEvent(new CustomEvent("safari-runtime-changed")));
 }
 
-function finalizeSafariRoundPresentation(runtime, result) {
-  const continued = continueSafariTrainerAfterFirstKo(runtime, result);
-  const stabilized = stabilizeSafariKoPresentation(continued);
+function finalizeSafariRoundPresentation(result) {
+  const stabilized = stabilizeSafariKoPresentation(result);
   // Battle state is already committed at this boundary. Notify the scene-demand
-  // bridges explicitly instead of relying on incidental DOM mutation timing.
+  // projections explicitly instead of inferring state from DOM mutations.
   notifySafariRuntimeChanged();
   return stabilized;
 }
@@ -24,7 +22,7 @@ function finalizeSafariRoundPresentation(runtime, result) {
 export function resolveSafariBattleRound(runtime, selectedMoveId) {
   const result = playable.resolveSafariBattleRound(runtime, selectedMoveId);
   if (result && typeof result.then === "function") {
-    return result.then((resolved) => finalizeSafariRoundPresentation(runtime, resolved));
+    return result.then((resolved) => finalizeSafariRoundPresentation(resolved));
   }
-  return finalizeSafariRoundPresentation(runtime, result);
+  return finalizeSafariRoundPresentation(result);
 }
