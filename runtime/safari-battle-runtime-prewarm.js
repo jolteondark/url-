@@ -17,7 +17,7 @@ function publishStage(stage, error = null) {
 
 function prepareBattleRuntimeModule() {
   if (!facadePromise) {
-    facadePromise = import("./safari-web-playable-integration.js?v=20260818-0800").catch((error) => {
+    facadePromise = import("./safari-web-playable-integration.js?v=20260818-0813").catch((error) => {
       facadePromise = null;
       throw error;
     });
