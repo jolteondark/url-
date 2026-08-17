@@ -16,6 +16,23 @@ const TYPE_IDS = Object.freeze([
 const TYPE_INDEX_PACKED = "9fddd7c7ce77eegf9hhhhh6594180c53bbgb54ddc71dccc166bccaac79725h1h005ag96e3347b522d5d1c8eccce995cch45d1c8c11440c785adc43hccc53c222222245e7a9275aac3333336ccc9c6ececc44c11c7c026c5666660ac66666g11h44975c5c591bbc0cedgg9cg2c999ecc8eecd7g5cbccafcee66gc8ca51cc9c7hccccebbbbbbbbbe6609eggg1heg11cc86999909c8hehcc55e059eee33g9c90cc1ggg5gccccceb444cdhaa61c181c531h5c2236c311c7c9980c47dddddd0ccbfeee19cceeeeeeceed61c5080c6hc9hccececc55ccfff5fffef7ac5cfafahccc95c8888cbc6g3a0ccce0c7ccc9cdddfgdc1hcbhc993he9a9g488cc9fg0ccaffe5c900c95c16c5chcc4cc1c99c0cc7cf1cccec1c1333333cc161dddcce8eh59e2c05dd9c53hhhhhhhchcf367che9c9c0c3e3";
 const THAWS_USER_MOVE_IDS = new Set(["BURNUP", "FLAMEWHEEL", "FLAREBLITZ", "MATCHAGOTCHA", "PYROBALL", "SCALD"]);
 
+function traceLoader(stage, detail = {}) {
+  if (typeof globalThis === "undefined") return;
+  const trace = Array.isArray(globalThis.__maplessGeneralCombatTrace)
+    ? globalThis.__maplessGeneralCombatTrace
+    : [];
+  trace.push(Object.freeze({ stage, ...detail }));
+  globalThis.__maplessGeneralCombatTrace = trace;
+}
+
+function traceLoaderError(stage, error, detail = {}) {
+  traceLoader(stage, {
+    ...detail,
+    error_name: error?.name ?? "Error",
+    error_message: error?.message ?? String(error),
+  });
+}
+
 function reportBrowserLoadProgress(loaded, phase = "chunks") {
   if (typeof window === "undefined" || typeof window.dispatchEvent !== "function" || typeof CustomEvent !== "function") return;
   window.dispatchEvent(new CustomEvent("safari-general-load-progress", {
@@ -27,14 +44,22 @@ async function loadEncodedChunks() {
   const chunks = [];
   for (let start = 0; start < CHUNK_COUNT; start += BROWSER_IMPORT_BATCH) {
     const end = Math.min(start + BROWSER_IMPORT_BATCH, CHUNK_COUNT);
-    const batch = await Promise.all(CHUNK_PATHS.slice(start, end).map(async (path) => {
-      const module = await import(new URL(path, import.meta.url).href);
-      if (typeof module.default !== "string" || module.default.length === 0) {
-        throw new Error(`empty Safari GENERAL chunk: ${path}`);
-      }
-      return module.default;
-    }));
+    traceLoader("general_loader_chunk_batch_start", { start, end });
+    let batch;
+    try {
+      batch = await Promise.all(CHUNK_PATHS.slice(start, end).map(async (path) => {
+        const module = await import(new URL(path, import.meta.url).href);
+        if (typeof module.default !== "string" || module.default.length === 0) {
+          throw new Error(`empty Safari GENERAL chunk: ${path}`);
+        }
+        return module.default;
+      }));
+    } catch (error) {
+      traceLoaderError("general_loader_chunk_batch_error", error, { start, end });
+      throw error;
+    }
     chunks.push(...batch);
+    traceLoader("general_loader_chunk_batch_ready", { start, end, loaded: chunks.length });
     reportBrowserLoadProgress(chunks.length);
     if (typeof window !== "undefined") await new Promise((resolve) => setTimeout(resolve, 0));
   }
@@ -45,15 +70,42 @@ const encodedChunks = await loadEncodedChunks();
 if (encodedChunks.length !== CHUNK_COUNT || encodedChunks.some((chunk) => typeof chunk !== "string" || chunk.length === 0)) {
   throw new Error("Safari GENERAL chunk projection mismatch");
 }
+traceLoader("general_loader_chunks_ready", { loaded: encodedChunks.length });
 const encoded = encodedChunks.join("");
-const binary = typeof atob === "function"
-  ? Uint8Array.from(atob(encoded), (char) => char.charCodeAt(0))
-  : Uint8Array.from(Buffer.from(encoded, "base64"));
-if (typeof DecompressionStream !== "function") throw new Error("Safari General Encounter data requires DecompressionStream support");
+let binary;
+try {
+  binary = typeof atob === "function"
+    ? Uint8Array.from(atob(encoded), (char) => char.charCodeAt(0))
+    : Uint8Array.from(Buffer.from(encoded, "base64"));
+} catch (error) {
+  traceLoaderError("general_loader_base64_error", error);
+  throw error;
+}
+traceLoader("general_loader_base64_ready", { compressed_bytes: binary.byteLength });
+if (typeof DecompressionStream !== "function") {
+  const error = new Error("Safari General Encounter data requires DecompressionStream support");
+  traceLoaderError("general_loader_decompression_unavailable", error);
+  throw error;
+}
 reportBrowserLoadProgress(CHUNK_COUNT, "decompress");
-const stream = new Blob([binary]).stream().pipeThrough(new DecompressionStream("deflate"));
-const payloadText = await new Response(stream).text();
-const payload = JSON.parse(payloadText);
+traceLoader("general_loader_decompress_start", { compressed_bytes: binary.byteLength });
+let payloadText;
+try {
+  const stream = new Blob([binary]).stream().pipeThrough(new DecompressionStream("deflate"));
+  payloadText = await new Response(stream).text();
+} catch (error) {
+  traceLoaderError("general_loader_decompress_error", error, { compressed_bytes: binary.byteLength });
+  throw error;
+}
+traceLoader("general_loader_decompress_ready", { payload_chars: payloadText.length });
+let payload;
+try {
+  payload = JSON.parse(payloadText);
+} catch (error) {
+  traceLoaderError("general_loader_json_error", error, { payload_chars: payloadText.length });
+  throw error;
+}
+traceLoader("general_loader_json_ready");
 reportBrowserLoadProgress(CHUNK_COUNT, "ready");
 
 const STAT_IDS = ["HP", "ATTACK", "DEFENSE", "SPEED", "SPECIAL_ATTACK", "SPECIAL_DEFENSE"];
@@ -67,6 +119,7 @@ if (GENDER_RATIO_INDEX_PACKED.length !== speciesIds.length) throw new Error(`Saf
 if (TYPE_INDEX_PACKED.length !== payload.moveIds.length) throw new Error(`Safari move AI fact count mismatch: ${TYPE_INDEX_PACKED.length}/${payload.moveIds.length}`);
 if (speciesIds[0] !== "ABOMASNOW" || speciesIds.at(-1) !== "ZWEILOUS") throw new Error("Safari species individual fact ordering mismatch");
 if (payload.moveIds[0] !== "ABSORB" || payload.moveIds.at(-1) !== "ZINGZAP") throw new Error("Safari move AI fact ordering mismatch");
+traceLoader("general_loader_projection_validated", { species: speciesIds.length, moves: payload.moveIds.length });
 
 export function safariGeneralSpeciesIndividualFacts(speciesId, speciesIndex, speciesCount = speciesIds.length) {
   const index = Number(speciesIndex);
