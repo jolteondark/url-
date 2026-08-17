@@ -22,7 +22,7 @@ function loadModule(path) {
 }
 
 async function loadCampPresentation() {
-  await loadModule("./camp-presentation.js");
+  return loadModule("./camp-presentation.js");
 }
 
 async function loadBattleUi() {
@@ -54,6 +54,12 @@ async function loadMenuUi() {
   ]);
 }
 
+function boardEventForButton(button) {
+  const index = Number(button?.dataset?.boardIndex);
+  if (!Number.isInteger(index)) return null;
+  return globalThis.__maplessSafariRuntime?.variables?.mapless?.board_events?.[index] ?? null;
+}
+
 function syncSceneBundles() {
   const state = globalThis.__maplessSafariRuntime?.variables?.mapless;
   if (state?.battle) loadBattleUi();
@@ -70,13 +76,27 @@ function scheduleSceneBundleSync() {
 }
 
 document.addEventListener("click", (event) => {
-  if (event.target.closest("#menu-party,#menu-bag,#menu-box")) {
+  const menu = event.target.closest("#menu-party,#menu-bag,#menu-box");
+  if (menu) {
     loadMenuUi();
-  } else if (event.target.closest("#board button[data-board-index]")) {
-    loadCampPresentation();
+    scheduleSceneBundleSync();
+    return;
   }
+
+  const button = event.target.closest("#board button[data-board-index]");
+  if (button && boardEventForButton(button)?.kind === "next_day") {
+    // Camp carries Pokemon Runtime + boundary preparation. Keep it completely
+    // off wild/trainer/shop/normal-event clicks. Capture this one interaction
+    // so the first next_day click cannot race the dynamic module import.
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const index = Number(button.dataset.boardIndex);
+    loadCampPresentation().then((camp) => camp?.openSafariCamp?.(button, index));
+    return;
+  }
+
   scheduleSceneBundleSync();
-}, { passive: true });
+}, { capture: true });
 
 window.addEventListener("pageshow", scheduleSceneBundleSync, { passive: true });
 window.addEventListener("safari-runtime-changed", scheduleSceneBundleSync, { passive: true });
