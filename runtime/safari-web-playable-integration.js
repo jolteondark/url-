@@ -16,10 +16,18 @@ let fullModulePromise = null;
 async function full() {
   if (fullModule) return fullModule;
   if (!fullModulePromise) {
-    fullModulePromise = import("./safari-playable-integration.js").then((module) => {
-      fullModule = module;
-      return module;
-    });
+    fullModulePromise = import("./safari-playable-integration.js")
+      .then((module) => {
+        fullModule = module;
+        globalThis.__maplessBattleRuntimeError = null;
+        return module;
+      })
+      .catch((error) => {
+        fullModulePromise = null;
+        globalThis.__maplessBattleRuntimeError = error;
+        globalThis.__maplessLastError = error;
+        throw error;
+      });
   }
   return fullModulePromise;
 }
@@ -47,6 +55,11 @@ export async function activateSafariDayBoardCell(runtime, index) {
     }
   }
   return (await full()).activateSafariDayBoardCell(runtime, index);
+}
+
+export async function prepareSafariBattleRuntime() {
+  await full();
+  return true;
 }
 
 export async function resolveSafariBattleRound(runtime, selectedMoveId) {
