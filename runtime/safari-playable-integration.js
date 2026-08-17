@@ -7,9 +7,18 @@ export { activateSafariDayBoardCell } from "./safari-pokemon-center-command.js";
 export { attemptSafariCapture } from "./safari-capture-command.js";
 export { safariShopPresentation } from "./safari-shop-display-presentation.js";
 
+function notifySafariRuntimeChanged() {
+  if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") return;
+  queueMicrotask(() => window.dispatchEvent(new CustomEvent("safari-runtime-changed")));
+}
+
 function finalizeSafariRoundPresentation(runtime, result) {
   const continued = continueSafariTrainerAfterFirstKo(runtime, result);
-  return stabilizeSafariKoPresentation(continued);
+  const stabilized = stabilizeSafariKoPresentation(continued);
+  // Battle state is already committed at this boundary. Notify the scene-demand
+  // bridges explicitly instead of relying on incidental DOM mutation timing.
+  notifySafariRuntimeChanged();
+  return stabilized;
 }
 
 export function resolveSafariBattleRound(runtime, selectedMoveId) {
