@@ -48,6 +48,13 @@ function phaseFor(battle) {
 function updateBattleMessage(key) {
   const message = byId("battle-message");
   if (!message || key === "result") return;
+
+  // preview-app owns concrete event narration while the submitted turn is being
+  // presented. The phase guard only seeds the generic RESOLVING message; it
+  // must not overwrite `EEVEEのたいあたり！` or later event messages.
+  if (key === "resolving" && message.dataset.presentationOwner === "event") return;
+
+  if (key !== "resolving") delete message.dataset.presentationOwner;
   const text = key === "resolving"
     ? "ターンを処理しています…"
     : key === "replacement"
@@ -133,6 +140,8 @@ battleCard?.addEventListener("click", (event) => {
     return;
   }
 
+  const message = byId("battle-message");
+  if (message) delete message.dataset.presentationOwner;
   resolving = true;
   submittedTurn = Number(battle.turn ?? 1);
   paintPhaseOnly("resolving", "行動処理中");
