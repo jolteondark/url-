@@ -111,7 +111,6 @@ assert.equal(battleCard.dataset.turnPhase, "command", "phase returns to COMMAND 
 assert.equal(phaseNode.textContent, "Turn 2 • コマンド選択");
 assert.equal(moves.inert, false, "commands reopen for the next turn");
 
-// Terminal state may be committed before its KO/capture presentation finishes.
 const terminalCommand = commandClick();
 battleCard.listeners.get("click")(terminalCommand);
 await Promise.resolve();
@@ -130,7 +129,6 @@ assert.equal(battleCard.dataset.turnPhase, "result", "RESULT appears only after 
 assert.equal(phaseNode.textContent, "結果");
 flushFrames();
 
-// Active-player KO with a usable reserve follows the same presentation boundary.
 battle().completed = false;
 battle().player_replacement_required = false;
 battle().turn = 3;
@@ -155,8 +153,6 @@ assert.equal(phaseNode.textContent, "Turn 4 • 交代選択");
 assert.equal(moves.inert, true, "normal commands stay inert while replacement is required");
 flushFrames();
 
-// Successful flee can clear Battle before the final preview render. Keep the
-// visible card in RESOLVING until preview-app actually hides that card.
 battle().player_replacement_required = false;
 battle().turn = 4;
 windowListeners.get("safari-runtime-changed")();
@@ -180,12 +176,12 @@ assert.equal(frames.length, 0, "cleared Battle must not leave an endless animati
 const previewSource = fs.readFileSync(new URL("../preview.js", import.meta.url), "utf8");
 const indexSource = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const deferredSource = fs.readFileSync(new URL("../deferred-ui-loader.js", import.meta.url), "utf8");
-assert.match(previewSource, /battle-turn-phase-presentation\.js\?v=20260818-1645/,
+assert.match(previewSource, /battle-turn-phase-presentation\.js\?v=20260818-1702/,
   "turn phase guard must be required-loaded by the playable preview, not left to an optional stale loader");
-assert.match(indexSource, /preview\.js\?v=20260818-1645/,
-  "public entrypoint must expose the turn-phase capable preview build");
-assert.match(indexSource, /build 20260818-1645/,
-  "visible build marker must match the turn-phase preview build");
+assert.match(indexSource, /preview\.js\?v=20260818-1702/,
+  "public entrypoint must expose the terminal-resolving phase preview build");
+assert.match(indexSource, /build 20260818-1702/,
+  "visible build marker must match the terminal-resolving phase preview build");
 assert.doesNotMatch(deferredSource, /battle-turn-phase-presentation/,
   "turn phase guard must not be loaded a second time through the deferred loader");
 
