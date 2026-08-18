@@ -103,6 +103,14 @@ assert.equal(battleMessage.textContent, "ターンを処理しています…");
 await Promise.resolve();
 assert.equal(moves.inert, true, "moves must become inert before another user input can dispatch");
 
+battleMessage.dataset.presentationOwner = "event";
+battleMessage.textContent = "EEVEEのたいあたり！";
+runOneFrame();
+assert.equal(battleCard.dataset.turnPhase, "resolving");
+assert.equal(battleMessage.textContent, "EEVEEのたいあたり！",
+  "phase sync must preserve concrete presentation-event narration while RESOLVING");
+assert.equal(battleMessage.dataset.presentationOwner, "event");
+
 const duplicate = commandClick();
 battleCard.listeners.get("click")(duplicate);
 assert.equal(duplicate.prevented, true, "duplicate command during RESOLVING must be prevented");
@@ -114,6 +122,7 @@ flushFrames();
 assert.equal(battleCard.dataset.turnPhase, "command");
 assert.equal(phaseNode.textContent, "コマンド選択");
 assert.equal(battleMessage.textContent, "技を選んでください。", "COMMAND restores the normal prompt");
+assert.equal(battleMessage.dataset.presentationOwner, undefined, "COMMAND releases event narration ownership");
 assert.equal(moves.inert, false);
 
 const terminalCommand = commandClick();
@@ -128,6 +137,7 @@ assert.equal(battleCard.dataset.turnPhase, "resolving");
 assert.equal(phaseNode.textContent, "行動処理中");
 assert.equal(battleMessage.textContent, "ターンを処理しています…");
 capture.disabled = false;
+battleMessage.dataset.presentationOwner = "event";
 battleMessage.textContent = "バトルに勝利した！";
 runOneFrame();
 assert.equal(battleCard.dataset.turnPhase, "result");
@@ -141,6 +151,7 @@ battle().turn = 3;
 windowListeners.get("safari-runtime-changed")();
 flushFrames();
 assert.equal(battleMessage.textContent, "技を選んでください。");
+assert.equal(battleMessage.dataset.presentationOwner, undefined);
 const replacementCommand = commandClick();
 battleCard.listeners.get("click")(replacementCommand);
 await Promise.resolve();
@@ -156,6 +167,7 @@ runOneFrame();
 assert.equal(battleCard.dataset.turnPhase, "replacement");
 assert.equal(phaseNode.textContent, "交代選択");
 assert.equal(battleMessage.textContent, "次のポケモンを選んでください。");
+assert.equal(battleMessage.dataset.presentationOwner, undefined);
 assert.equal(moves.inert, true);
 flushFrames();
 
@@ -187,4 +199,4 @@ assert.match(indexSource, /preview\.js\?v=20260818-1715/);
 assert.match(indexSource, /build 20260818-1715/);
 assert.doesNotMatch(deferredSource, /battle-turn-phase-presentation/);
 
-console.log("Safari Battle UI: phase label/message stay truthful across COMMAND/RESOLVING/REPLACEMENT/RESULT: ok");
+console.log("Safari Battle UI: phase guard preserves concrete event narration across turn phases: ok");
