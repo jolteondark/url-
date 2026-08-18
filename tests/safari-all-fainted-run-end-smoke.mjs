@@ -134,15 +134,19 @@ assert.equal(restored.storage_system.boxes.reduce((sum, box) => sum + box.slots.
 // run lifecycle. It is loaded with the deferred Board presentation.
 const runEndUiSource = fs.readFileSync(new URL("../run-end-presentation.js", import.meta.url), "utf8");
 const deferredSource = fs.readFileSync(new URL("../deferred-ui-loader.js", import.meta.url), "utf8");
-assert.match(deferredSource, /loadModule\("\.\/run-end-presentation\.js"\)/,
-  "run-end presentation must be part of the deferred Board UI bundle");
+const previewBootSource = fs.readFileSync(new URL("../preview.js", import.meta.url), "utf8");
+assert.match(deferredSource, /loadModule\("\.\/run-end-presentation\.js\?v=20260818-1407"\)/,
+  "run-end presentation must be part of the versioned deferred Board UI bundle");
 assert.match(runEndUiSource, /return_target === "home"[\s\S]{0,180}"ホームへ"/,
   "completed all-fainted Battle must label its result transition as home");
 assert.match(runEndUiSource, /saveSafariPlayableRun\(window\.localStorage,\s*current\.runtime\)/,
   "run-end home transition must persist archived Party/carryover state automatically");
 assert.match(runEndUiSource, /#new-run[\s\S]{0,300}stopImmediatePropagation\(\)/,
-  "carryover pending must block destructive New Run click before preview clears save data");
+  "carryover pending must block destructive New Run click after the app is loaded");
 assert.match(runEndUiSource, /mapless_carryover_pending[\s\S]{0,160}newRun\.disabled/,
   "carryover pending must visibly disable New Run entry");
+assert.match(previewBootSource,
+  /loadSafariPlayableRun\(window\.localStorage\)[\s\S]{0,260}mapless_carryover_pending[\s\S]{0,220}startPreview\("continue"\)/,
+  "boot New click must preserve a saved carryover-pending run instead of clearing it");
 
 console.log("Safari failed Run -> last Pokemon KO -> mark run end -> finish/carryover home: ok");
