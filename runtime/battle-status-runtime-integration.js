@@ -17,7 +17,8 @@ export function commitBattleSystemsStatusRuntime({ battleInput = {}, turn = {}, 
   for (const [roundIndex, round] of (battleInput.rounds ?? []).entries()) {
     for (const [actionIndex, action] of (round.actions ?? []).entries()) {
       const input = action?.battleStatusInput;
-      if (!input || !executed.has(`${roundIndex}:${actionIndex}`) || !hasAfterMoveRequest(action)) continue;
+      if (!input || !executed.has(`${roundIndex}:${actionIndex}`)) continue;
+      if (!Boolean(input.commitOnExecutedHit) && !hasAfterMoveRequest(action)) continue;
       const targetBattlerIndex = Number(input.targetBattlerIndex ?? action.targetBattlerIndex);
       if (reflectedBattlerIndex !== null && reflectedBattlerIndex !== undefined && targetBattlerIndex !== Number(reflectedBattlerIndex)) continue;
       if (input.requiresAccuracyHit !== false && action?.accuracyResolution?.hit !== true) continue;
