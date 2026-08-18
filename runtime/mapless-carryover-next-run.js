@@ -9,9 +9,9 @@ import {
 } from "./pokemon-runtime.js";
 import { safariCanonicalSpeciesCategory } from "./safari-carryover-category-projection.js";
 import { ensureSafariGeneralData } from "./safari-general-data-demand.js";
+import { safariNatureStatChanges } from "./safari-nature-stat-projection.js";
 import {
   SAFARI_MOVE_MASTERS,
-  SAFARI_NATURE_MASTERS,
   SAFARI_SPECIES_MASTERS,
 } from "./safari-playable-data.js";
 import {
@@ -87,12 +87,10 @@ async function normalizeCarriedPokemon(source) {
   const speciesMaster = SAFARI_SPECIES_MASTERS[original.species];
   if (!speciesMaster?.base_stats) throw new Error(`carryover species master unavailable: ${original.species}`);
   const natureId = original.nature_id ?? "HARDY";
-  const natureMaster = SAFARI_NATURE_MASTERS[natureId];
-  if (!natureMaster) throw new Error(`carryover nature master unavailable: ${natureId}`);
   let normalized = createPokemonRuntime(original);
   normalized = recalculatePokemonStats(normalized, {
     base_stats: speciesMaster.base_stats,
-    nature_stat_changes: natureMaster.stat_changes ?? [],
+    nature_stat_changes: safariNatureStatChanges(natureId),
     previous_mapless_bonus_stats: clone(ZERO_STATS),
   });
   const moves = normalized.moves.slice(0, 4).map((move) => {
