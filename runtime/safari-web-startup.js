@@ -1,6 +1,7 @@
 import { assembleDayBoard } from "./mapless-day-board-generation.js";
 import { projectDayBoardEventName } from "./mapless-day-board-event-name-projection.js";
 import { clearStoredRun, hasStoredRun, persistRunState, restoreRunState } from "./browser-run-storage.js";
+import { ensureMaplessRunLifecycleState } from "./mapless-run-end-lifecycle.js";
 import { ensureSafariEncounterSeed } from "./safari-encounter-randomization.js";
 import { hydrateSafariNormalEventCells } from "./mapless-normal-event-v108-preparation.js";
 import { SAFARI_BOUNTY_PROJECTION } from "./safari-playable-data.js";
@@ -145,10 +146,21 @@ function normalizeStartupRuntime(runtime) {
   if (!("shop" in state)) state.shop = null;
   if (!("location" in state)) state.location = "day_board";
   state.schema_version = 2;
-  ensureVillageState(state);
+  ensureMaplessRunLifecycleState(runtime);
   runtime.bag ??= { slots: [], money: 0 };
   runtime.bag.money = Number(runtime.bag.money ?? 0);
   runtime.storage_system ??= { boxes: [{ name: "Box 1", capacity: 30, slots: [] }], currentBox: 0 };
+
+  // A closed run must stay cold until the player explicitly chooses the next
+  // carryover from home. Do not regenerate village/Board/encounter state on Continue.
+  if (state.mapless_carryover_pending || state.location === "home") {
+    state.location = "home";
+    state.shop = null;
+    globalThis.__maplessSafariRuntime = runtime;
+    return runtime;
+  }
+
+  ensureVillageState(state);
   ensureSafariEncounterSeed(state);
   assignFullWildTypes(state);
   ensureTrainerSeeds(state);
@@ -184,7 +196,18 @@ export function createSafariPlayableRuntime() {
 
 export function boardCellPresentation(runtime, index) {
   const state = stateOf(runtime);
-  if (!Number.isInteger(index) || index < 0 || index >= state.board_events.length) throw new RangeError("board index must be 0..7");
+  if (!Number.isInteger(index) || index < 0 || index > 7) throw new RangeError("board index must be 0..7");
+  if (state.location === "home" || state.mapless_carryover_pending) {
+    return {
+      index,
+      kind: "run_end",
+      label: index === 0 ? "ラン終了" : "—",
+      revealed: true,
+      consumed: true,
+      disabled: true,
+    };
+  }
+  if (index >= state.board_events.length) throw new RangeError("board index must be 0..7");
   const event = state.board_events[index];
   const revealed = Boolean(state.board_revealed[index]);
   let label = "？？？";

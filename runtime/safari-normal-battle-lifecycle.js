@@ -1,6 +1,7 @@
 import { resolveCaptureFlow } from "./battle-capture-flow.js";
 import { routeCaughtQueueToPartyStorage } from "./caught-queue-party-storage.js";
 import { resolveDayBoardPlayableTurn } from "./mapless-day-board-playable-turn.js";
+import { finishMaplessRun } from "./mapless-run-end-lifecycle.js";
 import { RubyMT19937Random } from "./ruby-mt19937-random.js";
 import { SAFARI_SPECIES_MASTERS } from "./safari-playable-data.js";
 import { resolveSafariNormalWildOpponentResponse } from "./safari-normal-battle-round.js";
@@ -201,14 +202,18 @@ export function returnSafariToDayBoard(runtime) {
     returnTarget: target,
   };
 
+  const runEnd = target === "home" ? finishMaplessRun(runtime) : { finished: false, operations: [] };
   state.battle = null;
   state.location = target;
   state.notice = target === "village"
     ? "討伐を終えて村へ戻りました。"
-    : "Day Boardへ戻りました。";
-  const operations = [{
-    op: target === "village" ? "return_to_village" : "return_to_day_board",
-  }];
+    : target === "home"
+      ? "手持ちが全滅したため、今回のランは終了しました。"
+      : "Day Boardへ戻りました。";
+  const returnOperation = {
+    op: target === "village" ? "return_to_village" : target === "home" ? "return_to_home" : "return_to_day_board",
+  };
+  const operations = [...runEnd.operations, returnOperation];
   state.last_operations = operations;
 
   return {
@@ -217,5 +222,7 @@ export function returnSafariToDayBoard(runtime) {
     target,
     summary,
     operations,
+    persistenceRequested: requestsSave(operations),
+    runEnd,
   };
 }

@@ -2,6 +2,7 @@ import { resolveExpLevelMoveFlow } from "./battle-exp-level-move-flow.js";
 import { resolveItemReceipt } from "./bag-economy-item-receipt.js";
 import { setMoney } from "./bag-economy-mart-flow.js";
 import { resolveDayBoardPlayableTurn } from "./mapless-day-board-playable-turn.js";
+import { markMaplessRunEnd } from "./mapless-run-end-lifecycle.js";
 import { resolvePokemonRuntimeMasters } from "./pokemon-runtime-masters.js";
 import { SAFARI_MOVE_MASTERS, SAFARI_NATURE_MASTERS, SAFARI_SPECIES_MASTERS } from "./safari-playable-data.js";
 
@@ -151,7 +152,7 @@ function completeBoardEvent(state, battle) {
       species_exists: true,
       species_name: encounter.species_name ?? battle.foe.species,
       outcome: battle.decision,
-      run_end_pending: false,
+      run_end_pending: Boolean(state.mapless_run_end_pending),
       old_consumed: false,
       game_temp_present: true,
     };
@@ -187,12 +188,14 @@ export function finalizeNormalBattle(runtime) {
   const state = stateOf(runtime);
   const battle = state.battle;
   if (!battle || battle.completed || Number(battle.decision) === 0) return [];
-  const operations = completeBoardEvent(state, battle);
+
+  const runEnd = markMaplessRunEnd(runtime, battle.decision);
+  const operations = [...runEnd.operations, ...completeBoardEvent(state, battle)];
   if (battle.decision === 1 && battle.kind === "wild") operations.push(...awardWildWin(runtime, battle));
   if (battle.decision === 1 && battle.kind === "trainer") operations.push(...givePotion(runtime, battle));
   if (battle.kind === "trainer") operations.push(...payTrainerPrize(runtime, battle));
   battle.completed = true;
-  battle.return_target = "day_board";
+  battle.return_target = runEnd.marked ? "home" : "day_board";
   battle.last_operations = [...(battle.last_operations ?? []), ...operations];
   battle.presentation = [
     ...(battle.presentation ?? []),
@@ -203,13 +206,15 @@ export function finalizeNormalBattle(runtime) {
       expGained: Number(battle.trainer_exp_gained ?? 0) + Number(battle.exp_gained ?? 0),
       reward: battle.reward ?? null,
       moneyGained: Number(battle.money_gained ?? 0),
-      returnTarget: "day_board",
+      returnTarget: battle.return_target,
     },
   ];
   state.last_operations = operations;
   const label = battle.kind === "trainer"
     ? (battle.trainer?.trainer_full_name ?? state.board_events?.[battle.board_index]?.trainer_full_name ?? "トレーナー")
     : (battle.encounter?.species_name ?? battle.foe.species);
-  state.notice = battle.decision === 1 ? `${label}に勝利しました。` : "戦闘に敗北しました。";
+  state.notice = runEnd.marked
+    ? "手持ちが全滅しました。ラン終了処理へ進みます。"
+    : battle.decision === 1 ? `${label}に勝利しました。` : "戦闘に敗北しました。";
   return operations;
 }
