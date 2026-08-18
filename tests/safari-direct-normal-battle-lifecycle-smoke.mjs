@@ -16,6 +16,10 @@ assert.doesNotMatch(facadeSource, /normalLifecycleModulePromise\s*=\s*import\("\
 assert.match(facadeSource, /useSafariNormalBattleItem/,
   "normal BattleUse must expose the shared direct lifecycle owner");
 
+function moveId(move) {
+  return typeof move === "string" ? move : move?.id;
+}
+
 function quantity(runtime, id) {
   return (runtime.bag.slots ?? []).reduce((sum, slot) => sum + (slot?.[0] === id ? Number(slot[1]) : 0), 0);
 }
@@ -102,7 +106,7 @@ async function startPotionBattle(kind) {
 for (const kind of ["wild", "trainer"]) {
   const { runtime, state, battle, player, foe } = await startPotionBattle(kind);
   const playerMovePpBefore = Number(player.moves[0].pp);
-  const foeMovePpBefore = Number(foe.moves[0].pp);
+  const foePpBefore = new Map(foe.moves.map((move) => [moveId(move), Number(move.pp)]));
   const turnBefore = Number(battle.turn);
   const potionBefore = quantity(runtime, "POTION");
   const item = await web.useSafariBattleItem(runtime, { itemId: "POTION", partyIndex: battle.player_party_index });
@@ -113,8 +117,11 @@ for (const kind of ["wild", "trainer"]) {
   assert.equal(item.turnAfter, turnBefore + 1, `${kind} successful Battle Potion must advance exactly one Battle turn`);
   assert.equal(Number(runtime.player.party[battle.player_party_index].moves[0].pp), playerMovePpBefore,
     `${kind} Battle Potion must not consume a player move PP`);
-  assert.equal(Number(battle.foe.moves[0].pp), foeMovePpBefore - 1,
-    `${kind} Battle Potion must allow exactly one foe move PP consumption`);
+  const selectedFoeMoveId = item.opponentResponse.opponentChoice?.moveId;
+  assert.ok(selectedFoeMoveId && foePpBefore.has(selectedFoeMoveId), `${kind} foe response must report its Battle-owned move choice`);
+  const selectedAfter = battle.foe.moves.find((move) => moveId(move) === selectedFoeMoveId);
+  assert.equal(Number(selectedAfter?.pp), foePpBefore.get(selectedFoeMoveId) - 1,
+    `${kind} Battle Potion must allow exactly one PP consumption for the selected foe move`);
   assert.equal(state.board_consumed[0], false, `${kind} nonterminal Battle Potion turn must not consume the Board cell`);
   assert.equal(item.opponentResponse.playerActionConsumedWithoutMove, true,
     `${kind} Potion response must use the common consumed-without-move Battle contract`);
