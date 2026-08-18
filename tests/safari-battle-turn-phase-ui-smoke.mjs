@@ -194,9 +194,11 @@ assert.equal(frames.length, 0);
 const previewSource = fs.readFileSync(new URL("../preview.js", import.meta.url), "utf8");
 const indexSource = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const deferredSource = fs.readFileSync(new URL("../deferred-ui-loader.js", import.meta.url), "utf8");
-assert.match(previewSource, /battle-turn-phase-presentation\.js\?v=20260818-1715/);
-assert.match(indexSource, /preview\.js\?v=20260818-1715/);
-assert.match(indexSource, /build 20260818-1715/);
+assert.match(previewSource, /preview-app\.js\?v=20260818-1740/,
+  "public preview must require-load the narrated preview-app build");
+assert.match(previewSource, /battle-turn-phase-presentation\.js\?v=20260818-1740/);
+assert.match(indexSource, /preview\.js\?v=20260818-1740/);
+assert.match(indexSource, /build 20260818-1740/);
 assert.doesNotMatch(deferredSource, /battle-turn-phase-presentation/);
 
 console.log("Safari Battle UI: phase guard preserves concrete event narration across turn phases: ok");
