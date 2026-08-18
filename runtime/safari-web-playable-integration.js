@@ -60,9 +60,10 @@ async function normalRound() {
 async function normalLifecycle() {
   if (normalLifecycleModule) return normalLifecycleModule;
   if (!normalLifecycleModulePromise) {
-    normalLifecycleModulePromise = import("./safari-playable-integration-pre-wounded.js")
+    normalLifecycleModulePromise = import("./safari-normal-battle-lifecycle.js?v=20260818-0937")
       .then((module) => {
         normalLifecycleModule = module;
+        globalThis.__maplessBattleRuntimeError = null;
         return module;
       })
       .catch((error) => {
