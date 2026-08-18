@@ -30,8 +30,6 @@ assert.deepEqual(events.map((event) => formatSafariBattlePresentationEvent(event
   "PIKACHUに勝利しました。",
 ]);
 
-// The event snapshot must beat live post-round DOM identity. This is critical
-// when a trainer reserve has already become active before presentation starts.
 assert.equal(formatSafariBattlePresentationEvent({
   type: "damage_applied",
   actor: "player",
@@ -65,9 +63,6 @@ assert.equal(formatSafariBattlePresentationEvent({
 assert.equal(formatSafariBattlePresentationEvent({ type: "battle_result", decision: 1 }, {}), null,
   "battle result text must come from the existing notice owner instead of inventing a second result truth");
 
-// Canonical sprite owner follows the same presentation boundary. Live runtime
-// may already contain the trainer reserve, but the existing sprite stays frozen
-// until the old foe's RESOLVING queue is finished.
 const card = { hidden: false, dataset: { turnPhase: "command" } };
 assert.equal(shouldFreezeCanonicalBattleSprite(card), false);
 card.dataset.turnPhase = "resolving";
@@ -112,3 +107,4 @@ assert.doesNotMatch(preview, /new MutationObserver\(/,
   "preview-app narration must not infer Battle mechanics from DOM mutation");
 
 console.log("Safari Battle presentation narration: event-bound identity + frozen sprite through RESOLVING: ok");
+await import("./safari-day10-day12-boundary-vertical-smoke.mjs");
