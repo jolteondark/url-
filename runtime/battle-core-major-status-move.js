@@ -37,6 +37,7 @@ export function resolveMajorStatusMoveEffectCanonical({ move, target, targetType
         newStatusCount: 0,
         targetBattlerIndex: Number(targetBattlerIndex),
         requiresAccuracyHit: true,
+        commitOnExecutedHit: true,
       },
     } : {}),
   };
