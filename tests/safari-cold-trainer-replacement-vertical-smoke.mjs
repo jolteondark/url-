@@ -56,6 +56,9 @@ firstFoe.hp = 1;
 firstFoe.fainted = false;
 secondFoe.hp = 1;
 secondFoe.fainted = false;
+// Make the replacement visibly different for presentation regression. Mechanics
+// still use the already materialized runtime Pokemon; only max HP differs here.
+secondFoe.max_hp = Math.max(Number(firstFoe.max_hp ?? 1) + 37, Number(secondFoe.max_hp ?? 1));
 firstFoe.stats.ATTACK = 1;
 firstFoe.stats.SPECIAL_ATTACK = 1;
 secondFoe.stats.ATTACK = 1;
@@ -65,6 +68,8 @@ battle.trainer_party_index = 0;
 battle.trainer_party_order = [0, 1];
 battle.foe = structuredClone(firstFoe);
 
+const firstFoeSpecies = firstFoe.species;
+const firstFoeMaxHp = Number(firstFoe.max_hp);
 const hpBefore = Number(player.hp);
 const first = await web.resolveSafariBattleRound(runtime, selectedMoveId);
 assert.equal(first.decision, 0, "first trainer KO with reserve must remain nonterminal");
@@ -74,6 +79,19 @@ assert.equal(Number(state.battle.trainer_party_index), 1, "first KO must activat
 assert.ok(Number(state.battle.foe.hp) > 0, "replacement foe must be active");
 assert.ok(Number(runtime.player.party[playerIndex].hp) > 0 && Number(runtime.player.party[playerIndex].hp) <= hpBefore,
   "player HP must persist through trainer replacement");
+
+const firstFoeDamage = first.presentation.find((event) => event.type === "damage_applied" && event.target === "foe");
+assert.ok(firstFoeDamage, "first trainer KO must expose foe damage presentation");
+assert.equal(firstFoeDamage.targetSpecies, firstFoeSpecies,
+  "damage presentation must keep the defeated foe identity even after reserve is already active");
+assert.equal(Number(firstFoeDamage.targetMaxHp), firstFoeMaxHp,
+  "damage presentation must keep the defeated foe max HP instead of the replacement max HP");
+const firstFoeFaint = first.presentation.find((event) => event.type === "faint" && event.target === "foe");
+assert.equal(firstFoeFaint?.targetSpecies, firstFoeSpecies,
+  "faint presentation must name the defeated foe, not the already-committed replacement");
+const trainerNext = first.presentation.find((event) => event.type === "trainer_next");
+assert.equal(trainerNext?.species, state.battle.foe.species,
+  "trainer_next remains the explicit transition to the newly active foe");
 
 state.battle.foe.hp = 1;
 state.battle.trainer_party[1].hp = 1;
@@ -89,4 +107,4 @@ assert.equal(returned.result, "returned", "completed cold trainer Battle must re
 assert.equal(state.battle, null, "Board return must clear Battle state");
 assert.equal(state.location, "day_board", "Board return must land on Day Board");
 
-console.log("Safari cold trainer -> single materialization -> reserve replacement -> final victory -> Board return: ok");
+console.log("Safari cold trainer -> pre-replacement presentation identity -> reserve -> final victory -> Board return: ok");
