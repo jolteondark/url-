@@ -6,15 +6,25 @@ globalThis.CustomEvent = class CustomEvent {
 globalThis.window = { dispatchEvent() { return true; } };
 
 const web = await import("../runtime/safari-web-playable-integration.js");
+const carryover = await import("../runtime/mapless-carryover-next-run.js");
 assert.equal(typeof web.prepareSafariNextRun, "function",
   "Safari facade must expose canonical carryover next-run preparation");
 assert.equal(typeof web.listSafariCarryoverCandidates, "function",
   "Safari facade must expose owner-classified boxed carryover candidates");
+assert.equal(carryover.classifySafariCarryover({ species: "ZAPDOS" }), "special",
+  "canonical SUB_LEGENDARY category must map to special carry class");
+assert.equal(carryover.classifySafariCarryover({ species: "MEWTWO" }), "legend",
+  "canonical LEGENDARY category must map to legend carry class");
+assert.equal(carryover.classifySafariCarryover({ species: "DRAGONITE" }), "pseudo_final",
+  "canonical pseudo-final species must map after category classification");
+assert.equal(carryover.safariCarryoverPartyLimit("special"), 5);
+assert.equal(carryover.safariCarryoverPartyLimit("legend"), 5);
 
 const runtime = web.createSafariPlayableRuntime();
 const state = runtime.variables.mapless;
 const candidate = structuredClone(runtime.player.party[0]);
 candidate.personal_id = 270001;
+candidate.nature_id = "ADAMANT";
 candidate.level = 42;
 candidate.hp = 1;
 candidate.max_hp = Math.max(99, Number(candidate.max_hp ?? 1));
@@ -72,6 +82,7 @@ assert.equal(runtime.storage_system.boxes[0].slots[0] ?? null, null,
 assert.equal(runtime.player.party.length, 1, "next run must begin with exactly one keeper");
 const keeper = runtime.player.party[0];
 assert.equal(keeper.personal_id, candidate.personal_id, "carry clone must preserve individual identity");
+assert.equal(keeper.nature_id, "ADAMANT", "carry normalization must preserve the selected nature");
 assert.equal(Number(keeper.level), 5, "carried Pokemon level must reset to 5");
 assert.deepEqual(Object.values(keeper.ev ?? {}).map(Number), [0, 0, 0, 0, 0, 0],
   "carried Pokemon EVs must reset to zero");
@@ -108,4 +119,4 @@ assert.equal(Number(runtime.bag.money), 1000,
 assert.ok(prepared.operations?.some((operation) => operation.op === "request_save"),
   "prepared next run must request persistence");
 
-console.log("Safari carryover home -> boxed keeper -> canonical reset -> supplies -> Day Board: ok");
+console.log("Safari carryover home -> boxed keeper -> canonical class/nature reset -> supplies -> Day Board: ok");
