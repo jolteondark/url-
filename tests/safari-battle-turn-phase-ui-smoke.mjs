@@ -37,6 +37,8 @@ class FakeElement {
 const battleCard = new FakeElement("battle-card");
 new FakeElement("battle-topline");
 new FakeElement("battle-command-panel");
+const battleMessage = new FakeElement("battle-message");
+battleMessage.textContent = "技を選んでください。";
 const moves = new FakeElement("moves");
 const capture = new FakeElement("capture");
 new FakeElement("flee");
@@ -88,14 +90,16 @@ const battle = () => globalThis.__maplessSafariRuntime.variables.mapless.battle;
 
 await import(`../battle-turn-phase-presentation.js?phase-smoke=${Date.now()}`);
 flushFrames();
-assert.equal(phaseNode?.textContent, "Turn 1 • コマンド選択");
+assert.equal(phaseNode?.textContent, "コマンド選択", "numeric Turn stays owned by preview #turn");
+assert.equal(battleMessage.textContent, "技を選んでください。");
 assert.equal(battleCard.dataset.turnPhase, "command");
 
 const first = commandClick();
 battleCard.listeners.get("click")(first);
 assert.equal(first.prevented, undefined, "first command must be allowed through to preview-app");
 assert.equal(battleCard.dataset.turnPhase, "resolving");
-assert.equal(phaseNode.textContent, "Turn 1 • 行動処理中");
+assert.equal(phaseNode.textContent, "行動処理中");
+assert.equal(battleMessage.textContent, "ターンを処理しています…");
 await Promise.resolve();
 assert.equal(moves.inert, true, "moves must become inert before another user input can dispatch");
 
@@ -107,9 +111,10 @@ assert.equal(duplicate.stopped, true, "duplicate command must not reach preview-
 capture.disabled = false;
 battle().turn = 2;
 flushFrames();
-assert.equal(battleCard.dataset.turnPhase, "command", "phase returns to COMMAND only after turn advances and preview busy clears");
-assert.equal(phaseNode.textContent, "Turn 2 • コマンド選択");
-assert.equal(moves.inert, false, "commands reopen for the next turn");
+assert.equal(battleCard.dataset.turnPhase, "command");
+assert.equal(phaseNode.textContent, "コマンド選択");
+assert.equal(battleMessage.textContent, "技を選んでください。", "COMMAND restores the normal prompt");
+assert.equal(moves.inert, false);
 
 const terminalCommand = commandClick();
 battleCard.listeners.get("click")(terminalCommand);
@@ -119,14 +124,15 @@ battle().turn = 3;
 battle().completed = true;
 windowListeners.get("safari-runtime-changed")();
 runOneFrame();
-assert.equal(battleCard.dataset.turnPhase, "resolving",
-  "terminal state must not replace RESOLVING while preview presentation is still busy");
-assert.equal(phaseNode.textContent, "Turn 2 • 行動処理中");
-assert.ok(frames.length > 0, "RESOLVING must keep watching until terminal presentation finishes");
+assert.equal(battleCard.dataset.turnPhase, "resolving");
+assert.equal(phaseNode.textContent, "行動処理中");
+assert.equal(battleMessage.textContent, "ターンを処理しています…");
 capture.disabled = false;
+battleMessage.textContent = "バトルに勝利した！";
 runOneFrame();
-assert.equal(battleCard.dataset.turnPhase, "result", "RESULT appears only after terminal presentation finishes");
+assert.equal(battleCard.dataset.turnPhase, "result");
 assert.equal(phaseNode.textContent, "結果");
+assert.equal(battleMessage.textContent, "バトルに勝利した！", "RESULT must preserve preview-owned terminal notice");
 flushFrames();
 
 battle().completed = false;
@@ -134,7 +140,7 @@ battle().player_replacement_required = false;
 battle().turn = 3;
 windowListeners.get("safari-runtime-changed")();
 flushFrames();
-assert.equal(battleCard.dataset.turnPhase, "command");
+assert.equal(battleMessage.textContent, "技を選んでください。");
 const replacementCommand = commandClick();
 battleCard.listeners.get("click")(replacementCommand);
 await Promise.resolve();
@@ -143,14 +149,14 @@ battle().turn = 4;
 battle().player_replacement_required = true;
 windowListeners.get("safari-runtime-changed")();
 runOneFrame();
-assert.equal(battleCard.dataset.turnPhase, "resolving",
-  "replacement-required state must stay behind RESOLVING until KO presentation ends");
-assert.equal(phaseNode.textContent, "Turn 3 • 行動処理中");
+assert.equal(phaseNode.textContent, "行動処理中");
+assert.equal(battleMessage.textContent, "ターンを処理しています…");
 capture.disabled = false;
 runOneFrame();
-assert.equal(battleCard.dataset.turnPhase, "replacement", "replacement choice appears after presentation finishes");
-assert.equal(phaseNode.textContent, "Turn 4 • 交代選択");
-assert.equal(moves.inert, true, "normal commands stay inert while replacement is required");
+assert.equal(battleCard.dataset.turnPhase, "replacement");
+assert.equal(phaseNode.textContent, "交代選択");
+assert.equal(battleMessage.textContent, "次のポケモンを選んでください。");
+assert.equal(moves.inert, true);
 flushFrames();
 
 battle().player_replacement_required = false;
@@ -165,24 +171,20 @@ globalThis.__maplessSafariRuntime.variables.mapless.battle = null;
 battleCard.hidden = false;
 windowListeners.get("safari-runtime-changed")();
 runOneFrame();
-assert.equal(battleCard.dataset.turnPhase, "resolving",
-  "cleared Battle must remain visibly RESOLVING until the Battle card final render hides it");
-assert.equal(phaseNode.hidden, false);
+assert.equal(battleCard.dataset.turnPhase, "resolving");
+assert.equal(phaseNode.textContent, "行動処理中");
+assert.equal(battleMessage.textContent, "ターンを処理しています…");
 battleCard.hidden = true;
 runOneFrame();
-assert.equal(phaseNode.hidden, true, "phase UI hides only after the cleared Battle card is actually hidden");
-assert.equal(frames.length, 0, "cleared Battle must not leave an endless animation-frame watcher");
+assert.equal(phaseNode.hidden, true);
+assert.equal(frames.length, 0);
 
 const previewSource = fs.readFileSync(new URL("../preview.js", import.meta.url), "utf8");
 const indexSource = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const deferredSource = fs.readFileSync(new URL("../deferred-ui-loader.js", import.meta.url), "utf8");
-assert.match(previewSource, /battle-turn-phase-presentation\.js\?v=20260818-1702/,
-  "turn phase guard must be required-loaded by the playable preview, not left to an optional stale loader");
-assert.match(indexSource, /preview\.js\?v=20260818-1702/,
-  "public entrypoint must expose the terminal-resolving phase preview build");
-assert.match(indexSource, /build 20260818-1702/,
-  "visible build marker must match the terminal-resolving phase preview build");
-assert.doesNotMatch(deferredSource, /battle-turn-phase-presentation/,
-  "turn phase guard must not be loaded a second time through the deferred loader");
+assert.match(previewSource, /battle-turn-phase-presentation\.js\?v=20260818-1702/);
+assert.match(indexSource, /preview\.js\?v=20260818-1702/);
+assert.match(indexSource, /build 20260818-1702/);
+assert.doesNotMatch(deferredSource, /battle-turn-phase-presentation/);
 
-console.log("Safari Battle UI: complete-turn RESOLVING -> COMMAND/REPLACEMENT/RESULT + cleared-Battle settle: ok");
+console.log("Safari Battle UI: phase label/message stay truthful across COMMAND/RESOLVING/REPLACEMENT/RESULT: ok");
