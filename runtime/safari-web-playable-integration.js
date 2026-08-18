@@ -131,9 +131,17 @@ export async function attemptSafariCapture(runtime, options = {}) {
   return (await full()).attemptSafariCapture(runtime, options);
 }
 export async function returnSafariToDayBoard(runtime) {
-  if (needsFullBattleIntegration(runtime)) return (await full()).returnSafariToDayBoard(runtime);
-  if (stateOf(runtime).battle) return returnSafariNormalToDayBoard(runtime);
-  return (await full()).returnSafariToDayBoard(runtime);
+  let result;
+  if (needsFullBattleIntegration(runtime)) {
+    result = await (await full()).returnSafariToDayBoard(runtime);
+  } else if (stateOf(runtime).battle) {
+    result = await returnSafariNormalToDayBoard(runtime);
+  } else {
+    result = await (await full()).returnSafariToDayBoard(runtime);
+  }
+  globalThis.__maplessSafariRuntime = runtime;
+  publishRuntimeChanged();
+  return result;
 }
 export async function enterSafariVillage(runtime) { return (await full()).enterSafariVillage(runtime); }
 export async function leaveSafariVillage(runtime) { return (await full()).leaveSafariVillage(runtime); }
