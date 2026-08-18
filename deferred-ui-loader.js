@@ -33,11 +33,7 @@ async function loadBattleUi() {
   // Core battle safety is battle-scene-only; do not make initial page paint wait
   // for it. The core battle DOM/CSS already renders HP, moves, capture and flee.
   loadStyle("./battle-core-safety.css");
-  loadStyle("./battle-turn-phase.css");
-  await Promise.all([
-    loadModule("./canonical-battle-sprite-bridge.js"),
-    loadModule("./battle-turn-phase-presentation.js"),
-  ]);
+  await loadModule("./canonical-battle-sprite-bridge.js");
 }
 
 async function loadShopUi() {
@@ -76,13 +72,9 @@ function scheduleSceneBundleSync() {
 document.addEventListener("click", (event) => {
   const start = event.target.closest("#new-run,#continue-run");
   if (start) {
-    // Arm the lightweight turn guard with the playable shell so the very first
-    // Battle command cannot race the optional Battle bundle load.
-    queueMicrotask(() => {
-      loadBoardPresentation();
-      loadStyle("./battle-turn-phase.css");
-      loadModule("./battle-turn-phase-presentation.js");
-    });
+    // Let preview.js arm the static board immediately, then add decorative board
+    // presentation without putting it back on the document startup path.
+    queueMicrotask(() => loadBoardPresentation());
     scheduleSceneBundleSync();
     return;
   }
