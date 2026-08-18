@@ -9,9 +9,9 @@ function runtimeState() {
   return runtime && state ? { runtime, state } : null;
 }
 
-function pendingHome() {
+function carryoverPending() {
   const current = runtimeState();
-  return Boolean(current && (current.state.location === "home" || current.state.mapless_carryover_pending));
+  return Boolean(current?.state.mapless_carryover_pending);
 }
 
 function persistFinishedRun(current) {
@@ -41,9 +41,12 @@ export function syncRunEndPresentation() {
 
   const newRun = byId("new-run");
   if (newRun) {
-    newRun.disabled = Boolean(newRun.disabled || state.mapless_carryover_pending);
-    if (state.mapless_carryover_pending) newRun.title = "次ランの持ち込み選択待ちです";
-    else newRun.removeAttribute("title");
+    if (state.mapless_carryover_pending) {
+      newRun.disabled = true;
+      newRun.title = "次ランの持ち込み選択待ちです";
+    } else {
+      newRun.removeAttribute("title");
+    }
   }
 
   const returnButton = byId("return-board");
@@ -60,7 +63,7 @@ function scheduleSettledSync(delay = 0) {
 
 document.addEventListener("click", (event) => {
   const newRun = event.target.closest?.("#new-run");
-  if (newRun && pendingHome()) {
+  if (newRun && carryoverPending()) {
     event.preventDefault();
     event.stopImmediatePropagation();
     const notice = byId("notice");
