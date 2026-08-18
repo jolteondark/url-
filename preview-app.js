@@ -311,8 +311,9 @@ async function playPresentation(events) {
       const target = byId(event.target + "-combatant");
       const battle = mapless().battle;
       const pokemon = event.target === "player" ? activeBattlePlayer(battle) : battle.foe;
-      byId(event.target + "-hp").textContent = event.hpAfter + " / " + pokemon.max_hp;
-      byId(event.target + "-hp-bar").style.width = percent(event.hpAfter, pokemon.max_hp) + "%";
+      const maxHp = Number(event.targetMaxHp ?? pokemon?.max_hp ?? 0);
+      byId(event.target + "-hp").textContent = event.hpAfter + " / " + maxHp;
+      byId(event.target + "-hp-bar").style.width = percent(event.hpAfter, maxHp) + "%";
       target.classList.add("hit");
       await sleep(220);
       target.classList.remove("hit");
