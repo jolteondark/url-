@@ -34,6 +34,17 @@ export function materializeSafariCaptureRandomValues(seed) {
   return [rng.randInt(65536), rng.randInt(65536), rng.randInt(65536), rng.randInt(65536)];
 }
 
+function capturePresentation(battle, capture) {
+  return {
+    type: "capture",
+    result: capture.result,
+    numShakes: capture.numShakes ?? null,
+    target: "foe",
+    targetSpecies: battle.foe?.species ?? null,
+    targetMaxHp: Number(battle.foe?.max_hp ?? 0),
+  };
+}
+
 function baseTurnInput(state, index) {
   return {
     index,
@@ -132,6 +143,7 @@ export function attemptSafariCapture(runtime, { captureRandomSeed = browserCaptu
       randomValues: captureRandomValues,
     },
   });
+  const captureEvent = capturePresentation(battle, capture);
 
   if (capture.result !== "caught") {
     const response = resolveSafariNormalWildOpponentResponse(runtime);
@@ -143,7 +155,7 @@ export function attemptSafariCapture(runtime, { captureRandomSeed = browserCaptu
       runtime,
       result: capture.result,
       operations,
-      presentation: response.presentation ?? [],
+      presentation: [captureEvent, ...(response.presentation ?? [])],
       calculation: capture.capture,
       captureRandomSeed: normalizedCaptureSeed,
       randomValues: captureRandomValues,
@@ -172,8 +184,7 @@ export function attemptSafariCapture(runtime, { captureRandomSeed = browserCaptu
     partyLimit,
   }];
   battle.presentation = [{
-    type: "capture",
-    result: "caught",
+    ...captureEvent,
     destination: battle.capture_destination,
   }];
   finalizeCaughtNormalWild(runtime);

@@ -56,6 +56,14 @@ assert.equal(playerAfter.item ?? null, playerBefore.item ?? null, "player held i
 assert.equal(Number(state.battle.foe.hp), Number(foeBefore.hp), "failed capture must not damage the foe before its response");
 assert.equal(state.battle.completed, false, "surviving a failed capture response must continue Battle");
 
+assert.equal(failed.presentation?.[0]?.type, "capture",
+  "presentation must show the consumed capture action before the foe response");
+assert.equal(failed.presentation?.[0]?.result, "failed");
+assert.equal(failed.presentation?.[0]?.targetSpecies, foeBefore.species,
+  "failed capture narration must retain the targeted species");
+const foeActionIndex = failed.presentation.findIndex((event) => event.type === "move_started" && event.actor === "foe");
+assert.ok(foeActionIndex > 0, "canonical foe response must follow the failed capture narration");
+
 const previewSource = fs.readFileSync(new URL("../preview-app.js", import.meta.url), "utf8");
 const captureHandlerStart = previewSource.indexOf('byId("capture").addEventListener');
 const captureHandlerEnd = previewSource.indexOf('\nbyId("flee").addEventListener', captureHandlerStart);
@@ -66,5 +74,7 @@ const destinationRead = captureHandler.indexOf('result.destination');
 assert.ok(caughtBranch >= 0, "capture UI must branch on caught before reading destination");
 assert.ok(destinationRead > caughtBranch, "capture destination must only be read after the caught-result branch");
 assert.match(captureHandler, /else note\("Capture: " \+ result\.result\)/, "failed capture UI must render the failed result without a destination");
+assert.match(captureHandler, /await playPresentation\(result\.presentation\)/,
+  "capture UI must play the ordered capture-action + foe-response presentation queue");
 
-console.log("Safari failed capture -> canonical foe response -> next turn, Battle stays active: ok");
+console.log("Safari failed capture -> visible capture failure -> canonical foe response -> next turn: ok");

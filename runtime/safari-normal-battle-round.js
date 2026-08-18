@@ -13,7 +13,33 @@ function stateOf(runtime) {
   return state;
 }
 
-function battlePresentation(operations) {
+function presentationCombatant(pokemon) {
+  if (!pokemon) return null;
+  return Object.freeze({
+    species: pokemon.species ?? null,
+    maxHp: Number(pokemon.max_hp ?? 0),
+  });
+}
+
+function presentationContext(player, foe) {
+  return Object.freeze({
+    player: presentationCombatant(player),
+    foe: presentationCombatant(foe),
+  });
+}
+
+function bindPresentationIdentity(event, context) {
+  const actor = context?.[event.actor] ?? null;
+  const target = context?.[event.target] ?? null;
+  return {
+    ...event,
+    ...(actor?.species ? { actorSpecies: actor.species } : {}),
+    ...(target?.species ? { targetSpecies: target.species } : {}),
+    ...(Number(target?.maxHp) > 0 ? { targetMaxHp: Number(target.maxHp) } : {}),
+  };
+}
+
+function battlePresentation(operations, context = null) {
   const events = [];
   for (const operation of operations ?? []) {
     if (operation.op === "use_move") {
@@ -29,7 +55,7 @@ function battlePresentation(operations) {
       events.push({ type: "turn_end", turn: operation.battleTurn ?? operation.turn ?? operation.round });
     }
   }
-  return events;
+  return context ? events.map((event) => bindPresentationIdentity(event, context)) : events;
 }
 
 function reserveCount(party, activeIndex) {
@@ -67,7 +93,7 @@ function projectPlayerReplacement(battle, handoff, continuation = null) {
 function finish(runtime, battle, resolved, operations) {
   const state = stateOf(runtime);
   battle.last_operations = operations;
-  battle.presentation = battlePresentation(operations);
+  battle.presentation = battlePresentation(operations, resolved.presentationContext ?? null);
   state.last_operations = operations;
   if (Number(battle.decision) !== 0) finalizeNormalBattle(runtime);
   return {
@@ -89,6 +115,7 @@ function resolveTrainer(runtime, selectedMoveId) {
   const player = runtime.player.party[playerIndex];
   if (!player) throw new Error("active player Pokemon is required");
   const defeatedFoe = structuredClone(battle.foe);
+  const roundPresentationContext = presentationContext(player, defeatedFoe);
   const resolved = resolveBrowserTrainerBattleRound({
     roundInput: {
       player,
@@ -139,7 +166,7 @@ function resolveTrainer(runtime, selectedMoveId) {
   const turn = battle.turn;
   battle.turn += 1;
   const operations = (resolved.presentationOperations ?? resolved.operations ?? []).map((operation) => ({ ...operation, battleTurn: turn }));
-  const result = finish(runtime, battle, resolved, operations);
+  const result = finish(runtime, battle, { ...resolved, presentationContext: roundPresentationContext }, operations);
   if (resolved.foeReplacementApplied && battle.decision === 0) {
     const trainerName = battle.trainer?.trainer_full_name ?? "トレーナー";
     battle.presentation.push({ type: "trainer_next", actor: "foe", trainer: trainerName, species: battle.foe?.species ?? null, partyIndex: battle.trainer_party_index });
@@ -195,6 +222,7 @@ function resolveWild(runtime, selectedMoveId, playerActionConsumedWithoutMove = 
   const player = runtime.player.party[playerIndex];
   if (!player) throw new Error("active player Pokemon is required");
   const defeatedFoe = structuredClone(battle.foe);
+  const roundPresentationContext = presentationContext(player, defeatedFoe);
   const choice = resolveBrowserOpponentMoveChoiceCanonical({
     battleKind: "wild",
     player,
@@ -224,7 +252,11 @@ function resolveWild(runtime, selectedMoveId, playerActionConsumedWithoutMove = 
     playerBattleExpInput: playerActionConsumedWithoutMove ? null : normalBattleExpInput(player, defeatedFoe, false),
     playerActionConsumedWithoutMove,
   });
-  return applyWildResolved(runtime, { ...resolved, opponentChoice: choice }, playerIndex);
+  return applyWildResolved(runtime, {
+    ...resolved,
+    opponentChoice: choice,
+    presentationContext: roundPresentationContext,
+  }, playerIndex);
 }
 
 export function resolveSafariNormalBattleRound(runtime, selectedMoveId) {
