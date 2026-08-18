@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { formatSafariBattlePresentationEvent } from "../battle-presentation-narration.js";
+import { shouldFreezeCanonicalBattleSprite } from "../battle-sprite-phase-gate.js";
 
 const events = [
   { type: "move_started", actor: "player", target: "foe", moveId: "TACKLE" },
@@ -64,10 +65,27 @@ assert.equal(formatSafariBattlePresentationEvent({
 assert.equal(formatSafariBattlePresentationEvent({ type: "battle_result", decision: 1 }, {}), null,
   "battle result text must come from the existing notice owner instead of inventing a second result truth");
 
+// Canonical sprite owner follows the same presentation boundary. Live runtime
+// may already contain the trainer reserve, but the existing sprite stays frozen
+// until the old foe's RESOLVING queue is finished.
+const card = { hidden: false, dataset: { turnPhase: "command" } };
+assert.equal(shouldFreezeCanonicalBattleSprite(card), false);
+card.dataset.turnPhase = "resolving";
+assert.equal(shouldFreezeCanonicalBattleSprite(card), true,
+  "RESOLVING must freeze an already rendered canonical battler sprite");
+card.dataset.turnPhase = "replacement";
+assert.equal(shouldFreezeCanonicalBattleSprite(card), false,
+  "phase exit must allow the current runtime battler to become visible");
+card.hidden = true;
+card.dataset.turnPhase = "resolving";
+assert.equal(shouldFreezeCanonicalBattleSprite(card), false,
+  "hidden Battle scene must not retain a stale sprite freeze");
+
 const preview = fs.readFileSync(new URL("../preview-app.js", import.meta.url), "utf8");
 const phase = fs.readFileSync(new URL("../battle-turn-phase-presentation.js", import.meta.url), "utf8");
 const round = fs.readFileSync(new URL("../runtime/safari-normal-battle-round.js", import.meta.url), "utf8");
 const lifecycle = fs.readFileSync(new URL("../runtime/safari-normal-battle-lifecycle.js", import.meta.url), "utf8");
+const spriteBridge = fs.readFileSync(new URL("../canonical-battle-sprite-bridge.js", import.meta.url), "utf8");
 assert.match(preview, /formatSafariBattlePresentationEvent/,
   "preview-app must narrate the existing presentation queue instead of creating another event source");
 assert.match(preview, /dataset\.presentationOwner = "event"/,
@@ -82,7 +100,15 @@ assert.match(round, /targetMaxHp/,
   "normal-round presentation must bind pre-round max HP for replacement-safe damage animation");
 assert.match(lifecycle, /presentation:\s*\[captureEvent, \.\.\.\(response\.presentation \?\? \[\]\)\]/,
   "failed capture action must be narrated before the opponent response using the existing presentation order");
+assert.match(spriteBridge, /if \(shouldFreezeCanonicalBattleSprite\(battle\)\) return;/,
+  "canonical sprite bridge must not consume post-round runtime identity while RESOLVING");
+assert.match(spriteBridge, /attributeFilter:\s*\["data-turn-phase", "hidden"\]/,
+  "canonical sprite bridge must resync narrowly on phase/visibility changes");
+assert.match(spriteBridge, /if \(!shouldFreezeCanonicalBattleSprite\(card\)\) schedule\(\);/,
+  "canonical sprite bridge must resync current runtime owner after RESOLVING exits");
+assert.doesNotMatch(spriteBridge, /setInterval|setTimeout\(/,
+  "canonical sprite synchronization must not poll");
 assert.doesNotMatch(preview, /new MutationObserver\(/,
   "preview-app narration must not infer Battle mechanics from DOM mutation");
 
-console.log("Safari Battle presentation narration: event-bound identity + capture action -> visible message order: ok");
+console.log("Safari Battle presentation narration: event-bound identity + frozen sprite through RESOLVING: ok");
