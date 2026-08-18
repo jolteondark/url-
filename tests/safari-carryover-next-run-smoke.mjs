@@ -78,6 +78,8 @@ assert.deepEqual(
 
 const prepared = await web.prepareSafariNextRun(runtime, { boxIndex: 0, slotIndex: 0 });
 assert.equal(prepared.result, "prepared", "eligible boxed carryover must prepare the next run");
+assert.equal(globalThis.__maplessSafariRuntime, runtime,
+  "successful next-run preparation must keep the prepared caller as the live Safari runtime");
 assert.equal(runtime.storage_system.boxes[0].slots[0] ?? null, null,
   "selected boxed original must be removed only after carry normalization succeeds");
 assert.equal(runtime.player.party.length, 1, "next run must begin with exactly one keeper");
@@ -132,4 +134,4 @@ assert.match(uiSource, /operation\.op === "request_save"/, "UI persistence must 
 assert.match(previewSource, /carryover-next-run-presentation\.js\?v=20260818-1525/, "playable preview must required-load the carryover selector build");
 assert.match(indexSource, /preview\.js\?v=20260818-1525/, "public entrypoint must expose the carryover-capable preview build");
 
-console.log("Safari carryover home -> boxed keeper -> canonical class/nature reset -> home UI -> Day Board: ok");
+console.log("Safari carryover home -> boxed keeper -> canonical reset -> live runtime -> home UI -> Day Board: ok");
