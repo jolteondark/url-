@@ -24,8 +24,6 @@ const PSEUDO_FINALS = new Set(["DRAGONITE", "TYRANITAR", "SALAMENCE", "METAGROSS
 const LEGEND_CATEGORIES = new Set(["LEGENDARY", "MYTHICAL"]);
 const SPECIAL_CATEGORIES = new Set(["SUB_LEGENDARY", "ULTRA_BEAST", "PARADOX"]);
 
-// Exact source-v0.9.108 MaplessCarryover::CLASS_RULES. Public Safari's
-// SAFARI_PLAYABLE_STARTING_MONEY remains the existing base-start-money owner.
 const CLASS_RULES = Object.freeze({
   general: Object.freeze({ partyLimit: 6, money: 1, supplies: Object.freeze([["POKEBALL", 5], ["POTION", 3]]) }),
   pseudo_final: Object.freeze({ partyLimit: 6, money: 0.5, supplies: Object.freeze([]) }),
@@ -45,11 +43,26 @@ export function classifySafariCarryover(pokemon) {
   const species = String(pokemon.species ?? "").toUpperCase();
   if (!species) return null;
   const category = safariCanonicalSpeciesCategory(species);
-  if (category === "ENEMY_ONLY") return null;
+  if (category === "ENEMY_ONLY" || category === "BLOCKED") return null;
   if (LEGEND_CATEGORIES.has(category)) return "legend";
   if (SPECIAL_CATEGORIES.has(category)) return "special";
   if (PSEUDO_FINALS.has(species)) return "pseudo_final";
   return "general";
+}
+
+export function listSafariCarryoverCandidates(runtime) {
+  const boxes = runtime?.storage_system?.boxes ?? [];
+  const candidates = [];
+  for (let boxIndex = 0; boxIndex < boxes.length; boxIndex += 1) {
+    const slots = boxes[boxIndex]?.slots ?? [];
+    for (let slotIndex = 0; slotIndex < slots.length; slotIndex += 1) {
+      const pokemon = slots[slotIndex] ?? null;
+      const carryClass = classifySafariCarryover(pokemon);
+      if (!carryClass) continue;
+      candidates.push({ boxIndex, slotIndex, carryClass, pokemon: clone(pokemon) });
+    }
+  }
+  return candidates;
 }
 
 export function safariCarryoverPartyLimit(carryClass) {
@@ -60,7 +73,6 @@ async function normalizeCarriedPokemon(source) {
   const needsGeneralMasters = !SAFARI_SPECIES_MASTERS[source?.species]
     || (source?.moves ?? []).some((move) => !SAFARI_MOVE_MASTERS[typeof move === "string" ? move : move?.id]);
   if (needsGeneralMasters) await ensureSafariGeneralData();
-
   const original = clone(source);
   for (const key of Object.keys(original)) {
     if (key.startsWith("mapless_") && !["mapless_bonus_stats", "mapless_applied_bonus_stats"].includes(key)) delete original[key];
@@ -72,13 +84,11 @@ async function normalizeCarriedPokemon(source) {
   original.item = null;
   original.status = "NONE";
   original.status_count = 0;
-
   const speciesMaster = SAFARI_SPECIES_MASTERS[original.species];
   if (!speciesMaster?.base_stats) throw new Error(`carryover species master unavailable: ${original.species}`);
   const natureId = original.nature_id ?? "HARDY";
   const natureMaster = SAFARI_NATURE_MASTERS[natureId];
   if (!natureMaster) throw new Error(`carryover nature master unavailable: ${natureId}`);
-
   let normalized = createPokemonRuntime(original);
   normalized = recalculatePokemonStats(normalized, {
     base_stats: speciesMaster.base_stats,
@@ -139,44 +149,35 @@ function applyFreshRunBoard(runtime, fresh) {
 
 export async function prepareSafariNextRun(runtime, selection = null) {
   const state = ensureMaplessRunLifecycleState(runtime);
-  if (!state.mapless_carryover_pending || state.location !== "home") {
-    return { result: "not_pending", operations: [] };
-  }
+  if (!state.mapless_carryover_pending || state.location !== "home") return { result: "not_pending", operations: [] };
   runtime.player ??= { party: [] };
   runtime.storage_system ??= { boxes: [{ name: "Box 1", capacity: 30, slots: [] }], currentBox: 0 };
-
   const archived = archiveExistingParty(runtime);
   const stagedStorage = { boxes: archived.boxes, currentBox: archived.currentBox };
   let keeper;
   let carryClass;
   const operations = [...archived.operations];
-
   if (selection && Number.isInteger(selection.boxIndex) && Number.isInteger(selection.slotIndex)) {
     const candidate = stagedStorage.boxes?.[selection.boxIndex]?.slots?.[selection.slotIndex] ?? null;
     carryClass = classifySafariCarryover(candidate);
     if (!carryClass) return { result: "ineligible", operations: [] };
-    // Normalize the clone first. Storage deletion is committed only after this succeeds.
     keeper = await normalizeCarriedPokemon(candidate);
     const deleted = deleteStoredPokemon(stagedStorage, selection.boxIndex, selection.slotIndex);
     stagedStorage.boxes = deleted.state.boxes;
     stagedStorage.currentBox = deleted.state.currentBox;
     operations.push(...deleted.operations, { op: "choose_carryover", carryClass, box: selection.boxIndex, slot: selection.slotIndex });
   } else {
-    // Canonical fallback exists only when the player explicitly starts the next run
-    // without a boxed selection. Pending home itself never gets a temporary starter.
     const freshStarter = createSafariPlayableRuntime().player.party[0];
     carryClass = "general";
     keeper = await normalizeCarriedPokemon(freshStarter);
     operations.push({ op: "fallback_carryover_starter", carryClass });
   }
-
   const fresh = createSafariPlayableRuntime();
   runtime.storage_system.boxes = stagedStorage.boxes;
   runtime.storage_system.currentBox = stagedStorage.currentBox;
   runtime.player.party = [keeper];
   applyFreshRunBoard(runtime, fresh);
   const rule = applyClassRules(runtime, carryClass);
-
   state.mapless_carry_class = carryClass;
   state.mapless_run_active = true;
   state.mapless_run_prepared = true;
