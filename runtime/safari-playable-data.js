@@ -1,5 +1,6 @@
 import { projectSafariGeneralGrowthRates } from "./safari-general-growth-rate-facts.js";
 import { safariGeneralSpeciesTypesV108 } from "./safari-general-species-type-facts.js";
+import { projectSafariGeneralMoveEffectChanceV108 } from "./safari-general-move-effect-chance-facts.js";
 
 // Lightweight Safari bootstrap projection from canonical source-v0.9.108.
 //
@@ -8,11 +9,11 @@ import { safariGeneralSpeciesTypesV108 } from "./safari-general-species-type-fac
 // GENERAL projection is installed on demand by combat entry.
 
 const EXACT_BOOT_MOVES = Object.freeze({
-  TACKLE: Object.freeze({ id: "TACKLE", name: "Tackle", category: "Physical", power: 40, accuracy: 100, total_pp: 35, priority: 0, type: "NORMAL", thaws_user: false }),
-  QUICKATTACK: Object.freeze({ id: "QUICKATTACK", name: "Quick Attack", category: "Physical", power: 40, accuracy: 100, total_pp: 30, priority: 1, type: "NORMAL", thaws_user: false }),
-  BITE: Object.freeze({ id: "BITE", name: "Bite", category: "Physical", power: 60, accuracy: 100, total_pp: 25, priority: 0, type: "DARK", thaws_user: false }),
-  SWIFT: Object.freeze({ id: "SWIFT", name: "Swift", category: "Special", power: 60, accuracy: 0, total_pp: 20, priority: 0, type: "NORMAL", thaws_user: false }),
-  THUNDERSHOCK: Object.freeze({ id: "THUNDERSHOCK", name: "Thunder Shock", category: "Special", power: 40, accuracy: 100, total_pp: 30, priority: 0, type: "ELECTRIC", thaws_user: false }),
+  TACKLE: projectSafariGeneralMoveEffectChanceV108("TACKLE", { id: "TACKLE", name: "Tackle", category: "Physical", power: 40, accuracy: 100, total_pp: 35, priority: 0, type: "NORMAL", thaws_user: false }),
+  QUICKATTACK: projectSafariGeneralMoveEffectChanceV108("QUICKATTACK", { id: "QUICKATTACK", name: "Quick Attack", category: "Physical", power: 40, accuracy: 100, total_pp: 30, priority: 1, type: "NORMAL", thaws_user: false }),
+  BITE: projectSafariGeneralMoveEffectChanceV108("BITE", { id: "BITE", name: "Bite", category: "Physical", power: 60, accuracy: 100, total_pp: 25, priority: 0, type: "DARK", thaws_user: false }),
+  SWIFT: projectSafariGeneralMoveEffectChanceV108("SWIFT", { id: "SWIFT", name: "Swift", category: "Special", power: 60, accuracy: 0, total_pp: 20, priority: 0, type: "NORMAL", thaws_user: false }),
+  THUNDERSHOCK: projectSafariGeneralMoveEffectChanceV108("THUNDERSHOCK", { id: "THUNDERSHOCK", name: "Thunder Shock", category: "Special", power: 40, accuracy: 100, total_pp: 30, priority: 0, type: "ELECTRIC", thaws_user: false }),
 });
 
 export const SAFARI_MOVE_MASTERS = { ...EXACT_BOOT_MOVES };
@@ -93,11 +94,11 @@ export function installSafariGeneralMasters(speciesMasters, moveMasters) {
   // encounter/trainer owners concretize only their selected masters with their
   // existing Object.assign calls.
   //
-  // GrowthRate and type membership are generated from canonical PBS-derived
-  // data separately from the compressed GENERAL payload. Compose both at this
-  // shared master boundary so every selected species carries one canonical
-  // growth_rate and one/two canonical types without eagerly reading all 875
-  // source masters.
+  // GrowthRate, type membership and move additional-effect chance are generated
+  // from canonical PBS-derived data separately from the compressed GENERAL
+  // payload. Compose them at this shared master boundary so selected runtime
+  // objects consume one canonical fact source without eagerly reading all
+  // 875 species / 608 moves.
   //
   // Installation is transactional. A Safari/runtime failure after only part of
   // the descriptors were defined must not leave shared masters half-mutated
@@ -122,7 +123,7 @@ export function installSafariGeneralMasters(speciesMasters, moveMasters) {
       const types = safariGeneralSpeciesTypesV108(id);
       return Object.freeze({ ...master, growth_rate: growthRate, types });
     });
-    const moveCount = installLazyMasterProjection(SAFARI_MOVE_MASTERS, moveMasters);
+    const moveCount = installLazyMasterProjection(SAFARI_MOVE_MASTERS, moveMasters, projectSafariGeneralMoveEffectChanceV108);
     Object.assign(SAFARI_MOVE_MASTERS, EXACT_BOOT_MOVES);
     generalInstalled = true;
     return { speciesCount, moveCount };
