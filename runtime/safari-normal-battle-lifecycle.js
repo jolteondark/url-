@@ -1,0 +1,192 @@
+import { resolveCaptureFlow } from "./battle-capture-flow.js";
+import { routeCaughtQueueToPartyStorage } from "./caught-queue-party-storage.js";
+import { resolveDayBoardPlayableTurn } from "./mapless-day-board-playable-turn.js";
+import { SAFARI_SPECIES_MASTERS } from "./safari-playable-data.js";
+
+function stateOf(runtime) {
+  const state = runtime?.variables?.mapless;
+  if (!state || typeof state !== "object" || Array.isArray(state)) {
+    throw new TypeError("runtime variables.mapless state is required");
+  }
+  return state;
+}
+
+function requestsSave(operations = []) {
+  return operations.some((operation) => operation?.op === "request_save");
+}
+
+function baseTurnInput(state, index) {
+  return {
+    index,
+    day: state.day,
+    board_events: state.board_events,
+    board_revealed: state.board_revealed,
+    board_consumed: state.board_consumed,
+    board_visited: state.board_visited,
+    notice: state.notice,
+    scene_is_self: true,
+    scene_same: true,
+    event_stage_active: true,
+    pending_hatches: [],
+  };
+}
+
+function finalizeCaughtNormalWild(runtime) {
+  const state = stateOf(runtime);
+  const battle = state.battle;
+  const encounter = battle.encounter ?? {};
+  const input = baseTurnInput(state, battle.board_index);
+  input.wild = {
+    can_battle: true,
+    encounter: {
+      species_id: encounter.species_id ?? battle.foe.species,
+      level: encounter.level ?? battle.foe.level,
+    },
+    species_exists: true,
+    species_name: encounter.species_name ?? battle.foe.species,
+    outcome: 4,
+    run_end_pending: false,
+    old_consumed: false,
+    game_temp_present: true,
+  };
+
+  const turn = resolveDayBoardPlayableTurn(input);
+  state.board_events = turn.state.board_events;
+  state.board_revealed = turn.state.board_revealed;
+  state.board_consumed = turn.state.board_consumed;
+  const completionOperations = [...turn.operations];
+
+  battle.completed = true;
+  battle.return_target = "day_board";
+  battle.last_operations = [...(battle.last_operations ?? []), ...completionOperations];
+  battle.presentation = [
+    ...(battle.presentation ?? []),
+    {
+      type: "battle_result",
+      decision: 4,
+      captured: true,
+      expGained: 0,
+      reward: null,
+      moneyGained: 0,
+      returnTarget: "day_board",
+    },
+  ];
+  state.last_operations = completionOperations;
+  state.notice = `${encounter.species_name ?? battle.foe.species}を捕まえました。`;
+  return completionOperations;
+}
+
+export function attemptSafariCapture(runtime) {
+  const state = stateOf(runtime);
+  const battle = state.battle;
+  if (!battle || battle.completed || battle.kind !== "wild") {
+    throw new Error("active wild battle is required");
+  }
+  if (battle.origin === "boundary_trial") {
+    throw new Error("boundary battle must use the boundary owner");
+  }
+
+  const speciesMaster = SAFARI_SPECIES_MASTERS[battle.foe?.species];
+  if (!speciesMaster) {
+    throw new RangeError(`capture species is outside the Safari projection: ${battle.foe?.species}`);
+  }
+
+  const capture = resolveCaptureFlow({
+    targetFainted: Number(battle.foe.hp) <= 0,
+    trainerBattle: false,
+    ball: "POKEBALL",
+    decision: 4,
+    gainExpForCapture: false,
+    allFaintedAfterCapture: false,
+    capture: {
+      totalHp: battle.foe.max_hp,
+      hp: Math.max(1, Number(battle.foe.hp)),
+      catchRate: speciesMaster.catch_rate,
+      status: battle.foe.status ?? "NONE",
+      ball: "POKEBALL",
+      unconditional: false,
+      enableCriticalCaptures: false,
+      randomValues: [0, 0, 0, 0],
+    },
+  });
+
+  if (capture.result !== "caught") {
+    state.notice = "捕獲結果: " + capture.result;
+    state.last_operations = [...capture.operations];
+    return {
+      runtime,
+      result: capture.result,
+      operations: capture.operations,
+      presentation: [],
+      calculation: capture.capture,
+      persistenceRequested: requestsSave(capture.operations),
+    };
+  }
+
+  const routed = routeCaughtQueueToPartyStorage({
+    party: runtime.player.party,
+    boxes: runtime.storage_system.boxes,
+    currentBox: runtime.storage_system.currentBox,
+  }, [battle.foe]);
+  runtime.player.party = routed.state.party;
+  runtime.storage_system.boxes = routed.state.boxes;
+  runtime.storage_system.currentBox = routed.state.currentBox;
+
+  battle.captured = true;
+  battle.capture_destination = routed.routed[0]?.result ?? "full";
+  battle.decision = 4;
+  battle.last_operations = [...capture.operations, ...routed.operations];
+  battle.presentation = [{
+    type: "capture",
+    result: "caught",
+    destination: battle.capture_destination,
+  }];
+  finalizeCaughtNormalWild(runtime);
+
+  return {
+    runtime,
+    result: "caught",
+    destination: battle.capture_destination,
+    operations: battle.last_operations,
+    presentation: battle.presentation,
+    calculation: capture.capture,
+    persistenceRequested: requestsSave(battle.last_operations),
+  };
+}
+
+export function returnSafariToDayBoard(runtime) {
+  const state = stateOf(runtime);
+  const battle = state.battle;
+  if (!battle?.completed) throw new Error("completed battle is required");
+  if (battle.origin === "boundary_trial") {
+    throw new Error("boundary battle must use the boundary owner");
+  }
+
+  const target = battle.return_target ?? "day_board";
+  const summary = {
+    decision: battle.decision,
+    captured: Boolean(battle.captured),
+    expGained: Number(battle.trainer_exp_gained ?? 0) + Number(battle.exp_gained ?? 0),
+    reward: battle.reward ?? null,
+    moneyGained: Number(battle.money_gained ?? 0),
+    returnTarget: target,
+  };
+
+  state.battle = null;
+  state.location = target;
+  state.notice = target === "village"
+    ? "討伐を終えて村へ戻りました。"
+    : "Day Boardへ戻りました。";
+  const operations = [{
+    op: target === "village" ? "return_to_village" : "return_to_day_board",
+  }];
+  state.last_operations = operations;
+
+  return {
+    runtime,
+    result: "returned",
+    target,
+    summary,
+    operations,
+  };
+}
