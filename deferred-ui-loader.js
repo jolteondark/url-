@@ -33,7 +33,10 @@ async function loadBattleUi() {
   // Core battle safety is battle-scene-only; do not make initial page paint wait
   // for it. The core battle DOM/CSS already renders HP, moves, capture and flee.
   loadStyle("./battle-core-safety.css");
-  await loadModule("./canonical-battle-sprite-bridge.js");
+  await Promise.all([
+    loadModule("./canonical-battle-sprite-bridge.js"),
+    loadModule("./battle-player-replacement-presentation.js"),
+  ]);
 }
 
 async function loadShopUi() {
