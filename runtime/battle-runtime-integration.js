@@ -10,6 +10,7 @@ import { prepareBattleSystemsPpRuntime, commitBattleSystemsPpRuntime } from "./b
 import { commitBattleSystemsExpRuntime } from "./battle-exp-runtime-integration.js";
 import { commitBattleSystemsStatusRuntime } from "./battle-status-runtime-integration.js";
 import { commitBattleSystemsHeldItemRuntime } from "./battle-held-item-runtime-integration.js";
+import { prepareReflectedMajorStatusBattleInput } from "./battle-major-status-runtime-preparation.js";
 
 export function reflectBattleCoreHpToPokemonRuntime(runtime, turnResult, actionIndex) {
   const operations = Array.isArray(turnResult?.operations) ? turnResult.operations : [];
@@ -134,16 +135,17 @@ function resolveRuntimeLoop(preparedBattleInput, allowIncompleteBattle) {
 
 export function resolveBattleRuntimeIntegration({ pokemon, sendOuts = [], battleInput: rawBattleInput = {}, preparedBattleInputTransform = null, ppActionIndexes = null, reflectedActionIndex = 0, reflectedTryUseMoveActionIndex = reflectedActionIndex, reflectedBattlerIndex = null, reflectedPartyIndex = 0, postBattlePersistenceInput = null, allowIncompleteBattle = true, weatherAnimation = null, terrainAnimation = null }) {
   const start = resolveBattleStartCore({ sendOuts, weatherAnimation, terrainAnimation });
-  const useAttackPhaseScheduler = rawBattleInput?.useAttackPhaseScheduler === true;
-  const useCanonicalAccuracyDamage = rawBattleInput?.useCanonicalAccuracyDamage === true;
+  const reflectedBattleInput = prepareReflectedMajorStatusBattleInput({ battleInput: rawBattleInput, pokemon, reflectedBattlerIndex });
+  const useAttackPhaseScheduler = reflectedBattleInput?.useAttackPhaseScheduler === true;
+  const useCanonicalAccuracyDamage = reflectedBattleInput?.useCanonicalAccuracyDamage === true;
   let ppPrepared; let battleInput; let turn; let preparedBattleInput = battleInput; let attackPhaseScheduling = null;
   if (useAttackPhaseScheduler && useCanonicalAccuracyDamage) {
-    const resolved = prepareBattleRuntimeScheduledCombat({ battleInput: rawBattleInput });
+    const resolved = prepareBattleRuntimeScheduledCombat({ battleInput: reflectedBattleInput });
     ppPrepared = resolved.ppPrepared; battleInput = ppPrepared.battleInput; preparedBattleInput = resolved.preparedBattleInput;
     if (typeof preparedBattleInputTransform === "function") preparedBattleInput = preparedBattleInputTransform(preparedBattleInput);
     attackPhaseScheduling = resolved.scheduling; turn = resolveRuntimeLoop(preparedBattleInput, allowIncompleteBattle);
   } else {
-    ppPrepared = prepareBattleSystemsPpRuntime({ battleInput: rawBattleInput }); battleInput = ppPrepared.battleInput; preparedBattleInput = battleInput;
+    ppPrepared = prepareBattleSystemsPpRuntime({ battleInput: reflectedBattleInput }); battleInput = ppPrepared.battleInput; preparedBattleInput = battleInput;
     if (useAttackPhaseScheduler) {
       const rounds = Array.isArray(battleInput?.rounds) ? battleInput.rounds : [];
       if (rounds.length !== 1) throw new Error("attack-phase integration adapter requires exactly one round");
