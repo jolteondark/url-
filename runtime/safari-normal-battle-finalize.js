@@ -1,4 +1,4 @@
-import { resolveExpLevelMoveFlow } from "./battle-exp-level-move-flow.js";
+import { resolveSafariBattleExpGrowthInput } from "./safari-battle-exp-growth-owner.js";
 import { resolveItemReceipt } from "./bag-economy-item-receipt.js";
 import { setMoney } from "./bag-economy-mart-flow.js";
 import { maplessCarryMoneyGain } from "./mapless-carry-class-rules.js";
@@ -57,25 +57,7 @@ export function normalBattleExpInput(player, defeatedFoe, trainerBattle = false)
   const natureMaster = SAFARI_NATURE_MASTERS[natureId];
   if (!natureMaster) throw new RangeError(`battle EXP nature is outside the Safari projection: ${natureId}`);
   return {
-    maximumExp: 1_000_000,
-    maxMoves: 4,
-    expContext: {
-      defeatedLevel: defeatedFoe.level,
-      baseExp: foeMaster.base_exp,
-      numParticipants: 1,
-      expShareCount: 0,
-      participant: true,
-      hasExpShare: false,
-      expAll: false,
-      splitExpBetweenGainers: true,
-      moreExpFromTrainerPokemon: trainerBattle,
-      trainerBattle,
-      scaledExpFormula: false,
-      outsiderMultiplier: 1,
-    },
-    levelThresholds: { 6: 216, 7: 343, 8: 512, 9: 729, 10: 1000 },
-    movesByLevel: { 10: ["QUICKATTACK"] },
-    moveDecisions: {},
+    ...resolveSafariBattleExpGrowthInput(player, defeatedFoe, speciesMaster, foeMaster, trainerBattle),
     runtimeMasters: {
       species_master: speciesMaster,
       nature_master: natureMaster,
@@ -98,48 +80,6 @@ function givePotion(runtime, battle) {
   runtime.bag.slots = receipt.slots;
   battle.reward = receipt.success ? { item: "POTION", quantity: 1 } : null;
   return receipt.operations.map((operation) => ({ ...operation, scope: "reward" }));
-}
-
-function awardWildWin(runtime, battle) {
-  const playerIndex = Number(battle.player_party_index ?? 0);
-  const player = runtime.player.party[playerIndex];
-  if (!player) throw new Error("active player Pokemon is required for wild EXP");
-  const foeMaster = SAFARI_SPECIES_MASTERS[battle.foe.species];
-  if (!foeMaster) return givePotion(runtime, battle);
-  const expFlow = resolveExpLevelMoveFlow({
-    pokemon: { exp: player.exp ?? 0, level: player.level, moves: player.moves.map(moveId) },
-    maximumExp: 1_000_000,
-    maxMoves: 4,
-    expContext: {
-      defeatedLevel: battle.foe.level,
-      baseExp: foeMaster.base_exp,
-      numParticipants: 1,
-      expShareCount: 0,
-      participant: true,
-      hasExpShare: false,
-      expAll: false,
-      splitExpBetweenGainers: true,
-      moreExpFromTrainerPokemon: false,
-      trainerBattle: false,
-      scaledExpFormula: false,
-      outsiderMultiplier: 1,
-    },
-    levelThresholds: { 6: 216, 7: 343, 8: 512, 9: 729, 10: 1000 },
-    movesByLevel: { 10: ["QUICKATTACK"] },
-    moveDecisions: {},
-  });
-  const currentMoves = new Map(player.moves.map((move) => [moveId(move), move]));
-  runtime.player.party[playerIndex] = materializePokemon({
-    ...player,
-    exp: expFlow.pokemon.exp,
-    level: expFlow.pokemon.level,
-    moves: expFlow.pokemon.moves.map((id) => currentMoves.get(normalizeMoveId(id)) ?? normalizeMoveId(id)),
-  });
-  battle.exp_gained = expFlow.expGained;
-  return [
-    ...expFlow.operations.map((operation) => ({ ...operation, scope: "exp" })),
-    ...givePotion(runtime, battle),
-  ];
 }
 
 function completeBoardEvent(state, battle) {
