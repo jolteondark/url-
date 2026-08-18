@@ -1,4 +1,5 @@
 import { projectGeneralEncounterSpeciesPools } from "./general-encounter-species-pools.js";
+import { safariGeneralChunkImportUrl } from "./safari-general-retry-url.js";
 
 const CHUNK_COUNT = 20;
 const BROWSER_IMPORT_BATCH = 4;
@@ -48,7 +49,7 @@ async function loadEncodedChunks() {
     let batch;
     try {
       batch = await Promise.all(CHUNK_PATHS.slice(start, end).map(async (path) => {
-        const module = await import(new URL(path, import.meta.url).href);
+        const module = await import(safariGeneralChunkImportUrl(path, import.meta.url));
         if (typeof module.default !== "string" || module.default.length === 0) {
           throw new Error(`empty Safari GENERAL chunk: ${path}`);
         }
