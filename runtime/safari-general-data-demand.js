@@ -2,7 +2,10 @@ import {
   installSafariGeneralMasters,
   safariGeneralMastersInstalled,
 } from "./safari-playable-data.js";
-import { safariGeneralLoaderSpecifier } from "./safari-general-retry-url.js";
+import {
+  safariGeneralCombatModuleSpecifier,
+  safariGeneralLoaderSpecifier,
+} from "./safari-general-retry-url.js";
 
 let loading = null;
 let generalDataRetryGeneration = 0;
@@ -10,6 +13,8 @@ let encounterLoading = null;
 let trainerLoading = null;
 let encounterRuntime = null;
 let trainerGenerator = null;
+let encounterRetryGeneration = 0;
+let trainerRetryGeneration = 0;
 
 function traceGeneralCombat(stage, detail = {}) {
   if (typeof globalThis === "undefined") return;
@@ -75,16 +80,22 @@ function normalizeCombatKind(kind = null) {
 function loadEncounterRuntime() {
   if (encounterRuntime) return Promise.resolve(encounterRuntime);
   if (!encounterLoading) {
-    traceGeneralCombat("wild_module_import_start");
-    encounterLoading = import("./safari-general-encounter-runtime.js")
+    const retryGeneration = encounterRetryGeneration;
+    const moduleSpecifier = safariGeneralCombatModuleSpecifier("wild", retryGeneration);
+    traceGeneralCombat("wild_module_import_start", { retry_generation: retryGeneration });
+    encounterLoading = import(moduleSpecifier)
       .then((module) => {
         encounterRuntime = module;
-        traceGeneralCombat("wild_module_import_ready");
+        traceGeneralCombat("wild_module_import_ready", { retry_generation: retryGeneration });
         return module;
       })
       .catch((error) => {
         encounterLoading = null;
-        traceError("wild_module_import_error", error);
+        encounterRetryGeneration += 1;
+        traceError("wild_module_import_error", error, {
+          retry_generation: retryGeneration,
+          next_retry_generation: encounterRetryGeneration,
+        });
         throw error;
       });
   }
@@ -94,16 +105,22 @@ function loadEncounterRuntime() {
 function loadTrainerGenerator() {
   if (trainerGenerator) return Promise.resolve(trainerGenerator);
   if (!trainerLoading) {
-    traceGeneralCombat("trainer_module_import_start");
-    trainerLoading = import("./mapless-dynamic-trainer-generator.js")
+    const retryGeneration = trainerRetryGeneration;
+    const moduleSpecifier = safariGeneralCombatModuleSpecifier("trainer", retryGeneration);
+    traceGeneralCombat("trainer_module_import_start", { retry_generation: retryGeneration });
+    trainerLoading = import(moduleSpecifier)
       .then((module) => {
         trainerGenerator = module;
-        traceGeneralCombat("trainer_module_import_ready");
+        traceGeneralCombat("trainer_module_import_ready", { retry_generation: retryGeneration });
         return module;
       })
       .catch((error) => {
         trainerLoading = null;
-        traceError("trainer_module_import_error", error);
+        trainerRetryGeneration += 1;
+        traceError("trainer_module_import_error", error, {
+          retry_generation: retryGeneration,
+          next_retry_generation: trainerRetryGeneration,
+        });
         throw error;
       });
   }
