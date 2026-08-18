@@ -147,10 +147,20 @@ function normalizeStartupRuntime(runtime) {
   if (!("location" in state)) state.location = "day_board";
   state.schema_version = 2;
   ensureMaplessRunLifecycleState(runtime);
-  ensureVillageState(state);
   runtime.bag ??= { slots: [], money: 0 };
   runtime.bag.money = Number(runtime.bag.money ?? 0);
   runtime.storage_system ??= { boxes: [{ name: "Box 1", capacity: 30, slots: [] }], currentBox: 0 };
+
+  // A closed run must stay cold until the player explicitly chooses the next
+  // carryover from home. Do not regenerate village/Board/encounter state on Continue.
+  if (state.mapless_carryover_pending || state.location === "home") {
+    state.location = "home";
+    state.shop = null;
+    globalThis.__maplessSafariRuntime = runtime;
+    return runtime;
+  }
+
+  ensureVillageState(state);
   ensureSafariEncounterSeed(state);
   assignFullWildTypes(state);
   ensureTrainerSeeds(state);
