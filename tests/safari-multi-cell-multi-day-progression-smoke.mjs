@@ -239,7 +239,26 @@ assert.equal(continuedState.boundary_trial.result, "returned_to_board");
 assert.deepEqual(partyIdentity(continued), expectedIdentity, "boundary victory must preserve the same Party identities");
 assert.deepEqual(continued.bag, expectedBag, "boundary victory must preserve Bag/Money");
 
-// Prove the post-boundary Board is genuinely playable by advancing once more to DAY 12.
+// The generated DAY 11 Board itself must remain playable after returning from the trial.
+// Canonical board generation guarantees at least one wild cell, so consume that real
+// generated cell rather than replacing the Board with a test fixture.
+const day11WildIndex = continuedState.board_events.findIndex((entry) => entry?.kind === "wild");
+assert.ok(day11WildIndex >= 0, "canonical post-boundary Board must contain a wild cell");
+const day11WildStart = await web.activateSafariDayBoardCell(continued, day11WildIndex);
+assert.equal(day11WildStart.result, "dispatched");
+assert.equal(continuedState.battle?.kind, "wild");
+const day11PlayerIndex = Number(continuedState.battle.player_party_index ?? 0);
+continued.player.party[day11PlayerIndex].stats.SPEED = 999;
+continuedState.battle.foe.stats.SPEED = 1;
+const day11Escaped = attemptSafariFlee(continued, { runRandomSeed: 11, randomRoll: 255 });
+assert.equal(day11Escaped.escaped, true);
+assert.equal(continuedState.battle, null);
+assert.equal(continuedState.board_consumed[day11WildIndex], true);
+assert.equal(continuedState.board_visited[day11WildIndex], true);
+assert.deepEqual(partyIdentity(continued), expectedIdentity, "post-boundary cell resolution must keep Party identity");
+assert.deepEqual(continued.bag, expectedBag, "post-boundary cell resolution must keep Bag/Money");
+
+// After resolving a real DAY 11 cell, the same run must still advance to DAY 12.
 const day11NextIndex = nextDayIndex(continued);
 const day12Camp = prepareSafariCampNextDay(continued, day11NextIndex, true);
 applySafariCampRecovery(continued, day12Camp);
@@ -256,4 +275,4 @@ assert.deepEqual(continuedState.board_visited, Array(8).fill(false));
 assert.deepEqual(partyIdentity(continued), expectedIdentity, "post-boundary progression must keep Party identity");
 assert.deepEqual(continued.bag, expectedBag, "post-boundary progression must keep Bag/Money");
 
-console.log("Safari fresh -> multi-cell -> save/Continue -> multi-day -> boundary victory -> DAY 12 progression: ok");
+console.log("Safari fresh -> multi-cell -> save/Continue -> multi-day -> boundary victory -> generated DAY 11 wild -> DAY 12 progression: ok");
