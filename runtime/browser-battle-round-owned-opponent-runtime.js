@@ -36,6 +36,7 @@ export function resolveBrowserBattleRoundWithOwnedOpponent(input = {}) {
     playerBattleExpInput: input.playerBattleExpInput,
     postBattlePersistenceInput: input.postBattlePersistenceInput,
     reflectedPartyIndex: input.reflectedPartyIndex,
+    playerActionConsumedWithoutMove: Boolean(input.playerActionConsumedWithoutMove),
   });
   return { ...round, opponentChoice };
 }

@@ -1,3 +1,4 @@
+import { applySafariBagItemToPartyPokemon } from "./safari-bag-item-use.js";
 import { resolveCaptureFlow } from "./battle-capture-flow.js";
 import { routeCaughtQueueToPartyStorage } from "./caught-queue-party-storage.js";
 import { safariCarryoverPartyLimit } from "./mapless-carry-class-rules.js";
@@ -5,7 +6,7 @@ import { resolveDayBoardPlayableTurn } from "./mapless-day-board-playable-turn.j
 import { finishMaplessRun } from "./mapless-run-end-lifecycle.js";
 import { RubyMT19937Random } from "./ruby-mt19937-random.js";
 import { SAFARI_SPECIES_MASTERS } from "./safari-playable-data.js";
-import { resolveSafariNormalWildOpponentResponse } from "./safari-normal-battle-round.js";
+import { resolveSafariNormalBattleOpponentResponse, resolveSafariNormalWildOpponentResponse } from "./safari-normal-battle-round.js";
 
 function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
@@ -104,6 +105,60 @@ function finalizeCaughtNormalWild(runtime) {
   state.last_operations = completionOperations;
   state.notice = `${encounter.species_name ?? battle.foe.species}を捕まえました。`;
   return completionOperations;
+}
+
+export function useSafariNormalBattleItem(runtime, { itemId = "POTION", partyIndex = undefined } = {}) {
+  const state = stateOf(runtime);
+  const battle = state.battle;
+  if (!battle || battle.completed) throw new Error("active battle is required");
+  if (battle.origin === "boundary_trial") throw new Error("boundary battle must use the boundary owner");
+  if (battle.player_replacement_required) throw new Error("player replacement is required before another battle command");
+
+  const targetIndex = partyIndex === undefined ? Number(battle.player_party_index ?? 0) : Number(partyIndex);
+  const turnBefore = Number(battle.turn ?? 1);
+  const itemUse = applySafariBagItemToPartyPokemon(runtime, {
+    itemId,
+    partyIndex: targetIndex,
+    context: "battle",
+  });
+  if (!itemUse.used) {
+    return {
+      ...itemUse,
+      turnConsumed: false,
+      turnBefore,
+      turnAfter: Number(battle.turn ?? turnBefore),
+      opponentResponse: null,
+      persistenceRequested: false,
+    };
+  }
+
+  const opponentResponse = resolveSafariNormalBattleOpponentResponse(runtime);
+  const operations = [...itemUse.operations, ...(opponentResponse.operations ?? [])];
+  battle.last_operations = operations;
+  state.last_operations = operations;
+  const presentation = [
+    {
+      type: "battle_item",
+      actor: "player",
+      itemId: itemUse.itemId,
+      partyIndex: itemUse.partyIndex,
+      hpBefore: itemUse.hpBefore,
+      hpAfter: itemUse.hpAfter,
+    },
+    ...(opponentResponse.presentation ?? []),
+  ];
+  battle.presentation = presentation;
+  return {
+    ...itemUse,
+    runtime,
+    turnConsumed: true,
+    turnBefore,
+    turnAfter: Number(battle.turn),
+    opponentResponse,
+    operations,
+    presentation,
+    persistenceRequested: requestsSave(operations),
+  };
 }
 
 export function attemptSafariCapture(runtime, { captureRandomSeed = browserCaptureSeed(), randomValues = undefined } = {}) {
