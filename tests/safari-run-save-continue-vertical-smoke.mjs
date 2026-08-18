@@ -65,3 +65,6 @@ assert.equal(globalThis.__maplessSafariRuntime, restored,
   "Continue must install the restored runtime as the shared Safari runtime");
 
 console.log("Safari Run -> Board state -> save -> Continue: ok");
+
+// Keep the real-game progression vertical in the same normal/battle-entry gate.
+await import("./safari-multi-cell-multi-day-progression-smoke.mjs");
