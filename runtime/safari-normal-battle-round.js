@@ -124,7 +124,46 @@ function resolveTrainer(runtime, selectedMoveId) {
   return result;
 }
 
-function resolveWild(runtime, selectedMoveId) {
+function applyWildResolved(runtime, resolved, playerIndex) {
+  const state = stateOf(runtime);
+  const battle = state.battle;
+  const handoff = resolved.battleContinuationHandoff;
+  if (Array.isArray(handoff?.playerParty)) runtime.player.party = structuredClone(handoff.playerParty);
+  else runtime.player.party[playerIndex] = structuredClone(resolved.player);
+  battle.player_party_index = Number(handoff?.playerActivePartyIndex ?? playerIndex);
+  battle.player_party_order = structuredClone(handoff?.playerPartyOrder ?? battle.player_party_order ?? null);
+  battle.foe = structuredClone(resolved.foe);
+  battle.decision = Number(resolved.decision);
+  const roundExpGained = (resolved.expIntegration?.commits ?? []).reduce((sum, commit) => sum + Number(commit.expGained ?? 0), 0);
+  if (battle.decision === 1) battle.exp_gained = roundExpGained;
+  const turn = battle.turn;
+  battle.turn += 1;
+  const operations = (resolved.operations ?? []).map((operation) => ({ ...operation, battleTurn: turn }));
+  return finish(runtime, battle, resolved, operations);
+}
+
+function wildOpponentChoice(state, battle, playerIndex, player) {
+  return resolveBrowserOpponentMoveChoiceCanonical({
+    battleKind: "wild",
+    player,
+    foe: battle.foe,
+    moveMasters: SAFARI_MOVE_MASTERS,
+    aiRandomSeed: seedFor(state, battle),
+    trainerSkill: 0,
+    trainerFlags: [],
+    ownReserveCount: 0,
+    foeReserveCount: reserveCount(runtimePartyForChoice(player, state), playerIndex),
+    mechanicsGeneration: 9,
+    turnCount: Math.max(0, Number(battle.turn ?? 1) - 1),
+    canSwitchLax: false,
+  });
+}
+
+function runtimePartyForChoice(player, state) {
+  return state?.__runtimeParty ?? player?.__party ?? [];
+}
+
+function resolveWild(runtime, selectedMoveId, playerActionConsumedWithoutMove = false) {
   const state = stateOf(runtime);
   const battle = state.battle;
   const playerIndex = Number(battle.player_party_index ?? 0);
@@ -157,21 +196,10 @@ function resolveWild(runtime, selectedMoveId) {
     selectedMoveId,
     foeMoveId,
     moveMasters: SAFARI_MOVE_MASTERS,
-    playerBattleExpInput: normalBattleExpInput(player, defeatedFoe, false),
+    playerBattleExpInput: playerActionConsumedWithoutMove ? null : normalBattleExpInput(player, defeatedFoe, false),
+    playerActionConsumedWithoutMove,
   });
-  const handoff = resolved.battleContinuationHandoff;
-  if (Array.isArray(handoff?.playerParty)) runtime.player.party = structuredClone(handoff.playerParty);
-  else runtime.player.party[playerIndex] = structuredClone(resolved.player);
-  battle.player_party_index = Number(handoff?.playerActivePartyIndex ?? playerIndex);
-  battle.player_party_order = structuredClone(handoff?.playerPartyOrder ?? battle.player_party_order ?? null);
-  battle.foe = structuredClone(resolved.foe);
-  battle.decision = Number(resolved.decision);
-  const roundExpGained = (resolved.expIntegration?.commits ?? []).reduce((sum, commit) => sum + Number(commit.expGained ?? 0), 0);
-  if (battle.decision === 1) battle.exp_gained = roundExpGained;
-  const turn = battle.turn;
-  battle.turn += 1;
-  const operations = (resolved.operations ?? []).map((operation) => ({ ...operation, battleTurn: turn }));
-  return finish(runtime, battle, { ...resolved, opponentChoice: choice }, operations);
+  return applyWildResolved(runtime, { ...resolved, opponentChoice: choice }, playerIndex);
 }
 
 export function resolveSafariNormalBattleRound(runtime, selectedMoveId) {
@@ -180,6 +208,14 @@ export function resolveSafariNormalBattleRound(runtime, selectedMoveId) {
   if (!battle || battle.completed) throw new Error("active battle is required");
   if (battle.origin === "boundary_trial") throw new Error("boundary battle must use the boundary owner");
   if (battle.kind === "trainer") return resolveTrainer(runtime, selectedMoveId);
-  if (battle.kind === "wild") return resolveWild(runtime, selectedMoveId);
+  if (battle.kind === "wild") return resolveWild(runtime, selectedMoveId, false);
   throw new RangeError(`unsupported normal battle kind: ${battle.kind}`);
+}
+
+export function resolveSafariNormalWildOpponentResponse(runtime) {
+  const state = stateOf(runtime);
+  const battle = state.battle;
+  if (!battle || battle.completed || battle.kind !== "wild") throw new Error("active wild battle is required");
+  if (battle.origin === "boundary_trial") throw new Error("boundary battle must use the boundary owner");
+  return resolveWild(runtime, null, true);
 }
