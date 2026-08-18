@@ -94,6 +94,20 @@ assert.equal(phaseNode?.textContent, "コマンド選択", "numeric Turn stays o
 assert.equal(battleMessage.textContent, "技を選んでください。");
 assert.equal(battleCard.dataset.turnPhase, "command");
 
+capture.disabled = true;
+windowListeners.get("safari-runtime-changed")();
+runOneFrame();
+assert.equal(battleCard.dataset.turnPhase, "resolving",
+  "Bag-owned busy state outside battle-card must enter the shared RESOLVING phase");
+assert.equal(phaseNode.textContent, "行動処理中");
+assert.equal(moves.inert, true, "Bag turn must keep Battle commands inert through the shared phase owner");
+capture.disabled = false;
+windowListeners.get("safari-runtime-changed")();
+runOneFrame();
+assert.equal(battleCard.dataset.turnPhase, "command");
+assert.equal(moves.inert, false);
+flushFrames();
+
 const first = commandClick();
 battleCard.listeners.get("click")(first);
 assert.equal(first.prevented, undefined, "first command must be allowed through to preview-app");
@@ -194,11 +208,11 @@ assert.equal(frames.length, 0);
 const previewSource = fs.readFileSync(new URL("../preview.js", import.meta.url), "utf8");
 const indexSource = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const deferredSource = fs.readFileSync(new URL("../deferred-ui-loader.js", import.meta.url), "utf8");
-assert.match(previewSource, /preview-app\.js\?v=20260818-1740/,
-  "public preview must require-load the narrated preview-app build");
-assert.match(previewSource, /battle-turn-phase-presentation\.js\?v=20260818-1740/);
-assert.match(indexSource, /preview\.js\?v=20260818-1740/);
-assert.match(indexSource, /build 20260818-1740/);
+assert.match(previewSource, /preview-app\.js\?v=20260818-2318/,
+  "public preview must require-load the current preview-app build");
+assert.match(previewSource, /battle-turn-phase-presentation\.js\?v=20260819-0322/);
+assert.match(indexSource, /preview\.js\?v=20260819-0322/);
+assert.match(indexSource, /build 20260819-0322/);
 assert.doesNotMatch(deferredSource, /battle-turn-phase-presentation/);
 
-console.log("Safari Battle UI: phase guard preserves concrete event narration across turn phases: ok");
+console.log("Safari Battle UI: move/Bag commands share one busy phase lifecycle: ok");
