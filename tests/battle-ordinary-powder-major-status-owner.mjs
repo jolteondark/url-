@@ -38,6 +38,18 @@ SAFARI_MOVE_MASTERS.THUNDERSHOCK = Object.freeze({
   effect_chance: 10,
   function_code: "ParalyzeTarget",
 });
+SAFARI_MOVE_MASTERS.ICEBEAM = Object.freeze({
+  id: "ICEBEAM",
+  name: "Ice Beam",
+  category: "Special",
+  power: 90,
+  accuracy: 100,
+  total_pp: 10,
+  priority: 0,
+  type: "ICE",
+  effect_chance: 10,
+  function_code: "FreezeTarget",
+});
 
 const pokemon = ({ species = "EEVEE", types = ["NORMAL"], status = "NONE" } = {}) => ({
   species,
@@ -182,5 +194,37 @@ const thunderVsGround = prepareReflectedMajorStatusBattleInput({
 assert.equal(thunderVsGround.rounds[0].actions[0].battleStatusInput, undefined,
   "Electric damaging secondary must not roll through Ground move immunity");
 assert.equal(thunderVsGround.rounds[0].actions[0].secondaryMajorStatusEffectResolution?.reason, "move_type_immunity");
+
+// FreezeTarget is another canonical damaging secondary. Reuse the same seeded
+// owner and status eligibility; Ice targets are immune to FROZEN.
+const iceBeamInput = { ...actionFor("ICEBEAM", 100), combatRandomSeed: 11 };
+const freezePrepared = prepareReflectedMajorStatusBattleInput({
+  battleInput: iceBeamInput,
+  pokemon: pokemon(),
+  reflectedBattlerIndex: 1,
+});
+const freezeAction = freezePrepared.rounds[0].actions[0];
+assert.equal(freezeAction.battleStatusInput?.newStatus, "FROZEN");
+assert.equal(freezeAction.secondaryEffectInputs?.[0]?.effectChance, 10);
+assert.equal(freezeAction.secondaryMajorStatusEffectResolution?.source?.functionCode, "FreezeTarget");
+freezeAction.secondaryEffectInputs[0].randomRoll = 0;
+const freezeTriggered = materializeSeededSecondaryEffectsCanonical(freezePrepared);
+freezeTriggered.rounds[0].actions[0].accuracyResolution = { hit: true };
+const freezeCommit = commitBattleSystemsStatusRuntime({
+  battleInput: freezeTriggered,
+  turn: damagingTurn,
+  pokemon: pokemon(),
+  reflectedBattlerIndex: 1,
+});
+assert.equal(freezeCommit.pokemon.status, "FROZEN");
+
+const iceTarget = pokemon({ species: "GLACEON", types: ["ICE"] });
+const freezeImmune = prepareReflectedMajorStatusBattleInput({
+  battleInput: iceBeamInput,
+  pokemon: iceTarget,
+  reflectedBattlerIndex: 1,
+});
+assert.equal(freezeImmune.rounds[0].actions[0].battleStatusInput, undefined);
+assert.equal(freezeImmune.rounds[0].actions[0].secondaryMajorStatusEffectResolution?.reason, "type_immunity");
 
 console.log("ordinary direct + damaging secondary major status owner smoke: ok");
