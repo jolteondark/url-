@@ -74,6 +74,7 @@ export function buildBrowserBattleActionInput({ actor, target, move, moveIndex, 
         type: move.type ?? null,
         physicalMove: move.category === "Physical",
         specialMove: special,
+        userStatus: actor.status ?? "NONE",
         ...(typing ? { userHasType: typing.userHasType, typeMod: typing.multiplier } : {}),
       },
     };
