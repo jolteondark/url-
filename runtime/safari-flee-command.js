@@ -106,17 +106,7 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
     const operations = [baseOperation];
     battle.last_operations = operations;
     state.last_operations = operations;
-    return {
-      runtime,
-      escaped: false,
-      blocked,
-      resolution: resolved,
-      availability: command.availability,
-      terminalStateHandoff: command.terminalStateHandoff,
-      operations,
-      presentation: [],
-      persistenceRequested: false,
-    };
+    return { runtime, escaped: false, blocked, resolution: resolved, availability: command.availability, terminalStateHandoff: command.terminalStateHandoff, operations };
   }
 
   commitTerminalPlayer(runtime, command.terminalStateHandoff, playerPartyIndex);
@@ -138,16 +128,5 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
   state.location = "day_board";
   state.notice = "うまく逃げ切った！";
   state.last_operations = operations;
-  return {
-    runtime,
-    escaped: true,
-    blocked: false,
-    target: "day_board",
-    resolution: resolved,
-    availability: command.availability,
-    terminalStateHandoff: command.terminalStateHandoff,
-    operations,
-    presentation: [],
-    persistenceRequested: true,
-  };
+  return { runtime, escaped: true, blocked: false, target: "day_board", resolution: resolved, availability: command.availability, terminalStateHandoff: command.terminalStateHandoff, operations };
 }
