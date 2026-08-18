@@ -5,6 +5,7 @@ import { STRUGGLE_MOVE_CANONICAL } from "./battle-core-struggle-command.js";
 import { buildBrowserBattleContinuationHandoff, materializeBattleParty, prepareBrowserPartyAwareJudgeStates } from "./browser-battle-party-judge.js";
 import { resolveCanonicalBattleTypingV108 } from "./canonical-type-effectiveness-v108.js";
 import { safariGeneralPokemonTypesV108 } from "./safari-general-species-type-facts.js";
+import { resolveOrdinaryPokemonSpeedCanonical } from "./battle-core-speed.js";
 
 function moveId(move) { return typeof move === "string" ? move : move?.id; }
 function requireMoveMaster(moveMasters, id) {
@@ -81,10 +82,6 @@ export function buildBrowserBattleActionInput({ actor, target, move, moveIndex, 
   }
   if (typing) action.typeEffectivenessResolution = typing;
   if (typing?.immune && damagingMove) {
-    // Immunity is a target-success fact, not a zero damage multiplier. The
-    // canonical damage owner clamps final damage to at least 1, so route the
-    // immunity through pbSuccessCheckAgainstTarget's existing gate and omit
-    // damageInput for the unaffected target.
     action.hitLoopInput = {
       targetIndexes: [targetBattlerIndex],
       moveTargetCount: 1,
@@ -163,8 +160,8 @@ export function resolveBrowserBattleRound({ player, foe, playerParty = null, foe
     commandEntry(1, false, foeResolved, 0),
   ];
   const priorityEntries = [
-    ...(playerResolved ? [{ actionIndex: 0, battlerIndex: 0, speed: player.stats.SPEED, movePriority: playerMove.priority }] : []),
-    { actionIndex: 1, battlerIndex: 1, speed: foe.stats.SPEED, movePriority: foeMove.priority },
+    ...(playerResolved ? [{ actionIndex: 0, battlerIndex: 0, speed: resolveOrdinaryPokemonSpeedCanonical(player), movePriority: playerMove.priority }] : []),
+    { actionIndex: 1, battlerIndex: 1, speed: resolveOrdinaryPokemonSpeedCanonical(foe), movePriority: foeMove.priority },
   ];
   const round = { attackPhaseInput: { priorityRandomSeed: Number(priorityRandomSeed) & 0x7fffffff, battlers: [{ battlerIndex: 0, choiceKind: playerResolved ? "UseMove" : "None", fainted: player.hp <= 0, choseRageFunction: false }, { battlerIndex: 1, choiceKind: "UseMove", fainted: foe.hp <= 0, choseRageFunction: false }] }, commandEntries, priorityEntries, actions };
   const battleInput = { useAttackPhaseScheduler: true, useCanonicalAccuracyDamage: true, combatRandomSeed: Number(combatRandomSeed) & 0x7fffffff, rounds: [round] };
