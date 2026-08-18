@@ -24,13 +24,20 @@ function ensurePhaseNode() {
 function setCommandLock(locked) {
   const battle = battleState();
   const replacementRequired = Boolean(battle?.player_replacement_required && !battle?.completed);
-  const shouldLock = locked || replacementRequired;
+  const terminal = Boolean(battle?.completed);
+  const shouldLock = locked || replacementRequired || terminal;
   const moves = byId("moves");
   const capture = byId("capture");
   const flee = byId("flee");
   if (moves) moves.inert = shouldLock;
-  if (capture) capture.inert = shouldLock;
-  if (flee) flee.inert = shouldLock;
+  if (capture) {
+    capture.inert = shouldLock;
+    capture.disabled = shouldLock;
+  }
+  if (flee) {
+    flee.inert = shouldLock;
+    flee.disabled = shouldLock;
+  }
   const panel = byId("battle-card")?.querySelector(".battle-command-panel");
   if (panel) panel.dataset.turnPhaseLocked = shouldLock ? "true" : "false";
 }
@@ -41,10 +48,6 @@ function previewCommandBusy() {
 
 function phaseFor(battle) {
   if (!battle) return null;
-  // #turn remains the sole numeric turn owner. This pill communicates only the
-  // input/presentation phase, so Safari never shows two competing Turn labels.
-  // Bag turns are initiated outside #battle-card, so reuse preview's existing
-  // command-busy signal instead of creating a second Bag-specific phase truth.
   if (resolving || previewCommandBusy()) return { key: "resolving", text: "行動処理中" };
   if (battle.completed) return { key: "result", text: "結果" };
   if (battle.player_replacement_required) return { key: "replacement", text: "交代選択" };
@@ -54,20 +57,13 @@ function phaseFor(battle) {
 function updateBattleMessage(key) {
   const message = byId("battle-message");
   if (!message || key === "result") return;
-
-  // preview-app owns concrete event narration while the submitted turn is being
-  // presented. The phase guard only seeds the generic RESOLVING message; it
-  // must not overwrite `EEVEEのたいあたり！` or later event messages.
   if (key === "resolving" && message.dataset.presentationOwner === "event") return;
-
   if (key !== "resolving") delete message.dataset.presentationOwner;
   const text = key === "resolving"
     ? "ターンを処理しています…"
     : key === "replacement"
       ? "次のポケモンを選んでください。"
       : "技を選んでください。";
-  // Avoid observer feedback loops: textContent replacement can itself produce
-  // a childList mutation in Safari, so write only when the phase text changed.
   if (message.textContent !== text) message.textContent = text;
 }
 
