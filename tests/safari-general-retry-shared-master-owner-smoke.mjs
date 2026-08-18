@@ -37,4 +37,66 @@ const demandSource = await readFile(new URL("../runtime/safari-general-data-dema
 assert.ok(demandSource.includes("safariGeneralLoaderSpecifier"));
 assert.ok(demandSource.includes("safariGeneralCombatModuleSpecifier"));
 
+// Browser-like master-install contract: selected wild/trainer modules may be
+// evaluated before GENERAL masters exist (for example after a prior module
+// fetch succeeds but the combat demand has not installed its projection yet).
+// Their function call must fail closed without introducing fallback data, then
+// the same module instances must become usable after the canonical demand owner
+// installs the shared lazy masters in the same page/session.
+globalThis.window = {};
+globalThis.__maplessGeneralCombatTrace = [];
+
+const wildRuntime = await import("../runtime/safari-general-encounter-runtime.js?shared-master-retry-smoke=1");
+const trainerRuntime = await import("../runtime/mapless-dynamic-trainer-generator.js?shared-master-retry-smoke=1");
+
+assert.throws(
+  () => wildRuntime.resolveSafariGeneralEncounter({
+    day: 1,
+    requiredType: "NORMAL",
+    enemyRank: "NORMAL",
+    speciesRoll: 0,
+    varianceRoll: 0.5,
+  }),
+  /Safari GENERAL masters are not installed|missing Safari General species master/,
+  "selected wild resolution must fail closed before GENERAL master installation",
+);
+assert.throws(
+  () => trainerRuntime.generateSafariDynamicTrainer({ day: 1, partySize: 1, seed: 12345 }),
+  /Safari GENERAL masters are not installed/,
+  "selected trainer generation must fail closed before GENERAL master installation",
+);
+
+const demand = await import("../runtime/safari-general-data-demand.js?shared-master-retry-smoke=1");
+await demand.ensureSafariGeneralCombatData("wild");
+assert.equal(demand.safariGeneralCombatReady("wild"), true);
+assert.equal(demand.safariGeneralCombatReady("trainer"), false,
+  "recovering a wild demand must not eagerly import the trainer generator");
+
+const recoveredWild = wildRuntime.resolveSafariGeneralEncounter({
+  day: 1,
+  requiredType: "NORMAL",
+  enemyRank: "NORMAL",
+  speciesRoll: 0,
+  varianceRoll: 0.5,
+});
+assert.ok(recoveredWild.species_id);
+assert.ok(recoveredWild.move_ids.length > 0 && recoveredWild.move_ids.length <= 4);
+
+await demand.ensureSafariGeneralCombatData("trainer");
+assert.equal(demand.safariGeneralCombatReady("trainer"), true);
+const recoveredTrainer = trainerRuntime.generateSafariDynamicTrainer({ day: 1, partySize: 1, seed: 12345 });
+assert.equal(recoveredTrainer.party.length, 1);
+assert.ok(recoveredTrainer.party[0].move_ids.length > 0 && recoveredTrainer.party[0].move_ids.length <= 4);
+
+const { safariGeneralMaterializedMasterCounts } = await import("../runtime/safari-general-encounter-data-loader.js");
+const materialized = safariGeneralMaterializedMasterCounts();
+assert.ok(materialized.species <= 2,
+  `same-session recovery must materialize only selected species, got ${materialized.species}`);
+assert.ok(materialized.moves <= 8,
+  `same-session recovery must materialize only selected reset moves, got ${materialized.moves}`);
+assert.equal(globalThis.__maplessLastError ?? null, null,
+  "successful same-session recovery must not leave a stale runtime error");
+assert.equal(sharedSource.includes("fallback"), false,
+  "shared GENERAL owner must not introduce fallback canonical data");
+
 console.log("Safari GENERAL retry shared-master owner smoke PASS");
