@@ -66,6 +66,11 @@ globalThis.__maplessSafariRuntime = {
   variables: { mapless: { battle: { turn: 1, completed: false, player_replacement_required: false } } },
 };
 
+const runOneFrame = () => {
+  const callback = frames.shift();
+  assert.ok(callback, "expected a scheduled animation frame");
+  callback();
+};
 const flushFrames = () => {
   let guard = 0;
   while (frames.length) {
@@ -74,13 +79,19 @@ const flushFrames = () => {
     if (guard > 20) throw new Error("turn phase frame loop did not settle");
   }
 };
+const commandClick = () => ({
+  target: moveButton,
+  preventDefault() { this.prevented = true; },
+  stopImmediatePropagation() { this.stopped = true; },
+});
+const battle = () => globalThis.__maplessSafariRuntime.variables.mapless.battle;
 
 await import(`../battle-turn-phase-presentation.js?phase-smoke=${Date.now()}`);
 flushFrames();
 assert.equal(phaseNode?.textContent, "Turn 1 • コマンド選択");
 assert.equal(battleCard.dataset.turnPhase, "command");
 
-const first = { target: moveButton, preventDefault() { this.prevented = true; }, stopImmediatePropagation() { this.stopped = true; } };
+const first = commandClick();
 battleCard.listeners.get("click")(first);
 assert.equal(first.prevented, undefined, "first command must be allowed through to preview-app");
 assert.equal(battleCard.dataset.turnPhase, "resolving");
@@ -88,31 +99,83 @@ assert.equal(phaseNode.textContent, "Turn 1 • 行動処理中");
 await Promise.resolve();
 assert.equal(moves.inert, true, "moves must become inert before another user input can dispatch");
 
-const second = { target: moveButton, preventDefault() { this.prevented = true; }, stopImmediatePropagation() { this.stopped = true; } };
-battleCard.listeners.get("click")(second);
-assert.equal(second.prevented, true, "duplicate command during RESOLVING must be prevented");
-assert.equal(second.stopped, true, "duplicate command must not reach preview-app");
+const duplicate = commandClick();
+battleCard.listeners.get("click")(duplicate);
+assert.equal(duplicate.prevented, true, "duplicate command during RESOLVING must be prevented");
+assert.equal(duplicate.stopped, true, "duplicate command must not reach preview-app");
 
 capture.disabled = false;
-globalThis.__maplessSafariRuntime.variables.mapless.battle.turn = 2;
+battle().turn = 2;
 flushFrames();
 assert.equal(battleCard.dataset.turnPhase, "command", "phase returns to COMMAND only after turn advances and preview busy clears");
 assert.equal(phaseNode.textContent, "Turn 2 • コマンド選択");
 assert.equal(moves.inert, false, "commands reopen for the next turn");
 
-globalThis.__maplessSafariRuntime.variables.mapless.battle.player_replacement_required = true;
+// Terminal state may be committed before its KO/capture presentation finishes.
+const terminalCommand = commandClick();
+battleCard.listeners.get("click")(terminalCommand);
+await Promise.resolve();
+capture.disabled = true;
+battle().turn = 3;
+battle().completed = true;
 windowListeners.get("safari-runtime-changed")();
-flushFrames();
-assert.equal(battleCard.dataset.turnPhase, "replacement", "usable reserve KO must enter replacement choice phase");
-assert.equal(phaseNode.textContent, "Turn 2 • 交代選択");
-assert.equal(moves.inert, true, "normal commands stay inert while replacement is required");
-
-globalThis.__maplessSafariRuntime.variables.mapless.battle.player_replacement_required = false;
-globalThis.__maplessSafariRuntime.variables.mapless.battle.completed = true;
-windowListeners.get("safari-runtime-changed")();
-flushFrames();
-assert.equal(battleCard.dataset.turnPhase, "result", "terminal Battle must enter result phase");
+runOneFrame();
+assert.equal(battleCard.dataset.turnPhase, "resolving",
+  "terminal state must not replace RESOLVING while preview presentation is still busy");
+assert.equal(phaseNode.textContent, "Turn 2 • 行動処理中");
+assert.ok(frames.length > 0, "RESOLVING must keep watching until terminal presentation finishes");
+capture.disabled = false;
+runOneFrame();
+assert.equal(battleCard.dataset.turnPhase, "result", "RESULT appears only after terminal presentation finishes");
 assert.equal(phaseNode.textContent, "結果");
+flushFrames();
+
+// Active-player KO with a usable reserve follows the same presentation boundary.
+battle().completed = false;
+battle().player_replacement_required = false;
+battle().turn = 3;
+windowListeners.get("safari-runtime-changed")();
+flushFrames();
+assert.equal(battleCard.dataset.turnPhase, "command");
+const replacementCommand = commandClick();
+battleCard.listeners.get("click")(replacementCommand);
+await Promise.resolve();
+capture.disabled = true;
+battle().turn = 4;
+battle().player_replacement_required = true;
+windowListeners.get("safari-runtime-changed")();
+runOneFrame();
+assert.equal(battleCard.dataset.turnPhase, "resolving",
+  "replacement-required state must stay behind RESOLVING until KO presentation ends");
+assert.equal(phaseNode.textContent, "Turn 3 • 行動処理中");
+capture.disabled = false;
+runOneFrame();
+assert.equal(battleCard.dataset.turnPhase, "replacement", "replacement choice appears after presentation finishes");
+assert.equal(phaseNode.textContent, "Turn 4 • 交代選択");
+assert.equal(moves.inert, true, "normal commands stay inert while replacement is required");
+flushFrames();
+
+// Successful flee can clear Battle before the final preview render. Keep the
+// visible card in RESOLVING until preview-app actually hides that card.
+battle().player_replacement_required = false;
+battle().turn = 4;
+windowListeners.get("safari-runtime-changed")();
+flushFrames();
+const fleeLikeCommand = commandClick();
+battleCard.listeners.get("click")(fleeLikeCommand);
+await Promise.resolve();
+capture.disabled = true;
+globalThis.__maplessSafariRuntime.variables.mapless.battle = null;
+battleCard.hidden = false;
+windowListeners.get("safari-runtime-changed")();
+runOneFrame();
+assert.equal(battleCard.dataset.turnPhase, "resolving",
+  "cleared Battle must remain visibly RESOLVING until the Battle card final render hides it");
+assert.equal(phaseNode.hidden, false);
+battleCard.hidden = true;
+runOneFrame();
+assert.equal(phaseNode.hidden, true, "phase UI hides only after the cleared Battle card is actually hidden");
+assert.equal(frames.length, 0, "cleared Battle must not leave an endless animation-frame watcher");
 
 const previewSource = fs.readFileSync(new URL("../preview.js", import.meta.url), "utf8");
 const indexSource = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
@@ -126,4 +189,4 @@ assert.match(indexSource, /build 20260818-1645/,
 assert.doesNotMatch(deferredSource, /battle-turn-phase-presentation/,
   "turn phase guard must not be loaded a second time through the deferred loader");
 
-console.log("Safari Battle UI: COMMAND -> RESOLVING lock -> COMMAND -> REPLACEMENT -> RESULT: ok");
+console.log("Safari Battle UI: complete-turn RESOLVING -> COMMAND/REPLACEMENT/RESULT + cleared-Battle settle: ok");
