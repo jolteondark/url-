@@ -80,10 +80,10 @@ export async function resolveSafariBattleRound(runtime, selectedMoveId) {
   if (needsFullBattleIntegration(runtime)) return (await full()).resolveSafariBattleRound(runtime, selectedMoveId);
   return resolveSafariNormalBattleRound(runtime, selectedMoveId);
 }
-export async function attemptSafariCapture(runtime) {
-  if (needsFullBattleIntegration(runtime)) return (await full()).attemptSafariCapture(runtime);
-  if (stateOf(runtime).battle) return attemptSafariNormalCapture(runtime);
-  return (await full()).attemptSafariCapture(runtime);
+export async function attemptSafariCapture(runtime, options = {}) {
+  if (needsFullBattleIntegration(runtime)) return (await full()).attemptSafariCapture(runtime, options);
+  if (stateOf(runtime).battle) return attemptSafariNormalCapture(runtime, options);
+  return (await full()).attemptSafariCapture(runtime, options);
 }
 export async function returnSafariToDayBoard(runtime) {
   if (needsFullBattleIntegration(runtime)) return (await full()).returnSafariToDayBoard(runtime);
