@@ -52,6 +52,11 @@ function needsFullBattleIntegration(runtime) {
   return stateOf(runtime).battle?.origin === "boundary_trial";
 }
 
+function publishRuntimeChanged() {
+  if (typeof globalThis.CustomEvent !== "function") return;
+  globalThis.window?.dispatchEvent?.(new CustomEvent("safari-runtime-changed"));
+}
+
 export function boardCellPresentation(runtime, index) {
   return fullModule ? fullModule.boardCellPresentation(runtime, index) : startupBoardCellPresentation(runtime, index);
 }
@@ -77,19 +82,26 @@ export async function prepareSafariBattleRuntime(runtime = globalThis.__maplessS
 }
 
 export async function resolveSafariBattleRound(runtime, selectedMoveId) {
-  if (needsFullBattleIntegration(runtime)) return (await full()).resolveSafariBattleRound(runtime, selectedMoveId);
-  return resolveSafariNormalBattleRound(runtime, selectedMoveId);
+  const result = needsFullBattleIntegration(runtime)
+    ? await (await full()).resolveSafariBattleRound(runtime, selectedMoveId)
+    : resolveSafariNormalBattleRound(runtime, selectedMoveId);
+  publishRuntimeChanged();
+  return result;
 }
 
 export async function replaceSafariBattlePlayer(runtime, replacementPartyIndex) {
+  let result;
   if (needsFullBattleIntegration(runtime)) {
     const module = await full();
     if (typeof module.replaceSafariBattlePlayer !== "function") {
       throw new Error("boundary player replacement owner is unavailable");
     }
-    return module.replaceSafariBattlePlayer(runtime, replacementPartyIndex);
+    result = await module.replaceSafariBattlePlayer(runtime, replacementPartyIndex);
+  } else {
+    result = replaceSafariNormalBattlePlayer(runtime, replacementPartyIndex);
   }
-  return replaceSafariNormalBattlePlayer(runtime, replacementPartyIndex);
+  publishRuntimeChanged();
+  return result;
 }
 
 export async function attemptSafariCapture(runtime, options = {}) {
