@@ -94,7 +94,22 @@ async function startPreview(action) {
   }
 }
 
-function onNewRun() { startPreview("new"); }
+async function onNewRun() {
+  if (hasStoredRun()) {
+    try {
+      const { loadSafariPlayableRun } = await import("./runtime/safari-web-startup.js");
+      const loaded = loadSafariPlayableRun(window.localStorage);
+      if (loaded.found && loaded.state?.variables?.mapless?.mapless_carryover_pending) {
+        notice("ラン終了。次ランの持ち込み選択待ちです。");
+        return startPreview("continue");
+      }
+    } catch (error) {
+      globalThis.__maplessLastError = error;
+      console.error("[Mapless] carryover save probe failed", error);
+    }
+  }
+  return startPreview("new");
+}
 function onContinueRun() {
   if (!hasStoredRun()) return notice("つづきから再開できるセーブがありません。");
   startPreview("continue");
