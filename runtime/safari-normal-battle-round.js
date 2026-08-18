@@ -32,6 +32,21 @@ function battlePresentation(operations) {
   return events;
 }
 
+function presentationCombatant(pokemon) {
+  if (!pokemon) return null;
+  return Object.freeze({
+    species: pokemon.species ?? null,
+    maxHp: Number(pokemon.max_hp ?? 0),
+  });
+}
+
+function presentationContext(player, foe) {
+  return Object.freeze({
+    player: presentationCombatant(player),
+    foe: presentationCombatant(foe),
+  });
+}
+
 function reserveCount(party, activeIndex) {
   return Math.max(0, (Array.isArray(party) ? party : []).filter((pokemon, index) => index !== Number(activeIndex) && Number(pokemon?.hp ?? 0) > 0).length);
 }
@@ -89,6 +104,7 @@ function resolveTrainer(runtime, selectedMoveId) {
   const player = runtime.player.party[playerIndex];
   if (!player) throw new Error("active player Pokemon is required");
   const defeatedFoe = structuredClone(battle.foe);
+  const roundPresentationContext = presentationContext(player, defeatedFoe);
   const resolved = resolveBrowserTrainerBattleRound({
     roundInput: {
       player,
@@ -140,6 +156,7 @@ function resolveTrainer(runtime, selectedMoveId) {
   battle.turn += 1;
   const operations = (resolved.presentationOperations ?? resolved.operations ?? []).map((operation) => ({ ...operation, battleTurn: turn }));
   const result = finish(runtime, battle, resolved, operations);
+  result.presentationContext = roundPresentationContext;
   if (resolved.foeReplacementApplied && battle.decision === 0) {
     const trainerName = battle.trainer?.trainer_full_name ?? "トレーナー";
     battle.presentation.push({ type: "trainer_next", actor: "foe", trainer: trainerName, species: battle.foe?.species ?? null, partyIndex: battle.trainer_party_index });
@@ -195,6 +212,7 @@ function resolveWild(runtime, selectedMoveId, playerActionConsumedWithoutMove = 
   const player = runtime.player.party[playerIndex];
   if (!player) throw new Error("active player Pokemon is required");
   const defeatedFoe = structuredClone(battle.foe);
+  const roundPresentationContext = presentationContext(player, defeatedFoe);
   const choice = resolveBrowserOpponentMoveChoiceCanonical({
     battleKind: "wild",
     player,
@@ -224,7 +242,9 @@ function resolveWild(runtime, selectedMoveId, playerActionConsumedWithoutMove = 
     playerBattleExpInput: playerActionConsumedWithoutMove ? null : normalBattleExpInput(player, defeatedFoe, false),
     playerActionConsumedWithoutMove,
   });
-  return applyWildResolved(runtime, { ...resolved, opponentChoice: choice }, playerIndex);
+  const result = applyWildResolved(runtime, { ...resolved, opponentChoice: choice }, playerIndex);
+  result.presentationContext = roundPresentationContext;
+  return result;
 }
 
 export function resolveSafariNormalBattleRound(runtime, selectedMoveId) {
