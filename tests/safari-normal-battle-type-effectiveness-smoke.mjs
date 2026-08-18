@@ -25,6 +25,8 @@ assert.deepEqual(new Set(safariGeneralPokemonTypesV108({ species: "WORMADAM", fo
 
 assert.equal(resolveCanonicalTypeEffectivenessV108("FIRE", ["GRASS"]).multiplier, 2);
 assert.equal(resolveCanonicalTypeEffectivenessV108("FIRE", ["WATER"]).multiplier, 0.5);
+assert.equal(resolveCanonicalTypeEffectivenessV108("FIRE", ["WATER", "DRAGON"]).multiplier, 0.25);
+assert.equal(resolveCanonicalTypeEffectivenessV108("FIRE", ["NORMAL"]).multiplier, 1);
 assert.equal(resolveCanonicalTypeEffectivenessV108("FIRE", ["BUG", "GRASS"]).multiplier, 4);
 assert.equal(resolveCanonicalBattleTypingV108("FIRE", ["FIRE"], ["GRASS"]).stabMultiplier, 1.5);
 assert.equal(resolveCanonicalBattleTypingV108("NORMAL", ["FIRE"], ["GRASS"]).stabMultiplier, 1);
@@ -83,4 +85,4 @@ function assertImmuneNoDamage(actorSpecies, targetSpecies, moveType) {
 assertImmuneNoDamage("RATTATA", "GASTLY", "NORMAL");
 assertImmuneNoDamage("PIKACHU", "DIGLETT", "ELECTRIC");
 
-console.log("Safari direct-normal Battle canonical types: 875 coverage, STAB, 0/.5/2/4 effectiveness and immunity gate: ok");
+console.log("Safari direct-normal Battle canonical types: 875 coverage, STAB, 0/.25/.5/1/2/4 effectiveness and immunity gate: ok");
