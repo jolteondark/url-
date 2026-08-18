@@ -1,5 +1,5 @@
 import { SAFARI_MOVE_PRESENTATION } from "./safari-move-presentation-live.js";
-import { resolveSafariNormalBattleRound } from "./safari-normal-battle-round.js";
+import { replaceSafariNormalBattlePlayer, resolveSafariNormalBattleRound } from "./safari-normal-battle-round.js";
 import {
   attemptSafariCapture as attemptSafariNormalCapture,
   returnSafariToDayBoard as returnSafariNormalToDayBoard,
@@ -52,6 +52,11 @@ function needsFullBattleIntegration(runtime) {
   return stateOf(runtime).battle?.origin === "boundary_trial";
 }
 
+function publishRuntimeChanged() {
+  if (typeof globalThis.CustomEvent !== "function") return;
+  globalThis.window?.dispatchEvent?.(new CustomEvent("safari-runtime-changed"));
+}
+
 export function boardCellPresentation(runtime, index) {
   return fullModule ? fullModule.boardCellPresentation(runtime, index) : startupBoardCellPresentation(runtime, index);
 }
@@ -77,9 +82,28 @@ export async function prepareSafariBattleRuntime(runtime = globalThis.__maplessS
 }
 
 export async function resolveSafariBattleRound(runtime, selectedMoveId) {
-  if (needsFullBattleIntegration(runtime)) return (await full()).resolveSafariBattleRound(runtime, selectedMoveId);
-  return resolveSafariNormalBattleRound(runtime, selectedMoveId);
+  const result = needsFullBattleIntegration(runtime)
+    ? await (await full()).resolveSafariBattleRound(runtime, selectedMoveId)
+    : resolveSafariNormalBattleRound(runtime, selectedMoveId);
+  publishRuntimeChanged();
+  return result;
 }
+
+export async function replaceSafariBattlePlayer(runtime, replacementPartyIndex) {
+  let result;
+  if (needsFullBattleIntegration(runtime)) {
+    const module = await full();
+    if (typeof module.replaceSafariBattlePlayer !== "function") {
+      throw new Error("boundary player replacement owner is unavailable");
+    }
+    result = await module.replaceSafariBattlePlayer(runtime, replacementPartyIndex);
+  } else {
+    result = replaceSafariNormalBattlePlayer(runtime, replacementPartyIndex);
+  }
+  publishRuntimeChanged();
+  return result;
+}
+
 export async function attemptSafariCapture(runtime, options = {}) {
   if (needsFullBattleIntegration(runtime)) return (await full()).attemptSafariCapture(runtime, options);
   if (stateOf(runtime).battle) return attemptSafariNormalCapture(runtime, options);
