@@ -113,3 +113,4 @@ await import("./safari-battle-bag-menu-smoke.mjs");
 await import("./safari-battle-bag-delivery-smoke.mjs");
 await import("./safari-battle-exp-growth-parity-smoke.mjs");
 await import("./safari-wild-exp-single-commit-smoke.mjs");
+await import("./battle-ordinary-burn-damage-owner.mjs");
