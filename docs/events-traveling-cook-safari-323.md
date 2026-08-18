@@ -1,0 +1,1 @@
+Safari Traveling Cook scope: canonical source-v0.9.108 paid heal/medicine and leave are connected to the real Day Board. Power meal, berry meal, and prototype branches remain intentionally deferred until their downstream Battle/Bag owners are connected; they are not approximated here.
