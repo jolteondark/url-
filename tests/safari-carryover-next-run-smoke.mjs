@@ -8,6 +8,8 @@ globalThis.window = { dispatchEvent() { return true; } };
 const web = await import("../runtime/safari-web-playable-integration.js");
 assert.equal(typeof web.prepareSafariNextRun, "function",
   "Safari facade must expose canonical carryover next-run preparation");
+assert.equal(typeof web.listSafariCarryoverCandidates, "function",
+  "Safari facade must expose owner-classified boxed carryover candidates");
 
 const runtime = web.createSafariPlayableRuntime();
 const state = runtime.variables.mapless;
@@ -54,6 +56,14 @@ state.board_consumed = [];
 state.board_visited = [];
 runtime.bag.slots = [["POTION", 99]];
 runtime.bag.money = 99999;
+
+const candidates = await web.listSafariCarryoverCandidates(runtime);
+assert.equal(candidates.length, 1, "eligible boxed keeper must be exposed exactly once");
+assert.deepEqual(
+  { boxIndex: candidates[0].boxIndex, slotIndex: candidates[0].slotIndex, carryClass: candidates[0].carryClass },
+  { boxIndex: 0, slotIndex: 0, carryClass: "general" },
+  "candidate projection must preserve stable box/slot selection and canonical class",
+);
 
 const prepared = await web.prepareSafariNextRun(runtime, { boxIndex: 0, slotIndex: 0 });
 assert.equal(prepared.result, "prepared", "eligible boxed carryover must prepare the next run");
