@@ -1,4 +1,4 @@
-import { replaceSafariBattlePlayer } from "./runtime/safari-web-playable-integration.js?v=20260818-1440";
+import { replaceSafariBattlePlayer } from "./runtime/safari-web-playable-integration.js";
 
 const byId = (id) => document.getElementById(id);
 let selecting = false;
