@@ -1,3 +1,5 @@
+import { projectSafariGeneralGrowthRates } from "./safari-general-growth-rate-facts.js";
+
 // Lightweight Safari bootstrap projection from canonical source-v0.9.108.
 //
 // IMPORTANT: Do not import safari-general-encounter-data-loader.js here. This
@@ -17,36 +19,48 @@ export const SAFARI_MOVE_MASTERS = { ...EXACT_BOOT_MOVES };
 const BOOT_SPECIES = Object.freeze({
   EEVEE: Object.freeze({
     id: "EEVEE", name: "Eevee", base_stats: Object.freeze({ HP: 55, ATTACK: 55, DEFENSE: 50, SPEED: 55, SPECIAL_ATTACK: 45, SPECIAL_DEFENSE: 65 }),
-    base_exp: 65, catch_rate: 45, dex_number: 133, gender_ratio: "FemaleOneEighth",
+    base_exp: 65, catch_rate: 45, dex_number: 133, gender_ratio: "FemaleOneEighth", growth_rate: "Medium",
   }),
   RATTATA: Object.freeze({
     id: "RATTATA", name: "Rattata", base_stats: Object.freeze({ HP: 30, ATTACK: 56, DEFENSE: 35, SPEED: 72, SPECIAL_ATTACK: 25, SPECIAL_DEFENSE: 35 }),
-    base_exp: 51, catch_rate: 255, dex_number: 19, gender_ratio: "Female50Percent",
+    base_exp: 51, catch_rate: 255, dex_number: 19, gender_ratio: "Female50Percent", growth_rate: "Medium",
   }),
   PIKACHU: Object.freeze({
     id: "PIKACHU", name: "Pikachu", base_stats: Object.freeze({ HP: 35, ATTACK: 55, DEFENSE: 40, SPEED: 90, SPECIAL_ATTACK: 50, SPECIAL_DEFENSE: 50 }),
-    base_exp: 112, catch_rate: 190, dex_number: 25, gender_ratio: "Female50Percent",
+    base_exp: 112, catch_rate: 190, dex_number: 25, gender_ratio: "Female50Percent", growth_rate: "Medium",
   }),
 });
 
 export const SAFARI_SPECIES_MASTERS = { ...BOOT_SPECIES };
 let generalInstalled = false;
 
-function installLazyMasterProjection(target, source) {
+function installLazyMasterProjection(target, source, projectValue = null) {
   const ids = Object.keys(source);
   for (const id of ids) {
+    let projected = false;
+    let projectedValue;
+    const resolveValue = (value) => {
+      if (!projected) {
+        projectedValue = projectValue ? projectValue(id, value) : value;
+        projected = true;
+      }
+      return projectedValue;
+    };
     Object.defineProperty(target, id, {
       configurable: true,
       enumerable: true,
       get() {
-        return source[id];
+        return resolveValue(source[id]);
       },
       set(value) {
+        const next = projectValue ? projectValue(id, value) : value;
+        projected = true;
+        projectedValue = next;
         Object.defineProperty(target, id, {
           configurable: true,
           enumerable: true,
           writable: true,
-          value,
+          value: next,
         });
       },
     });
@@ -78,12 +92,18 @@ export function installSafariGeneralMasters(speciesMasters, moveMasters) {
   // encounter/trainer owners concretize only their selected masters with their
   // existing Object.assign calls.
   //
+  // GrowthRate is generated from the canonical PBS species source separately
+  // from the compressed GENERAL payload. Compose it at this shared master
+  // boundary so every selected species carries the same canonical growth_rate
+  // without eagerly reading all 875 source masters.
+  //
   // Installation is transactional. A Safari/runtime failure after only part of
   // the descriptors were defined must not leave shared masters half-mutated
   // while generalInstalled remains false; same-session retry starts from the
   // exact pre-install bootstrap state instead.
   const speciesIds = Object.keys(speciesMasters);
   const moveIds = Object.keys(moveMasters);
+  const growthRates = projectSafariGeneralGrowthRates(speciesIds);
   const speciesSnapshot = snapshotMasterDescriptors(SAFARI_SPECIES_MASTERS, speciesIds);
   const moveSnapshot = snapshotMasterDescriptors(
     SAFARI_MOVE_MASTERS,
@@ -91,7 +111,14 @@ export function installSafariGeneralMasters(speciesMasters, moveMasters) {
   );
 
   try {
-    const speciesCount = installLazyMasterProjection(SAFARI_SPECIES_MASTERS, speciesMasters);
+    const speciesCount = installLazyMasterProjection(SAFARI_SPECIES_MASTERS, speciesMasters, (id, master) => {
+      const growthRate = growthRates[id];
+      if (!growthRate) throw new Error(`missing canonical Safari growth rate for ${id}`);
+      if (master?.growth_rate != null && master.growth_rate !== growthRate) {
+        throw new Error(`Safari growth-rate mismatch for ${id}: ${master.growth_rate}/${growthRate}`);
+      }
+      return master?.growth_rate === growthRate ? master : Object.freeze({ ...master, growth_rate: growthRate });
+    });
     const moveCount = installLazyMasterProjection(SAFARI_MOVE_MASTERS, moveMasters);
     Object.assign(SAFARI_MOVE_MASTERS, EXACT_BOOT_MOVES);
     generalInstalled = true;
