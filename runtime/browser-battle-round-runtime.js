@@ -54,7 +54,8 @@ function resolveBattleTypes(pokemon) {
 }
 export function buildBrowserBattleActionInput({ actor, target, move, moveIndex, battlerIndex, targetBattlerIndex, randomRoll = null, reflectPp, struggle = false }) {
   const special = move.category === "Special";
-  const damagingMove = move.category !== "Status" && Number(move.power ?? 0) > 0;
+  const fixedDamageUserLevel = move.function_code === "FixedDamageUserLevel";
+  const damagingMove = move.category !== "Status" && (Number(move.power ?? 0) > 0 || fixedDamageUserLevel);
   const actorTypes = resolveBattleTypes(actor);
   const targetTypes = resolveBattleTypes(target);
   const typing = !struggle && damagingMove && move.type && actorTypes && targetTypes
@@ -63,7 +64,13 @@ export function buildBrowserBattleActionInput({ actor, target, move, moveIndex, 
   const accuracyInput = { baseAccuracy: move.accuracy };
   if (randomRoll !== null && randomRoll !== undefined) accuracyInput.randomRoll = Number(randomRoll);
   const action = { kind: "move", battlerIndex, targetBattlerIndex, actorHpBefore: actor.hp, actorTotalHp: actor.max_hp, moveIndex, moveId: move.id, accuracyInput, hpBefore: target.hp, totalHp: target.max_hp };
-  if (damagingMove && !typing?.immune) {
+  if (fixedDamageUserLevel && !typing?.immune) {
+    action.fixedDamageInput = {
+      damage: Number(actor.level),
+      functionCode: move.function_code,
+      source: "Battle::Move::FixedDamageUserLevel",
+    };
+  } else if (damagingMove && !typing?.immune) {
     action.damageInput = {
       level: actor.level,
       baseDamage: move.power,
