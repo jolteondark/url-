@@ -1,6 +1,7 @@
 import { projectSafariGeneralGrowthRates } from "./safari-general-growth-rate-facts.js";
 import { safariGeneralSpeciesTypesV108 } from "./safari-general-species-type-facts.js";
 import { projectSafariGeneralMoveEffectChanceV108 } from "./safari-general-move-effect-chance-facts.js";
+import { projectSafariCanonicalMoveFunctionCodeV108 } from "./safari-canonical-move-function-code-facts.js";
 
 // Lightweight Safari bootstrap projection from canonical source-v0.9.108.
 //
@@ -8,12 +9,16 @@ import { projectSafariGeneralMoveEffectChanceV108 } from "./safari-general-move-
 // module is on the first-interaction bootstrap path. The full 875-species / 608
 // GENERAL projection is installed on demand by combat entry.
 
+function projectCanonicalMoveMaster(id, master) {
+  return projectSafariCanonicalMoveFunctionCodeV108(id, projectSafariGeneralMoveEffectChanceV108(id, master));
+}
+
 const EXACT_BOOT_MOVES = Object.freeze({
-  TACKLE: projectSafariGeneralMoveEffectChanceV108("TACKLE", { id: "TACKLE", name: "Tackle", category: "Physical", power: 40, accuracy: 100, total_pp: 35, priority: 0, type: "NORMAL", thaws_user: false }),
-  QUICKATTACK: projectSafariGeneralMoveEffectChanceV108("QUICKATTACK", { id: "QUICKATTACK", name: "Quick Attack", category: "Physical", power: 40, accuracy: 100, total_pp: 30, priority: 1, type: "NORMAL", thaws_user: false }),
-  BITE: projectSafariGeneralMoveEffectChanceV108("BITE", { id: "BITE", name: "Bite", category: "Physical", power: 60, accuracy: 100, total_pp: 25, priority: 0, type: "DARK", thaws_user: false }),
-  SWIFT: projectSafariGeneralMoveEffectChanceV108("SWIFT", { id: "SWIFT", name: "Swift", category: "Special", power: 60, accuracy: 0, total_pp: 20, priority: 0, type: "NORMAL", thaws_user: false }),
-  THUNDERSHOCK: projectSafariGeneralMoveEffectChanceV108("THUNDERSHOCK", { id: "THUNDERSHOCK", name: "Thunder Shock", category: "Special", power: 40, accuracy: 100, total_pp: 30, priority: 0, type: "ELECTRIC", thaws_user: false }),
+  TACKLE: projectCanonicalMoveMaster("TACKLE", { id: "TACKLE", name: "Tackle", category: "Physical", power: 40, accuracy: 100, total_pp: 35, priority: 0, type: "NORMAL", thaws_user: false }),
+  QUICKATTACK: projectCanonicalMoveMaster("QUICKATTACK", { id: "QUICKATTACK", name: "Quick Attack", category: "Physical", power: 40, accuracy: 100, total_pp: 30, priority: 1, type: "NORMAL", thaws_user: false }),
+  BITE: projectCanonicalMoveMaster("BITE", { id: "BITE", name: "Bite", category: "Physical", power: 60, accuracy: 100, total_pp: 25, priority: 0, type: "DARK", thaws_user: false }),
+  SWIFT: projectCanonicalMoveMaster("SWIFT", { id: "SWIFT", name: "Swift", category: "Special", power: 60, accuracy: 0, total_pp: 20, priority: 0, type: "NORMAL", thaws_user: false }),
+  THUNDERSHOCK: projectCanonicalMoveMaster("THUNDERSHOCK", { id: "THUNDERSHOCK", name: "Thunder Shock", category: "Special", power: 40, accuracy: 100, total_pp: 30, priority: 0, type: "ELECTRIC", thaws_user: false }),
 });
 
 export const SAFARI_MOVE_MASTERS = { ...EXACT_BOOT_MOVES };
@@ -94,10 +99,10 @@ export function installSafariGeneralMasters(speciesMasters, moveMasters) {
   // encounter/trainer owners concretize only their selected masters with their
   // existing Object.assign calls.
   //
-  // GrowthRate, type membership and move additional-effect chance are generated
-  // from canonical PBS-derived data separately from the compressed GENERAL
-  // payload. Compose them at this shared master boundary so selected runtime
-  // objects consume one canonical fact source without eagerly reading all
+  // GrowthRate, type membership and move additional-effect chance/function code
+  // are generated from canonical PBS-derived data separately from the compressed
+  // GENERAL payload. Compose them at this shared master boundary so selected
+  // runtime objects consume one canonical fact source without eagerly reading all
   // 875 species / 608 moves.
   //
   // Installation is transactional. A Safari/runtime failure after only part of
@@ -123,7 +128,7 @@ export function installSafariGeneralMasters(speciesMasters, moveMasters) {
       const types = safariGeneralSpeciesTypesV108(id);
       return Object.freeze({ ...master, growth_rate: growthRate, types });
     });
-    const moveCount = installLazyMasterProjection(SAFARI_MOVE_MASTERS, moveMasters, projectSafariGeneralMoveEffectChanceV108);
+    const moveCount = installLazyMasterProjection(SAFARI_MOVE_MASTERS, moveMasters, projectCanonicalMoveMaster);
     Object.assign(SAFARI_MOVE_MASTERS, EXACT_BOOT_MOVES);
     generalInstalled = true;
     return { speciesCount, moveCount };
