@@ -131,7 +131,7 @@ export async function attemptSafariCapture(runtime, options = {}) {
   return (await full()).attemptSafariCapture(runtime, options);
 }
 export async function returnSafariToDayBoard(runtime) {
-  if (needsFullBattleIntegration(runtime)) return (await full()).returnSafariNormalToDayBoard?.(runtime) ?? (await full()).returnSafariToDayBoard(runtime);
+  if (needsFullBattleIntegration(runtime)) return (await full()).returnSafariToDayBoard(runtime);
   if (stateOf(runtime).battle) return returnSafariNormalToDayBoard(runtime);
   return (await full()).returnSafariToDayBoard(runtime);
 }
