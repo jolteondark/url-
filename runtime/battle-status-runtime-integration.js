@@ -5,7 +5,7 @@ function hasAfterMoveRequest(action) {
   return (action?.postHitResolution?.operations ?? []).some((entry) => entry.op === "effects_after_move_request");
 }
 
-export function commitBattleSystemsStatusRuntime({ battleInput = {}, turn = {}, pokemon } = {}) {
+export function commitBattleSystemsStatusRuntime({ battleInput = {}, turn = {}, pokemon, reflectedBattlerIndex = null } = {}) {
   let runtime = pokemon;
   const commits = [];
   const executed = new Set(
@@ -18,6 +18,9 @@ export function commitBattleSystemsStatusRuntime({ battleInput = {}, turn = {}, 
     for (const [actionIndex, action] of (round.actions ?? []).entries()) {
       const input = action?.battleStatusInput;
       if (!input || !executed.has(`${roundIndex}:${actionIndex}`) || !hasAfterMoveRequest(action)) continue;
+      const targetBattlerIndex = Number(input.targetBattlerIndex ?? action.targetBattlerIndex);
+      if (reflectedBattlerIndex !== null && reflectedBattlerIndex !== undefined && targetBattlerIndex !== Number(reflectedBattlerIndex)) continue;
+      if (input.requiresAccuracyHit !== false && action?.accuracyResolution?.hit !== true) continue;
       const currentState = {
         status: runtime.status ?? "NONE",
         statusCount: Number(runtime.status_count ?? 0),
@@ -38,7 +41,7 @@ export function commitBattleSystemsStatusRuntime({ battleInput = {}, turn = {}, 
         status: flow.state.status,
         status_count: Number(flow.state.statusCount ?? 0),
       });
-      commits.push({ roundIndex, actionIndex, kind: input.kind, status: runtime.status, statusCount: runtime.status_count, operations: flow.operations });
+      commits.push({ roundIndex, actionIndex, kind: input.kind, targetBattlerIndex, status: runtime.status, statusCount: runtime.status_count, operations: flow.operations });
     }
   }
   return { pokemon: runtime, commits };
