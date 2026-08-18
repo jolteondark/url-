@@ -37,13 +37,25 @@ function setCommandLock(locked) {
 
 function phaseFor(battle) {
   if (!battle) return null;
-  // A submitted command owns the visible phase until preview-app has finished
-  // presenting the whole turn. Battle state may already be terminal/replacement
-  // while animations are still running, so RESOLVING takes precedence here.
-  if (resolving) return { key: "resolving", text: `Turn ${Number(submittedTurn ?? battle.turn ?? 1)} • 行動処理中` };
+  // #turn remains the sole numeric turn owner. This pill communicates only the
+  // input/presentation phase, so Safari never shows two competing Turn labels.
+  if (resolving) return { key: "resolving", text: "行動処理中" };
   if (battle.completed) return { key: "result", text: "結果" };
-  if (battle.player_replacement_required) return { key: "replacement", text: `Turn ${Number(battle.turn ?? 1)} • 交代選択` };
-  return { key: "command", text: `Turn ${Number(battle.turn ?? 1)} • コマンド選択` };
+  if (battle.player_replacement_required) return { key: "replacement", text: "交代選択" };
+  return { key: "command", text: "コマンド選択" };
+}
+
+function updateBattleMessage(key) {
+  const message = byId("battle-message");
+  if (!message || key === "result") return;
+  const text = key === "resolving"
+    ? "ターンを処理しています…"
+    : key === "replacement"
+      ? "次のポケモンを選んでください。"
+      : "技を選んでください。";
+  // Avoid observer feedback loops: textContent replacement can itself produce
+  // a childList mutation in Safari, so write only when the phase text changed.
+  if (message.textContent !== text) message.textContent = text;
 }
 
 function paintPhaseOnly(key, text) {
@@ -51,9 +63,10 @@ function paintPhaseOnly(key, text) {
   const card = byId("battle-card");
   if (!phase || !card) return;
   phase.hidden = false;
-  phase.textContent = text;
+  if (phase.textContent !== text) phase.textContent = text;
   phase.dataset.phase = key;
   card.dataset.turnPhase = key;
+  updateBattleMessage(key);
 }
 
 function renderPhase() {
@@ -63,7 +76,7 @@ function renderPhase() {
   const phase = ensurePhaseNode();
   if (!battle) {
     if (resolving && !card.hidden) {
-      paintPhaseOnly("resolving", `Turn ${Number(submittedTurn ?? 1)} • 行動処理中`);
+      paintPhaseOnly("resolving", "行動処理中");
       setCommandLock(true);
       return;
     }
@@ -85,10 +98,6 @@ function resolutionSettled() {
   if (!resolving) return false;
   const battle = battleState();
   const card = byId("battle-card");
-
-  // Successful flee may clear Battle before preview-app reaches its final render.
-  // In that path capture.disabled can remain stale, so the card becoming hidden
-  // is the reliable signal that the visible Battle presentation has finished.
   if (!battle) return Boolean(card?.hidden);
 
   const previewBusy = Boolean(byId("capture")?.disabled);
@@ -126,10 +135,7 @@ battleCard?.addEventListener("click", (event) => {
 
   resolving = true;
   submittedTurn = Number(battle.turn ?? 1);
-  paintPhaseOnly("resolving", `Turn ${submittedTurn} • 行動処理中`);
-  // Let the click that started this turn reach preview-app first. The microtask
-  // runs before any second user input can dispatch, avoiding Safari cancelling
-  // the initiating click when an element becomes inert during event capture.
+  paintPhaseOnly("resolving", "行動処理中");
   queueMicrotask(() => {
     setCommandLock(true);
     scheduleSync();
