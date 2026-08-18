@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#f6f7fb" />
+<title>WARD GLUCOSE — Inpatient Insulin Simulation</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="app-shell">
+  <header class="topbar">
+    <div>
+      <div class="eyebrow">INPATIENT GLUCOSE SIMULATION</div>
+      <h1>WARD GLUCOSE</h1>
+    </div>
+    <div class="day-pill">DAY <span id="dayNo">1</span></div>
+  </header>
+
+  <main>
+    <section class="hero-card">
+      <div class="patient-head">
+        <div>
+          <div class="case-line"><span id="caseId">INP-001</span> <span class="dot">•</span> <span id="phenotype">1型糖尿病</span></div>
+          <div id="contextBadges" class="badges"></div>
+        </div>
+        <button id="newCaseBtn" class="ghost-btn">別の患者</button>
+      </div>
+      <div class="rule-line">70未満 / 400超で終了。安全に安定軌道へ乗せればクリア。</div>
+    </section>
+
+    <section class="section-block">
+      <div class="section-title"><span>01</span> 前日の4検</div>
+      <div id="bgGrid" class="bg-grid"></div>
+    </section>
+
+    <section class="section-block">
+      <div class="section-title"><span>02</span> 前日のインスリン</div>
+      <div id="prevDoseGrid" class="dose-summary"></div>
+    </section>
+
+    <section class="section-block order-block">
+      <div class="section-title"><span>03</span> 今日の処方</div>
+      <div class="hint">単位数を決めてください</div>
+      <div id="doseGrid" class="dose-grid"></div>
+      <button id="submitBtn" class="primary-btn">この処方で1日進める</button>
+    </section>
+
+    <section id="resultPanel" class="result-panel hidden" aria-live="polite"></section>
+  </main>
+
+  <footer>Educational simulation only — not for clinical dosing.</footer>
+</div>
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
