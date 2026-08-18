@@ -26,11 +26,6 @@ export function reflectBattleCoreBattlerHpToPokemonRuntime(runtime, turnResult, 
     (entry.op === "reduce_self_hp" && Number(entry.battlerIndex) === index)
   );
   if (matches.length > 0) return updatePokemonRuntime(runtime, { hp: Number(matches.at(-1).hpAfter) });
-
-  // Some canonical damage operations identify the hit by action index only. In that
-  // shape, requiring targetBattlerIndex silently drops the HP commit and the next
-  // browser round starts again from the pre-hit HP. Fall back to the owning action
-  // index so multi-turn Safari battles carry resolved damage forward.
   if (fallbackActionIndex !== null && fallbackActionIndex !== undefined) {
     return reflectBattleCoreHpToPokemonRuntime(runtime, turnResult, fallbackActionIndex);
   }
@@ -162,7 +157,7 @@ export function resolveBattleRuntimeIntegration({ pokemon, sendOuts = [], battle
   }
   const reflected = commitBattleRuntimePokemonRound({ battleInput: preparedBattleInput, turn, pokemon, ppActionIndexes, reflectedActionIndex, reflectedTryUseMoveActionIndex, reflectedBattlerIndex });
   const ppCommitted = reflected.ppCommitted;
-  const statusCommitted = commitBattleSystemsStatusRuntime({ battleInput: preparedBattleInput, turn, pokemon: reflected.pokemon });
+  const statusCommitted = commitBattleSystemsStatusRuntime({ battleInput: preparedBattleInput, turn, pokemon: reflected.pokemon, reflectedBattlerIndex });
   const heldItemCommitted = commitBattleSystemsHeldItemRuntime({ battleInput: preparedBattleInput, turn, pokemon: statusCommitted.pokemon });
   const expCommitted = commitBattleSystemsExpRuntime({ battleInput: preparedBattleInput, turn, pokemon: heldItemCommitted.pokemon });
   const reflectedPokemon = expCommitted.pokemon; const decision = Number(turn.decision);
