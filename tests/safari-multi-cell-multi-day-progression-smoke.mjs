@@ -275,4 +275,63 @@ assert.deepEqual(continuedState.board_visited, Array(8).fill(false));
 assert.deepEqual(partyIdentity(continued), expectedIdentity, "post-boundary progression must keep Party identity");
 assert.deepEqual(continued.bag, expectedBag, "post-boundary progression must keep Bag/Money");
 
-console.log("Safari fresh -> multi-cell -> save/Continue -> multi-day -> boundary victory -> generated DAY 11 wild -> DAY 12 progression: ok");
+// Canonical normal Board generation guarantees a trainer cell as well. Resolve that
+// real generated DAY 12 trainer Party with the existing trainer Battle/replacement
+// owners, then return to the Board without rebuilding the run.
+const day12TrainerIndex = continuedState.board_events.findIndex((entry) => entry?.kind === "trainer");
+assert.ok(day12TrainerIndex >= 0, "canonical DAY 12 Board must contain a trainer cell");
+const day12TrainerStart = await web.activateSafariDayBoardCell(continued, day12TrainerIndex);
+assert.equal(day12TrainerStart.result, "dispatched");
+assert.equal(continuedState.battle?.kind, "trainer");
+const day12TrainerPartySize = continuedState.battle.trainer_party.length;
+assert.ok(day12TrainerPartySize >= 1, "generated trainer must materialize at least one opponent");
+for (let expectedIndex = 0; expectedIndex < day12TrainerPartySize; expectedIndex += 1) {
+  const battle = continuedState.battle;
+  const foeIndex = Number(battle.trainer_party_index ?? 0);
+  assert.equal(foeIndex, expectedIndex);
+  battle.foe.hp = 1;
+  battle.foe.fainted = false;
+  battle.trainer_party[foeIndex].hp = 1;
+  battle.trainer_party[foeIndex].fainted = false;
+  const playerIndex = Number(battle.player_party_index ?? 0);
+  const player = continued.player.party[playerIndex];
+  player.hp = player.max_hp;
+  player.stats.ATTACK = 999;
+  player.stats.SPEED = 999;
+  const result = await web.resolveSafariBattleRound(continued, moveId(player.moves[0]));
+  if (expectedIndex < day12TrainerPartySize - 1) {
+    assert.equal(result.decision, 0);
+    assert.equal(result.replacementApplied, true);
+    assert.equal(continuedState.battle.trainer_party_index, expectedIndex + 1);
+    assert.equal(continuedState.battle.completed, false);
+  } else {
+    assert.equal(result.decision, 1);
+    assert.equal(continuedState.battle.completed, true);
+  }
+}
+const day12TrainerReturn = await web.returnSafariToDayBoard(continued);
+assert.equal(day12TrainerReturn.target, "day_board");
+assert.equal(continuedState.battle, null);
+assert.equal(continuedState.board_consumed[day12TrainerIndex], true);
+assert.equal(continuedState.board_visited[day12TrainerIndex], true);
+assert.deepEqual(partyIdentity(continued), expectedIdentity, "DAY 12 trainer resolution must keep Party identity");
+assert.deepEqual(continued.bag, expectedBag, "DAY 12 trainer resolution must keep Bag/Money");
+
+// The same post-boundary run must remain able to advance again after that trainer cell.
+const day12NextIndex = nextDayIndex(continued);
+const day13Camp = prepareSafariCampNextDay(continued, day12NextIndex, true);
+applySafariCampRecovery(continued, day13Camp);
+const day13Boundary = applySafariBoundaryTrialEntry(continued, day13Camp);
+assert.equal(day13Boundary.entered, false, "DAY 13 must be an ordinary Board floor");
+const day13 = await web.activateSafariDayBoardCell(continued, day12NextIndex);
+assert.equal(day13.result, "day_advanced");
+assert.equal(continuedState.day, 13);
+assert.equal(continuedState.location, "day_board");
+assert.equal(continuedState.board_events.length, 8);
+assert.deepEqual(continuedState.board_revealed, Array(8).fill(false));
+assert.deepEqual(continuedState.board_consumed, Array(8).fill(false));
+assert.deepEqual(continuedState.board_visited, Array(8).fill(false));
+assert.deepEqual(partyIdentity(continued), expectedIdentity, "DAY 13 progression must keep Party identity");
+assert.deepEqual(continued.bag, expectedBag, "DAY 13 progression must keep Bag/Money");
+
+console.log("Safari fresh -> multi-cell -> save/Continue -> multi-day -> boundary victory -> generated DAY 11 wild -> generated DAY 12 trainer -> DAY 13 progression: ok");
