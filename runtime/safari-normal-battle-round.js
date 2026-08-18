@@ -108,7 +108,7 @@ function finish(runtime, battle, resolved, operations) {
   };
 }
 
-function resolveTrainer(runtime, selectedMoveId) {
+function resolveTrainer(runtime, selectedMoveId, playerActionConsumedWithoutMove = false) {
   const state = stateOf(runtime);
   const battle = state.battle;
   const playerIndex = Number(battle.player_party_index ?? 0);
@@ -126,7 +126,8 @@ function resolveTrainer(runtime, selectedMoveId) {
       foeActivePartyIndex: Number(battle.trainer_party_index ?? 0),
       selectedMoveId,
       moveMasters: SAFARI_MOVE_MASTERS,
-      playerBattleExpInput: normalBattleExpInput(player, defeatedFoe, true),
+      playerBattleExpInput: playerActionConsumedWithoutMove ? null : normalBattleExpInput(player, defeatedFoe, true),
+      playerActionConsumedWithoutMove,
     },
     ownedOpponentInput: {
       battleKind: "trainer",
@@ -265,18 +266,26 @@ export function resolveSafariNormalBattleRound(runtime, selectedMoveId) {
   if (!battle || battle.completed) throw new Error("active battle is required");
   if (battle.origin === "boundary_trial") throw new Error("boundary battle must use the boundary owner");
   if (battle.player_replacement_required) throw new Error("player replacement is required before another battle command");
-  if (battle.kind === "trainer") return resolveTrainer(runtime, selectedMoveId);
+  if (battle.kind === "trainer") return resolveTrainer(runtime, selectedMoveId, false);
   if (battle.kind === "wild") return resolveWild(runtime, selectedMoveId, false);
   throw new RangeError(`unsupported normal battle kind: ${battle.kind}`);
 }
 
-export function resolveSafariNormalWildOpponentResponse(runtime) {
+export function resolveSafariNormalBattleOpponentResponse(runtime) {
   const state = stateOf(runtime);
   const battle = state.battle;
-  if (!battle || battle.completed || battle.kind !== "wild") throw new Error("active wild battle is required");
+  if (!battle || battle.completed) throw new Error("active battle is required");
   if (battle.origin === "boundary_trial") throw new Error("boundary battle must use the boundary owner");
   if (battle.player_replacement_required) throw new Error("player replacement is required before another battle command");
-  return resolveWild(runtime, null, true);
+  if (battle.kind === "trainer") return resolveTrainer(runtime, null, true);
+  if (battle.kind === "wild") return resolveWild(runtime, null, true);
+  throw new RangeError(`unsupported normal battle kind: ${battle.kind}`);
+}
+
+export function resolveSafariNormalWildOpponentResponse(runtime) {
+  const battle = stateOf(runtime).battle;
+  if (!battle || battle.completed || battle.kind !== "wild") throw new Error("active wild battle is required");
+  return resolveSafariNormalBattleOpponentResponse(runtime);
 }
 
 export function replaceSafariNormalBattlePlayer(runtime, replacementPartyIndex) {
