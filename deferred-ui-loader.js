@@ -15,7 +15,9 @@ function loadStyle(href) {
 function loadModule(path) {
   if (loadedModules.has(path)) return loadedModules.get(path);
   const promise = import(path).catch((error) => {
+    loadedModules.delete(path);
     console.error(`[Mapless] optional UI failed: ${path}`, error);
+    return null;
   });
   loadedModules.set(path, promise);
   return promise;

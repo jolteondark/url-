@@ -8,6 +8,7 @@ const entryFiles = [
   "preview.js",
   "preview-app.js",
   "selftest.js",
+  "canonical-battle-sprite-bridge.js",
   "runtime/safari-battle-runtime-prewarm.js",
   "runtime/safari-web-playable-integration.js",
   "runtime/safari-web-combat-start.js",
@@ -83,5 +84,9 @@ assert.ok(visited.has(path.resolve(root, "runtime/browser-trainer-battle-round-r
   "normal Battle graph must reach the trainer round runtime");
 assert.ok(visited.has(path.resolve(root, "runtime/safari-normal-battle-finalize.js")),
   "normal Battle graph must reach the direct finalizer");
+assert.ok(visited.has(path.resolve(root, "runtime/safari-canonical-battle-sprite-inline.js")),
+  "Battle sprite graph must reach the canonical inline sprite subset");
+assert.ok(visited.has(path.resolve(root, "runtime/safari-canonical-battle-sprite-bug.js")),
+  "Battle sprite graph must reach the BUG sprite subset");
 
 console.log(`Browser ESM import graph existence: ${visited.size} modules / ${edges.length} relative edges / 0 missing`);
