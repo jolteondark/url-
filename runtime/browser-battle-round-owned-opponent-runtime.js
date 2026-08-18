@@ -3,12 +3,11 @@ import { resolveBrowserOpponentMoveChoiceCanonical } from './battle-core-browser
 
 export function resolveBrowserBattleRoundWithOwnedOpponent(input = {}) {
   const opponentChoice = resolveBrowserOpponentMoveChoiceCanonical({
-    battleKind: input.battleKind,
+    battleKind: input.battleKind ?? 'wild',
     player: input.player,
     foe: input.foe,
     moveMasters: input.moveMasters,
     aiRandomSeed: input.foeAiRandomSeed,
-    aiRandomRolls: input.foeAiRandomRolls,
     trainerSkill: input.trainerSkill,
     trainerFlags: input.trainerFlags,
     ownReserveCount: input.foeReserveCount,
@@ -16,8 +15,6 @@ export function resolveBrowserBattleRoundWithOwnedOpponent(input = {}) {
     mechanicsGeneration: input.mechanicsGeneration,
     turnCount: input.turnCount,
     canSwitchLax: input.canSwitchLax,
-    badMoveSwitchRegistered: input.badMoveSwitchRegistered,
-    badMoveSwitchPartyIndex: input.badMoveSwitchPartyIndex,
   });
   const round = resolveBrowserBattleRound({
     player: input.player,
@@ -36,6 +33,7 @@ export function resolveBrowserBattleRoundWithOwnedOpponent(input = {}) {
     playerBattleExpInput: input.playerBattleExpInput,
     postBattlePersistenceInput: input.postBattlePersistenceInput,
     reflectedPartyIndex: input.reflectedPartyIndex,
+    playerActionConsumedWithoutMove: Boolean(input.playerActionConsumedWithoutMove),
   });
   return { ...round, opponentChoice };
 }
