@@ -116,3 +116,4 @@ await import("./safari-wild-exp-single-commit-smoke.mjs");
 await import("./battle-ordinary-burn-damage-owner.mjs");
 await import("./battle-ordinary-paralysis-speed-owner.mjs");
 await import("./browser-status-move-no-damage-smoke.mjs");
+await import("./battle-canonical-status-eligibility-smoke.mjs");
