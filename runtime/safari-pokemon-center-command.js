@@ -6,6 +6,7 @@ import {
   updatePokemonRuntime,
 } from "./pokemon-runtime.js";
 import { interactiveSafariStreetPerformer } from "./safari-street-performer-interaction.js";
+import { interactiveSafariMushroomField } from "./safari-mushroom-field-interaction.js";
 import { activateSafariDayBoardCell as activateSafariDayBoardCellBase } from "./safari-playable-integration-wounded.js";
 
 function moveId(move) {
@@ -32,8 +33,9 @@ function healPokemon(pokemon) {
 export function activateSafariDayBoardCell(runtime, index) {
   const state = runtime?.variables?.mapless;
   const event = state?.board_events?.[index];
-  if (event?.kind === "normal_event" && event.normal_event_id === "street_performer") {
-    return interactiveSafariStreetPerformer(runtime, index);
+  if (event?.kind === "normal_event") {
+    if (event.normal_event_id === "street_performer") return interactiveSafariStreetPerformer(runtime, index);
+    if (event.normal_event_id === "mushroom_field") return interactiveSafariMushroomField(runtime, index);
   }
   if (!event || event.kind !== "center") return activateSafariDayBoardCellBase(runtime, index);
 
