@@ -125,7 +125,11 @@ export function prepareBattleRuntimeScheduledCombat({ battleInput: rawBattleInpu
   }
   turnRound.priorityOrder = scheduling.processOrder;
   if (round.attackPhaseInput && Number(scheduling.decision ?? 0) > 0) turnRound.attackDecision = Number(scheduling.decision);
-  const preparedBattleInput = prepareCombatTurnInputCanonical({ initialDecision: Number(battleInput.initialDecision ?? 0), rounds: [turnRound] });
+  const preparedBattleInput = prepareCombatTurnInputCanonical({
+    initialDecision: Number(battleInput.initialDecision ?? 0),
+    ...(battleInput.combatRandomSeed === undefined ? {} : { combatRandomSeed: Number(battleInput.combatRandomSeed) & 0x7fffffff }),
+    rounds: [turnRound],
+  });
   return { ppPrepared, scheduling, preparedBattleInput };
 }
 
