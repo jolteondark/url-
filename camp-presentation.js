@@ -17,6 +17,7 @@ night.innerHTML = `<div><strong id="camp-day-change">DAY</strong><span id="camp-
 document.body.append(night);
 
 let pendingButton = null;
+let campAdvancing = false;
 const byId = (id) => document.getElementById(id);
 function runtime(){return globalThis.__maplessSafariRuntime ?? null;}
 function pokemonId(p,index){return p?.personal_id ?? p?.id ?? p?.uuid ?? index;}
@@ -26,9 +27,14 @@ function boardEventForButton(button){
   if(!Number.isInteger(index)) return null;
   return runtime()?.variables?.mapless?.board_events?.[index] ?? null;
 }
+function setCampAdvancing(next){
+  campAdvancing=Boolean(next);
+  byId("camp-confirm").disabled=campAdvancing;
+  byId("camp-cancel").disabled=campAdvancing;
+}
 
 function openCamp(button,index){
-  const rt=runtime(); if(!rt) return;
+  const rt=runtime(); if(!rt || campAdvancing) return;
   const owner=prepareSafariCampNextDay(rt,index,false);
   const watcherIndex=(rt.player?.party??[]).findIndex((p,i)=>pokemonId(p,i)===owner.watcher_id);
   const watcher=watcherIndex>=0?rt.player.party[watcherIndex]:null;
@@ -50,25 +56,33 @@ document.addEventListener("click",(event)=>{
   openCamp(button,Number(button.dataset.boardIndex));
 },{capture:true});
 
-byId("camp-cancel").addEventListener("click",()=>{backdrop.hidden=true;pendingButton=null;});
+byId("camp-cancel").addEventListener("click",()=>{if(campAdvancing)return;backdrop.hidden=true;pendingButton=null;});
 byId("camp-confirm").addEventListener("click",async()=>{
-  const button=pendingButton; if(!button) return;
+  const button=pendingButton; if(!button || campAdvancing) return;
+  setCampAdvancing(true);
   const rt=runtime(); const index=Number(button.dataset.campIndex); const before=rt.variables.mapless.day;
-  const owner=prepareSafariCampNextDay(rt,index,true);
-  applySafariCampRecovery(rt,owner);
-  const boundaryEntry=applySafariBoundaryTrialEntry(rt,owner);
-  backdrop.hidden=true; pendingButton=null;
-  if(!boundaryEntry.entered){
-    await activateSafariDayBoardCell(rt,index);
+  try{
+    const owner=prepareSafariCampNextDay(rt,index,true);
+    applySafariCampRecovery(rt,owner);
+    const boundaryEntry=applySafariBoundaryTrialEntry(rt,owner);
+    backdrop.hidden=true; pendingButton=null;
+    if(!boundaryEntry.entered){
+      await activateSafariDayBoardCell(rt,index);
+    }
+    window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
+    queueMicrotask(()=>{
+      try{saveSafariPlayableRun(window.localStorage,rt);}catch(_){}
+      byId("camp-day-change").textContent=`DAY ${before} → ${rt.variables.mapless.day}`;
+      const extra=owner.fire_watcher?"ほのおタイプの見張りで回復量アップ":"見張り役は回復量が半分";
+      byId("camp-recovery-note").textContent=boundaryEntry.entered
+        ? `HP +${owner.normal_recovery.hp_percent}% / PP +${owner.normal_recovery.pp_percent}% ・ 境界の試練`
+        : `HP +${owner.normal_recovery.hp_percent}% / PP +${owner.normal_recovery.pp_percent}% ・ ${extra}`;
+      night.classList.add("show"); window.setTimeout(()=>night.classList.remove("show"),900);
+    });
+  }catch(error){
+    globalThis.__maplessLastError=error;
+    if(!pendingButton){pendingButton=button;backdrop.hidden=false;}
+  }finally{
+    setCampAdvancing(false);
   }
-  window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
-  queueMicrotask(()=>{
-    try{saveSafariPlayableRun(window.localStorage,rt);}catch(_){}
-    byId("camp-day-change").textContent=`DAY ${before} → ${rt.variables.mapless.day}`;
-    const extra=owner.fire_watcher?"ほのおタイプの見張りで回復量アップ":"見張り役は回復量が半分";
-    byId("camp-recovery-note").textContent=boundaryEntry.entered
-      ? `HP +${owner.normal_recovery.hp_percent}% / PP +${owner.normal_recovery.pp_percent}% ・ 境界の試練`
-      : `HP +${owner.normal_recovery.hp_percent}% / PP +${owner.normal_recovery.pp_percent}% ・ ${extra}`;
-    night.classList.add("show"); window.setTimeout(()=>night.classList.remove("show"),900);
-  });
 });
