@@ -87,6 +87,7 @@ function resetFinishedRunState(state) {
   state.scout_results = {};
   state.sense_results = {};
   state.mapless_board_format_version = null;
+  state.mapless_carry_class = "general";
   state.village = null;
   state.mapless_power_meal_battles = 0;
   state.mapless_power_meal_day = 0;
