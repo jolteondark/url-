@@ -8,6 +8,16 @@ function stateOf(runtime) {
   return state;
 }
 
+export function ensureMaplessRunLifecycleState(runtime) {
+  const state = stateOf(runtime);
+  if (!("mapless_carryover_pending" in state)) state.mapless_carryover_pending = false;
+  if (!("mapless_carryover_overflow" in state)) state.mapless_carryover_overflow = false;
+  if (!("mapless_run_end_pending" in state)) state.mapless_run_end_pending = false;
+  if (!("mapless_run_active" in state)) state.mapless_run_active = !state.mapless_carryover_pending;
+  if (!("mapless_run_prepared" in state)) state.mapless_run_prepared = Boolean(state.mapless_run_active);
+  return state;
+}
+
 function isEgg(pokemon) {
   return Boolean(pokemon?.egg ?? pokemon?.is_egg ?? false);
 }
@@ -18,14 +28,14 @@ export function maplessPartyAllFainted(party) {
 }
 
 export function shouldMarkMaplessRunEnd(runtime, decision) {
-  const state = stateOf(runtime);
+  const state = ensureMaplessRunLifecycleState(runtime);
   return Boolean(state.mapless_run_active)
     && [2, 5].includes(Number(decision))
     && maplessPartyAllFainted(runtime?.player?.party);
 }
 
 export function markMaplessRunEnd(runtime, decision) {
-  const state = stateOf(runtime);
+  const state = ensureMaplessRunLifecycleState(runtime);
   if (!shouldMarkMaplessRunEnd(runtime, decision)) {
     return { marked: false, operations: [] };
   }
@@ -68,7 +78,7 @@ function archiveRunParty(runtime) {
 }
 
 export function finishMaplessRun(runtime) {
-  const state = stateOf(runtime);
+  const state = ensureMaplessRunLifecycleState(runtime);
   if (!state.mapless_run_end_pending || !state.mapless_run_active) {
     return { finished: false, overflow: false, operations: [] };
   }
