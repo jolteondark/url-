@@ -145,7 +145,6 @@ function resolveTrainer(runtime, selectedMoveId) {
     playerPartyOrder: Array.isArray(battle.player_party_order) ? battle.player_party_order : null,
     playerIdxBattler: 0,
   });
-  resolved.presentationContext = roundPresentationContext;
   const next = resolved.nextRoundState;
   if (Array.isArray(next?.playerParty)) runtime.player.party = structuredClone(next.playerParty);
   else runtime.player.party[playerIndex] = structuredClone(resolved.player);
@@ -167,7 +166,7 @@ function resolveTrainer(runtime, selectedMoveId) {
   const turn = battle.turn;
   battle.turn += 1;
   const operations = (resolved.presentationOperations ?? resolved.operations ?? []).map((operation) => ({ ...operation, battleTurn: turn }));
-  const result = finish(runtime, battle, resolved, operations);
+  const result = finish(runtime, battle, { ...resolved, presentationContext: roundPresentationContext }, operations);
   if (resolved.foeReplacementApplied && battle.decision === 0) {
     const trainerName = battle.trainer?.trainer_full_name ?? "トレーナー";
     battle.presentation.push({ type: "trainer_next", actor: "foe", trainer: trainerName, species: battle.foe?.species ?? null, partyIndex: battle.trainer_party_index });
