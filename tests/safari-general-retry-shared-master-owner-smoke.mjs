@@ -36,6 +36,8 @@ assert.ok(
 const demandSource = await readFile(new URL("../runtime/safari-general-data-demand.js", import.meta.url), "utf8");
 assert.ok(demandSource.includes("safariGeneralLoaderSpecifier"));
 assert.ok(demandSource.includes("safariGeneralCombatModuleSpecifier"));
+assert.ok(demandSource.includes('traceError("general_master_install_error"'),
+  "GENERAL master installation failures must have their own exact trace stage");
 
 // Browser-like master-install contract: selected wild/trainer modules may be
 // evaluated before GENERAL masters exist (for example after a prior module
@@ -67,7 +69,41 @@ assert.throws(
 );
 
 const demand = await import("../runtime/safari-general-data-demand.js?shared-master-retry-smoke=1");
+const shared = await import("../runtime/safari-playable-data.js");
+const originalDefineProperty = Object.defineProperty;
+let syntheticInstallFailurePending = true;
+Object.defineProperty = function patchedDefineProperty(target, property, descriptor) {
+  if (syntheticInstallFailurePending && target === shared.SAFARI_SPECIES_MASTERS) {
+    syntheticInstallFailurePending = false;
+    throw new Error("synthetic GENERAL master install failure");
+  }
+  return originalDefineProperty.call(Object, target, property, descriptor);
+};
+try {
+  await assert.rejects(
+    demand.ensureSafariGeneralData(),
+    /synthetic GENERAL master install failure/,
+    "a master-install failure must reject without being mislabeled as a loader import failure",
+  );
+} finally {
+  Object.defineProperty = originalDefineProperty;
+}
+
+const failedInstallTrace = [...globalThis.__maplessGeneralCombatTrace];
+assert.ok(failedInstallTrace.some((entry) => entry.stage === "general_data_import_ready" && entry.retry_generation === 0),
+  "the loader module must have evaluated successfully before the synthetic install failure");
+assert.ok(failedInstallTrace.some((entry) => entry.stage === "general_master_install_error" && entry.retry_generation === 0
+  && entry.error_message === "synthetic GENERAL master install failure"),
+  "the exact master-install error must be retained in the trace");
+assert.equal(failedInstallTrace.some((entry) => entry.stage === "general_data_import_error"), false,
+  "a master-install failure must not be mislabeled as a chunk/decode/module import failure");
+assert.equal(demand.safariGeneralDataReady(), false,
+  "a failed master install must remain fail-closed");
+
 await demand.ensureSafariGeneralCombatData("wild");
+const recoveredTrace = [...globalThis.__maplessGeneralCombatTrace];
+assert.ok(recoveredTrace.some((entry) => entry.stage === "general_data_import_start" && entry.retry_generation === 0),
+  "master-install retry must reuse the already-successful loader generation instead of forcing ?retry=1");
 assert.equal(demand.safariGeneralCombatReady("wild"), true);
 assert.equal(demand.safariGeneralCombatReady("trainer"), false,
   "recovering a wild demand must not eagerly import the trainer generator");
