@@ -79,11 +79,38 @@ function archiveRunParty(runtime) {
 
 function resetFinishedRunState(state) {
   state.day = 1;
+  state.board_day = null;
   state.board_events = [];
   state.board_revealed = [];
-  state.board_consumed = [];
   state.board_visited = [];
+  state.board_consumed = [];
+  state.scout_results = {};
+  state.sense_results = {};
+  state.mapless_board_format_version = null;
+  state.village = null;
+  state.mapless_power_meal_battles = 0;
+  state.mapless_power_meal_day = 0;
+  state.mapless_exp_show_battles = 0;
+  state.mapless_treasure_map = null;
+  state.mapless_bounty = null;
+  state.active_lead_id = null;
+  state.active_lead_source_org = null;
+  state.active_lead_phase = 0;
+  state.active_lead_obtained_day = 0;
+  state.active_lead_confirmed_day = 0;
+  state.mapless_force_next_facility = null;
+  state.mapless_force_house_event = null;
+  state.mapless_force_org_id = null;
+  state.mapless_boundary_leader_bag = [];
+  state.mapless_boundary_last_leader = null;
+  state.mapless_boundary_pending_leader = null;
+  state.mapless_boundary_trial_count = 0;
+  state.mapless_boundary_trial_started = false;
+  state.mapless_boundary_trial_cleared = false;
+  state.mapless_boundary_trial_floor = null;
   state.shop = null;
+  delete state.preview_encounter_seed;
+  delete state.preview_encounter_counter;
 }
 
 export function finishMaplessRun(runtime) {
