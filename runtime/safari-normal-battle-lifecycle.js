@@ -1,6 +1,7 @@
 import { resolveCaptureFlow } from "./battle-capture-flow.js";
 import { routeCaughtQueueToPartyStorage } from "./caught-queue-party-storage.js";
 import { resolveDayBoardPlayableTurn } from "./mapless-day-board-playable-turn.js";
+import { RubyMT19937Random } from "./ruby-mt19937-random.js";
 import { SAFARI_SPECIES_MASTERS } from "./safari-playable-data.js";
 
 function stateOf(runtime) {
@@ -13,6 +14,21 @@ function stateOf(runtime) {
 
 function requestsSave(operations = []) {
   return operations.some((operation) => operation?.op === "request_save");
+}
+
+function browserCaptureSeed() {
+  if (globalThis.crypto && typeof globalThis.crypto.getRandomValues === "function") {
+    const value = new Uint32Array(1);
+    globalThis.crypto.getRandomValues(value);
+    return value[0] & 0x7fffffff;
+  }
+  return Math.floor(Math.random() * 0x80000000) & 0x7fffffff;
+}
+
+export function materializeSafariCaptureRandomValues(seed) {
+  const normalizedSeed = Number(seed) & 0x7fffffff;
+  const rng = new RubyMT19937Random(normalizedSeed);
+  return [rng.randInt(65536), rng.randInt(65536), rng.randInt(65536), rng.randInt(65536)];
 }
 
 function baseTurnInput(state, index) {
@@ -76,7 +92,7 @@ function finalizeCaughtNormalWild(runtime) {
   return completionOperations;
 }
 
-export function attemptSafariCapture(runtime) {
+export function attemptSafariCapture(runtime, { captureRandomSeed = browserCaptureSeed(), randomValues = undefined } = {}) {
   const state = stateOf(runtime);
   const battle = state.battle;
   if (!battle || battle.completed || battle.kind !== "wild") {
@@ -91,6 +107,10 @@ export function attemptSafariCapture(runtime) {
     throw new RangeError(`capture species is outside the Safari projection: ${battle.foe?.species}`);
   }
 
+  const normalizedCaptureSeed = Number(captureRandomSeed) & 0x7fffffff;
+  const captureRandomValues = randomValues === undefined
+    ? materializeSafariCaptureRandomValues(normalizedCaptureSeed)
+    : [...randomValues];
   const capture = resolveCaptureFlow({
     targetFainted: Number(battle.foe.hp) <= 0,
     trainerBattle: false,
@@ -106,7 +126,7 @@ export function attemptSafariCapture(runtime) {
       ball: "POKEBALL",
       unconditional: false,
       enableCriticalCaptures: false,
-      randomValues: [0, 0, 0, 0],
+      randomValues: captureRandomValues,
     },
   });
 
@@ -119,6 +139,8 @@ export function attemptSafariCapture(runtime) {
       operations: capture.operations,
       presentation: [],
       calculation: capture.capture,
+      captureRandomSeed: normalizedCaptureSeed,
+      randomValues: captureRandomValues,
       persistenceRequested: requestsSave(capture.operations),
     };
   }
@@ -150,6 +172,8 @@ export function attemptSafariCapture(runtime) {
     operations: battle.last_operations,
     presentation: battle.presentation,
     calculation: capture.capture,
+    captureRandomSeed: normalizedCaptureSeed,
+    randomValues: captureRandomValues,
     persistenceRequested: requestsSave(battle.last_operations),
   };
 }
