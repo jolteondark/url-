@@ -5,6 +5,15 @@ function hasAfterMoveRequest(action) {
   return (action?.postHitResolution?.operations ?? []).some((entry) => entry.op === "effects_after_move_request");
 }
 
+function actionDealtDamage(turn, roundIndex, actionIndex) {
+  return (turn?.operations ?? []).some((entry) => {
+    if (entry.op !== "reduce_hp") return false;
+    if (Number(entry.round) !== Number(roundIndex) + 1 || Number(entry.action) !== Number(actionIndex)) return false;
+    if (Number.isFinite(Number(entry.amount))) return Number(entry.amount) > 0;
+    return Number(entry.hpAfter) < Number(entry.hpBefore);
+  });
+}
+
 export function commitBattleSystemsStatusRuntime({ battleInput = {}, turn = {}, pokemon, reflectedBattlerIndex = null } = {}) {
   let runtime = pokemon;
   const commits = [];
@@ -22,6 +31,14 @@ export function commitBattleSystemsStatusRuntime({ battleInput = {}, turn = {}, 
       const targetBattlerIndex = Number(input.targetBattlerIndex ?? action.targetBattlerIndex);
       if (reflectedBattlerIndex !== null && reflectedBattlerIndex !== undefined && targetBattlerIndex !== Number(reflectedBattlerIndex)) continue;
       if (input.requiresAccuracyHit !== false && action?.accuracyResolution?.hit !== true) continue;
+
+      if (input.secondaryEffectTargetIndex !== undefined && input.secondaryEffectTargetIndex !== null) {
+        const secondaryIndex = Number(input.secondaryEffectTargetIndex);
+        const secondary = Array.isArray(action.secondaryEffectInputs) ? action.secondaryEffectInputs[secondaryIndex] : null;
+        if (!secondary?.triggered) continue;
+        if (input.requiresDamageDealt !== false && !actionDealtDamage(turn, roundIndex, actionIndex)) continue;
+      }
+
       const currentState = {
         status: runtime.status ?? "NONE",
         statusCount: Number(runtime.status_count ?? 0),
