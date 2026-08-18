@@ -142,7 +142,7 @@ assert.match(runEndUiSource, /saveSafariPlayableRun\(window\.localStorage,\s*cur
   "run-end home transition must persist archived Party/carryover state automatically");
 assert.match(runEndUiSource, /#new-run[\s\S]{0,300}stopImmediatePropagation\(\)/,
   "carryover pending must block destructive New Run click before preview clears save data");
-assert.match(runEndUiSource, /newRun\.disabled[\s\S]{0,160}mapless_carryover_pending/,
+assert.match(runEndUiSource, /mapless_carryover_pending[\s\S]{0,160}newRun\.disabled/,
   "carryover pending must visibly disable New Run entry");
 
 console.log("Safari failed Run -> last Pokemon KO -> mark run end -> finish/carryover home: ok");
