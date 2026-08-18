@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { materializeSafariCaptureRandomValues } from "../runtime/safari-normal-battle-lifecycle.js";
 
 globalThis.CustomEvent = class CustomEvent {
   constructor(type, init = {}) { this.type = type; this.detail = init.detail; }
@@ -13,6 +14,9 @@ class MemoryStorage {
   setItem(key, value) { this.map.set(key, String(value)); }
   removeItem(key) { this.map.delete(key); }
 }
+
+assert.deepEqual(materializeSafariCaptureRandomValues(1), [62501, 33003, 12172, 5192],
+  "normal Safari capture must materialize Ruby-compatible seeded pbRandom(65536) draws");
 
 const storage = new MemoryStorage();
 const runtime = web.createSafariPlayableRuntime();
@@ -33,8 +37,13 @@ const storedBefore = runtime.storage_system.boxes.reduce(
   (sum, box) => sum + box.slots.filter(Boolean).length,
   0,
 );
-const capture = await web.attemptSafariCapture(runtime);
-assert.equal(capture.result, "caught", "fixture capture must succeed");
+const capture = await web.attemptSafariCapture(runtime, {
+  captureRandomSeed: 1,
+  randomValues: [0, 0, 0, 0],
+});
+assert.equal(capture.result, "caught", "fixture capture must succeed with explicit deterministic test draws");
+assert.deepEqual(capture.randomValues, [0, 0, 0, 0],
+  "explicit test draws must remain authoritative without becoming a runtime default");
 assert.equal(state.battle.completed, true);
 assert.equal(state.battle.decision, 4);
 assert.equal(state.board_consumed[0], true);
@@ -83,4 +92,4 @@ assert.equal(restoredState.location, "day_board", "Continue must resume on Day B
 assert.equal(globalThis.__maplessSafariRuntime, restored,
   "loaded runtime must become the shared Safari runtime");
 
-console.log("Safari capture -> Party/Storage -> save -> Continue -> Board state restore: ok");
+console.log("Safari seeded capture -> Party/Storage -> save -> Continue -> Board state restore: ok");
