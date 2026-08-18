@@ -83,13 +83,13 @@ async function startPreview(action) {
   notice(action === "continue" ? "保存データを読み込んでいます…" : "Day Boardを準備しています…");
   if (!appPromise) {
     traceBattleStart("preview_app_import_start");
-    appPromise = import("./preview-app.js?v=20260818-1740");
+    appPromise = import("./preview-app.js?v=20260818-2059");
   }
   try {
     await appPromise;
     replacementPresentationPromise ??= import("./battle-player-replacement-presentation.js?v=20260818-1440");
     carryoverPresentationPromise ??= import("./carryover-next-run-presentation.js?v=20260818-1558");
-    battleTurnPhasePresentationPromise ??= import("./battle-turn-phase-presentation.js?v=20260818-1740");
+    battleTurnPhasePresentationPromise ??= import("./battle-turn-phase-presentation.js?v=20260818-2059");
     const [, carryoverPresentation] = await Promise.all([
       replacementPresentationPromise,
       carryoverPresentationPromise,
