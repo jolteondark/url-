@@ -18,6 +18,8 @@ assert.match(menu, /await useSafariBattleItem\(runtime, \{ itemId: use\.dataset\
   "Battle Bag must submit exactly one command to the existing battle-item owner");
 assert.match(menu, /setBattleControlsDisabled\(true\)/,
   "Battle controls must be locked before the Battle Bag owner is invoked");
+assert.match(menu, /event\.type === "battle_item"/,
+  "Battle Bag presentation must visibly apply the owner-reported heal before the foe response");
 assert.match(menu, /await playBattleItemPresentation\(runtime, result\.presentation \?\? \[\]\)/,
   "a consumed Battle Bag command must play the owner presentation before unlocking controls");
 assert.match(menu, /if \(result\.turnConsumed\) \{\s*close\(\);/s,
