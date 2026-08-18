@@ -67,4 +67,16 @@ if (hadEncounterCounter) assert.equal(state.preview_encounter_counter, previousE
 else assert.equal(Object.prototype.hasOwnProperty.call(state, "preview_encounter_counter"), false);
 assert.equal(globalThis.__maplessLastError, injected, "exact handoff failure must remain available for real-device diagnosis");
 
-console.log("Safari combat post-materialization failure -> atomic Board/Battle/RNG rollback: ok");
+// Retry the exact same selected encounter in the same browser-like session.
+// GENERAL masters/modules are already warm, so the retry must reuse the existing
+// owner, materialize the selected foe again, and commit the cell only on success.
+const retry = await activateSafariWebCombatCell(runtime, 0);
+assert.equal(retry.result, "dispatched", "retry must enter the same wild Battle owner");
+assert.equal(state.battle?.kind, "wild", "retry must materialize a wild Battle");
+assert.equal(state.battle?.board_index, 0, "retry must preserve the selected board cell");
+assert.equal(state.board_consumed[0], true, "successful retry must consume the cell exactly once");
+assert.equal(globalThis.__maplessLastError, null, "successful retry must clear the prior exact Error");
+assert.equal(demand.safariGeneralCombatReady("wild"), true, "retry must keep the selected GENERAL owner ready");
+assert.equal(demand.safariGeneralCombatReady("trainer"), false, "wild retry must not demand the unrelated trainer owner");
+
+console.log("Safari combat post-materialization failure -> atomic rollback -> same-cell retry: ok");
