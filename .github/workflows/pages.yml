@@ -79,11 +79,9 @@ jobs:
           cp index.html *.css *.js runtime-source.json manifest.webmanifest dist/
           cp -R runtime dist/runtime
           cp -R assets dist/assets
-          cp -R glucose dist/glucose
           test -f dist/species-sprite-atlas-bridge.js
           test -f dist/runtime/safari-species-sprite-atlas.js
           test -f dist/assets/general-front12/front-00.js
-          test -f dist/glucose/index.html
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4
         with:
