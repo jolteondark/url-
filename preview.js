@@ -77,12 +77,14 @@ async function startPreview(action) {
   try {
     await appPromise;
     replacementPresentationPromise ??= import("./battle-player-replacement-presentation.js?v=20260818-1440");
-    carryoverPresentationPromise ??= import("./carryover-next-run-presentation.js?v=20260818-1547");
-    await Promise.all([replacementPresentationPromise, carryoverPresentationPromise]);
+    carryoverPresentationPromise ??= import("./carryover-next-run-presentation.js?v=20260818-1552");
+    const [, carryoverPresentation] = await Promise.all([replacementPresentationPromise, carryoverPresentationPromise]);
     traceBattleStart("preview_app_import_ready");
     window.dispatchEvent(new CustomEvent("safari-preview-start", { detail: { action } }));
+    await carryoverPresentation.renderSafariCarryoverSelection?.();
     traceBattleStart("preview_start_dispatched", {
       runtimeReady: Boolean(globalThis.__maplessSafariRuntime?.variables?.mapless),
+      carryoverPanelVisible: Boolean(byId("carryover-next-run-panel")),
     });
     detachBootListeners();
     traceBattleStart("preview_ready_for_board_click");
