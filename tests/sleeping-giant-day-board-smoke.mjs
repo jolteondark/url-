@@ -13,3 +13,4 @@ const steal=resolveDayBoardSleepingGiantSlice({...base,board_visited:[false],boa
 assert.equal(steal.event_result.battle_requested,false);
 assert.equal(steal.event_result.reward_requested,true);
 console.log(JSON.stringify({ok:true,fight:fight.event_result,steal:steal.event_result}));
+await import('./safari-camp-next-day-single-input-smoke.mjs');
