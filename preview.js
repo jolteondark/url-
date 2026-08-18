@@ -72,7 +72,7 @@ async function startPreview(action) {
   notice(action === "continue" ? "保存データを読み込んでいます…" : "Day Boardを準備しています…");
   if (!appPromise) {
     traceBattleStart("preview_app_import_start");
-    appPromise = import("./preview-app.js?v=20260818-1440");
+    appPromise = import("./preview-app.js?v=20260818-1539");
   }
   try {
     await appPromise;
