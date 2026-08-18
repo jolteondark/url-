@@ -1,3 +1,4 @@
+import { shouldFreezeCanonicalBattleSprite } from "./battle-sprite-phase-gate.js";
 import { resolveInlineCanonicalBattleSprite } from "./runtime/safari-canonical-battle-sprite-inline.js";
 import { resolveSafariCanonicalBugBattleSprite } from "./runtime/safari-canonical-battle-sprite-bug.js";
 import { resolveSafariCanonicalFileBattleSprite } from "./runtime/safari-canonical-battle-sprite-assets.js";
@@ -98,10 +99,6 @@ function battleCard() {
   return document.getElementById("battle-card");
 }
 
-function turnPresentationResolving(card = battleCard()) {
-  return Boolean(card && !card.hidden && card.dataset.turnPhase === "resolving");
-}
-
 function render() {
   scheduled = false;
   ensureStyle();
@@ -112,7 +109,7 @@ function render() {
   // combatant's event queue. Keep the already rendered sprite stable until the
   // shared turn-phase contract leaves RESOLVING; otherwise a trainer reserve can
   // visually replace the foe before the defeated foe's hit/faint animation ends.
-  if (turnPresentationResolving(battle)) return;
+  if (shouldFreezeCanonicalBattleSprite(battle)) return;
 
   for (const side of SIDES) renderSide(side);
 }
@@ -129,7 +126,7 @@ function installPhaseResync() {
   const observer = new MutationObserver(() => {
     // Do not spin on repeated RESOLVING mutations. The one transition out of
     // RESOLVING schedules the runtime-owned sprite that is current at that time.
-    if (!turnPresentationResolving(card)) schedule();
+    if (!shouldFreezeCanonicalBattleSprite(card)) schedule();
   });
   observer.observe(card, {
     attributes: true,
