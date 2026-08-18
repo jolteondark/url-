@@ -147,7 +147,7 @@ function resolveWild(runtime, selectedMoveId) {
     turnCount: Math.max(0, Number(battle.turn ?? 1) - 1),
     canSwitchLax: false,
   });
-  const foeMoveId = choice.command === "struggle" ? "STRUGGLE" : choice.selectedMoveId;
+  const foeMoveId = choice.command === "struggle" ? "STRUGGLE" : choice.moveId;
   const resolved = resolveBrowserBattleRound({
     player,
     foe: battle.foe,
