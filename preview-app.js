@@ -37,7 +37,7 @@ const sleep = (milliseconds) => new Promise((resolve) => window.setTimeout(resol
 const moveId = (move) => typeof move === "string" ? move : move.id;
 const moneyFormat = new Intl.NumberFormat("ja-JP");
 const fixedShopModule = () => fixedShopModulePromise ??= import("./runtime/safari-village-fixed-shop-integration.js");
-const fleeModule = () => fleeModulePromise ??= import("./runtime/safari-flee-command.js");
+const fleeModule = () => fleeModulePromise ??= import("./runtime/safari-flee-command.js?v=20260818-1335");
 
 function mapless() {
   return runtime.variables.mapless;
