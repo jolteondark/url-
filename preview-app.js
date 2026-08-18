@@ -43,6 +43,11 @@ function mapless() {
   return runtime.variables.mapless;
 }
 
+function activeBattlePlayer(battle = mapless().battle) {
+  const index = Number(battle?.player_party_index ?? 0);
+  return runtime.player.party[index] ?? runtime.player.party[0];
+}
+
 function potionQuantity() {
   return runtime.bag.slots
     .filter((slot) => slot && slot[0] === "POTION")
@@ -203,7 +208,7 @@ function renderBattle() {
   const card = byId("battle-card");
   card.hidden = !battle;
   if (!battle) return;
-  const player = runtime.player.party[0];
+  const player = activeBattlePlayer(battle);
   const foe = battle.foe;
   byId("battle-title").textContent = battle.origin === "village_bounty"
     ? "Bounty Battle"
@@ -267,7 +272,8 @@ async function playPresentation(events) {
       note((SAFARI_MOVE_PRESENTATION[event.moveId]?.name ?? event.moveId) + "！");
     } else if (event.type === "damage_applied") {
       const target = byId(event.target + "-combatant");
-      const pokemon = event.target === "player" ? runtime.player.party[0] : mapless().battle.foe;
+      const battle = mapless().battle;
+      const pokemon = event.target === "player" ? activeBattlePlayer(battle) : battle.foe;
       byId(event.target + "-hp").textContent = event.hpAfter + " / " + pokemon.max_hp;
       byId(event.target + "-hp-bar").style.width = percent(event.hpAfter, pokemon.max_hp) + "%";
       target.classList.add("hit");
