@@ -78,7 +78,13 @@ async function playBattleItemPresentation(runtime, events = []) {
       notice: runtime?.variables?.mapless?.notice,
     });
     if (message && byId("battle-message")) byId("battle-message").textContent = message;
-    if (event.type === "move_started") {
+    if (event.type === "battle_item") {
+      const pokemon = runtime?.player?.party?.[Number(event.partyIndex ?? 0)];
+      const maxHp = Number(pokemon?.max_hp ?? 0);
+      if (byId("player-hp") && maxHp > 0) byId("player-hp").textContent = `${event.hpAfter} / ${maxHp}`;
+      if (byId("player-hp-bar") && maxHp > 0) byId("player-hp-bar").style.width = Math.max(0, Math.min(100, Number(event.hpAfter) / maxHp * 100)) + "%";
+      await sleep(260);
+    } else if (event.type === "move_started") {
       const actor = byId(event.actor + "-combatant");
       actor?.classList.add("lunge");
       await sleep(180);
