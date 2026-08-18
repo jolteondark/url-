@@ -64,6 +64,9 @@ export function buildBrowserBattleActionInput({ actor, target, move, moveIndex, 
   const accuracyInput = { baseAccuracy: move.accuracy };
   if (randomRoll !== null && randomRoll !== undefined) accuracyInput.randomRoll = Number(randomRoll);
   const action = { kind: "move", battlerIndex, targetBattlerIndex, actorHpBefore: actor.hp, actorTotalHp: actor.max_hp, moveIndex, moveId: move.id, accuracyInput, hpBefore: target.hp, totalHp: target.max_hp };
+  if (actor.status === "PARALYSIS") {
+    action.useMoveInput = { isStruggle: Boolean(struggle), tryUseMoveInput: { status: "PARALYSIS" } };
+  }
   if (fixedDamageUserLevel && !typing?.immune) {
     action.fixedDamageInput = {
       damage: Number(actor.level),

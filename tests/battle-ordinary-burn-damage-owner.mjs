@@ -46,3 +46,4 @@ assert.equal(healthySpecial.damage, burnedSpecial.damage, "burn must not halve o
 
 console.log("ordinary burn damage owner smoke: ok");
 await import("./battle-ordinary-thunder-wave-status-owner.mjs");
+await import("./battle-paralysis-stop-source-smoke.mjs");
