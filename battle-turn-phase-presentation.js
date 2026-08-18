@@ -48,9 +48,9 @@ function previewCommandBusy() {
 
 function phaseFor(battle) {
   if (!battle) return null;
-  if (resolving || previewCommandBusy()) return { key: "resolving", text: "行動処理中" };
   if (battle.completed) return { key: "result", text: "結果" };
   if (battle.player_replacement_required) return { key: "replacement", text: "交代選択" };
+  if (resolving || previewCommandBusy()) return { key: "resolving", text: "行動処理中" };
   return { key: "command", text: "コマンド選択" };
 }
 
@@ -108,10 +108,8 @@ function resolutionSettled() {
   const battle = battleState();
   const card = byId("battle-card");
   if (!battle) return Boolean(card?.hidden);
-
-  const previewBusy = previewCommandBusy();
-  if (previewBusy) return false;
   if (battle.completed || battle.player_replacement_required) return true;
+  if (previewCommandBusy()) return false;
   return Number(battle.turn ?? 0) !== Number(submittedTurn ?? 0);
 }
 
