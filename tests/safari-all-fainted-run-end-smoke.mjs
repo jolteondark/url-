@@ -130,22 +130,19 @@ assert.equal(Object.prototype.hasOwnProperty.call(restoredState, "preview_encoun
 assert.equal(restored.player.party.length, 0);
 assert.equal(restored.storage_system.boxes.reduce((sum, box) => sum + box.slots.filter(Boolean).length, 0), storedAfter);
 
-// Lock the Safari composition boundary without duplicating run state in UI.
-const previewSource = fs.readFileSync(new URL("../preview-app.js", import.meta.url), "utf8");
-assert.match(previewSource,
-  /battle\.return_target === "home"\s*\?\s*"ホームへ"/,
+// Safari composition consumes the shared state only; it must not own a second
+// run lifecycle. It is loaded with the deferred Board presentation.
+const runEndUiSource = fs.readFileSync(new URL("../run-end-presentation.js", import.meta.url), "utf8");
+const deferredSource = fs.readFileSync(new URL("../deferred-ui-loader.js", import.meta.url), "utf8");
+assert.match(deferredSource, /loadModule\("\.\/run-end-presentation\.js"\)/,
+  "run-end presentation must be part of the deferred Board UI bundle");
+assert.match(runEndUiSource, /return_target === "home"[\s\S]{0,180}"ホームへ"/,
   "completed all-fainted Battle must label its result transition as home");
-const returnStart = previewSource.indexOf('byId("return-board").addEventListener');
-const returnEnd = previewSource.indexOf('\nbyId("save-run").addEventListener', returnStart);
-assert.ok(returnStart >= 0 && returnEnd > returnStart, "Battle result return handler must exist");
-const returnHandler = previewSource.slice(returnStart, returnEnd);
-assert.match(returnHandler, /autoSaveIfRequested\(result,\s*"Run end auto-save"\)/,
-  "run-end return must persist archived Party/carryover state automatically");
-assert.match(previewSource,
-  /byId\("new-run"\)\.disabled\s*=\s*busy\s*\|\|\s*Boolean\(state\.mapless_carryover_pending\)/,
-  "carryover pending must disable destructive New Run entry");
-assert.match(previewSource,
-  /state\.mapless_carryover_pending[\s\S]{0,240}clearSafariPlayableRun|clearSafariPlayableRun[\s\S]{0,240}mapless_carryover_pending/,
-  "New Run handler must explicitly guard carryover pending before clearing saved Storage state");
+assert.match(runEndUiSource, /saveSafariPlayableRun\(window\.localStorage,\s*current\.runtime\)/,
+  "run-end home transition must persist archived Party/carryover state automatically");
+assert.match(runEndUiSource, /#new-run[\s\S]{0,300}stopImmediatePropagation\(\)/,
+  "carryover pending must block destructive New Run click before preview clears save data");
+assert.match(runEndUiSource, /newRun\.disabled[\s\S]{0,160}mapless_carryover_pending/,
+  "carryover pending must visibly disable New Run entry");
 
 console.log("Safari failed Run -> last Pokemon KO -> mark run end -> finish/carryover home: ok");
