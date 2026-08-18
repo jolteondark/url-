@@ -3,6 +3,7 @@ import { routeCaughtQueueToPartyStorage } from "./caught-queue-party-storage.js"
 import { resolveDayBoardPlayableTurn } from "./mapless-day-board-playable-turn.js";
 import { RubyMT19937Random } from "./ruby-mt19937-random.js";
 import { SAFARI_SPECIES_MASTERS } from "./safari-playable-data.js";
+import { resolveSafariNormalWildOpponentResponse } from "./safari-normal-battle-round.js";
 
 function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
@@ -131,17 +132,21 @@ export function attemptSafariCapture(runtime, { captureRandomSeed = browserCaptu
   });
 
   if (capture.result !== "caught") {
-    state.notice = "捕獲結果: " + capture.result;
-    state.last_operations = [...capture.operations];
+    const response = resolveSafariNormalWildOpponentResponse(runtime);
+    const operations = [...capture.operations, ...(response.operations ?? [])];
+    battle.last_operations = operations;
+    state.last_operations = operations;
+    if (!battle.completed) state.notice = "捕獲結果: " + capture.result;
     return {
       runtime,
       result: capture.result,
-      operations: capture.operations,
-      presentation: [],
+      operations,
+      presentation: response.presentation ?? [],
       calculation: capture.capture,
       captureRandomSeed: normalizedCaptureSeed,
       randomValues: captureRandomValues,
-      persistenceRequested: requestsSave(capture.operations),
+      opponentResponse: response,
+      persistenceRequested: requestsSave(operations),
     };
   }
 

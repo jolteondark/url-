@@ -505,7 +505,8 @@ byId("capture").addEventListener("click", async () => {
   try {
     const result = await attemptSafariCapture(runtime);
     await playPresentation(result.presentation);
-    note("捕獲先: " + result.destination);
+    if (result.result === "caught") note("捕獲先: " + result.destination);
+    else note("Capture: " + result.result);
     autoSaveIfRequested(result, "Capture result auto-save");
   } catch (error) {
     note("Capture error: " + (error?.message ?? error));
