@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { materializeSeededAccuracyDamageCanonical } from "../runtime/battle-core-seeded-accuracy-damage.js";
 
 const facade = fs.readFileSync(new URL("../runtime/safari-web-playable-integration.js", import.meta.url), "utf8");
 const round = fs.readFileSync(new URL("../runtime/safari-normal-battle-round.js", import.meta.url), "utf8");
@@ -25,6 +26,16 @@ assert.match(round, /resolveBrowserBattleRound/);
 assert.match(round, /resolveBrowserTrainerBattleRound/);
 assert.match(round, /resolveBrowserOpponentMoveChoiceCanonical/);
 assert.doesNotMatch(round, /safari-playable-integration-(?:base|core|legacy|pre-wounded|wounded|boundary)/);
+assert.doesNotMatch(round, /playerRandomRoll\s*:\s*0/,
+  "direct normal Battle must not override the canonical seeded player accuracy roll with zero");
+assert.doesNotMatch(round, /foeRandomRoll\s*:\s*0/,
+  "direct normal Battle must not override the canonical seeded foe accuracy roll with zero");
+const seededAccuracy = materializeSeededAccuracyDamageCanonical({
+  combatRandomSeed: 1,
+  rounds: [{ actions: [{ kind: "move", accuracyInput: { baseAccuracy: 100 } }] }],
+});
+assert.equal(seededAccuracy.rounds[0].actions[0].accuracyInput.randomRoll, 37,
+  "missing direct-owner accuracy rolls must remain owned by the Ruby-compatible seeded Battle Core RNG");
 assert.match(lifecycle, /resolveCaptureFlow/);
 assert.match(lifecycle, /routeCaughtQueueToPartyStorage/);
 assert.match(lifecycle, /resolveDayBoardPlayableTurn/);
@@ -33,4 +44,4 @@ assert.match(finalizer, /resolveExpLevelMoveFlow/);
 assert.match(finalizer, /trainer_prize_money/);
 assert.match(finalizer, /givePotion/);
 
-console.log("Safari normal Board start/round/lifecycle are eagerly bound direct owners with no interaction-time migration import: ok");
+console.log("Safari normal Board start/round/lifecycle are eagerly bound direct owners with canonical seeded accuracy ownership: ok");

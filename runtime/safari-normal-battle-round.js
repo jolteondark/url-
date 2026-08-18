@@ -76,8 +76,6 @@ function resolveTrainer(runtime, selectedMoveId) {
       foeActivePartyIndex: Number(battle.trainer_party_index ?? 0),
       selectedMoveId,
       moveMasters: SAFARI_MOVE_MASTERS,
-      playerRandomRoll: 0,
-      foeRandomRoll: 0,
       playerBattleExpInput: normalBattleExpInput(player, defeatedFoe, true),
     },
     ownedOpponentInput: {
@@ -159,8 +157,6 @@ function resolveWild(runtime, selectedMoveId) {
     selectedMoveId,
     foeMoveId,
     moveMasters: SAFARI_MOVE_MASTERS,
-    playerRandomRoll: 0,
-    foeRandomRoll: 0,
     playerBattleExpInput: normalBattleExpInput(player, defeatedFoe, false),
   });
   const handoff = resolved.battleContinuationHandoff;
