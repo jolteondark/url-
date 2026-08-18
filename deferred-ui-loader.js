@@ -45,7 +45,7 @@ async function loadMenuUi() {
   loadStyle("./bridge-shell.css");
   loadStyle("./game-menu.css");
   await Promise.all([
-    loadModule("./game-menu-bridge.js"),
+    loadModule("./game-menu-bridge.js?v=20260819-0115"),
     loadModule("./party-panel-bridge.js"),
     loadModule("./storage-panel-bridge.js"),
     loadModule("./party-storage-controls-bridge.js"),
