@@ -3,7 +3,7 @@ import { updatePokemonRuntime } from "./pokemon-runtime.js";
 
 // Canonical PBS/items.txt source-v0.9.108:
 // POTION: FieldUse=OnPokemon, BattleUse=OnPokemon, restores 20 HP.
-const FIELD_ITEM_EFFECTS = Object.freeze({
+const ITEM_EFFECTS = Object.freeze({
   POTION: Object.freeze({ kind: "heal_hp", amount: 20, revive: false }),
 });
 
@@ -22,15 +22,11 @@ function itemQuantity(slots, itemId) {
   }, 0);
 }
 
-export function useSafariBagItemOnPartyPokemon(runtime, { itemId, partyIndex } = {}) {
+export function applySafariBagItemToPartyPokemon(runtime, { itemId, partyIndex } = {}) {
   const state = stateOf(runtime);
   const id = String(itemId ?? "").toUpperCase();
-  const effect = FIELD_ITEM_EFFECTS[id];
+  const effect = ITEM_EFFECTS[id];
   if (!effect) return { runtime, result: "unsupported_item", used: false, operations: [] };
-  if (state.battle && !state.battle.completed) {
-    return { runtime, result: "battle_active", used: false, operations: [] };
-  }
-  if (state.shop) return { runtime, result: "shop_active", used: false, operations: [] };
 
   const index = Number(partyIndex);
   if (!Number.isInteger(index) || index < 0 || index >= (runtime.player?.party?.length ?? 0)) {
@@ -55,13 +51,12 @@ export function useSafariBagItemOnPartyPokemon(runtime, { itemId, partyIndex } =
     }
     const hpAfter = Math.min(maxHp, hpBefore + effect.amount);
     const removed = remove(runtime.bag.slots, id, 1);
-    if (!removed) throw new Error(`failed to consume ${id} after successful field-item validation`);
+    if (!removed) throw new Error(`failed to consume ${id} after successful item validation`);
     runtime.player.party[index] = updatePokemonRuntime(pokemon, { hp: hpAfter });
     const operations = [
       { op: "use_item_on_pokemon", item: id, party_index: index },
       { op: "heal_hp", item: id, party_index: index, hp_before: hpBefore, hp_after: hpAfter, amount: hpAfter - hpBefore },
       { op: "remove_item", item: id, quantity: 1 },
-      { op: "request_save" },
     ];
     state.last_operations = operations;
     state.notice = `${pokemon.nickname ?? pokemon.species}のHPが${hpAfter - hpBefore}回復しました。`;
@@ -75,9 +70,21 @@ export function useSafariBagItemOnPartyPokemon(runtime, { itemId, partyIndex } =
       hpAfter,
       operations,
       notice: state.notice,
-      persistenceRequested: true,
     };
   }
 
   return { runtime, result: "unsupported_item", used: false, operations: [] };
+}
+
+export function useSafariBagItemOnPartyPokemon(runtime, options = {}) {
+  const state = stateOf(runtime);
+  if (state.battle && !state.battle.completed) {
+    return { runtime, result: "battle_active", used: false, operations: [] };
+  }
+  if (state.shop) return { runtime, result: "shop_active", used: false, operations: [] };
+  const applied = applySafariBagItemToPartyPokemon(runtime, options);
+  if (!applied.used) return applied;
+  const operations = [...applied.operations, { op: "request_save" }];
+  state.last_operations = operations;
+  return { ...applied, operations, persistenceRequested: true };
 }
