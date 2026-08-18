@@ -27,6 +27,16 @@ function captureBattleRenderError(event) {
   });
 }
 
+function rememberPreviewStartError(error) {
+  const exact = error instanceof Error ? error : new Error(String(error));
+  const state = globalThis.__maplessSafariRuntime?.variables?.mapless ?? null;
+  if (state?.mapless_carryover_pending && state.location === "home" && exact.state == null) {
+    exact.state = typeof structuredClone === "function" ? structuredClone(state) : { ...state };
+  }
+  globalThis.__maplessLastError = exact;
+  return exact;
+}
+
 function notice(text) {
   const node = byId("notice");
   if (node) node.textContent = text;
@@ -107,9 +117,9 @@ async function startPreview(action) {
     replacementPresentationPromise = null;
     carryoverPresentationPromise = null;
     battleTurnPhasePresentationPromise = null;
-    globalThis.__maplessLastError = error;
-    notice("ゲームの読み込みに失敗しました: " + (error?.message ?? error) + "。もう一度開始できます。");
-    console.error("[Mapless] preview app load failed", error);
+    const diagnosed = rememberPreviewStartError(error);
+    notice("ゲームの読み込みに失敗しました: " + diagnosed.message + "。もう一度開始できます。");
+    console.error("[Mapless] preview app load failed", diagnosed);
   }
 }
 
