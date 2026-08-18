@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { materializeSeededAccuracyDamageCanonical } from "../runtime/battle-core-seeded-accuracy-damage.js";
 import { prepareCombatTurnInputCanonical } from "../runtime/battle-core-combat-turn.js";
+import { prepareBattleRuntimeScheduledCombat } from "../runtime/battle-runtime-integration.js";
 
 const action = () => ({
   kind: "move",
@@ -29,4 +30,24 @@ assert.equal(explicit.rounds[0].actions[1].accuracyInput.randomRoll, 12);
 
 const prepared = prepareCombatTurnInputCanonical({ combatRandomSeed: 1, rounds: [{ actions: [] }] });
 assert.equal(prepared.combatRandomSeed, 1);
+
+const scheduled = prepareBattleRuntimeScheduledCombat({
+  battleInput: {
+    combatRandomSeed: 1,
+    rounds: [{
+      commandEntries: [],
+      priorityEntries: [],
+      attackPhaseInput: { battlers: [] },
+      actions: [action(), action()],
+    }],
+  },
+});
+assert.equal(scheduled.preparedBattleInput.combatRandomSeed, 1,
+  "attack-phase scheduling must preserve the canonical combat RNG seed");
+assert.deepEqual(
+  scheduled.preparedBattleInput.rounds[0].actions.map((entry) => [entry.accuracyInput.randomRoll, entry.damageInput.damageMultiplierInput.randomRoll]),
+  [[37, 11], [12, 8]],
+  "scheduled ordinary combat must materialize seeded accuracy and damage variance rather than defaulting missing rolls to zero",
+);
+
 console.log("seeded combat rolls smoke PASS");
