@@ -1,3 +1,6 @@
+import { calculateMaplessBattleExp } from "./mapless-experience-rules.js";
+import { levelFromExp, maximumExpForGrowthRate } from "./pokemon-growth-rate.js";
+
 function asInt(value, field) {
   const n = Number(value);
   if (!Number.isInteger(n)) throw new TypeError(`${field} must be an integer`);
@@ -9,6 +12,8 @@ function rubyMulDivFloor(value, numerator, denominator) {
 }
 
 export function calculateExpBeforeGrowthClamp(input) {
+  if (input.maplessExperienceRules) return calculateMaplessBattleExp(input);
+
   const defeatedLevel = asInt(input.defeatedLevel, "defeatedLevel");
   const baseExp = asInt(input.baseExp, "baseExp");
   const numParticipants = asInt(input.numParticipants ?? 0, "numParticipants");
@@ -102,7 +107,8 @@ export function resolveExpLevelMoveFlow(input) {
     moves: [...(input.pokemon.moves ?? [])],
   };
   const operations = [];
-  const maxExp = asInt(input.maximumExp, "maximumExp");
+  const growthRate = input.growthRate == null ? null : String(input.growthRate);
+  const maxExp = growthRate ? maximumExpForGrowthRate(growthRate) : asInt(input.maximumExp, "maximumExp");
   const maxMoves = asInt(input.maxMoves ?? 4, "maxMoves");
 
   if (pokemon.exp >= maxExp) {
@@ -129,7 +135,9 @@ export function resolveExpLevelMoveFlow(input) {
     return { result: "shadow", expGained, pokemon, operations };
   }
 
-  const newLevel = levelFromThresholds(expFinal, input.levelThresholds, pokemon.level);
+  const newLevel = growthRate
+    ? levelFromExp(growthRate, expFinal)
+    : levelFromThresholds(expFinal, input.levelThresholds, pokemon.level);
   if (newLevel < pokemon.level) throw new Error("new level cannot be below current level");
   pokemon.exp = expFinal;
   const movesByLevel = input.movesByLevel ?? {};
