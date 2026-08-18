@@ -5,7 +5,13 @@ import { attemptSafariFlee } from "../runtime/safari-flee-command.js";
 globalThis.CustomEvent = class CustomEvent {
   constructor(type, init = {}) { this.type = type; this.detail = init.detail; }
 };
-globalThis.window = { dispatchEvent() { return true; } };
+const runtimeChangedEvents = [];
+globalThis.window = {
+  dispatchEvent(event) {
+    runtimeChangedEvents.push(event);
+    return true;
+  },
+};
 
 const web = await import("../runtime/safari-web-playable-integration.js");
 class MemoryStorage {
@@ -79,7 +85,17 @@ assert.equal(failed.presentation?.filter((event) => event.type === "battle_resul
 
 // Browser adaptation of canonical MaplessCarryover.finish_run: dismissing the
 // completed result performs the deferred archive/reset and enters home.
+// Drain the combat-start microtask first so this acceptance measures only the
+// return-to-home facade publication.
+await Promise.resolve();
+runtimeChangedEvents.length = 0;
+assert.equal(globalThis.__maplessSafariRuntime, runtime,
+  "live Safari runtime must still be the caller before the Run End return");
 const returned = await web.returnSafariToDayBoard(runtime);
+assert.equal(globalThis.__maplessSafariRuntime, runtime,
+  "returnSafariToDayBoard must keep the live global runtime on the caller object");
+assert.equal(runtimeChangedEvents.filter((event) => event?.type === "safari-runtime-changed").length, 1,
+  "Run End return must publish exactly one safari-runtime-changed event");
 assert.equal(returned.target, "home", "run-end result must transition to home");
 assert.equal(state.battle, null);
 assert.equal(state.location, "home");
