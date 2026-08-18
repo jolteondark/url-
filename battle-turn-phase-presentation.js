@@ -37,9 +37,12 @@ function setCommandLock(locked) {
 
 function phaseFor(battle) {
   if (!battle) return null;
+  // A submitted command owns the visible phase until preview-app has finished
+  // presenting the whole turn. Battle state may already be terminal/replacement
+  // while animations are still running, so RESOLVING takes precedence here.
+  if (resolving) return { key: "resolving", text: `Turn ${Number(submittedTurn ?? battle.turn ?? 1)} • 行動処理中` };
   if (battle.completed) return { key: "result", text: "結果" };
   if (battle.player_replacement_required) return { key: "replacement", text: `Turn ${Number(battle.turn ?? 1)} • 交代選択` };
-  if (resolving) return { key: "resolving", text: `Turn ${Number(submittedTurn ?? battle.turn ?? 1)} • 行動処理中` };
   return { key: "command", text: `Turn ${Number(battle.turn ?? 1)} • コマンド選択` };
 }
 
@@ -59,6 +62,11 @@ function renderPhase() {
   if (!card) return;
   const phase = ensurePhaseNode();
   if (!battle) {
+    if (resolving && !card.hidden) {
+      paintPhaseOnly("resolving", `Turn ${Number(submittedTurn ?? 1)} • 行動処理中`);
+      setCommandLock(true);
+      return;
+    }
     resolving = false;
     submittedTurn = null;
     if (phase) phase.hidden = true;
@@ -76,10 +84,16 @@ function renderPhase() {
 function resolutionSettled() {
   if (!resolving) return false;
   const battle = battleState();
-  if (!battle) return true;
-  if (battle.completed || battle.player_replacement_required) return true;
+  const card = byId("battle-card");
+
+  // Successful flee may clear Battle before preview-app reaches its final render.
+  // In that path capture.disabled can remain stale, so the card becoming hidden
+  // is the reliable signal that the visible Battle presentation has finished.
+  if (!battle) return Boolean(card?.hidden);
+
   const previewBusy = Boolean(byId("capture")?.disabled);
   if (previewBusy) return false;
+  if (battle.completed || battle.player_replacement_required) return true;
   return Number(battle.turn ?? 0) !== Number(submittedTurn ?? 0);
 }
 
