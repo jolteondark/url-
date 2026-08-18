@@ -5,8 +5,11 @@ function fallbackSideName(side) {
 }
 
 export function formatSafariBattlePresentationEvent(event = {}, context = {}) {
-  const actorName = context.actorName || fallbackSideName(event.actor);
-  const targetName = context.targetName || fallbackSideName(event.target);
+  // Normal-round events carry the pre-round identity snapshot. Prefer it over
+  // live DOM/state because trainer replacement can already be committed before
+  // the old foe's presentation queue is played.
+  const actorName = event.actorSpecies || context.actorName || fallbackSideName(event.actor);
+  const targetName = event.targetSpecies || context.targetName || fallbackSideName(event.target);
 
   switch (event.type) {
     case "move_started": {
@@ -22,7 +25,7 @@ export function formatSafariBattlePresentationEvent(event = {}, context = {}) {
     case "trainer_next":
       return `${event.trainer || "トレーナー"}は${event.species || "次のポケモン"}を繰り出した！`;
     case "capture":
-      return event.result === "caught" ? `${targetName}を捕まえた！` : null;
+      return event.result === "caught" ? `${event.targetSpecies || targetName}を捕まえた！` : null;
     case "battle_result":
       return context.notice || null;
     default:
