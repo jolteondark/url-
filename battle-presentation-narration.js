@@ -25,7 +25,9 @@ export function formatSafariBattlePresentationEvent(event = {}, context = {}) {
     case "trainer_next":
       return `${event.trainer || "トレーナー"}は${event.species || "次のポケモン"}を繰り出した！`;
     case "capture":
-      return event.result === "caught" ? `${event.targetSpecies || targetName}を捕まえた！` : null;
+      return event.result === "caught"
+        ? `${event.targetSpecies || targetName}を捕まえた！`
+        : `${event.targetSpecies || targetName}を捕まえられなかった！`;
     case "battle_result":
       return context.notice || null;
     default:
