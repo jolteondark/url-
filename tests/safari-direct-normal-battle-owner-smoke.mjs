@@ -122,3 +122,4 @@ for (const kind of ["wild", "trainer"]) {
 delete SAFARI_MOVE_MASTERS[STATUS_TEST_MOVE];
 
 console.log("Safari normal Board start/round/lifecycle are direct owners; seeded accuracy and Status no-damage are guarded: ok");
+await import("./safari-normal-battle-type-effectiveness-smoke.mjs");

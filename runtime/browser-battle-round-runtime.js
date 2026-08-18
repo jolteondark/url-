@@ -3,6 +3,8 @@ import { resolveBattleRuntimeIntegration } from "./battle-runtime-integration.js
 import { pokemonMoveTotalPp } from "./pokemon-runtime.js";
 import { STRUGGLE_MOVE_CANONICAL } from "./battle-core-struggle-command.js";
 import { buildBrowserBattleContinuationHandoff, materializeBattleParty, prepareBrowserPartyAwareJudgeStates } from "./browser-battle-party-judge.js";
+import { resolveCanonicalBattleTypingV108 } from "./canonical-type-effectiveness-v108.js";
+import { safariGeneralPokemonTypesV108 } from "./safari-general-species-type-facts.js";
 
 function moveId(move) { return typeof move === "string" ? move : move?.id; }
 function requireMoveMaster(moveMasters, id) {
@@ -40,11 +42,58 @@ function resolveRoundMove({ pokemon, selectedMoveId, moveMasters, label, autoStr
   if (runtimeMove.pp <= 0) throw new RangeError("selected move has no PP");
   return { moveIndex, move, struggle: false };
 }
-function actionInput({ actor, target, move, moveIndex, battlerIndex, targetBattlerIndex, randomRoll = null, reflectPp, struggle = false }) {
+function resolveBattleTypes(pokemon) {
+  if (Array.isArray(pokemon?.types) && pokemon.types.length >= 1 && pokemon.types.length <= 2) return pokemon.types;
+  try {
+    return safariGeneralPokemonTypesV108(pokemon);
+  } catch (error) {
+    if (error instanceof RangeError) return null;
+    throw error;
+  }
+}
+export function buildBrowserBattleActionInput({ actor, target, move, moveIndex, battlerIndex, targetBattlerIndex, randomRoll = null, reflectPp, struggle = false }) {
   const special = move.category === "Special";
+  const damagingMove = move.category !== "Status" && Number(move.power ?? 0) > 0;
+  const actorTypes = resolveBattleTypes(actor);
+  const targetTypes = resolveBattleTypes(target);
+  const typing = !struggle && damagingMove && move.type && actorTypes && targetTypes
+    ? resolveCanonicalBattleTypingV108(move.type, actorTypes, targetTypes)
+    : null;
   const accuracyInput = { baseAccuracy: move.accuracy };
   if (randomRoll !== null && randomRoll !== undefined) accuracyInput.randomRoll = Number(randomRoll);
-  const action = { kind: "move", battlerIndex, targetBattlerIndex, actorHpBefore: actor.hp, actorTotalHp: actor.max_hp, moveIndex, moveId: move.id, accuracyInput, damageInput: { level: actor.level, baseDamage: move.power, attack: actor.stats[special ? "SPECIAL_ATTACK" : "ATTACK"], defense: target.stats[special ? "SPECIAL_DEFENSE" : "DEFENSE"], attackStageIndex: 6, defenseStageIndex: 6, damageMultiplierInput: { type: move.type ?? null, physicalMove: move.category === "Physical", specialMove: special } }, hpBefore: target.hp, totalHp: target.max_hp };
+  const action = { kind: "move", battlerIndex, targetBattlerIndex, actorHpBefore: actor.hp, actorTotalHp: actor.max_hp, moveIndex, moveId: move.id, accuracyInput, hpBefore: target.hp, totalHp: target.max_hp };
+  if (!(typing?.immune && damagingMove)) {
+    action.damageInput = {
+      level: actor.level,
+      baseDamage: move.power,
+      attack: actor.stats[special ? "SPECIAL_ATTACK" : "ATTACK"],
+      defense: target.stats[special ? "SPECIAL_DEFENSE" : "DEFENSE"],
+      attackStageIndex: 6,
+      defenseStageIndex: 6,
+      damageMultiplierInput: {
+        type: move.type ?? null,
+        physicalMove: move.category === "Physical",
+        specialMove: special,
+        ...(typing ? { userHasType: typing.userHasType, typeMod: typing.multiplier } : {}),
+      },
+    };
+  }
+  if (typing) action.typeEffectivenessResolution = typing;
+  if (typing?.immune && damagingMove) {
+    // Immunity is a target-success fact, not a zero damage multiplier. The
+    // canonical damage owner clamps final damage to at least 1, so route the
+    // immunity through pbSuccessCheckAgainstTarget's existing gate and omit
+    // damageInput for the unaffected target.
+    action.hitLoopInput = {
+      targetIndexes: [targetBattlerIndex],
+      moveTargetCount: 1,
+      numHits: 1,
+      targetChecks: [{
+        index: targetBattlerIndex,
+        initialSuccessCheckInput: { damagingMove: true, typeIneffective: true, typeMod: 0 },
+      }],
+    };
+  }
   if (struggle) { action.specialUsage = true; action.selfDamageAfterHit = Math.round(Number(actor.max_hp) / 4); action.registerSelfDamage = false; }
   if (reflectPp) {
     const pokemonMove = structuredClone(actor.moves[moveIndex]);
@@ -105,8 +154,8 @@ export function resolveBrowserBattleRound({ player, foe, playerParty = null, foe
   const selection = !playerResolved || playerResolved.struggle ? { result: null, operations: [] } : resolveBattleFightMenu({ idxBattler: 0, moves: player.moves.map((move) => { const id = moveId(move); return { id, name: requireMoveMaster(moveMasters, id).name, pp: Number(move.pp) }; }), selections: [playerMoveIndex], accepted: { [playerMoveIndex]: true } });
   const commandEntry = (battlerIndex, ownedByPlayer, resolved, targetIndex) => resolved.struggle ? { battlerIndex, ownedByPlayer, canShowFightMenu: false, struggleMoveId: "STRUGGLE", targetIndex } : { battlerIndex, ownedByPlayer, selectedMoveIndex: resolved.moveIndex, selectedMoveId: resolved.move.id, targetIndex };
   const actions = [
-    playerResolved ? actionInput({ actor: player, target: foe, move: playerMove, moveIndex: playerMoveIndex, battlerIndex: 0, targetBattlerIndex: 1, randomRoll: playerRandomRoll, reflectPp: !playerResolved.struggle, struggle: playerResolved.struggle }) : null,
-    actionInput({ actor: foe, target: player, move: foeMove, moveIndex: foeMoveIndex, battlerIndex: 1, targetBattlerIndex: 0, randomRoll: foeRandomRoll, reflectPp: !foeResolved.struggle, struggle: foeResolved.struggle }),
+    playerResolved ? buildBrowserBattleActionInput({ actor: player, target: foe, move: playerMove, moveIndex: playerMoveIndex, battlerIndex: 0, targetBattlerIndex: 1, randomRoll: playerRandomRoll, reflectPp: !playerResolved.struggle, struggle: playerResolved.struggle }) : null,
+    buildBrowserBattleActionInput({ actor: foe, target: player, move: foeMove, moveIndex: foeMoveIndex, battlerIndex: 1, targetBattlerIndex: 0, randomRoll: foeRandomRoll, reflectPp: !foeResolved.struggle, struggle: foeResolved.struggle }),
   ];
   const commandEntries = [
     ...(playerResolved ? [commandEntry(0, true, playerResolved, 1)] : []),
