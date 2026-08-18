@@ -42,9 +42,11 @@ battleMessage.textContent = "技を選んでください。";
 const moves = new FakeElement("moves");
 const capture = new FakeElement("capture");
 new FakeElement("flee");
+const returnBoard = new FakeElement("return-board");
 const moveButton = new FakeElement("move-button");
 moveButton.dataset.moveId = "TACKLE";
 moveButton.closest = (selector) => selector.includes("#moves button[data-move-id]") ? moveButton : null;
+returnBoard.closest = (selector) => selector === "#return-board" ? returnBoard : null;
 
 const documentStub = {
   getElementById(id) { return byId.get(id) ?? null; },
@@ -83,6 +85,11 @@ const flushFrames = () => {
 };
 const commandClick = () => ({
   target: moveButton,
+  preventDefault() { this.prevented = true; },
+  stopImmediatePropagation() { this.stopped = true; },
+});
+const returnClick = () => ({
+  target: returnBoard,
   preventDefault() { this.prevented = true; },
   stopImmediatePropagation() { this.stopped = true; },
 });
@@ -157,6 +164,7 @@ runOneFrame();
 assert.equal(battleCard.dataset.turnPhase, "result");
 assert.equal(phaseNode.textContent, "結果");
 assert.equal(battleMessage.textContent, "バトルに勝利した！", "RESULT must preserve preview-owned terminal notice");
+assert.equal(returnBoard.disabled, false, "RESULT return must remain available before submission");
 flushFrames();
 
 battle().completed = false;
@@ -205,14 +213,54 @@ runOneFrame();
 assert.equal(phaseNode.hidden, true);
 assert.equal(frames.length, 0);
 
+// Result -> Board is also a single-submit transition. Keep the visible result button
+// enabled until the first click, then lock it until the owner has removed Battle and
+// preview has hidden the card.
+globalThis.__maplessSafariRuntime.variables.mapless.battle = {
+  turn: 5,
+  completed: true,
+  player_replacement_required: false,
+};
+battleCard.hidden = false;
+returnBoard.hidden = false;
+returnBoard.disabled = false;
+returnBoard.inert = false;
+battleMessage.textContent = "バトルに勝利した！";
+windowListeners.get("safari-runtime-changed")();
+flushFrames();
+assert.equal(battleCard.dataset.turnPhase, "result");
+assert.equal(returnBoard.disabled, false);
+const firstReturn = returnClick();
+battleCard.listeners.get("click")(firstReturn);
+assert.equal(firstReturn.prevented, undefined, "first Result return must reach preview-app");
+assert.equal(phaseNode.textContent, "戻っています…");
+await Promise.resolve();
+assert.equal(returnBoard.disabled, true, "Result return locks before another tap can dispatch");
+assert.equal(returnBoard.inert, true);
+const duplicateReturn = returnClick();
+battleCard.listeners.get("click")(duplicateReturn);
+assert.equal(duplicateReturn.prevented, true, "duplicate Result return must be prevented");
+assert.equal(duplicateReturn.stopped, true, "duplicate Result return must not reach preview-app");
+globalThis.__maplessSafariRuntime.variables.mapless.battle = null;
+battleCard.hidden = false;
+windowListeners.get("safari-runtime-changed")();
+runOneFrame();
+assert.equal(phaseNode.textContent, "戻っています…", "return stays locked until Battle card is hidden");
+battleCard.hidden = true;
+runOneFrame();
+assert.equal(phaseNode.hidden, true);
+assert.equal(returnBoard.disabled, false);
+assert.equal(returnBoard.inert, false);
+assert.equal(frames.length, 0);
+
 const previewSource = fs.readFileSync(new URL("../preview.js", import.meta.url), "utf8");
 const indexSource = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const deferredSource = fs.readFileSync(new URL("../deferred-ui-loader.js", import.meta.url), "utf8");
 assert.match(previewSource, /preview-app\.js\?v=20260818-2318/,
   "public preview must require-load the current preview-app build");
-assert.match(previewSource, /battle-turn-phase-presentation\.js\?v=20260819-0322/);
-assert.match(indexSource, /preview\.js\?v=20260819-0322/);
-assert.match(indexSource, /build 20260819-0322/);
+assert.match(previewSource, /battle-turn-phase-presentation\.js\?v=20260819-0525/);
+assert.match(indexSource, /preview\.js\?v=20260819-0525/);
+assert.match(indexSource, /build 20260819-0525/);
 assert.doesNotMatch(deferredSource, /battle-turn-phase-presentation/);
 
-console.log("Safari Battle UI: move/Bag commands share one busy phase lifecycle: ok");
+console.log("Safari Battle UI: move/Bag/Result-return inputs share one busy phase lifecycle: ok");
