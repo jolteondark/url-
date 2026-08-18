@@ -524,6 +524,7 @@ byId("flee").addEventListener("click", async () => {
   try {
     const { attemptSafariFlee } = await fleeModule();
     const result = attemptSafariFlee(runtime);
+    await playPresentation(result.presentation ?? []);
     escaped = result.escaped;
     note(result.escaped ? "Battle: escaped" : "Battle: escape blocked");
     autoSaveIfRequested(result, "Battle flee auto-save");
