@@ -235,25 +235,33 @@ function renderBattle() {
   flee.textContent = canFlee ? "にげる" : "にげられない";
   byId("return-board").hidden = !battle.completed;
   byId("return-board").disabled = busy;
-  byId("return-board").textContent = battle.return_target === "village" ? "村へ戻る" : "Day Boardへ戻る";
+  byId("return-board").textContent = battle.return_target === "village"
+    ? "村へ戻る"
+    : battle.return_target === "home" ? "ホームへ" : "Day Boardへ戻る";
 }
 
 function render() {
   const state = mapless();
   byId("board-card").hidden = state.location === "village";
+  const boardTitle = byId("board-card")?.querySelector("h2");
+  if (boardTitle) boardTitle.textContent = state.location === "home" ? "Run End" : "Day Board";
   byId("day").textContent = String(state.day);
   byId("party").textContent = runtime.player.party.length + " / 6";
   byId("storage").textContent = String(storedCount());
   byId("bag").textContent = String(potionQuantity());
   byId("money").textContent = moneyFormat.format(Number(runtime.bag.money ?? 0)) + "円";
   byId("notice").textContent = state.notice;
-  byId("mode").textContent = state.battle ? "戦闘" : state.shop ? "ショップ" : state.location === "village" ? "村" : "探索";
+  byId("mode").textContent = state.battle
+    ? "戦闘"
+    : state.shop ? "ショップ"
+      : state.location === "village" ? "村"
+        : state.location === "home" ? "ラン終了" : "探索";
   try {
     byId("continue-run").disabled = busy || !hasSafariPlayableRun(window.localStorage);
   } catch (_) {
     byId("continue-run").disabled = true;
   }
-  byId("new-run").disabled = busy;
+  byId("new-run").disabled = busy || Boolean(state.mapless_carryover_pending);
   byId("save-run").disabled = busy;
   renderBoard();
   renderShop();
@@ -542,7 +550,8 @@ byId("return-board").addEventListener("click", async () => {
   try {
     const result = await returnSafariToDayBoard(runtime);
     target = result.target;
-    note((target === "village" ? "Village" : "Day Board") + " return / decision " + result.summary.decision);
+    autoSaveIfRequested(result, "Run end auto-save");
+    note((target === "village" ? "Village" : target === "home" ? "Home" : "Day Board") + " return / decision " + result.summary.decision);
   } catch (error) {
     note("Return error: " + (error?.message ?? error));
   }
@@ -575,6 +584,11 @@ byId("continue-run").addEventListener("click", () => {
 });
 
 byId("new-run").addEventListener("click", () => {
+  if (mapless().mapless_carryover_pending) {
+    note("ラン終了。次ランの持ち込み選択待ちです。");
+    render();
+    return;
+  }
   try { clearSafariPlayableRun(window.localStorage); } catch (_) {}
   runtime = createSafariPlayableRuntime();
   logLines = ["新規ランを開始しました。"];
@@ -598,6 +612,11 @@ window.addEventListener("safari-preview-start", (event) => {
     return;
   }
   if (event.detail?.action === "new") {
+    if (mapless().mapless_carryover_pending) {
+      note("ラン終了。次ランの持ち込み選択待ちです。");
+      render();
+      return;
+    }
     try { clearSafariPlayableRun(window.localStorage); } catch (_) {}
     runtime = createSafariPlayableRuntime();
     logLines = ["新規ランを開始しました。"];

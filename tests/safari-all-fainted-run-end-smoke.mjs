@@ -105,6 +105,7 @@ assert.deepEqual(state.board_revealed, []);
 assert.deepEqual(state.board_consumed, []);
 assert.deepEqual(state.board_visited, []);
 assert.equal(state.village, null, "finish_run must clear the old run village state");
+assert.equal(state.mapless_carry_class, "general", "finish_run must reset canonical carry class");
 assert.equal(returned.persistenceRequested, true,
   "canonical finish_run transition must request persistence");
 const homeCell = web.boardCellPresentation(runtime, 0);
@@ -130,21 +131,25 @@ assert.equal(Object.prototype.hasOwnProperty.call(restoredState, "preview_encoun
 assert.equal(restored.player.party.length, 0);
 assert.equal(restored.storage_system.boxes.reduce((sum, box) => sum + box.slots.filter(Boolean).length, 0), storedAfter);
 
-// Safari composition consumes the shared state only; it must not own a second
-// run lifecycle. It is loaded with the deferred Board presentation.
-const runEndUiSource = fs.readFileSync(new URL("../run-end-presentation.js", import.meta.url), "utf8");
-const deferredSource = fs.readFileSync(new URL("../deferred-ui-loader.js", import.meta.url), "utf8");
+// Critical persistence/guard behavior stays on preview-app itself rather than
+// an optional deferred presentation module.
+const previewSource = fs.readFileSync(new URL("../preview-app.js", import.meta.url), "utf8");
 const previewBootSource = fs.readFileSync(new URL("../preview.js", import.meta.url), "utf8");
-assert.match(deferredSource, /loadModule\("\.\/run-end-presentation\.js\?v=20260818-1407"\)/,
-  "run-end presentation must be part of the versioned deferred Board UI bundle");
-assert.match(runEndUiSource, /return_target === "home"[\s\S]{0,180}"ホームへ"/,
+assert.match(previewSource, /battle\.return_target === "home"\s*\?\s*"ホームへ"/,
   "completed all-fainted Battle must label its result transition as home");
-assert.match(runEndUiSource, /saveSafariPlayableRun\(window\.localStorage,\s*current\.runtime\)/,
-  "run-end home transition must persist archived Party/carryover state automatically");
-assert.match(runEndUiSource, /#new-run[\s\S]{0,300}stopImmediatePropagation\(\)/,
-  "carryover pending must block destructive New Run click after the app is loaded");
-assert.match(runEndUiSource, /mapless_carryover_pending[\s\S]{0,160}newRun\.disabled/,
-  "carryover pending must visibly disable New Run entry");
+assert.match(previewSource, /autoSaveIfRequested\(result,\s*"Run end auto-save"\)/,
+  "run-end result return must persist archived Party/carryover state on the core preview path");
+assert.match(previewSource,
+  /byId\("new-run"\)\.disabled\s*=\s*busy\s*\|\|\s*Boolean\(state\.mapless_carryover_pending\)/,
+  "carryover pending must visibly disable destructive New Run entry");
+const newRunStart = previewSource.indexOf('byId("new-run").addEventListener');
+const previewStartListener = previewSource.indexOf('\nwindow.addEventListener("safari-preview-start"', newRunStart);
+assert.ok(newRunStart >= 0 && previewStartListener > newRunStart, "New Run handler must exist");
+const newRunHandler = previewSource.slice(newRunStart, previewStartListener);
+const pendingGuard = newRunHandler.indexOf("mapless_carryover_pending");
+const destructiveClear = newRunHandler.indexOf("clearSafariPlayableRun");
+assert.ok(pendingGuard >= 0 && destructiveClear > pendingGuard,
+  "loaded app must guard carryover pending before any save-clearing New Run action");
 assert.match(previewBootSource,
   /loadSafariPlayableRun\(window\.localStorage\)[\s\S]{0,260}mapless_carryover_pending[\s\S]{0,220}startPreview\("continue"\)/,
   "boot New click must preserve a saved carryover-pending run instead of clearing it");
