@@ -6,6 +6,10 @@ const round = fs.readFileSync(new URL("../runtime/safari-normal-battle-round.js"
 const lifecycle = fs.readFileSync(new URL("../runtime/safari-normal-battle-lifecycle.js", import.meta.url), "utf8");
 const finalizer = fs.readFileSync(new URL("../runtime/safari-normal-battle-finalize.js", import.meta.url), "utf8");
 
+assert.match(facade, /import \{ activateSafariWebCombatCell \} from "\.\/safari-web-combat-start\.js";/,
+  "ordinary Board combat start must be bound before the user taps a cell");
+assert.doesNotMatch(facade, /import\("\.\/safari-web-combat-start\.js/,
+  "ordinary Board combat tap must not trigger a combat-start module import");
 assert.match(facade, /import \{ resolveSafariNormalBattleRound \} from "\.\/safari-normal-battle-round\.js";/,
   "ordinary Battle round owner must be bound during facade module evaluation");
 assert.match(facade, /from "\.\/safari-normal-battle-lifecycle\.js";/,
@@ -29,4 +33,4 @@ assert.match(finalizer, /resolveExpLevelMoveFlow/);
 assert.match(finalizer, /trainer_prize_money/);
 assert.match(finalizer, /givePotion/);
 
-console.log("Safari normal Battle round/lifecycle are eagerly bound direct owners with no command-time migration import: ok");
+console.log("Safari normal Board start/round/lifecycle are eagerly bound direct owners with no interaction-time migration import: ok");
