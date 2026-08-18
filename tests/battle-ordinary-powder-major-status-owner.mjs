@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { SAFARI_MOVE_MASTERS } from "../runtime/safari-playable-data.js";
 import { prepareReflectedMajorStatusBattleInput } from "../runtime/battle-major-status-runtime-preparation.js";
 import { commitBattleSystemsStatusRuntime } from "../runtime/battle-status-runtime-integration.js";
+import { materializeSeededSecondaryEffectsCanonical } from "../runtime/battle-core-seeded-secondary-effect.js";
 
 SAFARI_MOVE_MASTERS.STUNSPORE = Object.freeze({
   id: "STUNSPORE",
@@ -116,13 +117,70 @@ for (const types of [["POISON"], ["STEEL"]]) {
   assert.equal(prepared.rounds[0].actions[0].majorStatusEffectResolution?.reason, "type_immunity");
 }
 
+// Damaging major-status FunctionCodes use the existing seeded secondary owner,
+// then persist only if the move actually dealt damage.
+const thunderInput = { ...actionFor("THUNDERSHOCK", 100), combatRandomSeed: 7 };
 const damagingSecondary = prepareReflectedMajorStatusBattleInput({
-  battleInput: actionFor("THUNDERSHOCK", 100),
+  battleInput: thunderInput,
   pokemon: pokemon(),
   reflectedBattlerIndex: 1,
 });
-assert.equal(damagingSecondary.rounds[0].actions[0].battleStatusInput, undefined,
-  "damaging ParalyzeTarget moves must remain secondary effects, not become guaranteed major-status moves");
-assert.equal(damagingSecondary.rounds[0].actions[0].majorStatusEffectResolution, undefined);
+const damagingAction = damagingSecondary.rounds[0].actions[0];
+assert.equal(damagingAction.battleStatusInput?.newStatus, "PARALYSIS");
+assert.equal(damagingAction.battleStatusInput?.secondaryEffectTargetIndex, 0);
+assert.equal(damagingAction.secondaryEffectInputs?.[0]?.effectChance, 10);
+assert.equal(damagingAction.secondaryMajorStatusEffectResolution?.source?.functionCode, "ParalyzeTarget");
+assert.ok(Number.isInteger(damagingSecondary.secondaryEffectRandomSeed));
 
-console.log("ordinary Stun Spore / Poison Powder major status owner smoke: ok");
+damagingAction.secondaryEffectInputs[0].randomRoll = 0;
+const triggered = materializeSeededSecondaryEffectsCanonical(damagingSecondary);
+triggered.rounds[0].actions[0].accuracyResolution = { hit: true };
+assert.equal(triggered.rounds[0].actions[0].secondaryEffectInputs[0].triggered, true);
+const damagingTurn = { operations: [
+  { op: "use_move", round: 1, action: 0 },
+  { op: "reduce_hp", round: 1, action: 0, hpBefore: 50, hpAfter: 30, amount: 20 },
+] };
+const triggeredCommit = commitBattleSystemsStatusRuntime({
+  battleInput: triggered,
+  turn: damagingTurn,
+  pokemon: pokemon(),
+  reflectedBattlerIndex: 1,
+});
+assert.equal(triggeredCommit.pokemon.status, "PARALYSIS");
+
+const noDamageCommit = commitBattleSystemsStatusRuntime({
+  battleInput: triggered,
+  turn: executedTurn,
+  pokemon: pokemon(),
+  reflectedBattlerIndex: 1,
+});
+assert.equal(noDamageCommit.pokemon.status, "NONE",
+  "a triggered damaging secondary must not persist when the move dealt no damage");
+
+const missedRollInput = prepareReflectedMajorStatusBattleInput({
+  battleInput: thunderInput,
+  pokemon: pokemon(),
+  reflectedBattlerIndex: 1,
+});
+missedRollInput.rounds[0].actions[0].secondaryEffectInputs[0].randomRoll = 99;
+const missedRoll = materializeSeededSecondaryEffectsCanonical(missedRollInput);
+missedRoll.rounds[0].actions[0].accuracyResolution = { hit: true };
+assert.equal(missedRoll.rounds[0].actions[0].secondaryEffectInputs[0].triggered, false);
+const missedRollCommit = commitBattleSystemsStatusRuntime({
+  battleInput: missedRoll,
+  turn: damagingTurn,
+  pokemon: pokemon(),
+  reflectedBattlerIndex: 1,
+});
+assert.equal(missedRollCommit.pokemon.status, "NONE");
+
+const thunderVsGround = prepareReflectedMajorStatusBattleInput({
+  battleInput: thunderInput,
+  pokemon: ground,
+  reflectedBattlerIndex: 1,
+});
+assert.equal(thunderVsGround.rounds[0].actions[0].battleStatusInput, undefined,
+  "Electric damaging secondary must not roll through Ground move immunity");
+assert.equal(thunderVsGround.rounds[0].actions[0].secondaryMajorStatusEffectResolution?.reason, "move_type_immunity");
+
+console.log("ordinary direct + damaging secondary major status owner smoke: ok");

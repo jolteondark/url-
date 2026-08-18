@@ -36,25 +36,40 @@ export function majorStatusMoveEffectSourceCanonical(move) {
   return MAJOR_STATUS_MOVE_EFFECT_SOURCES_V108[move.function_code] ?? null;
 }
 
-export function resolveMajorStatusMoveEffectCanonical({ move, target, targetTypes, targetBattlerIndex, eligibilityFacts = {} } = {}) {
-  const source = majorStatusMoveEffectSourceCanonical(move);
-  if (!source) return null;
+export function secondaryMajorStatusMoveEffectSourceCanonical(move) {
+  if (!move || move.category === "Status" || Number(move.effect_chance ?? 0) <= 0) return null;
+  const source = MAJOR_STATUS_MOVE_EFFECT_SOURCES_V108[move.function_code] ?? null;
+  if (!source || source.functionCode === "ParalyzeTargetIfNotTypeImmune") return null;
+  return source;
+}
+
+function requireTargetTypes(targetTypes, functionCode) {
   if (!Array.isArray(targetTypes) || targetTypes.length < 1) {
-    throw new TypeError(`targetTypes are required for ${source.functionCode}`);
+    throw new TypeError(`targetTypes are required for ${functionCode}`);
   }
-  const typeResolution = source.requiresMoveTypeEffectiveness
-    ? resolveCanonicalTypeEffectivenessV108(move.type, targetTypes)
-    : null;
-  if (typeResolution?.immune) {
-    return { supported: true, canInflict: false, reason: "move_type_immunity", typeResolution, source };
-  }
-  const eligibility = canInflictMajorStatusCanonical({
+}
+
+function resolveEligibility(source, target, targetTypes, eligibilityFacts) {
+  return canInflictMajorStatusCanonical({
     newStatus: source.status,
     currentStatus: target?.status ?? "NONE",
     fainted: Number(target?.hp ?? 0) <= 0,
     targetTypes,
     ...eligibilityFacts,
   });
+}
+
+export function resolveMajorStatusMoveEffectCanonical({ move, target, targetTypes, targetBattlerIndex, eligibilityFacts = {} } = {}) {
+  const source = majorStatusMoveEffectSourceCanonical(move);
+  if (!source) return null;
+  requireTargetTypes(targetTypes, source.functionCode);
+  const typeResolution = source.requiresMoveTypeEffectiveness
+    ? resolveCanonicalTypeEffectivenessV108(move.type, targetTypes)
+    : null;
+  if (typeResolution?.immune) {
+    return { supported: true, canInflict: false, reason: "move_type_immunity", typeResolution, source };
+  }
+  const eligibility = resolveEligibility(source, target, targetTypes, eligibilityFacts);
   return {
     supported: true,
     canInflict: eligibility.canInflict,
@@ -70,6 +85,54 @@ export function resolveMajorStatusMoveEffectCanonical({ move, target, targetType
         targetBattlerIndex: Number(targetBattlerIndex),
         requiresAccuracyHit: true,
         commitOnExecutedHit: true,
+      },
+    } : {}),
+  };
+}
+
+export function resolveSecondaryMajorStatusMoveEffectCanonical({ move, target, targetTypes, targetBattlerIndex, eligibilityFacts = {} } = {}) {
+  const source = secondaryMajorStatusMoveEffectSourceCanonical(move);
+  if (!source) return null;
+  requireTargetTypes(targetTypes, source.functionCode);
+
+  // Damaging additional effects only exist after the damaging move itself can
+  // affect the target. This is deliberately stricter than Status-category
+  // ParalyzeTarget (e.g. Stun Spore can affect Ground): Thunder Shock must not
+  // roll paralysis against a Ground immunity.
+  const typeResolution = resolveCanonicalTypeEffectivenessV108(move.type, targetTypes);
+  if (typeResolution.immune) {
+    return { supported: true, canInflict: false, reason: "move_type_immunity", typeResolution, source };
+  }
+
+  const eligibility = resolveEligibility(source, target, targetTypes, eligibilityFacts);
+  const effectChance = Number(move.effect_chance ?? 0);
+  return {
+    supported: true,
+    canInflict: eligibility.canInflict,
+    reason: eligibility.reason,
+    eligibility,
+    typeResolution,
+    source,
+    effectChance,
+    ...(eligibility.canInflict ? {
+      secondaryEffectInput: {
+        // The seeded owner performs the canonical chance roll before the full
+        // hit resolution is materialized. Runtime commit below still requires
+        // an actual reduce_hp operation, so misses/protect/immunity cannot
+        // persist a status even if this deterministic roll triggers.
+        calcDamage: 1,
+        effectChance,
+        functionCode: source.functionCode,
+      },
+      battleStatusInput: {
+        kind: "inflict",
+        newStatus: source.status,
+        newStatusCount: 0,
+        targetBattlerIndex: Number(targetBattlerIndex),
+        requiresAccuracyHit: true,
+        commitOnExecutedHit: true,
+        secondaryEffectTargetIndex: 0,
+        requiresDamageDealt: true,
       },
     } : {}),
   };
