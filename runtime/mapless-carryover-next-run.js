@@ -1,6 +1,6 @@
 import { add as addBagItem } from "./bag-economy-mart-flow.js";
 import { ensureMaplessRunLifecycleState } from "./mapless-run-end-lifecycle.js";
-import { deleteStoredPokemon } from "./party-storage-management.js";
+import { deleteStoredPokemon, pokemonEgg } from "./party-storage-management.js";
 import { storeCaughtInBoxes } from "./party-storage-handoff.js";
 import {
   createPokemonRuntime,
@@ -36,10 +36,9 @@ function stateOf(runtime) {
   if (!state || typeof state !== "object" || Array.isArray(state)) throw new TypeError("runtime variables.mapless state is required");
   return state;
 }
-function isEgg(pokemon) { return Boolean(pokemon?.egg ?? pokemon?.is_egg ?? false); }
 
 export function classifySafariCarryover(pokemon) {
-  if (!pokemon || isEgg(pokemon)) return null;
+  if (!pokemon || pokemonEgg(pokemon)) return null;
   const species = String(pokemon.species ?? "").toUpperCase();
   if (!species) return null;
   if (PSEUDO_FINALS.has(species)) return "pseudo_final";
@@ -144,7 +143,7 @@ export async function prepareSafariNextRun(runtime, selection = null) {
     carryClass = classifySafariCarryover(candidate);
     if (!carryClass) return { result: "ineligible", operations: [] };
     keeper = await normalizeCarriedPokemon(candidate);
-    const deleted = deleteStoredPokemon(stagedStorage, selection);
+    const deleted = deleteStoredPokemon(stagedStorage, selection.boxIndex, selection.slotIndex);
     stagedStorage.boxes = deleted.state.boxes;
     stagedStorage.currentBox = deleted.state.currentBox;
     operations.push(...deleted.operations, { op: "choose_carryover", carryClass, box: selection.boxIndex, slot: selection.slotIndex });
