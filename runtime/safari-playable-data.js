@@ -75,6 +75,28 @@ export function safariGeneralMastersInstalled() {
   return generalInstalled;
 }
 
+export function safariCanonicalResetMoves(speciesId, level) {
+  if (!generalInstalled) throw new Error("Safari GENERAL masters are not installed");
+  const master = SAFARI_SPECIES_MASTERS[speciesId];
+  if (!master) throw new RangeError(`unknown Safari GENERAL species: ${speciesId}`);
+  if (!Array.isArray(master.level_moves)) throw new Error(`missing Safari GENERAL level-up moves: ${speciesId}`);
+  const currentLevel = Math.max(1, Math.min(100, Math.trunc(Number(level))));
+  const knowable = master.level_moves
+    .filter((entry) => entry.level >= 0 && entry.level <= currentLevel)
+    .map((entry) => entry.move);
+  const seen = new Set();
+  const dedupedReversed = [];
+  for (let index = knowable.length - 1; index >= 0; index -= 1) {
+    const move = knowable[index];
+    if (seen.has(move)) continue;
+    seen.add(move);
+    dedupedReversed.push(move);
+  }
+  const resolved = dedupedReversed.reverse().slice(-4);
+  if (resolved.length === 0) throw new Error(`canonical reset_moves produced no moves for ${speciesId} Lv.${currentLevel}`);
+  return resolved;
+}
+
 export const SAFARI_WILD_ENCOUNTER_PROJECTIONS = Object.freeze({
   ELECTRIC: Object.freeze({ required_type: "ELECTRIC", species_id: "PIKACHU", species_name: "PIKACHU", move_ids: Object.freeze(["THUNDERSHOCK"]), base_level_day_offset: 4, min_projected_base_level: 5, max_projected_base_level: 8, variance: 0, min_level: 1, max_level: 100 }),
 });
