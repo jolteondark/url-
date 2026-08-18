@@ -1,4 +1,5 @@
 import { resolveBrowserWildBattleCommand } from "./browser-battle-wild-command-handoff.js";
+import { resolveSafariNormalWildOpponentResponse } from "./safari-normal-battle-round.js";
 
 function browserRunSeed() {
   if (globalThis.crypto && typeof globalThis.crypto.getRandomValues === "function") {
@@ -82,11 +83,40 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
 
   if (resolved.result !== 1 || resolved.decision !== 3) {
     const blocked = resolved.result === 0;
+    if (resolved.reason === "escape_failed") {
+      const response = resolveSafariNormalWildOpponentResponse(runtime);
+      const operations = [baseOperation, ...(response.operations ?? [])];
+      battle.last_operations = operations;
+      state.last_operations = operations;
+      if (!battle.completed) state.notice = "逃げられなかった！";
+      return {
+        runtime,
+        escaped: false,
+        blocked: false,
+        resolution: resolved,
+        availability: command.availability,
+        terminalStateHandoff: command.terminalStateHandoff,
+        opponentResponse: response,
+        operations,
+        presentation: response.presentation ?? [],
+        persistenceRequested: Boolean(response.persistenceRequested),
+      };
+    }
     state.notice = blocked ? "この戦闘からは逃げられない！" : "逃げられなかった！";
     const operations = [baseOperation];
     battle.last_operations = operations;
     state.last_operations = operations;
-    return { runtime, escaped: false, blocked, resolution: resolved, availability: command.availability, terminalStateHandoff: command.terminalStateHandoff, operations };
+    return {
+      runtime,
+      escaped: false,
+      blocked,
+      resolution: resolved,
+      availability: command.availability,
+      terminalStateHandoff: command.terminalStateHandoff,
+      operations,
+      presentation: [],
+      persistenceRequested: false,
+    };
   }
 
   commitTerminalPlayer(runtime, command.terminalStateHandoff, playerPartyIndex);
@@ -108,5 +138,16 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
   state.location = "day_board";
   state.notice = "うまく逃げ切った！";
   state.last_operations = operations;
-  return { runtime, escaped: true, blocked: false, target: "day_board", resolution: resolved, availability: command.availability, terminalStateHandoff: command.terminalStateHandoff, operations };
+  return {
+    runtime,
+    escaped: true,
+    blocked: false,
+    target: "day_board",
+    resolution: resolved,
+    availability: command.availability,
+    terminalStateHandoff: command.terminalStateHandoff,
+    operations,
+    presentation: [],
+    persistenceRequested: true,
+  };
 }
