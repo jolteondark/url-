@@ -72,17 +72,22 @@ async function startPreview(action) {
   notice(action === "continue" ? "保存データを読み込んでいます…" : "Day Boardを準備しています…");
   if (!appPromise) {
     traceBattleStart("preview_app_import_start");
-    appPromise = import("./preview-app.js?v=20260818-1539");
+    appPromise = import("./preview-app.js?v=20260818-1558");
   }
   try {
     await appPromise;
     replacementPresentationPromise ??= import("./battle-player-replacement-presentation.js?v=20260818-1440");
-    carryoverPresentationPromise ??= import("./carryover-next-run-presentation.js?v=20260818-1547");
-    await Promise.all([replacementPresentationPromise, carryoverPresentationPromise]);
+    carryoverPresentationPromise ??= import("./carryover-next-run-presentation.js?v=20260818-1558");
+    const [, carryoverPresentation] = await Promise.all([replacementPresentationPromise, carryoverPresentationPromise]);
     traceBattleStart("preview_app_import_ready");
     window.dispatchEvent(new CustomEvent("safari-preview-start", { detail: { action } }));
+    await carryoverPresentation.renderSafariCarryoverSelection?.();
     traceBattleStart("preview_start_dispatched", {
       runtimeReady: Boolean(globalThis.__maplessSafariRuntime?.variables?.mapless),
+      carryoverPending: Boolean(globalThis.__maplessSafariRuntime?.variables?.mapless?.mapless_carryover_pending),
+      carryoverLocation: globalThis.__maplessSafariRuntime?.variables?.mapless?.location ?? null,
+      carryoverPanelVisible: Boolean(byId("carryover-next-run-panel")),
+      carryoverError: globalThis.__maplessLastError?.message ?? null,
     });
     detachBootListeners();
     traceBattleStart("preview_ready_for_board_click");
