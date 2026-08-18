@@ -5,6 +5,15 @@ export function resolveAccuracyDamageVerticalCanonical(action = {}) {
   const prepared = structuredClone(action);
   if (prepared.damageInput) {
     prepared.damageInput = { ...prepared.damageInput };
+    const multiplierInput = prepared.damageInput.damageMultiplierInput;
+    if (
+      prepared.damageInput.statusMove === undefined &&
+      Number(prepared.damageInput.baseDamage ?? 0) === 0 &&
+      multiplierInput?.physicalMove === false &&
+      multiplierInput?.specialMove === false
+    ) {
+      prepared.damageInput.statusMove = true;
+    }
     if (prepared.damageInput.criticalInput) {
       const criticalResolution = isCriticalCanonical(prepared.damageInput.criticalInput);
       prepared.damageInput.critical = criticalResolution.critical;
