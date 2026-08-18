@@ -54,6 +54,7 @@ export async function ensureSafariGeneralData() {
           data.SAFARI_GENERAL_MOVE_MASTERS,
         );
         traceGeneralCombat("general_masters_installed", { ...installed, retry_generation: retryGeneration });
+        loading = null;
         return { loaded: true, alreadyLoaded: false, ...installed };
       })
       .catch((error) => {
@@ -86,6 +87,7 @@ function loadEncounterRuntime() {
     encounterLoading = import(moduleSpecifier)
       .then((module) => {
         encounterRuntime = module;
+        encounterLoading = null;
         traceGeneralCombat("wild_module_import_ready", { retry_generation: retryGeneration });
         return module;
       })
@@ -111,6 +113,7 @@ function loadTrainerGenerator() {
     trainerLoading = import(moduleSpecifier)
       .then((module) => {
         trainerGenerator = module;
+        trainerLoading = null;
         traceGeneralCombat("trainer_module_import_ready", { retry_generation: retryGeneration });
         return module;
       })
@@ -157,8 +160,9 @@ export async function ensureSafariGeneralCombatData(kind = null) {
     };
   }
 
-  if (typeof globalThis !== "undefined") globalThis.__maplessGeneralCombatTrace = [];
-  traceGeneralCombat("combat_demand_start", { kind: normalized });
+  const joinedExistingDemand = Boolean(loading || encounterLoading || trainerLoading);
+  if (typeof globalThis !== "undefined" && !joinedExistingDemand) globalThis.__maplessGeneralCombatTrace = [];
+  traceGeneralCombat("combat_demand_start", { kind: normalized, joined_existing_demand: joinedExistingDemand });
 
   // Battle materialization consumes SAFARI_SPECIES_MASTERS / SAFARI_MOVE_MASTERS.
   // A loaded encounter/trainer module alone is therefore not combat-ready.
