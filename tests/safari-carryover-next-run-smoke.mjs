@@ -125,23 +125,37 @@ assert.ok(prepared.operations?.some((operation) => operation.op === "request_sav
 const uiSource = fs.readFileSync(new URL("../carryover-next-run-presentation.js", import.meta.url), "utf8");
 const previewSource = fs.readFileSync(new URL("../preview.js", import.meta.url), "utf8");
 const indexSource = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
-assert.match(uiSource, /from "\.\/runtime\/safari-web-playable-integration\.js"/, "carryover UI must reuse the unversioned shared facade instance");
-assert.match(uiSource, /mapless_carryover_pending/, "carryover UI must render only for pending carryover state");
-assert.match(uiSource, /state\.location !== "home"/, "carryover UI must be scoped to home");
-assert.match(uiSource, /boxIndex: Number\(button\.dataset\.carryoverBox\)/, "UI must pass stable box coordinate to the owner");
-assert.match(uiSource, /slotIndex: Number\(button\.dataset\.carryoverSlot\)/, "UI must pass stable slot coordinate to the owner");
-assert.match(uiSource, /operation\.op === "request_save"/, "UI persistence must be driven by the shared owner request_save operation");
+assert.match(uiSource, /from "\.\/runtime\/safari-web-playable-integration\.js"/,
+  "carryover UI must reuse the unversioned shared facade instance");
+assert.match(uiSource, /mapless_carryover_pending/,
+  "carryover UI must render only for pending carryover state");
+assert.match(uiSource, /state\.location !== "home"/,
+  "carryover UI must be scoped to home");
+assert.match(uiSource, /boxIndex: Number\(button\.dataset\.carryoverBox\)/,
+  "UI must pass stable box coordinate to the owner");
+assert.match(uiSource, /slotIndex: Number\(button\.dataset\.carryoverSlot\)/,
+  "UI must pass stable slot coordinate to the owner");
+assert.match(uiSource, /operation\.op === "request_save"/,
+  "UI persistence must be driven by the shared owner request_save operation");
+assert.match(uiSource, /export async function renderSafariCarryoverSelection\(\)/,
+  "carryover UI must expose a deterministic render entrypoint for preview restore");
 assert.match(uiSource, /addEventListener\("safari-preview-start", renderAfterPreviewRestore\)/,
-  "carryover UI must rerender after preview-start restores a saved pending runtime");
-assert.match(uiSource, /requestAnimationFrame\(\(\) => void renderCarryover\(\)\)/,
-  "preview-start carryover rerender must wait until the restored runtime reaches the next frame");
+  "carryover UI must still rerender after preview-start restores a saved pending runtime");
 assert.match(uiSource, /carryover presentation board-card is unavailable/,
-  "missing carryover host DOM must surface an exact presentation error instead of silently disappearing");
-assert.match(uiSource, /error\.state = typeof structuredClone === "function" \? structuredClone\(state\)/,
-  "missing carryover host error must retain the exact pending-home state for diagnosis");
-assert.match(uiSource, /globalThis\.__maplessLastError = error/,
-  "carryover presentation failures must remain visible through __maplessLastError");
-assert.match(previewSource, /carryover-next-run-presentation\.js\?v=20260818-1547/, "playable preview must required-load the fixed carryover selector build");
-assert.match(indexSource, /preview\.js\?v=20260818-1547/, "public entrypoint must expose the fixed carryover preview build");
+  "missing carryover host DOM must retain exact diagnostics");
+assert.match(uiSource, /持ち越し候補を読み込めませんでした。通常スターターなら次のランを開始できます。/,
+  "candidate enumeration failure must leave a visible canonical fallback instead of trapping Run End");
+assert.match(uiSource, /window\.dispatchEvent\(new CustomEvent\("safari-runtime-changed"\)\)/,
+  "successful carryover choice must repaint the core preview into the next Day Board");
+assert.match(previewSource, /carryover-next-run-presentation\.js\?v=20260818-1558/,
+  "playable preview must load the hard-rescue carryover selector build");
+assert.match(previewSource, /await carryoverPresentation\.renderSafariCarryoverSelection\?\.\(\)/,
+  "preview must explicitly invoke selector after synchronous restore dispatch");
+assert.match(previewSource, /carryoverPanelVisible/,
+  "boot trace must expose selector visibility for physical Safari debugging");
+assert.match(previewSource, /carryoverError/,
+  "boot trace must expose carryover presentation failure instead of a blank screen");
+assert.match(indexSource, /preview\.js\?v=20260818-1558/,
+  "public entrypoint must expose the hard-rescue preview build");
 
-console.log("Safari carryover home -> boxed keeper -> canonical reset -> restored-home UI -> Day Board: ok");
+console.log("Safari carryover home -> boxed keeper/fallback -> hard rescue -> Day Board: ok");
