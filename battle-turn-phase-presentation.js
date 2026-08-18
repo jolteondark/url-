@@ -1,6 +1,7 @@
 const byId = (id) => document.getElementById(id);
 let resolving = false;
 let submittedTurn = null;
+let returning = false;
 let syncFrame = 0;
 
 function battleState() {
@@ -40,6 +41,14 @@ function setCommandLock(locked) {
   }
   const panel = byId("battle-card")?.querySelector(".battle-command-panel");
   if (panel) panel.dataset.turnPhaseLocked = shouldLock ? "true" : "false";
+}
+
+function syncReturnLock() {
+  const button = byId("return-board");
+  if (!button) return;
+  const battle = battleState();
+  if (returning && (!battle?.completed || button.hidden || !button.disabled)) returning = false;
+  button.inert = returning;
 }
 
 function previewCommandBusy() {
@@ -82,6 +91,7 @@ function renderPhase() {
   const battle = battleState();
   const card = byId("battle-card");
   if (!card) return;
+  syncReturnLock();
   const phase = ensurePhaseNode();
   if (!battle) {
     if (resolving && !card.hidden) {
@@ -131,6 +141,23 @@ function scheduleSync() {
 const battleCard = byId("battle-card");
 battleCard?.addEventListener("click", (event) => {
   const battle = battleState();
+  const returnCommand = event.target.closest("#return-board");
+  if (returnCommand && battle?.completed) {
+    if (returning || returnCommand.disabled) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
+    returning = true;
+    queueMicrotask(() => {
+      if (!returning) return;
+      returnCommand.disabled = true;
+      returnCommand.inert = true;
+      scheduleSync();
+    });
+    return;
+  }
+
   const command = event.target.closest("#moves button[data-move-id],#capture,#flee");
   if (!command || !battle || battle.completed) return;
 
