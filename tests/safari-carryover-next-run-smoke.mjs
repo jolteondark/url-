@@ -135,6 +135,12 @@ assert.match(uiSource, /addEventListener\("safari-preview-start", renderAfterPre
   "carryover UI must rerender after preview-start restores a saved pending runtime");
 assert.match(uiSource, /requestAnimationFrame\(\(\) => void renderCarryover\(\)\)/,
   "preview-start carryover rerender must wait until the restored runtime reaches the next frame");
+assert.match(uiSource, /carryover presentation board-card is unavailable/,
+  "missing carryover host DOM must surface an exact presentation error instead of silently disappearing");
+assert.match(uiSource, /error\.state = typeof structuredClone === "function" \? structuredClone\(state\)/,
+  "missing carryover host error must retain the exact pending-home state for diagnosis");
+assert.match(uiSource, /globalThis\.__maplessLastError = error/,
+  "carryover presentation failures must remain visible through __maplessLastError");
 assert.match(previewSource, /carryover-next-run-presentation\.js\?v=20260818-1547/, "playable preview must required-load the fixed carryover selector build");
 assert.match(indexSource, /preview\.js\?v=20260818-1547/, "public entrypoint must expose the fixed carryover preview build");
 
