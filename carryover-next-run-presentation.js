@@ -16,12 +16,22 @@ function removePanel() {
   byId("carryover-next-run-panel")?.remove();
 }
 
+function exactStateSnapshot(state) {
+  if (!state || typeof state !== "object") return state ?? null;
+  return typeof structuredClone === "function" ? structuredClone(state) : { ...state };
+}
+
+function rememberExactError(error, state) {
+  const exact = error instanceof Error ? error : new Error(String(error));
+  exact.state = exactStateSnapshot(state);
+  globalThis.__maplessLastError = exact;
+  return exact;
+}
+
 function rememberPresentationError(message, state) {
   const error = new Error(message);
   error.name = "CarryoverPresentationError";
-  error.state = typeof structuredClone === "function" ? structuredClone(state) : { ...state };
-  globalThis.__maplessLastError = error;
-  return error;
+  return rememberExactError(error, state);
 }
 
 function ensurePanel(state) {
@@ -83,7 +93,7 @@ export async function renderSafariCarryoverSelection() {
     options.replaceChildren(...candidates.map(candidateButton));
     panel.replaceChildren(heading, options, fallbackButton());
   } catch (error) {
-    globalThis.__maplessLastError = error;
+    rememberExactError(error, state);
     const message = document.createElement("p");
     message.textContent = "持ち越し候補を読み込めませんでした。通常スターターなら次のランを開始できます。";
     panel.replaceChildren(heading, message, fallbackButton());
@@ -115,7 +125,7 @@ async function choose(selection) {
     removePanel();
     window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
   } catch (error) {
-    globalThis.__maplessLastError = error;
+    rememberExactError(error, stateOfRuntime());
   } finally {
     selecting = false;
     queueMicrotask(renderSafariCarryoverSelection);
