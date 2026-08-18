@@ -34,6 +34,7 @@ export function resolveDayBoardPlayableTurn(input) {
     board_events: dispatch.state.board_events.map((value) => value && { ...value }),
     board_revealed: [...dispatch.state.board_revealed],
     board_consumed: [...dispatch.state.board_consumed],
+    board_visited: [...dispatch.state.board_visited],
   };
 
   if (dispatch.result !== "dispatched" || !event) {

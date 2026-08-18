@@ -13,6 +13,7 @@ export function advanceDayAndRegenerateBoard(input) {
       board_kinds: null,
       board_revealed: null,
       board_consumed: null,
+      board_visited: null,
       notice: transition.notice
     };
   }
@@ -32,6 +33,7 @@ export function advanceDayAndRegenerateBoard(input) {
     board_kinds: board.board_kinds,
     board_revealed: board.board_revealed,
     board_consumed: board.board_consumed,
+    board_visited: board.board_visited,
     notice: transition.notice
   };
 }

@@ -3,6 +3,7 @@ export function resolveDayBoardCellDispatch(input) {
     board_events: Array.isArray(input.board_events) ? input.board_events.map((value) => value && { ...value }) : [],
     board_revealed: Array.isArray(input.board_revealed) ? [...input.board_revealed] : [],
     board_consumed: Array.isArray(input.board_consumed) ? [...input.board_consumed] : [],
+    board_visited: Array.isArray(input.board_visited) ? [...input.board_visited] : [],
   };
   const index = Number.parseInt(input.index, 10);
   const operations = [{ op: "ensure_board" }];
