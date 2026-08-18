@@ -4,6 +4,7 @@ import {
   canonicalResolvedShopOffer,
   resolveCanonicalVillageShop,
 } from './canonical-shop-catalog.js';
+import { maplessCarrySellPrice } from './mapless-carry-class-rules.js';
 import { resolveVillageFixedShopActionSlice } from './mapless-village-fixed-shop-action-slice.js';
 
 export const SAFARI_VILLAGE_FIXED_SHOP_IDS = Object.freeze([
@@ -112,6 +113,19 @@ function fixedShopPreflight(runtime, shop) {
   });
 }
 
+function carryAdjustedOffer(runtime, shop, itemId, transactionKind) {
+  const offer = canonicalResolvedShopOffer(shop, itemId, transactionKind);
+  if (transactionKind !== 'sell') return offer;
+  const carryClass = stateOf(runtime).mapless_carry_class ?? 'general';
+  const baseUnitPrice = Number(offer.unitPrice ?? 0);
+  return {
+    ...offer,
+    unitPrice: maplessCarrySellPrice(baseUnitPrice, carryClass),
+    baseUnitPrice,
+    carryClass,
+  };
+}
+
 export function openSafariVillageFixedShop(runtime, facilityId, input = {}) {
   const state = stateOf(runtime);
   if (state.location !== 'village') throw new Error('village location is required');
@@ -170,7 +184,7 @@ export function purchaseSafariVillageFixedShopItem(runtime, input = {}) {
 
   const beforeSlots = structuredClone(runtime.bag.slots);
   const beforeMoney = Number(runtime.bag.money ?? 0);
-  const offer = canonicalResolvedShopOffer(shop, itemId, sell ? 'sell' : 'buy');
+  const offer = carryAdjustedOffer(runtime, shop, itemId, sell ? 'sell' : 'buy');
   const transaction = resolveResolvedShopTransaction({
     offer,
     qty: requestedQuantity,
@@ -217,7 +231,17 @@ export function purchaseSafariVillageFixedShopItem(runtime, input = {}) {
   village.facility_uses[shop.id] = Number(village.facility_uses[shop.id] ?? 0) + Number(facility.use_count ?? 1);
   state.shop = null;
   state.last_operations = [
-    { op: 'canonical_village_shop_transaction', facility_id: shop.id, kind: sell ? 'sell' : 'buy', item: itemId, quantity: requestedQuantity, result: transaction.result },
+    {
+      op: 'canonical_village_shop_transaction',
+      facility_id: shop.id,
+      kind: sell ? 'sell' : 'buy',
+      item: itemId,
+      quantity: requestedQuantity,
+      result: transaction.result,
+      baseUnitPrice: offer.baseUnitPrice ?? offer.unitPrice,
+      unitPrice: offer.unitPrice,
+      carryClass: offer.carryClass ?? state.mapless_carry_class ?? 'general',
+    },
     ...facility.operations,
   ];
   state.notice = transaction.result === 'sold'

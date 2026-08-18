@@ -1,6 +1,7 @@
 import { resolveExpLevelMoveFlow } from "./battle-exp-level-move-flow.js";
 import { resolveItemReceipt } from "./bag-economy-item-receipt.js";
 import { setMoney } from "./bag-economy-mart-flow.js";
+import { maplessCarryMoneyGain } from "./mapless-carry-class-rules.js";
 import { resolveDayBoardPlayableTurn } from "./mapless-day-board-playable-turn.js";
 import { markMaplessRunEnd } from "./mapless-run-end-lifecycle.js";
 import { resolvePokemonRuntimeMasters } from "./pokemon-runtime-masters.js";
@@ -176,12 +177,14 @@ function completeBoardEvent(state, battle) {
 function payTrainerPrize(runtime, battle) {
   if (battle.kind !== "trainer" || battle.decision !== 1 || battle.trainer_prize_paid) return [];
   const requested = Math.max(0, Math.trunc(Number(battle.prize_money ?? 0)));
+  const carryClass = stateOf(runtime).mapless_carry_class ?? "general";
+  const adjusted = maplessCarryMoneyGain(requested, carryClass);
   const before = Number(runtime.bag.money ?? 0);
-  runtime.bag.money = setMoney(before + requested, 999999);
+  runtime.bag.money = setMoney(before + adjusted, 999999);
   const gained = runtime.bag.money - before;
   battle.trainer_prize_paid = true;
   battle.money_gained = gained;
-  return [{ op: "trainer_prize_money", requested, applied: gained, trainer: battle.trainer?.trainer_full_name ?? null }];
+  return [{ op: "trainer_prize_money", requested, adjusted, applied: gained, carryClass, trainer: battle.trainer?.trainer_full_name ?? null }];
 }
 
 export function finalizeNormalBattle(runtime) {

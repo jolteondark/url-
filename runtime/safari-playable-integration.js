@@ -1,5 +1,6 @@
 import * as playable from "./safari-playable-integration-boundary.js";
 import { resolveTrainerMoveChoiceWithPriorityFlinchCanonical } from "./battle-core-trainer-choice-priority-flinch-integration.js";
+import { maplessCarryMoneyGain } from "./mapless-carry-class-rules.js";
 import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
 import { ensureSafariGeneralData, safariGeneralDataReady } from "./safari-general-data-demand.js";
 
@@ -34,6 +35,28 @@ function stateOf(runtime) {
     throw new TypeError("runtime variables.mapless state is required");
   }
   return state;
+}
+
+export function startSafariVillageBounty(runtime) {
+  const result = playable.startSafariVillageBounty(runtime);
+  const state = stateOf(runtime);
+  const battle = state.battle;
+  if (result?.result !== "battle_started" || battle?.origin !== "village_bounty" || !battle.bounty_snapshot) return result;
+  const carryClass = state.mapless_carry_class ?? "general";
+  const requestedReward = Math.max(0, Math.trunc(Number(battle.bounty_snapshot.reward ?? 0)));
+  const adjustedReward = maplessCarryMoneyGain(requestedReward, carryClass);
+  battle.bounty_snapshot = {
+    ...battle.bounty_snapshot,
+    reward: adjustedReward,
+    canonical_reward: requestedReward,
+    carry_class: carryClass,
+  };
+  battle.last_operations = [
+    ...(battle.last_operations ?? []),
+    { op: "carry_class_money_gain", source: "bounty", requested: requestedReward, adjusted: adjustedReward, carryClass },
+  ];
+  state.last_operations = battle.last_operations;
+  return { ...result, operations: battle.last_operations, carryClass, requestedReward, adjustedReward };
 }
 
 function battleNeedsGeneralData(battle) {
