@@ -1,5 +1,5 @@
 import { SAFARI_MOVE_PRESENTATION } from "./safari-move-presentation-live.js";
-import { resolveSafariNormalBattleRound } from "./safari-normal-battle-round.js";
+import { replaceSafariNormalBattlePlayer, resolveSafariNormalBattleRound } from "./safari-normal-battle-round.js";
 import {
   attemptSafariCapture as attemptSafariNormalCapture,
   returnSafariToDayBoard as returnSafariNormalToDayBoard,
@@ -80,6 +80,18 @@ export async function resolveSafariBattleRound(runtime, selectedMoveId) {
   if (needsFullBattleIntegration(runtime)) return (await full()).resolveSafariBattleRound(runtime, selectedMoveId);
   return resolveSafariNormalBattleRound(runtime, selectedMoveId);
 }
+
+export async function replaceSafariBattlePlayer(runtime, replacementPartyIndex) {
+  if (needsFullBattleIntegration(runtime)) {
+    const module = await full();
+    if (typeof module.replaceSafariBattlePlayer !== "function") {
+      throw new Error("boundary player replacement owner is unavailable");
+    }
+    return module.replaceSafariBattlePlayer(runtime, replacementPartyIndex);
+  }
+  return replaceSafariNormalBattlePlayer(runtime, replacementPartyIndex);
+}
+
 export async function attemptSafariCapture(runtime, options = {}) {
   if (needsFullBattleIntegration(runtime)) return (await full()).attemptSafariCapture(runtime, options);
   if (stateOf(runtime).battle) return attemptSafariNormalCapture(runtime, options);
