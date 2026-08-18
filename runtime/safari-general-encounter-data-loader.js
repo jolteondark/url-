@@ -1,5 +1,6 @@
 import { projectGeneralEncounterSpeciesPools } from "./general-encounter-species-pools.js";
 import { safariGeneralChunkImportUrl } from "./safari-general-retry-url.js";
+import { safariGeneralMoveBehaviorFacts, SAFARI_GENERAL_MOVE_BEHAVIOR_METADATA } from "./safari-general-move-behavior-facts.js";
 
 const CHUNK_COUNT = 20;
 const BROWSER_IMPORT_BATCH = 4;
@@ -118,6 +119,7 @@ if (speciesIds.length !== 875 || payload.speciesRows.length !== speciesIds.lengt
 if (!Array.isArray(payload.moveIds) || !Array.isArray(payload.moveRows) || payload.moveIds.length !== payload.moveRows.length) throw new Error("Safari General Encounter move projection mismatch");
 if (GENDER_RATIO_INDEX_PACKED.length !== speciesIds.length) throw new Error(`Safari species individual fact count mismatch: ${GENDER_RATIO_INDEX_PACKED.length}/${speciesIds.length}`);
 if (TYPE_INDEX_PACKED.length !== payload.moveIds.length) throw new Error(`Safari move AI fact count mismatch: ${TYPE_INDEX_PACKED.length}/${payload.moveIds.length}`);
+if (SAFARI_GENERAL_MOVE_BEHAVIOR_METADATA.moveCount !== payload.moveIds.length) throw new Error(`Safari move behavior fact count mismatch: ${SAFARI_GENERAL_MOVE_BEHAVIOR_METADATA.moveCount}/${payload.moveIds.length}`);
 if (speciesIds[0] !== "ABOMASNOW" || speciesIds.at(-1) !== "ZWEILOUS") throw new Error("Safari species individual fact ordering mismatch");
 if (payload.moveIds[0] !== "ABSORB" || payload.moveIds.at(-1) !== "ZINGZAP") throw new Error("Safari move AI fact ordering mismatch");
 traceLoader("general_loader_projection_validated", { species: speciesIds.length, moves: payload.moveIds.length });
@@ -163,10 +165,12 @@ function moveMaster(id, row, moveIndex) {
   const category = CATEGORY_NAMES[Number(categoryIndex)];
   if (!category) throw new Error(`unknown move category for ${id}`);
   const aiFacts = safariGeneralMoveAiFacts(id, moveIndex, payload.moveIds.length);
+  const behaviorFacts = safariGeneralMoveBehaviorFacts(id, moveIndex, payload.moveIds.length);
   return Object.freeze({
     id, name: id, category,
     power: Number(power), accuracy: Number(accuracy), total_pp: Number(totalPp), priority: Number(priority),
     type: aiFacts.type, thaws_user: aiFacts.thaws_user,
+    function_code: behaviorFacts.function_code, effect_chance: behaviorFacts.effect_chance,
   });
 }
 
@@ -213,6 +217,7 @@ export const SAFARI_GENERAL_DATA_METADATA = Object.freeze({
   projectionSha256: "1203433d0aa6e07dfe4e71065bd23d03adb2499df8837e2e7c032df4f2a5fe09",
   speciesIndividualFactsSha256: "3546f4d714738f72947f6d61d1bc876b0df4f0f72a45592c1e8f91eecbace1f8",
   moveAiFactsSha256: "916a4c6932af5d024db6acea7f67623ae24b3d03470d91227cfeff9212615c24",
+  moveBehaviorFactsSha256: SAFARI_GENERAL_MOVE_BEHAVIOR_METADATA.projectionSha256,
   canonicalFilteredCoreSha256: "e35eecadc21535e57a4cd9946abfea9a52ed9268b12456e2934e0ef7eeabb1ab",
 });
 if (SAFARI_GENERAL_DATA_METADATA.speciesCount !== 875 || SAFARI_GENERAL_DATA_METADATA.moveCount !== 608) throw new Error(`Safari General Encounter projection mismatch: ${SAFARI_GENERAL_DATA_METADATA.speciesCount}/${SAFARI_GENERAL_DATA_METADATA.moveCount}`);
