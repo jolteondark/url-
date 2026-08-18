@@ -76,4 +76,12 @@ const electricPrepared = prepareReflectedMajorStatusBattleInput({ battleInput: b
 assert.equal(electricPrepared.rounds[0].actions[0].battleStatusInput, undefined);
 assert.equal(electricPrepared.rounds[0].actions[0].majorStatusEffectResolution?.reason, "type_immunity");
 
+const ordinary = prepareReflectedMajorStatusBattleInput({
+  battleInput: { rounds: [{ actions: [{ kind: "move", targetBattlerIndex: 1, moveId: "TACKLE" }] }] },
+  pokemon: { species: "NOT_A_GENERAL_SPECIES", hp: 10, status: "NONE" },
+  reflectedBattlerIndex: 1,
+});
+assert.equal(ordinary.rounds[0].actions[0].battleStatusInput, undefined,
+  "ordinary non-status rounds must not force GENERAL type projection just because Battle status support is installed");
+
 console.log("ordinary Thunder Wave status owner smoke: ok");
