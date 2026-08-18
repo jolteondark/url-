@@ -15,6 +15,15 @@ class MemoryStorage {
   removeItem(key) { this.map.delete(key); }
 }
 
+function moveId(move) {
+  return typeof move === "string" ? move : move?.id;
+}
+
+function movePp(pokemon, id) {
+  const move = (pokemon?.moves ?? []).find((entry) => moveId(entry) === id);
+  return move && typeof move !== "string" && Number.isFinite(Number(move.pp)) ? Number(move.pp) : null;
+}
+
 const runtime = web.createSafariPlayableRuntime();
 const state = runtime.variables.mapless;
 state.board_events[0] = { kind: "wild", type: "BUG", slot: 0 };
@@ -64,7 +73,68 @@ assert.deepEqual(restored.player.party, expectedParty,
 assert.equal(globalThis.__maplessSafariRuntime, restored,
   "Continue must install the restored runtime as the shared Safari runtime");
 
-console.log("Safari Run -> Board state -> save -> Continue: ok");
+// A fresh Continue must immediately re-enter the exact same ordinary Battle owner.
+// Do not stop this mandatory regression at deserialization.
+const trainerIndex = restoredState.board_events.findIndex((event, index) =>
+  event?.kind === "trainer" && !restoredState.board_consumed[index]);
+assert.ok(trainerIndex >= 0, "continued Day Board must retain an unconsumed ordinary trainer cell");
+const trainerStarted = await web.activateSafariDayBoardCell(restored, trainerIndex);
+assert.equal(trainerStarted.result, "dispatched");
+assert.equal(restoredState.battle?.kind, "trainer");
+assert.equal(restoredState.board_consumed[trainerIndex], false,
+  "entering the first Battle after Continue must not consume the trainer cell");
+
+const continuedPlayerIndex = Number(restoredState.battle.player_party_index ?? 0);
+const continuedPlayer = restored.player.party[continuedPlayerIndex];
+continuedPlayer.hp = 999999;
+continuedPlayer.max_hp = 999999;
+continuedPlayer.stats = {
+  ...(continuedPlayer.stats ?? {}),
+  DEFENSE: 9999,
+  SPECIAL_DEFENSE: 9999,
+  SPEED: 9999,
+};
+const continuedFoeIndex = Number(restoredState.battle.trainer_party_index ?? 0);
+restoredState.battle.foe.hp = 999999;
+restoredState.battle.foe.max_hp = 999999;
+restoredState.battle.foe.stats = {
+  ...(restoredState.battle.foe.stats ?? {}),
+  DEFENSE: 9999,
+  SPECIAL_DEFENSE: 9999,
+  SPEED: 1,
+};
+if (Array.isArray(restoredState.battle.trainer_party) && restoredState.battle.trainer_party[continuedFoeIndex]) {
+  restoredState.battle.trainer_party[continuedFoeIndex] = structuredClone(restoredState.battle.foe);
+}
+
+const continuedMoveId = moveId(continuedPlayer.moves.find((move) =>
+  moveId(move) && (typeof move === "string" || Number(move.pp ?? 0) > 0)));
+assert.ok(continuedMoveId, "continued active Pokemon must have a usable move");
+const playerPpBefore = movePp(continuedPlayer, continuedMoveId);
+const foeBefore = structuredClone(restoredState.battle.foe);
+const turnBeforeContinueBattle = Number(restoredState.battle.turn ?? 1);
+const continuedRound = await web.resolveSafariBattleRound(restored, continuedMoveId);
+assert.equal(Number(restoredState.battle?.turn), turnBeforeContinueBattle + 1,
+  "one command immediately after fresh Continue must advance exactly one ordinary Battle turn");
+assert.equal(Number(continuedRound.decision), 0,
+  "high-HP first-Continue fixture must remain nonterminal after exactly one turn");
+assert.equal(restoredState.board_consumed[trainerIndex], false,
+  "nonterminal first Battle turn after Continue must not consume the trainer cell");
+if (playerPpBefore !== null) {
+  assert.equal(movePp(restored.player.party[continuedPlayerIndex], continuedMoveId), playerPpBefore - 1,
+    "first post-Continue player move must consume PP exactly once");
+}
+if (continuedRound.opponentChoice?.command === "move" && continuedRound.opponentChoice.moveId) {
+  const foeMoveId = continuedRound.opponentChoice.moveId;
+  const foePpBefore = movePp(foeBefore, foeMoveId);
+  const foePpAfter = movePp(restoredState.battle.foe, foeMoveId);
+  if (foePpBefore !== null && foePpAfter !== null) {
+    assert.equal(foePpAfter, foePpBefore - 1,
+      "first post-Continue foe response must consume PP exactly once");
+  }
+}
+
+console.log("Safari Run -> save -> fresh Continue -> first ordinary trainer command is exactly one Battle turn: ok");
 
 // Keep the real-game progression vertical in the same normal/battle-entry gate.
 await import("./safari-multi-cell-multi-day-progression-smoke.mjs");
