@@ -21,10 +21,7 @@ function captureBattleRenderError(event) {
   const state = globalThis.__maplessSafariRuntime?.variables?.mapless;
   if (!state?.battle || !(event?.error instanceof Error)) return;
   globalThis.__maplessLastError = event.error;
-  traceBattleStart("scene_render_error", {
-    error_name: event.error.name,
-    error_message: event.error.message,
-  });
+  traceBattleStart("scene_render_error", { error_name: event.error.name, error_message: event.error.message });
 }
 
 function rememberPreviewStartError(error) {
@@ -37,26 +34,10 @@ function rememberPreviewStartError(error) {
   return exact;
 }
 
-function notice(text) {
-  const node = byId("notice");
-  if (node) node.textContent = text;
-}
-
-function hasStoredRun() {
-  try { return window.localStorage.getItem(SAVE_KEY) !== null; }
-  catch (_) { return false; }
-}
-
-function setBootControls() {
-  if (continueRun) continueRun.disabled = !hasStoredRun();
-  const saveRun = byId("save-run");
-  if (saveRun) saveRun.disabled = true;
-}
-
-function detachBootListeners() {
-  newRun?.removeEventListener("click", onNewRun);
-  continueRun?.removeEventListener("click", onContinueRun);
-}
+function notice(text) { const node = byId("notice"); if (node) node.textContent = text; }
+function hasStoredRun() { try { return window.localStorage.getItem(SAVE_KEY) !== null; } catch (_) { return false; } }
+function setBootControls() { if (continueRun) continueRun.disabled = !hasStoredRun(); const saveRun = byId("save-run"); if (saveRun) saveRun.disabled = true; }
+function detachBootListeners() { newRun?.removeEventListener("click", onNewRun); continueRun?.removeEventListener("click", onContinueRun); }
 
 function traceSceneAfterRuntimeChange() {
   window.requestAnimationFrame(() => {
@@ -64,11 +45,7 @@ function traceSceneAfterRuntimeChange() {
     if (!state?.battle) return;
     const card = byId("battle-card");
     const moves = byId("moves");
-    const trace = {
-      battleState: true,
-      sceneVisible: Boolean(card && !card.hidden),
-      moveButtonCount: moves?.querySelectorAll("button[data-move-id]").length ?? 0,
-    };
+    const trace = { battleState: true, sceneVisible: Boolean(card && !card.hidden), moveButtonCount: moves?.querySelectorAll("button[data-move-id]").length ?? 0 };
     globalThis.__maplessBattleStartTrace = trace;
     traceBattleStart("scene_handoff_frame", trace);
     if (trace.sceneVisible && trace.moveButtonCount > 0) traceBattleStart("scene_handoff_ready", trace);
@@ -81,20 +58,13 @@ async function startPreview(action) {
   globalThis.__maplessBattleStartLifecycleTrace = [];
   traceBattleStart("preview_start_request", { action });
   notice(action === "continue" ? "保存データを読み込んでいます…" : "Day Boardを準備しています…");
-  if (!appPromise) {
-    traceBattleStart("preview_app_import_start");
-    appPromise = import("./preview-app.js?v=20260818-2318");
-  }
+  if (!appPromise) { traceBattleStart("preview_app_import_start"); appPromise = import("./preview-app.js?v=20260818-2318"); }
   try {
     await appPromise;
     replacementPresentationPromise ??= import("./battle-player-replacement-presentation.js?v=20260818-1440");
     carryoverPresentationPromise ??= import("./carryover-next-run-presentation.js?v=20260818-1558");
-    battleTurnPhasePresentationPromise ??= import("./battle-turn-phase-presentation.js?v=20260819-0322");
-    const [, carryoverPresentation] = await Promise.all([
-      replacementPresentationPromise,
-      carryoverPresentationPromise,
-      battleTurnPhasePresentationPromise,
-    ]);
+    battleTurnPhasePresentationPromise ??= import("./battle-turn-phase-presentation.js?v=20260819-0416");
+    const [, carryoverPresentation] = await Promise.all([replacementPresentationPromise, carryoverPresentationPromise, battleTurnPhasePresentationPromise]);
     traceBattleStart("preview_app_import_ready");
     window.dispatchEvent(new CustomEvent("safari-preview-start", { detail: { action } }));
     await carryoverPresentation.renderSafariCarryoverSelection?.();
@@ -108,15 +78,8 @@ async function startPreview(action) {
     detachBootListeners();
     traceBattleStart("preview_ready_for_board_click");
   } catch (error) {
-    traceBattleStart("preview_start_error", {
-      error_name: error?.name ?? "Error",
-      error_message: error?.message ?? String(error),
-    });
-    loading = false;
-    appPromise = null;
-    replacementPresentationPromise = null;
-    carryoverPresentationPromise = null;
-    battleTurnPhasePresentationPromise = null;
+    traceBattleStart("preview_start_error", { error_name: error?.name ?? "Error", error_message: error?.message ?? String(error) });
+    loading = false; appPromise = null; replacementPresentationPromise = null; carryoverPresentationPromise = null; battleTurnPhasePresentationPromise = null;
     const diagnosed = rememberPreviewStartError(error);
     notice("ゲームの読み込みに失敗しました: " + diagnosed.message + "。もう一度開始できます。");
     console.error("[Mapless] preview app load failed", diagnosed);
@@ -132,17 +95,11 @@ async function onNewRun() {
         notice("ラン終了。次ランの持ち込み選択待ちです。");
         return startPreview("continue");
       }
-    } catch (error) {
-      globalThis.__maplessLastError = error;
-      console.error("[Mapless] carryover save probe failed", error);
-    }
+    } catch (error) { globalThis.__maplessLastError = error; console.error("[Mapless] carryover save probe failed", error); }
   }
   return startPreview("new");
 }
-function onContinueRun() {
-  if (!hasStoredRun()) return notice("つづきから再開できるセーブがありません。");
-  startPreview("continue");
-}
+function onContinueRun() { if (!hasStoredRun()) return notice("つづきから再開できるセーブがありません。"); startPreview("continue"); }
 
 window.addEventListener("error", captureBattleRenderError);
 window.addEventListener("safari-runtime-changed", traceSceneAfterRuntimeChange);
