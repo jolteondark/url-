@@ -70,10 +70,17 @@ assert.throws(
 
 const demand = await import("../runtime/safari-general-data-demand.js?shared-master-retry-smoke=1");
 const shared = await import("../runtime/safari-playable-data.js");
+const initialSpeciesKeys = Object.keys(shared.SAFARI_SPECIES_MASTERS);
+const initialMoveKeys = Object.keys(shared.SAFARI_MOVE_MASTERS);
+const initialEeveeDescriptor = Object.getOwnPropertyDescriptor(shared.SAFARI_SPECIES_MASTERS, "EEVEE");
+const initialTackleDescriptor = Object.getOwnPropertyDescriptor(shared.SAFARI_MOVE_MASTERS, "TACKLE");
 const originalDefineProperty = Object.defineProperty;
 let syntheticInstallFailurePending = true;
 Object.defineProperty = function patchedDefineProperty(target, property, descriptor) {
-  if (syntheticInstallFailurePending && target === shared.SAFARI_SPECIES_MASTERS) {
+  // Fail only after the entire species projection has already been installed,
+  // proving a partial install is rolled back rather than merely testing the
+  // first descriptor write.
+  if (syntheticInstallFailurePending && target === shared.SAFARI_MOVE_MASTERS) {
     syntheticInstallFailurePending = false;
     throw new Error("synthetic GENERAL master install failure");
   }
@@ -99,6 +106,14 @@ assert.equal(failedInstallTrace.some((entry) => entry.stage === "general_data_im
   "a master-install failure must not be mislabeled as a chunk/decode/module import failure");
 assert.equal(demand.safariGeneralDataReady(), false,
   "a failed master install must remain fail-closed");
+assert.deepEqual(Object.keys(shared.SAFARI_SPECIES_MASTERS), initialSpeciesKeys,
+  "failed install must roll back every partially-installed species slot");
+assert.deepEqual(Object.keys(shared.SAFARI_MOVE_MASTERS), initialMoveKeys,
+  "failed install must roll back every partially-installed move slot");
+assert.deepEqual(Object.getOwnPropertyDescriptor(shared.SAFARI_SPECIES_MASTERS, "EEVEE"), initialEeveeDescriptor,
+  "failed install must restore bootstrap species descriptors exactly");
+assert.deepEqual(Object.getOwnPropertyDescriptor(shared.SAFARI_MOVE_MASTERS, "TACKLE"), initialTackleDescriptor,
+  "failed install must restore bootstrap move descriptors exactly");
 
 await demand.ensureSafariGeneralCombatData("wild");
 const recoveredTrace = [...globalThis.__maplessGeneralCombatTrace];
