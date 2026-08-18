@@ -18,6 +18,7 @@ export { SAFARI_MOVE_PRESENTATION, clearSafariPlayableRun, createSafariPlayableR
 
 let fullModule = null;
 let fullModulePromise = null;
+let carryoverModulePromise = null;
 
 function rememberImportFailure(error) {
   globalThis.__maplessBattleRuntimeError = error;
@@ -42,6 +43,17 @@ async function full() {
   return fullModulePromise;
 }
 
+async function carryover() {
+  if (!carryoverModulePromise) {
+    carryoverModulePromise = import("./mapless-carryover-next-run.js").catch((error) => {
+      carryoverModulePromise = null;
+      globalThis.__maplessLastError = error;
+      throw error;
+    });
+  }
+  return carryoverModulePromise;
+}
+
 function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
   if (!state || typeof state !== "object" || Array.isArray(state)) throw new TypeError("runtime variables.mapless state is required");
@@ -59,6 +71,12 @@ function publishRuntimeChanged() {
 
 export function boardCellPresentation(runtime, index) {
   return fullModule ? fullModule.boardCellPresentation(runtime, index) : startupBoardCellPresentation(runtime, index);
+}
+
+export async function prepareSafariNextRun(runtime, selection = null) {
+  const result = await (await carryover()).prepareSafariNextRun(runtime, selection);
+  publishRuntimeChanged();
+  return result;
 }
 
 export async function activateSafariDayBoardCell(runtime, index) {
