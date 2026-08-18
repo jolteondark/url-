@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 
 globalThis.CustomEvent = class CustomEvent {
   constructor(type, init = {}) { this.type = type; this.detail = init.detail; }
@@ -78,7 +79,7 @@ assert.deepEqual(
 const prepared = await web.prepareSafariNextRun(runtime, { boxIndex: 0, slotIndex: 0 });
 assert.equal(prepared.result, "prepared", "eligible boxed carryover must prepare the next run");
 assert.equal(globalThis.__maplessSafariRuntime, runtime,
-  "next-run preparation must leave the live Safari runtime pointing at the prepared run, not a temporary template");
+  "successful next-run preparation must keep the prepared caller as the live Safari runtime");
 assert.equal(runtime.storage_system.boxes[0].slots[0] ?? null, null,
   "selected boxed original must be removed only after carry normalization succeeds");
 assert.equal(runtime.player.party.length, 1, "next run must begin with exactly one keeper");
@@ -121,4 +122,16 @@ assert.equal(Number(runtime.bag.money), 1000,
 assert.ok(prepared.operations?.some((operation) => operation.op === "request_save"),
   "prepared next run must request persistence");
 
-console.log("Safari carryover home -> boxed keeper -> canonical class/nature reset -> supplies -> Day Board: ok");
+const uiSource = fs.readFileSync(new URL("../carryover-next-run-presentation.js", import.meta.url), "utf8");
+const previewSource = fs.readFileSync(new URL("../preview.js", import.meta.url), "utf8");
+const indexSource = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
+assert.match(uiSource, /from "\.\/runtime\/safari-web-playable-integration\.js"/, "carryover UI must reuse the unversioned shared facade instance");
+assert.match(uiSource, /mapless_carryover_pending/, "carryover UI must render only for pending carryover state");
+assert.match(uiSource, /state\.location !== "home"/, "carryover UI must be scoped to home");
+assert.match(uiSource, /boxIndex: Number\(button\.dataset\.carryoverBox\)/, "UI must pass stable box coordinate to the owner");
+assert.match(uiSource, /slotIndex: Number\(button\.dataset\.carryoverSlot\)/, "UI must pass stable slot coordinate to the owner");
+assert.match(uiSource, /operation\.op === "request_save"/, "UI persistence must be driven by the shared owner request_save operation");
+assert.match(previewSource, /carryover-next-run-presentation\.js\?v=20260818-1525/, "playable preview must required-load the carryover selector build");
+assert.match(indexSource, /preview\.js\?v=20260818-1525/, "public entrypoint must expose the carryover-capable preview build");
+
+console.log("Safari carryover home -> boxed keeper -> canonical reset -> live runtime -> home UI -> Day Board: ok");
