@@ -4,6 +4,7 @@ import {
   attemptSafariCapture as attemptSafariNormalCapture,
   returnSafariToDayBoard as returnSafariNormalToDayBoard,
 } from "./safari-normal-battle-lifecycle.js";
+import { activateSafariWebCombatCell } from "./safari-web-combat-start.js";
 import {
   boardCellPresentation as startupBoardCellPresentation,
   clearSafariPlayableRun,
@@ -60,7 +61,6 @@ export async function activateSafariDayBoardCell(runtime, index) {
   const event = state.board_events?.[index];
   if (event?.kind === "wild" || event?.kind === "trainer") {
     try {
-      const { activateSafariWebCombatCell } = await import("./safari-web-combat-start.js");
       return await activateSafariWebCombatCell(runtime, index);
     } catch (error) {
       globalThis.__maplessLastError = error;
