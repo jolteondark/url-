@@ -1,5 +1,6 @@
 import { resolveCaptureFlow } from "./battle-capture-flow.js";
 import { routeCaughtQueueToPartyStorage } from "./caught-queue-party-storage.js";
+import { safariCarryoverPartyLimit } from "./mapless-carry-class-rules.js";
 import { resolveDayBoardPlayableTurn } from "./mapless-day-board-playable-turn.js";
 import { finishMaplessRun } from "./mapless-run-end-lifecycle.js";
 import { RubyMT19937Random } from "./ruby-mt19937-random.js";
@@ -151,11 +152,13 @@ export function attemptSafariCapture(runtime, { captureRandomSeed = browserCaptu
     };
   }
 
+  const carryClass = state.mapless_carry_class ?? "general";
+  const partyLimit = safariCarryoverPartyLimit(carryClass);
   const routed = routeCaughtQueueToPartyStorage({
     party: runtime.player.party,
     boxes: runtime.storage_system.boxes,
     currentBox: runtime.storage_system.currentBox,
-  }, [battle.foe]);
+  }, [battle.foe], { maxPartySize: partyLimit });
   runtime.player.party = routed.state.party;
   runtime.storage_system.boxes = routed.state.boxes;
   runtime.storage_system.currentBox = routed.state.currentBox;
@@ -163,7 +166,11 @@ export function attemptSafariCapture(runtime, { captureRandomSeed = browserCaptu
   battle.captured = true;
   battle.capture_destination = routed.routed[0]?.result ?? "full";
   battle.decision = 4;
-  battle.last_operations = [...capture.operations, ...routed.operations];
+  battle.last_operations = [...capture.operations, ...routed.operations, {
+    op: "carry_class_party_limit",
+    carryClass,
+    partyLimit,
+  }];
   battle.presentation = [{
     type: "capture",
     result: "caught",
@@ -180,6 +187,8 @@ export function attemptSafariCapture(runtime, { captureRandomSeed = browserCaptu
     calculation: capture.capture,
     captureRandomSeed: normalizedCaptureSeed,
     randomValues: captureRandomValues,
+    carryClass,
+    partyLimit,
     persistenceRequested: requestsSave(battle.last_operations),
   };
 }

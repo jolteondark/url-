@@ -1,4 +1,9 @@
 import { add as addBagItem } from "./bag-economy-mart-flow.js";
+import {
+  maplessCarryClassRule,
+  maplessCarryStartingMoney,
+  safariCarryoverPartyLimit,
+} from "./mapless-carry-class-rules.js";
 import { ensureMaplessRunLifecycleState } from "./mapless-run-end-lifecycle.js";
 import { deleteStoredPokemon, pokemonEgg } from "./party-storage-management.js";
 import { storeCaughtInBoxes } from "./party-storage-handoff.js";
@@ -19,17 +24,12 @@ import {
   SAFARI_PLAYABLE_STARTING_MONEY,
 } from "./safari-web-startup.js";
 
+export { safariCarryoverPartyLimit } from "./mapless-carry-class-rules.js";
+
 const ZERO_STATS = Object.freeze({ HP: 0, ATTACK: 0, DEFENSE: 0, SPECIAL_ATTACK: 0, SPECIAL_DEFENSE: 0, SPEED: 0 });
 const PSEUDO_FINALS = new Set(["DRAGONITE", "TYRANITAR", "SALAMENCE", "METAGROSS", "GARCHOMP", "HYDREIGON", "GOODRA", "KOMMOO", "DRAGAPULT", "BAXCALIBUR"]);
 const LEGEND_CATEGORIES = new Set(["LEGENDARY", "MYTHICAL"]);
 const SPECIAL_CATEGORIES = new Set(["SUB_LEGENDARY", "ULTRA_BEAST", "PARADOX"]);
-
-const CLASS_RULES = Object.freeze({
-  general: Object.freeze({ partyLimit: 6, money: 1, supplies: Object.freeze([["POKEBALL", 5], ["POTION", 3]]) }),
-  pseudo_final: Object.freeze({ partyLimit: 6, money: 0.5, supplies: Object.freeze([]) }),
-  special: Object.freeze({ partyLimit: 5, money: 0.25, supplies: Object.freeze([["POKEBALL", 1], ["POTION", 1]]) }),
-  legend: Object.freeze({ partyLimit: 5, money: 0, supplies: Object.freeze([]) }),
-});
 
 function clone(value) { return structuredClone(value); }
 function stateOf(runtime) {
@@ -63,10 +63,6 @@ export function listSafariCarryoverCandidates(runtime) {
     }
   }
   return candidates;
-}
-
-export function safariCarryoverPartyLimit(carryClass) {
-  return CLASS_RULES[carryClass]?.partyLimit ?? CLASS_RULES.general.partyLimit;
 }
 
 async function normalizeCarriedPokemon(source) {
@@ -119,8 +115,7 @@ function archiveExistingParty(runtime) {
 }
 
 function applyClassRules(runtime, carryClass) {
-  const rule = CLASS_RULES[carryClass];
-  if (!rule) throw new Error(`unsupported carry class: ${carryClass}`);
+  const rule = maplessCarryClassRule(carryClass);
   runtime.bag ??= { slots: [], money: 0 };
   runtime.bag.slots = [];
   const supplies = rule.supplies;
@@ -129,7 +124,7 @@ function applyClassRules(runtime, carryClass) {
   for (const [item, quantity] of supplies) {
     if (!addBagItem(runtime.bag.slots, maxSlots, maxPerSlot, item, quantity)) throw new Error(`failed to add carryover supply: ${item}`);
   }
-  runtime.bag.money = Math.floor(SAFARI_PLAYABLE_STARTING_MONEY * rule.money);
+  runtime.bag.money = maplessCarryStartingMoney(SAFARI_PLAYABLE_STARTING_MONEY, carryClass);
   return rule;
 }
 
@@ -183,7 +178,7 @@ export async function prepareSafariNextRun(runtime, selection = null) {
   state.mapless_carryover_pending = false;
   state.mapless_carryover_overflow = false;
   operations.push(
-    { op: "set_carry_class", value: carryClass, partyLimit: rule.partyLimit },
+    { op: "set_carry_class", value: carryClass, partyLimit: safariCarryoverPartyLimit(carryClass) },
     { op: "set_run_active", value: true },
     { op: "set_run_prepared", value: true },
     { op: "set_carryover_pending", value: false },
