@@ -68,7 +68,14 @@ assert.equal(playerAfter.item ?? null, playerBefore.item ?? null,
   "player held item must remain reflected through the Battle runtime");
 assert.equal(Number(state.battle.foe.hp), Number(foeBefore.hp),
   "failed Run must not damage the foe before its response");
-assert.ok(Array.isArray(failed.presentation), "failed Run must expose opponent presentation to the UI");
+assert.ok(Array.isArray(failed.presentation), "failed Run must expose ordered presentation to the UI");
+assert.equal(failed.presentation[0]?.type, "flee",
+  "failed Run presentation must show the consumed flee action before the foe response");
+assert.equal(failed.presentation[0]?.result, "failed");
+assert.equal(failed.presentation[0]?.actorSpecies, playerBefore.species);
+assert.equal(failed.presentation[0]?.targetSpecies, foeBefore.species);
+const foeActionIndex = failed.presentation.findIndex((event) => event.type === "move_started" && event.actor === "foe");
+assert.ok(foeActionIndex > 0, "canonical foe response must follow the visible failed-flee event");
 
 const previewSource = fs.readFileSync(new URL("../preview-app.js", import.meta.url), "utf8");
 const fleeHandlerStart = previewSource.indexOf('byId("flee").addEventListener');
@@ -76,6 +83,6 @@ const fleeHandlerEnd = previewSource.indexOf('\nbyId("return-board").addEventLis
 assert.ok(fleeHandlerStart >= 0 && fleeHandlerEnd > fleeHandlerStart, "flee UI handler must exist");
 const fleeHandler = previewSource.slice(fleeHandlerStart, fleeHandlerEnd);
 assert.match(fleeHandler, /await playPresentation\(result\.presentation \?\? \[\]\)/,
-  "failed Run UI must play the canonical opponent response presentation");
+  "failed Run UI must play the ordered flee-action + canonical opponent response presentation");
 
-console.log("Safari failed Run -> canonical foe response -> next turn, Battle stays active: ok");
+console.log("Safari failed Run -> visible flee failure -> canonical foe response -> next turn: ok");
