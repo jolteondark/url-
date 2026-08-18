@@ -1,19 +1,21 @@
-// Generated from canonical Mapless v0.9.108 PBS moves for the exact GENERAL moves with non-zero EffectChance.
+// Generated from canonical Mapless v0.9.108 PBS moves for the exact 608 GENERAL level-move closure.
 // Source ZIP SHA-256: e35eecadc21535e57a4cd9946abfea9a52ed9268b12456e2934e0ef7eeabb1ab
-const FUNCTION_CODES = Object.freeze({"ACID":"LowerTargetSpDef1","ACIDSPRAY":"LowerTargetSpDef2","AIRSLASH":"FlinchTarget","ANCHORSHOT":"TrapTargetInBattle","ANCIENTPOWER":"RaiseUserMainStats1","APPLEACID":"LowerTargetSpDef1","AQUASTEP":"RaiseUserSpeed1","ARMORCANNON":"LowerUserDefSpDef1","ASTONISH":"FlinchTarget","AURAWHEEL":"TypeDependsOnUserMorpekoFormRaiseUserSpeed1","AURORABEAM":"LowerTargetAttack1","AXEKICK":"CrashDamageIfFailsConfuseTarget","BARBBARRAGE":"DoublePowerIfTargetPoisonedPoisonTarget","BITE":"FlinchTarget","BLAZEKICK":"BurnTarget","BLIZZARD":"FreezeTargetAlwaysHitsInHail","BODYSLAM":"ParalyzeTarget","BOUNCE":"TwoTurnAttackInvulnerableInSkyParalyzeTarget","BREAKINGSWIPE":"LowerTargetAttack1","BUBBLEBEAM":"LowerTargetSpeed1","BUGBUZZ":"LowerTargetSpDef1","BULLDOZE":"LowerTargetSpeed1WeakerInGrassyTerrain","CHARGEBEAM":"RaiseUserSpAtk1","CHATTER":"ConfuseTarget","CONFUSION":"ConfuseTarget","CROSSPOISON":"PoisonTarget","CRUNCH":"LowerTargetDefense1","CRUSHCLAW":"LowerTargetDefense1","DARKPULSE":"FlinchTarget","DIRECLAW":"PoisonParalyzeOrSleepTarget","DISCHARGE":"ParalyzeTarget","DRAGONBREATH":"ParalyzeTarget","DRAGONRUSH":"FlinchTarget","DRUMBEATING":"LowerTargetSpeed1","DYNAMICPUNCH":"ConfuseTarget","EARTHPOWER":"LowerTargetSpDef1","ELECTROSHOT":"TwoTurnAttackOneTurnInRainRaiseUserSpAtk1","ELECTROWEB":"LowerTargetSpeed1","EMBER":"BurnTarget","ENERGYBALL":"LowerTargetSpDef1","EXTRASENSORY":"FlinchTarget","FAKEOUT":"FlinchTargetFailsIfNotUserFirstTurn","FIERYDANCE":"RaiseUserSpAtk1","FIREBLAST":"BurnTarget","FIREFANG":"BurnFlinchTarget","FIRELASH":"LowerTargetDefense1","FIREPUNCH":"BurnTarget","FLAMECHARGE":"RaiseUserSpeed1","FLAMETHROWER":"BurnTarget","FLAMEWHEEL":"BurnTarget","FLAREBLITZ":"RecoilThirdOfDamageDealtBurnTarget","FLASHCANNON":"LowerTargetSpDef1","FORCEPALM":"ParalyzeTarget","FREEZEDRY":"FreezeTargetSuperEffectiveAgainstWater","GRAVAPPLE":"LowerTargetDefense1PowersUpInGravity","GUNKSHOT":"PoisonTarget","HEADBUTT":"FlinchTarget","HEATWAVE":"BurnTarget","HURRICANE":"ConfuseTargetAlwaysHitsInRainHitsTargetInSky","HYPERFANG":"FlinchTarget","ICEBEAM":"FreezeTarget","ICEFANG":"FreezeFlinchTarget","ICEPUNCH":"FreezeTarget","ICICLECRASH":"FlinchTarget","ICYWIND":"LowerTargetSpeed1","INFERNO":"BurnTarget","IRONHEAD":"FlinchTarget","IRONTAIL":"LowerTargetDefense1","LAVAPLUME":"BurnTarget","LEAFTORNADO":"LowerTargetAccuracy1","LICK":"ParalyzeTarget","LIQUIDATION":"LowerTargetDefense1","LOWSWEEP":"LowerTargetSpeed1","LUMINACRASH":"LowerTargetSpDef2","LUNGE":"LowerTargetAttack1","MATCHAGOTCHA":"HealUserByHalfOfDamageDoneBurnTarget","METALCLAW":"RaiseUserAttack1","METEORMASH":"RaiseUserAttack1","MOONBLAST":"LowerTargetSpAtk1","MORTALSPIN":"RemoveUserBindingAndEntryHazardsPoisonTarget","MUDDYWATER":"LowerTargetAccuracy1","MUDSHOT":"LowerTargetSpeed1","MUDSLAP":"LowerTargetAccuracy1","MYSTICALFIRE":"LowerTargetSpAtk1","NIGHTDAZE":"LowerTargetAccuracy1","NUZZLE":"ParalyzeTarget","OCTAZOOKA":"LowerTargetAccuracy1","ORDERUP":"RaiseUserStat1Commander","PLAYROUGH":"LowerTargetAttack1","POISONFANG":"BadPoisonTarget","POISONJAB":"PoisonTarget","POISONSTING":"PoisonTarget","POISONTAIL":"PoisonTarget","POWDERSNOW":"FreezeTarget","PSYBEAM":"ConfuseTarget","PSYCHIC":"LowerTargetSpDef1","PSYSHIELDBASH":"RaiseUserDefense1","PYROBALL":"BurnTarget","RAPIDSPIN":"RemoveUserBindingAndEntryHazards","RAZORSHELL":"LowerTargetDefense1","ROCKSLIDE":"FlinchTarget","ROCKSMASH":"LowerTargetDefense1","ROCKTOMB":"LowerTargetSpeed1","SALTCURE":"StartSaltCureTarget","SCALD":"BurnTarget","SHADOWBALL":"LowerTargetSpDef1","SKITTERSMACK":"LowerTargetSpAtk1","SKYATTACK":"TwoTurnAttackFlinchTarget","SLUDGE":"PoisonTarget","SLUDGEBOMB":"PoisonTarget","SLUDGEWAVE":"PoisonTarget","SMOG":"PoisonTarget","SNARL":"LowerTargetSpAtk1","SNORE":"FlinchTargetFailsIfUserNotAsleep","SPARK":"ParalyzeTarget","SPARKLINGARIA":"CureTargetBurn","SPIRITBREAK":"LowerTargetSpAtk1","SPIRITSHACKLE":"TrapTargetInBattle","STEELWING":"RaiseUserDefense1","STOMP":"FlinchTarget","STONEAXE":"SplintersTargetGen8AddStealthRocksGen9","STRUGGLEBUG":"LowerTargetSpAtk1","SYRUPBOMB":"LowerTargetSpeedOverTime","THROATCHOP":"DisableTargetSoundMoves","THUNDER":"ParalyzeTargetAlwaysHitsInRainHitsTargetInSky","THUNDERBOLT":"ParalyzeTarget","THUNDERFANG":"ParalyzeFlinchTarget","THUNDERPUNCH":"ParalyzeTarget","THUNDERSHOCK":"ParalyzeTarget","TIDYUP":"RaiseUserAtkSpd1RemoveHazardsSubstitutes","TORCHSONG":"RaiseUserSpAtk1","TRIATTACK":"ParalyzeBurnOrFreezeTarget","TROPKICK":"LowerTargetAttack1","TWISTER":"FlinchTargetDoublePowerIfTargetInSky","WATERFALL":"FlinchTarget","WATERPULSE":"ConfuseTarget","WAVECRASH":"RecoilThirdOfDamageDealt","ZAPCANNON":"ParalyzeTarget","ZENHEADBUTT":"FlinchTarget","ZINGZAP":"FlinchTarget"});
+import functionCodesAH from "./generated/safari-general-function-codes-a-h.js";
+import functionCodesIR from "./generated/safari-general-function-codes-i-r.js";
+import functionCodesSZ from "./generated/safari-general-function-codes-s-z.js";
+
+const FUNCTION_CODES = Object.freeze({ ...functionCodesAH, ...functionCodesIR, ...functionCodesSZ });
 
 export function safariGeneralSecondaryFunctionCodeV108(moveId) {
   const id = String(moveId ?? "");
   const functionCode = FUNCTION_CODES[id];
-  if (typeof functionCode !== "string" || functionCode.length === 0) throw new RangeError(`unknown Safari GENERAL secondary-effect FunctionCode: ${id}`);
+  if (typeof functionCode !== "string" || functionCode.length === 0) throw new RangeError(`unknown Safari GENERAL FunctionCode: ${id}`);
   return functionCode;
 }
 
 export function projectSafariGeneralSecondaryFunctionCodeV108(moveId, master) {
   if (!master || typeof master !== "object" || Array.isArray(master)) throw new TypeError("Safari GENERAL move master is required");
   const id = String(moveId ?? master.id ?? "");
-  const effectChance = Number(master.effect_chance ?? 0);
-  if (effectChance <= 0) return Object.freeze({ ...master, id });
   const functionCode = safariGeneralSecondaryFunctionCodeV108(id);
   if (master.function_code != null && String(master.function_code) !== functionCode) throw new Error(`Safari GENERAL move FunctionCode mismatch for ${id}`);
   return Object.freeze({ ...master, id, function_code: functionCode });
@@ -22,7 +24,7 @@ export function projectSafariGeneralSecondaryFunctionCodeV108(moveId, master) {
 export const SAFARI_GENERAL_SECONDARY_FUNCTION_CODE_METADATA_V108 = Object.freeze({
   moveCount: Object.keys(FUNCTION_CODES).length,
   uniqueFunctionCodeCount: new Set(Object.values(FUNCTION_CODES)).size,
-  projectionSha256: "ba95fb2ff38a68687677f920ac5d64b3a197a3a32ebc6da6496f851ad3fd56b7",
+  projectionSha256: "5059325350a36ca4c78122f4b35e7c53e1927815b1a3fe14fda5280f178d88d8",
   canonicalFilteredCoreSha256: "e35eecadc21535e57a4cd9946abfea9a52ed9268b12456e2934e0ef7eeabb1ab",
 });
-if (Object.keys(FUNCTION_CODES).length !== 140) throw new Error("Safari GENERAL secondary FunctionCode coverage mismatch");
+if (Object.keys(FUNCTION_CODES).length !== 608) throw new Error("Safari GENERAL FunctionCode coverage mismatch");
