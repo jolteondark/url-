@@ -73,6 +73,10 @@ export function boardCellPresentation(runtime, index) {
   return fullModule ? fullModule.boardCellPresentation(runtime, index) : startupBoardCellPresentation(runtime, index);
 }
 
+export async function listSafariCarryoverCandidates(runtime) {
+  return (await carryover()).listSafariCarryoverCandidates(runtime);
+}
+
 export async function prepareSafariNextRun(runtime, selection = null) {
   const result = await (await carryover()).prepareSafariNextRun(runtime, selection);
   publishRuntimeChanged();
@@ -111,9 +115,7 @@ export async function replaceSafariBattlePlayer(runtime, replacementPartyIndex) 
   let result;
   if (needsFullBattleIntegration(runtime)) {
     const module = await full();
-    if (typeof module.replaceSafariBattlePlayer !== "function") {
-      throw new Error("boundary player replacement owner is unavailable");
-    }
+    if (typeof module.replaceSafariBattlePlayer !== "function") throw new Error("boundary player replacement owner is unavailable");
     result = await module.replaceSafariBattlePlayer(runtime, replacementPartyIndex);
   } else {
     result = replaceSafariNormalBattlePlayer(runtime, replacementPartyIndex);
@@ -132,27 +134,13 @@ export async function returnSafariToDayBoard(runtime) {
   if (stateOf(runtime).battle) return returnSafariNormalToDayBoard(runtime);
   return (await full()).returnSafariToDayBoard(runtime);
 }
-export async function enterSafariVillage(runtime) {
-  return (await full()).enterSafariVillage(runtime);
-}
-export async function leaveSafariVillage(runtime) {
-  return (await full()).leaveSafariVillage(runtime);
-}
-export async function leaveSafariShop(runtime) {
-  return (await full()).leaveSafariShop(runtime);
-}
-export async function purchaseSafariShopItem(runtime, input) {
-  return (await full()).purchaseSafariShopItem(runtime, input);
-}
-export async function acceptSafariVillageBounty(runtime, input) {
-  return (await full()).acceptSafariVillageBounty(runtime, input);
-}
-export async function startSafariVillageBounty(runtime) {
-  return (await full()).startSafariVillageBounty(runtime);
-}
-export async function setSafariPartyLead(runtime, index) {
-  return (await full()).setSafariPartyLead(runtime, index);
-}
+export async function enterSafariVillage(runtime) { return (await full()).enterSafariVillage(runtime); }
+export async function leaveSafariVillage(runtime) { return (await full()).leaveSafariVillage(runtime); }
+export async function leaveSafariShop(runtime) { return (await full()).leaveSafariShop(runtime); }
+export async function purchaseSafariShopItem(runtime, input) { return (await full()).purchaseSafariShopItem(runtime, input); }
+export async function acceptSafariVillageBounty(runtime, input) { return (await full()).acceptSafariVillageBounty(runtime, input); }
+export async function startSafariVillageBounty(runtime) { return (await full()).startSafariVillageBounty(runtime); }
+export async function setSafariPartyLead(runtime, index) { return (await full()).setSafariPartyLead(runtime, index); }
 
 export function safariShopPresentation(runtime) {
   if (fullModule) return fullModule.safariShopPresentation(runtime);
@@ -181,6 +169,4 @@ export function safariVillagePresentation(runtime) {
   };
 }
 
-export function safariFullIntegrationLoaded() {
-  return fullModule !== null;
-}
+export function safariFullIntegrationLoaded() { return fullModule !== null; }
