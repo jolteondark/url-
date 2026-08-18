@@ -42,9 +42,12 @@ battleMessage.textContent = "技を選んでください。";
 const moves = new FakeElement("moves");
 const capture = new FakeElement("capture");
 new FakeElement("flee");
+const returnBoard = new FakeElement("return-board");
+returnBoard.hidden = true;
 const moveButton = new FakeElement("move-button");
 moveButton.dataset.moveId = "TACKLE";
 moveButton.closest = (selector) => selector.includes("#moves button[data-move-id]") ? moveButton : null;
+returnBoard.closest = (selector) => selector === "#return-board" ? returnBoard : null;
 
 const documentStub = {
   getElementById(id) { return byId.get(id) ?? null; },
@@ -83,6 +86,11 @@ const flushFrames = () => {
 };
 const commandClick = () => ({
   target: moveButton,
+  preventDefault() { this.prevented = true; },
+  stopImmediatePropagation() { this.stopped = true; },
+});
+const returnClick = () => ({
+  target: returnBoard,
   preventDefault() { this.prevented = true; },
   stopImmediatePropagation() { this.stopped = true; },
 });
@@ -153,15 +161,34 @@ assert.equal(battleMessage.textContent, "ターンを処理しています…");
 capture.disabled = false;
 battleMessage.dataset.presentationOwner = "event";
 battleMessage.textContent = "バトルに勝利した！";
+returnBoard.hidden = false;
+returnBoard.disabled = false;
 runOneFrame();
 assert.equal(battleCard.dataset.turnPhase, "result");
 assert.equal(phaseNode.textContent, "結果");
 assert.equal(battleMessage.textContent, "バトルに勝利した！", "RESULT must preserve preview-owned terminal notice");
 flushFrames();
 
+const firstReturn = returnClick();
+battleCard.listeners.get("click")(firstReturn);
+assert.equal(firstReturn.prevented, undefined, "first result return must reach preview-app");
+await Promise.resolve();
+assert.equal(returnBoard.disabled, true, "result return must lock before a second physical tap can dispatch");
+assert.equal(returnBoard.inert, true);
+const duplicateReturn = returnClick();
+battleCard.listeners.get("click")(duplicateReturn);
+assert.equal(duplicateReturn.prevented, true, "duplicate result return must be prevented");
+assert.equal(duplicateReturn.stopped, true, "duplicate result return must not reach preview-app");
+returnBoard.disabled = false;
+windowListeners.get("safari-runtime-changed")();
+runOneFrame();
+assert.equal(returnBoard.inert, false, "a failed return render may unlock the same completed result for retry");
+flushFrames();
+
 battle().completed = false;
 battle().player_replacement_required = false;
 battle().turn = 3;
+returnBoard.hidden = true;
 windowListeners.get("safari-runtime-changed")();
 flushFrames();
 assert.equal(battleMessage.textContent, "技を選んでください。");
@@ -210,9 +237,9 @@ const indexSource = fs.readFileSync(new URL("../index.html", import.meta.url), "
 const deferredSource = fs.readFileSync(new URL("../deferred-ui-loader.js", import.meta.url), "utf8");
 assert.match(previewSource, /preview-app\.js\?v=20260818-2318/,
   "public preview must require-load the current preview-app build");
-assert.match(previewSource, /battle-turn-phase-presentation\.js\?v=20260819-0322/);
-assert.match(indexSource, /preview\.js\?v=20260819-0322/);
-assert.match(indexSource, /build 20260819-0322/);
+assert.match(previewSource, /battle-turn-phase-presentation\.js\?v=20260819-0416/);
+assert.match(indexSource, /preview\.js\?v=20260819-0416/);
+assert.match(indexSource, /build 20260819-0416/);
 assert.doesNotMatch(deferredSource, /battle-turn-phase-presentation/);
 
-console.log("Safari Battle UI: move/Bag commands share one busy phase lifecycle: ok");
+console.log("Safari Battle UI: move/Bag commands and result return share one-input busy lifecycle: ok");
