@@ -13,7 +13,33 @@ function stateOf(runtime) {
   return state;
 }
 
-function battlePresentation(operations) {
+function presentationCombatant(pokemon) {
+  if (!pokemon) return null;
+  return Object.freeze({
+    species: pokemon.species ?? null,
+    maxHp: Number(pokemon.max_hp ?? 0),
+  });
+}
+
+function presentationContext(player, foe) {
+  return Object.freeze({
+    player: presentationCombatant(player),
+    foe: presentationCombatant(foe),
+  });
+}
+
+function bindPresentationIdentity(event, context) {
+  const actor = context?.[event.actor] ?? null;
+  const target = context?.[event.target] ?? null;
+  return {
+    ...event,
+    ...(actor?.species ? { actorSpecies: actor.species } : {}),
+    ...(target?.species ? { targetSpecies: target.species } : {}),
+    ...(Number(target?.maxHp) > 0 ? { targetMaxHp: Number(target.maxHp) } : {}),
+  };
+}
+
+function battlePresentation(operations, context = null) {
   const events = [];
   for (const operation of operations ?? []) {
     if (operation.op === "use_move") {
@@ -29,22 +55,7 @@ function battlePresentation(operations) {
       events.push({ type: "turn_end", turn: operation.battleTurn ?? operation.turn ?? operation.round });
     }
   }
-  return events;
-}
-
-function presentationCombatant(pokemon) {
-  if (!pokemon) return null;
-  return Object.freeze({
-    species: pokemon.species ?? null,
-    maxHp: Number(pokemon.max_hp ?? 0),
-  });
-}
-
-function presentationContext(player, foe) {
-  return Object.freeze({
-    player: presentationCombatant(player),
-    foe: presentationCombatant(foe),
-  });
+  return context ? events.map((event) => bindPresentationIdentity(event, context)) : events;
 }
 
 function reserveCount(party, activeIndex) {
@@ -82,7 +93,7 @@ function projectPlayerReplacement(battle, handoff, continuation = null) {
 function finish(runtime, battle, resolved, operations) {
   const state = stateOf(runtime);
   battle.last_operations = operations;
-  battle.presentation = battlePresentation(operations);
+  battle.presentation = battlePresentation(operations, resolved.presentationContext ?? null);
   state.last_operations = operations;
   if (Number(battle.decision) !== 0) finalizeNormalBattle(runtime);
   return {
@@ -134,6 +145,7 @@ function resolveTrainer(runtime, selectedMoveId) {
     playerPartyOrder: Array.isArray(battle.player_party_order) ? battle.player_party_order : null,
     playerIdxBattler: 0,
   });
+  resolved.presentationContext = roundPresentationContext;
   const next = resolved.nextRoundState;
   if (Array.isArray(next?.playerParty)) runtime.player.party = structuredClone(next.playerParty);
   else runtime.player.party[playerIndex] = structuredClone(resolved.player);
@@ -156,7 +168,6 @@ function resolveTrainer(runtime, selectedMoveId) {
   battle.turn += 1;
   const operations = (resolved.presentationOperations ?? resolved.operations ?? []).map((operation) => ({ ...operation, battleTurn: turn }));
   const result = finish(runtime, battle, resolved, operations);
-  result.presentationContext = roundPresentationContext;
   if (resolved.foeReplacementApplied && battle.decision === 0) {
     const trainerName = battle.trainer?.trainer_full_name ?? "トレーナー";
     battle.presentation.push({ type: "trainer_next", actor: "foe", trainer: trainerName, species: battle.foe?.species ?? null, partyIndex: battle.trainer_party_index });
@@ -242,9 +253,11 @@ function resolveWild(runtime, selectedMoveId, playerActionConsumedWithoutMove = 
     playerBattleExpInput: playerActionConsumedWithoutMove ? null : normalBattleExpInput(player, defeatedFoe, false),
     playerActionConsumedWithoutMove,
   });
-  const result = applyWildResolved(runtime, { ...resolved, opponentChoice: choice }, playerIndex);
-  result.presentationContext = roundPresentationContext;
-  return result;
+  return applyWildResolved(runtime, {
+    ...resolved,
+    opponentChoice: choice,
+    presentationContext: roundPresentationContext,
+  }, playerIndex);
 }
 
 export function resolveSafariNormalBattleRound(runtime, selectedMoveId) {
