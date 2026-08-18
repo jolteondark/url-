@@ -54,6 +54,19 @@ function installLazyMasterProjection(target, source) {
   return ids.length;
 }
 
+function snapshotMasterDescriptors(target, ids) {
+  const snapshot = new Map();
+  for (const id of ids) snapshot.set(id, Object.getOwnPropertyDescriptor(target, id) ?? null);
+  return snapshot;
+}
+
+function restoreMasterDescriptors(target, snapshot) {
+  for (const [id, descriptor] of snapshot) {
+    if (descriptor) Object.defineProperty(target, id, descriptor);
+    else Reflect.deleteProperty(target, id);
+  }
+}
+
 export function installSafariGeneralMasters(speciesMasters, moveMasters) {
   if (!speciesMasters || !moveMasters) throw new TypeError("general species and move masters are required");
 
@@ -64,11 +77,31 @@ export function installSafariGeneralMasters(speciesMasters, moveMasters) {
   // until that exact species/move is requested. The setter intentionally lets
   // encounter/trainer owners concretize only their selected masters with their
   // existing Object.assign calls.
-  const speciesCount = installLazyMasterProjection(SAFARI_SPECIES_MASTERS, speciesMasters);
-  const moveCount = installLazyMasterProjection(SAFARI_MOVE_MASTERS, moveMasters);
-  Object.assign(SAFARI_MOVE_MASTERS, EXACT_BOOT_MOVES);
-  generalInstalled = true;
-  return { speciesCount, moveCount };
+  //
+  // Installation is transactional. A Safari/runtime failure after only part of
+  // the descriptors were defined must not leave shared masters half-mutated
+  // while generalInstalled remains false; same-session retry starts from the
+  // exact pre-install bootstrap state instead.
+  const speciesIds = Object.keys(speciesMasters);
+  const moveIds = Object.keys(moveMasters);
+  const speciesSnapshot = snapshotMasterDescriptors(SAFARI_SPECIES_MASTERS, speciesIds);
+  const moveSnapshot = snapshotMasterDescriptors(
+    SAFARI_MOVE_MASTERS,
+    [...new Set([...moveIds, ...Object.keys(EXACT_BOOT_MOVES)])],
+  );
+
+  try {
+    const speciesCount = installLazyMasterProjection(SAFARI_SPECIES_MASTERS, speciesMasters);
+    const moveCount = installLazyMasterProjection(SAFARI_MOVE_MASTERS, moveMasters);
+    Object.assign(SAFARI_MOVE_MASTERS, EXACT_BOOT_MOVES);
+    generalInstalled = true;
+    return { speciesCount, moveCount };
+  } catch (error) {
+    restoreMasterDescriptors(SAFARI_SPECIES_MASTERS, speciesSnapshot);
+    restoreMasterDescriptors(SAFARI_MOVE_MASTERS, moveSnapshot);
+    generalInstalled = false;
+    throw error;
+  }
 }
 
 export function safariGeneralMastersInstalled() {
