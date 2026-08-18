@@ -55,7 +55,14 @@ function battleBagCommandAvailable(runtime) {
 }
 
 function setBattleControlsDisabled(disabled) {
-  for (const button of document.querySelectorAll("#moves button, #capture, #flee")) button.disabled = disabled;
+  const moves = byId("moves");
+  if (moves) moves.inert = disabled;
+  for (const id of ["capture", "flee"]) {
+    const button = byId(id);
+    if (!button) continue;
+    button.inert = disabled;
+    button.disabled = disabled;
+  }
 }
 
 function battlePresentationName(runtime, side) {
@@ -239,6 +246,7 @@ byId("game-menu")?.addEventListener("click", async (event) => {
       console.error("[Mapless] Bag use failed", error);
     } finally {
       bagUseBusy = false;
+      setBattleControlsDisabled(false);
       window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
       renderBag();
     }
