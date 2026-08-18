@@ -68,6 +68,16 @@ async function renderCarryover() {
   }
 }
 
+function renderAfterPreviewRestore() {
+  queueMicrotask(() => {
+    if (typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(() => void renderCarryover());
+    } else {
+      void renderCarryover();
+    }
+  });
+}
+
 async function choose(selection) {
   if (selecting) return;
   selecting = true;
@@ -101,6 +111,7 @@ document.addEventListener("click", (event) => {
   });
 });
 
+window.addEventListener("safari-preview-start", renderAfterPreviewRestore);
 window.addEventListener("safari-runtime-changed", () => queueMicrotask(renderCarryover));
 window.addEventListener("pageshow", () => queueMicrotask(renderCarryover));
 queueMicrotask(renderCarryover);

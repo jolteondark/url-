@@ -77,7 +77,7 @@ async function startPreview(action) {
   try {
     await appPromise;
     replacementPresentationPromise ??= import("./battle-player-replacement-presentation.js?v=20260818-1440");
-    carryoverPresentationPromise ??= import("./carryover-next-run-presentation.js?v=20260818-1525");
+    carryoverPresentationPromise ??= import("./carryover-next-run-presentation.js?v=20260818-1547");
     await Promise.all([replacementPresentationPromise, carryoverPresentationPromise]);
     traceBattleStart("preview_app_import_ready");
     window.dispatchEvent(new CustomEvent("safari-preview-start", { detail: { action } }));
