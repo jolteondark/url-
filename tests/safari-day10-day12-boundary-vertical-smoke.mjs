@@ -43,3 +43,4 @@ assert.deepEqual(day12Board.board_consumed, Array(8).fill(false));
 assert.deepEqual(day12Board.board_visited, Array(8).fill(false));
 
 console.log('PASS 21/21');
+await import('./safari-boundary-return-save-continue-smoke.mjs');

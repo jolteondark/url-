@@ -139,13 +139,20 @@ export async function attemptSafariCapture(runtime, options = {}) {
   return (await full()).attemptSafariCapture(runtime, options);
 }
 export async function returnSafariToDayBoard(runtime) {
+  const wasBoundary = needsFullBattleIntegration(runtime);
   let result;
-  if (needsFullBattleIntegration(runtime)) {
+  if (wasBoundary) {
     result = await (await full()).returnSafariToDayBoard(runtime);
   } else if (stateOf(runtime).battle) {
     result = await returnSafariNormalToDayBoard(runtime);
   } else {
     result = await (await full()).returnSafariToDayBoard(runtime);
+  }
+  if (wasBoundary && result?.target === "day_board") {
+    const requestSave = { op: "request_save", reason: "boundary return committed" };
+    result.operations = [...(result.operations ?? []), requestSave];
+    result.persistenceRequested = true;
+    stateOf(runtime).last_operations = result.operations;
   }
   globalThis.__maplessSafariRuntime = runtime;
   publishRuntimeChanged();
