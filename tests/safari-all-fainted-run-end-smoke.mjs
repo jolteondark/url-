@@ -10,12 +10,9 @@ const web = await import("../runtime/safari-web-playable-integration.js");
 const runtime = web.createSafariPlayableRuntime();
 const state = runtime.variables.mapless;
 
-// Canonical MaplessCarryover tracks an active/prepared run separately from
-// carryover-pending. Seed those canonical state flags explicitly so this test
-// remains focused on the defeat -> finish_run boundary while startup adoption
-// can be implemented in the same change.
 state.mapless_run_active = true;
 state.mapless_run_prepared = true;
+state.mapless_run_end_pending = false;
 state.mapless_carryover_pending = false;
 state.mapless_carryover_overflow = false;
 runtime.bag.slots = [["POTION", 2]];
@@ -32,10 +29,9 @@ const started = await web.activateSafariDayBoardCell(runtime, 0);
 assert.equal(started.result, "dispatched");
 assert.ok(state.battle && state.battle.kind === "wild" && !state.battle.completed);
 
-// There is exactly one usable player Pokemon. Force failed Run, then make the
-// canonical opponent-only response KO it. This is the real #262 path, not a
-// synthetic defeat call.
-assert.equal(runtime.player.party.length, 1, "fixture must start with one usable Pokemon");
+// One usable Pokemon. Exercise the real failed-Run opponent-only path and make
+// that single canonical foe response KO the Party.
+assert.equal(runtime.player.party.length, 1);
 const player = runtime.player.party[0];
 player.hp = 1;
 player.stats.DEFENSE = 1;
@@ -46,6 +42,7 @@ state.battle.foe.stats.ATTACK = 999;
 state.battle.foe.stats.SPECIAL_ATTACK = 999;
 state.battle.foe.stats.SPEED = 999;
 
+const defeatedPartySnapshot = structuredClone(runtime.player.party);
 const storedBefore = runtime.storage_system.boxes.reduce(
   (sum, box) => sum + box.slots.filter(Boolean).length,
   0,
@@ -55,14 +52,31 @@ assert.equal(failed.escaped, false);
 assert.equal(failed.blocked, false);
 assert.equal(failed.resolution.reason, "escape_failed");
 assert.equal(failed.opponentResponse?.playerActionConsumedWithoutMove, true,
-  "all-fainted run end must originate from the canonical opponent-only failed-action response");
+  "run-end defeat must originate from the canonical opponent-only failed-action response");
 assert.equal(failed.opponentResponse?.decision, 2,
   "last usable Pokemon KO must resolve canonical defeat decision 2");
-assert.equal(state.battle?.completed, true, "defeat must complete the Battle exactly once");
+assert.equal(state.battle?.completed, true, "defeat must complete Battle exactly once");
 assert.equal(state.battle?.decision, 2);
+assert.equal(state.mapless_run_end_pending, true,
+  "canonical after_battle stage must mark run end before finish_run cleanup");
+assert.equal(state.battle?.return_target, "home",
+  "all-fainted defeat must route the completed Battle toward Mapless home, not Day Board");
+assert.equal(state.mapless_run_active, true,
+  "Battle result presentation must retain the defeated run until finish_run transition");
+assert.equal(runtime.player.party.length, defeatedPartySnapshot.length,
+  "defeated Party must remain present while the Battle result is being presented");
+assert.ok(failed.presentation?.some((event) => event.type === "faint" && event.target === "player"));
+assert.equal(failed.presentation?.filter((event) => event.type === "battle_result" && event.decision === 2).length, 1,
+  "terminal failed-action path must emit exactly one defeat result");
 
-// Canonical source-v0.9.108 MaplessCarryover.finish_run contract.
-assert.equal(state.mapless_run_active, false, "all-fainted defeat must close the active run");
+// Browser adaptation of canonical MaplessCarryover.finish_run: dismissing the
+// completed result performs the deferred archive/reset and enters home.
+const returned = await web.returnSafariToDayBoard(runtime);
+assert.equal(returned.target, "home", "run-end result must transition to home");
+assert.equal(state.battle, null);
+assert.equal(state.location, "home");
+assert.equal(state.mapless_run_end_pending, false, "finish_run must clear pending marker");
+assert.equal(state.mapless_run_active, false, "finish_run must close the active run");
 assert.equal(state.mapless_run_prepared, false, "finished run must no longer be prepared");
 assert.equal(state.mapless_carryover_pending, true,
   "finished run must wait for explicit next-run carryover selection");
@@ -74,14 +88,11 @@ const storedAfter = runtime.storage_system.boxes.reduce(
   (sum, box) => sum + box.slots.filter(Boolean).length,
   0,
 );
-assert.equal(storedAfter, storedBefore + 1, "defeated Party must archive to existing Storage owner");
-assert.deepEqual(runtime.bag.slots, [], "finished run must clear Bag contents");
-assert.equal(runtime.bag.money, 0, "finished run must clear Money");
-assert.equal(state.battle?.return_target, "home",
-  "all-fainted defeat must not offer a Day Board return");
-assert.ok(failed.presentation?.some((event) => event.type === "faint" && event.target === "player"),
-  "terminal opponent response must retain player faint presentation");
-assert.equal(failed.presentation?.filter((event) => event.type === "battle_result" && event.decision === 2).length, 1,
-  "terminal failed-action path must emit exactly one defeat result");
+assert.equal(storedAfter, storedBefore + defeatedPartySnapshot.length,
+  "defeated Party must archive through the existing Storage owner");
+assert.deepEqual(runtime.bag.slots, [], "finish_run must clear Bag contents");
+assert.equal(runtime.bag.money, 0, "finish_run must clear Money");
+assert.equal(returned.persistenceRequested, true,
+  "canonical finish_run transition must request persistence");
 
-console.log("Safari failed Run -> last Pokemon KO -> canonical run end/carryover pending: ok");
+console.log("Safari failed Run -> last Pokemon KO -> mark run end -> finish/carryover home: ok");
