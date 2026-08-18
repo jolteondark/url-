@@ -35,11 +35,17 @@ function setCommandLock(locked) {
   if (panel) panel.dataset.turnPhaseLocked = shouldLock ? "true" : "false";
 }
 
+function previewCommandBusy() {
+  return Boolean(byId("capture")?.disabled);
+}
+
 function phaseFor(battle) {
   if (!battle) return null;
   // #turn remains the sole numeric turn owner. This pill communicates only the
   // input/presentation phase, so Safari never shows two competing Turn labels.
-  if (resolving) return { key: "resolving", text: "行動処理中" };
+  // Bag turns are initiated outside #battle-card, so reuse preview's existing
+  // command-busy signal instead of creating a second Bag-specific phase truth.
+  if (resolving || previewCommandBusy()) return { key: "resolving", text: "行動処理中" };
   if (battle.completed) return { key: "result", text: "結果" };
   if (battle.player_replacement_required) return { key: "replacement", text: "交代選択" };
   return { key: "command", text: "コマンド選択" };
@@ -107,7 +113,7 @@ function resolutionSettled() {
   const card = byId("battle-card");
   if (!battle) return Boolean(card?.hidden);
 
-  const previewBusy = Boolean(byId("capture")?.disabled);
+  const previewBusy = previewCommandBusy();
   if (previewBusy) return false;
   if (battle.completed || battle.player_replacement_required) return true;
   return Number(battle.turn ?? 0) !== Number(submittedTurn ?? 0);
