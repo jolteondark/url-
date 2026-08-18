@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 
 globalThis.CustomEvent = class CustomEvent {
   constructor(type, init = {}) { this.type = type; this.detail = init.detail; }
@@ -83,4 +84,22 @@ assert.equal(Number(state.battle.player_party_index), 1,
   "terminal reflection must stay attached to the selected reserve slot");
 assert.equal(Boolean(state.mapless_run_end_pending), false);
 
-console.log("Safari active KO -> legal reserve replacement -> next command -> victory: ok");
+// Lock the browser wiring: replacement UI is a required preview module, but it
+// must share the exact same unversioned Battle facade instance as preview-app.
+const previewSource = fs.readFileSync(new URL("../preview.js", import.meta.url), "utf8");
+const replacementUiSource = fs.readFileSync(new URL("../battle-player-replacement-presentation.js", import.meta.url), "utf8");
+const deferredUiSource = fs.readFileSync(new URL("../deferred-ui-loader.js", import.meta.url), "utf8");
+assert.match(previewSource, /import\("\.\/battle-player-replacement-presentation\.js\?v=[^"']+"\)/,
+  "preview start must load the player replacement UI as a required gameplay module");
+assert.match(replacementUiSource, /from "\.\/runtime\/safari-web-playable-integration\.js"/,
+  "replacement UI must call the shared Safari Battle facade");
+assert.doesNotMatch(replacementUiSource, /safari-web-playable-integration\.js\?v=/,
+  "replacement UI must not create a query-versioned second Battle facade instance");
+assert.doesNotMatch(deferredUiSource, /battle-player-replacement-presentation\.js/,
+  "optional deferred UI must not load a second replacement module instance");
+assert.match(replacementUiSource, /replaceSafariBattlePlayer\(globalThis\.__maplessSafariRuntime, partyIndex\)/,
+  "replacement buttons must hand the selected legal Party index to the shared facade");
+assert.match(replacementUiSource, /moves\.inert = true/,
+  "normal move commands must be blocked while replacement selection is required");
+
+console.log("Safari active KO -> legal reserve replacement -> next command -> victory + UI wiring: ok");
