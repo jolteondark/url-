@@ -15,6 +15,7 @@ class FakeElement {
     this.className = "";
     this.listeners = new Map();
     this.children = [];
+    this.attributes = new Map();
     if (id) byId.set(id, this);
   }
   append(child) {
@@ -23,6 +24,7 @@ class FakeElement {
     if (child.id === "battle-phase") phaseNode = child;
   }
   addEventListener(type, listener) { this.listeners.set(type, listener); }
+  setAttribute(name, value) { this.attributes.set(name, String(value)); }
   querySelector(selector) {
     if (selector === ".battle-topline") return byId.get("battle-topline");
     if (selector === ".battle-command-panel") return byId.get("battle-command-panel");
