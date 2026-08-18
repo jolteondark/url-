@@ -109,3 +109,4 @@ assert.doesNotMatch(preview, /new MutationObserver\(/,
 console.log("Safari Battle presentation narration: event-bound identity + frozen sprite through RESOLVING: ok");
 await import("./safari-day10-day12-boundary-vertical-smoke.mjs");
 await import("./safari-postbattle-save-continue-smoke.mjs");
+await import("./safari-battle-bag-menu-smoke.mjs");
