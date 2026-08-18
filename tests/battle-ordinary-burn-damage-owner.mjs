@@ -45,3 +45,4 @@ const burnedSpecial = resolvedDamage(pokemon("BURN"), moveMasters.SWIFT, 1);
 assert.equal(healthySpecial.damage, burnedSpecial.damage, "burn must not halve ordinary special damage");
 
 console.log("ordinary burn damage owner smoke: ok");
+await import("./battle-ordinary-thunder-wave-status-owner.mjs");
