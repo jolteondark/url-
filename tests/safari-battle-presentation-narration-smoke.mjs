@@ -89,6 +89,10 @@ assert.match(preview, /event\.targetMaxHp \?\? pokemon\?\.max_hp/,
   "damage animation must prefer the event-bound old combatant max HP over post-round live state");
 assert.match(phase, /presentationOwner === "event"/,
   "turn phase guard must preserve concrete presentation-event narration while RESOLVING");
+assert.match(phase, /safari-battle-presentation-event/,
+  "turn phase must follow the already owner-ordered presentation event stream instead of recomputing action order");
+assert.match(phase, /if \(previewCommandBusy\(\)\) return false;\s*if \(battle\.completed \|\| battle\.player_replacement_required\) return true;/,
+  "KO/replacement/result state must not release RESOLVING before the presentation busy lock is released");
 assert.match(round, /targetSpecies/,
   "normal-round presentation must bind pre-round combatant identity to events");
 assert.match(round, /targetMaxHp/,
@@ -107,6 +111,7 @@ assert.doesNotMatch(preview, /new MutationObserver\(/,
   "preview-app narration must not infer Battle mechanics from DOM mutation");
 
 console.log("Safari Battle presentation narration: event-bound identity + frozen sprite through RESOLVING: ok");
+await import("./safari-battle-action-order-presentation-smoke.mjs");
 await import("./safari-day10-day12-boundary-vertical-smoke.mjs");
 await import("./safari-postbattle-save-continue-smoke.mjs");
 await import("./safari-battle-bag-menu-smoke.mjs");

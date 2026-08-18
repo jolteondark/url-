@@ -108,10 +108,17 @@ assert.equal(battleCard.dataset.turnPhase, "resolving",
   "Bag-owned busy state outside battle-card must enter the shared RESOLVING phase");
 assert.equal(phaseNode.textContent, "行動処理中");
 assert.equal(moves.inert, true, "Bag turn must keep Battle commands inert through the shared phase owner");
+windowListeners.get("safari-battle-presentation-event")({ detail: { event: { type: "battle_item", actor: "player" } } });
+assert.equal(battleCard.dataset.turnAction, "item", "Bag presentation must share the action-unit phase dataset");
+assert.equal(phaseNode.textContent, "アイテム処理中");
+windowListeners.get("safari-battle-presentation-event")({ detail: { event: { type: "move_started", actor: "foe" } } });
+assert.equal(battleCard.dataset.turnAction, "foe", "Bag opponent response must advance the same owner-ordered action dataset");
+assert.equal(phaseNode.textContent, "相手action処理中");
 capture.disabled = false;
 windowListeners.get("safari-runtime-changed")();
 runOneFrame();
 assert.equal(battleCard.dataset.turnPhase, "command");
+assert.equal(battleCard.dataset.turnAction, undefined);
 assert.equal(moves.inert, false);
 flushFrames();
 
@@ -124,6 +131,9 @@ assert.equal(battleMessage.textContent, "ターンを処理しています…");
 await Promise.resolve();
 assert.equal(moves.inert, true, "moves must become inert before another user input can dispatch");
 
+windowListeners.get("safari-battle-presentation-event")({ detail: { event: { type: "move_started", actor: "player" } } });
+assert.equal(battleCard.dataset.turnAction, "player");
+assert.equal(phaseNode.textContent, "味方action処理中");
 battleMessage.dataset.presentationOwner = "event";
 battleMessage.textContent = "EEVEEのたいあたり！";
 runOneFrame();
@@ -144,6 +154,7 @@ assert.equal(battleCard.dataset.turnPhase, "command");
 assert.equal(phaseNode.textContent, "コマンド選択");
 assert.equal(battleMessage.textContent, "技を選んでください。", "COMMAND restores the normal prompt");
 assert.equal(battleMessage.dataset.presentationOwner, undefined, "COMMAND releases event narration ownership");
+assert.equal(battleCard.dataset.turnAction, undefined);
 assert.equal(moves.inert, false);
 
 const terminalCommand = commandClick();
@@ -154,7 +165,8 @@ battle().turn = 3;
 battle().completed = true;
 windowListeners.get("safari-runtime-changed")();
 runOneFrame();
-assert.equal(battleCard.dataset.turnPhase, "resolving");
+assert.equal(battleCard.dataset.turnPhase, "resolving",
+  "owner terminal state must not beat the still-active presentation busy lock");
 assert.equal(phaseNode.textContent, "行動処理中");
 assert.equal(battleMessage.textContent, "ターンを処理しています…");
 capture.disabled = false;
@@ -184,6 +196,10 @@ windowListeners.get("safari-runtime-changed")();
 runOneFrame();
 assert.equal(phaseNode.textContent, "行動処理中");
 assert.equal(battleMessage.textContent, "ターンを処理しています…");
+windowListeners.get("safari-battle-presentation-event")({ detail: { event: { type: "trainer_next", actor: "foe" } } });
+assert.equal(battleCard.dataset.turnAction, "sendout", "trainer reserve send-out must remain inside RESOLVING");
+assert.equal(phaseNode.textContent, "交代演出中");
+assert.equal(moves.inert, true);
 capture.disabled = false;
 runOneFrame();
 assert.equal(battleCard.dataset.turnPhase, "replacement");
@@ -258,9 +274,9 @@ const indexSource = fs.readFileSync(new URL("../index.html", import.meta.url), "
 const deferredSource = fs.readFileSync(new URL("../deferred-ui-loader.js", import.meta.url), "utf8");
 assert.match(previewSource, /preview-app\.js\?v=20260818-2318/,
   "public preview must require-load the current preview-app build");
-assert.match(previewSource, /battle-turn-phase-presentation\.js\?v=20260819-0525/);
-assert.match(indexSource, /preview\.js\?v=20260819-0525/);
-assert.match(indexSource, /build 20260819-0525/);
+assert.match(previewSource, /battle-turn-phase-presentation\.js\?v=20260819-0820/);
+assert.match(indexSource, /preview\.js\?v=20260819-0820/);
+assert.match(indexSource, /build 20260819-0820/);
 assert.doesNotMatch(deferredSource, /battle-turn-phase-presentation/);
 
-console.log("Safari Battle UI: move/Bag/Result-return inputs share one busy phase lifecycle: ok");
+console.log("Safari Battle UI: owner-ordered action phases, Bag, replacement/result and return share one busy lifecycle: ok");

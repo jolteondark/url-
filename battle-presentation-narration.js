@@ -4,7 +4,19 @@ function fallbackSideName(side) {
   return "ポケモン";
 }
 
+function publishPresentationEvent(event) {
+  if (!event || typeof globalThis.window?.dispatchEvent !== "function" || typeof globalThis.CustomEvent !== "function") return;
+  globalThis.window.dispatchEvent(new globalThis.CustomEvent("safari-battle-presentation-event", {
+    detail: { event },
+  }));
+}
+
 export function formatSafariBattlePresentationEvent(event = {}, context = {}) {
+  // The mechanics owner has already ordered and truncated this queue. Publish
+  // only the event being rendered so phase/UI code can follow that owner order
+  // without re-deciding priority, speed, KO, reserve, or opponent response.
+  publishPresentationEvent(event);
+
   // Normal-round events carry the pre-round identity snapshot. Prefer it over
   // live DOM/state because trainer replacement can already be committed before
   // the old foe's presentation queue is played.
