@@ -77,6 +77,15 @@ function archiveRunParty(runtime) {
   return { overflow: remaining.length > 0, operations };
 }
 
+function resetFinishedRunState(state) {
+  state.day = 1;
+  state.board_events = [];
+  state.board_revealed = [];
+  state.board_consumed = [];
+  state.board_visited = [];
+  state.shop = null;
+}
+
 export function finishMaplessRun(runtime) {
   const state = ensureMaplessRunLifecycleState(runtime);
   if (!state.mapless_run_end_pending || !state.mapless_run_active) {
@@ -93,11 +102,13 @@ export function finishMaplessRun(runtime) {
   runtime.bag ??= { slots: [], money: 0 };
   runtime.bag.slots = [];
   runtime.bag.money = 0;
+  resetFinishedRunState(state);
 
   const operations = [
     ...archived.operations,
     { op: "clear_run_bag" },
     { op: "clear_run_money" },
+    { op: "reset_finished_run_state" },
     { op: "set_run_active", value: false },
     { op: "set_run_prepared", value: false },
     { op: "set_carryover_pending", value: true },
