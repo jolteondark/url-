@@ -16,6 +16,28 @@ function removePanel() {
   byId("carryover-next-run-panel")?.remove();
 }
 
+function ensurePanel() {
+  const boardCard = byId("board-card");
+  if (!boardCard) return null;
+  let panel = byId("carryover-next-run-panel");
+  if (!panel) {
+    panel = document.createElement("section");
+    panel.id = "carryover-next-run-panel";
+    panel.className = "carryover-next-run-panel";
+    boardCard.append(panel);
+  }
+  return panel;
+}
+
+function fallbackButton() {
+  const fallback = document.createElement("button");
+  fallback.type = "button";
+  fallback.dataset.carryoverFallback = "true";
+  fallback.disabled = selecting;
+  fallback.textContent = "通常スターターで始める";
+  return fallback;
+}
+
 function candidateButton(candidate) {
   const pokemon = candidate.pokemon ?? {};
   const button = document.createElement("button");
@@ -31,51 +53,32 @@ function candidateButton(candidate) {
   return button;
 }
 
-async function renderCarryover() {
+export async function renderSafariCarryoverSelection() {
   if (rendering) return;
   const state = stateOfRuntime();
   if (!state?.mapless_carryover_pending || state.location !== "home") {
     removePanel();
     return;
   }
-  const boardCard = byId("board-card");
-  if (!boardCard) return;
+  const panel = ensurePanel();
+  if (!panel) return;
   rendering = true;
+  const heading = document.createElement("strong");
+  heading.textContent = "次のランへ持ち込むポケモンを選んでください";
   try {
     const candidates = await listSafariCarryoverCandidates(globalThis.__maplessSafariRuntime);
-    let panel = byId("carryover-next-run-panel");
-    if (!panel) {
-      panel = document.createElement("section");
-      panel.id = "carryover-next-run-panel";
-      panel.className = "carryover-next-run-panel";
-      boardCard.append(panel);
-    }
-    const heading = document.createElement("strong");
-    heading.textContent = "次のランへ持ち込むポケモンを選んでください";
     const options = document.createElement("div");
     options.className = "carryover-next-run-options";
     options.replaceChildren(...candidates.map(candidateButton));
-    const fallback = document.createElement("button");
-    fallback.type = "button";
-    fallback.dataset.carryoverFallback = "true";
-    fallback.disabled = selecting;
-    fallback.textContent = "通常スターターで始める";
-    panel.replaceChildren(heading, options, fallback);
+    panel.replaceChildren(heading, options, fallbackButton());
   } catch (error) {
     globalThis.__maplessLastError = error;
+    const message = document.createElement("p");
+    message.textContent = "持ち越し候補を読み込めませんでした。通常スターターなら次のランを開始できます。";
+    panel.replaceChildren(heading, message, fallbackButton());
   } finally {
     rendering = false;
   }
-}
-
-function renderAfterPreviewRestore() {
-  queueMicrotask(() => {
-    if (typeof window.requestAnimationFrame === "function") {
-      window.requestAnimationFrame(() => void renderCarryover());
-    } else {
-      void renderCarryover();
-    }
-  });
 }
 
 async function choose(selection) {
@@ -89,11 +92,12 @@ async function choose(selection) {
       saveSafariPlayableRun(window.localStorage, runtime);
     }
     removePanel();
+    window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
   } catch (error) {
     globalThis.__maplessLastError = error;
   } finally {
     selecting = false;
-    queueMicrotask(renderCarryover);
+    queueMicrotask(renderSafariCarryoverSelection);
   }
 }
 
@@ -111,7 +115,7 @@ document.addEventListener("click", (event) => {
   });
 });
 
-window.addEventListener("safari-preview-start", renderAfterPreviewRestore);
-window.addEventListener("safari-runtime-changed", () => queueMicrotask(renderCarryover));
-window.addEventListener("pageshow", () => queueMicrotask(renderCarryover));
-queueMicrotask(renderCarryover);
+window.addEventListener("safari-runtime-changed", () => queueMicrotask(renderSafariCarryoverSelection));
+window.addEventListener("safari-preview-start", () => window.requestAnimationFrame(() => void renderSafariCarryoverSelection()));
+window.addEventListener("pageshow", () => queueMicrotask(renderSafariCarryoverSelection));
+queueMicrotask(renderSafariCarryoverSelection);
