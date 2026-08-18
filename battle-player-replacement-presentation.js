@@ -2,6 +2,7 @@ import { replaceSafariBattlePlayer } from "./runtime/safari-web-playable-integra
 
 const byId = (id) => document.getElementById(id);
 let selecting = false;
+let readyFrame = 0;
 
 function battleState() {
   return globalThis.__maplessSafariRuntime?.variables?.mapless?.battle ?? null;
@@ -15,6 +16,23 @@ function clearReplacementUi() {
     const node = byId(id);
     if (node) node.inert = false;
   }
+  if (readyFrame) cancelAnimationFrame(readyFrame);
+  readyFrame = 0;
+}
+
+function previewCommandBusy() {
+  return Boolean(byId("capture")?.disabled);
+}
+
+function updateReplacementButtonState() {
+  readyFrame = 0;
+  const battle = battleState();
+  if (!battle?.player_replacement_required || battle.completed) return;
+  const waiting = previewCommandBusy();
+  for (const button of byId("player-replacement-panel")?.querySelectorAll("button[data-player-replacement-party-index]") ?? []) {
+    button.disabled = selecting || waiting;
+  }
+  if (waiting) readyFrame = requestAnimationFrame(updateReplacementButtonState);
 }
 
 function replacementButton(option) {
@@ -22,7 +40,7 @@ function replacementButton(option) {
   const button = document.createElement("button");
   button.type = "button";
   button.dataset.playerReplacementPartyIndex = String(option.partyIndex);
-  button.disabled = selecting;
+  button.disabled = selecting || previewCommandBusy();
 
   const name = document.createElement("strong");
   name.textContent = pokemon.species ?? `Party ${Number(option.partyIndex) + 1}`;
@@ -66,13 +84,16 @@ function syncReplacementUi() {
   heading.className = "player-replacement-heading";
   heading.textContent = "次のポケモンを選んでください";
   const grid = document.createElement("div");
-  grid.className = "player-replacement-options";
+  grid.className = "move-grid player-replacement-options";
   grid.replaceChildren(...options.map(replacementButton));
   panel.replaceChildren(heading, grid);
+
+  if (readyFrame) cancelAnimationFrame(readyFrame);
+  readyFrame = requestAnimationFrame(updateReplacementButtonState);
 }
 
 async function chooseReplacement(button) {
-  if (selecting) return;
+  if (selecting || previewCommandBusy()) return;
   const battle = battleState();
   if (!battle?.player_replacement_required) return;
   const partyIndex = Number(button.dataset.playerReplacementPartyIndex);
@@ -81,7 +102,7 @@ async function chooseReplacement(button) {
   if (!legal) return;
 
   selecting = true;
-  syncReplacementUi();
+  updateReplacementButtonState();
   try {
     await replaceSafariBattlePlayer(globalThis.__maplessSafariRuntime, partyIndex);
   } catch (error) {
