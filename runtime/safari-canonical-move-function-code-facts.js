@@ -5,7 +5,13 @@ import TZ from "./generated/safari-canonical-move-function-codes-tz.js";
 
 // Generated from canonical Mapless v0.9.108 PBS moves.
 // Source ZIP SHA-256: e35eecadc21535e57a4cd9946abfea9a52ed9268b12456e2934e0ef7eeabb1ab
-const FUNCTION_CODE_BY_MOVE = Object.freeze({ ...AF, ...GM, ...NS, ...TZ });
+const FUNCTION_CODE_BY_MOVE = Object.freeze({
+  ...AF,
+  ...GM,
+  ...NS,
+  ...TZ,
+  BURNINGBULWARK: "ProtectUserBurningBulwark",
+});
 
 export function safariCanonicalMoveFunctionCodeV108(moveId) {
   const id = String(moveId ?? "");
