@@ -1,10 +1,10 @@
-import { saveSafariPlayableRun } from "./runtime/safari-playable-integration.js";
+import { saveSafariPlayableRun, useSafariBattleItem } from "./runtime/safari-web-playable-integration.js";
 import { useSafariBagItemOnPartyPokemon } from "./runtime/safari-bag-item-use.js";
-import "./battle-menu-presentation.js";
 
 const byId = (id) => document.getElementById(id);
 const moneyFormat = new Intl.NumberFormat("ja-JP");
 let active = "party";
+let bagUseBusy = false;
 
 function snapshot() {
   // The preview app owns the live runtime. Never create/load a second runtime
@@ -46,6 +46,16 @@ function potionTargetSelect(runtime) {
   if (firstUsable != null) select.value = String(firstUsable);
   select.disabled = firstUsable == null;
   return { select, hasTarget: firstUsable != null };
+}
+
+function battleBagCommandAvailable(runtime) {
+  const battle = runtime?.variables?.mapless?.battle;
+  if (!battle) return true;
+  if (battle.completed || battle.player_replacement_required || battle.origin === "boundary_trial") return false;
+  // preview-app owns the shared command busy flag and mirrors it to capture.disabled
+  // for every Battle kind. Reuse that UI-owned signal instead of inventing a second
+  // Battle phase/busy truth in this menu bridge.
+  return !byId("capture")?.disabled;
 }
 
 function renderBag() {
@@ -95,7 +105,10 @@ function renderBag() {
         use.type = "button";
         use.dataset.bagUseItem = id;
         use.textContent = "使う";
-        use.disabled = !hasTarget || Boolean(runtime.variables?.mapless?.battle) || Boolean(runtime.variables?.mapless?.shop);
+        use.disabled = !hasTarget
+          || bagUseBusy
+          || Boolean(runtime.variables?.mapless?.shop)
+          || !battleBagCommandAvailable(runtime);
         row.append(select, use);
       }
       grid.append(row);
@@ -146,7 +159,7 @@ byId("menu-party")?.addEventListener("click", () => show("party"));
 byId("menu-bag")?.addEventListener("click", () => show("bag"));
 byId("menu-box")?.addEventListener("click", () => show("box"));
 byId("game-menu-close")?.addEventListener("click", close);
-byId("game-menu")?.addEventListener("click", (event) => {
+byId("game-menu")?.addEventListener("click", async (event) => {
   const tab = event.target.closest("button[data-menu-tab]");
   if (tab) {
     show(tab.dataset.menuTab);
@@ -154,15 +167,31 @@ byId("game-menu")?.addEventListener("click", (event) => {
   }
   const use = event.target.closest("button[data-bag-use-item]");
   if (use) {
+    if (bagUseBusy) return;
     const runtime = snapshot();
     const row = use.closest(".bag-slot");
     const partyIndex = Number(row?.querySelector(".bag-target-select")?.value);
-    const result = runtime
-      ? useSafariBagItemOnPartyPokemon(runtime, { itemId: use.dataset.bagUseItem, partyIndex })
-      : { result: "runtime_missing", persistenceRequested: false };
-    if (result.persistenceRequested) saveSafariPlayableRun(window.localStorage, runtime);
-    window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
+    if (!runtime) return;
+    bagUseBusy = true;
     renderBag();
+    try {
+      const battle = runtime.variables?.mapless?.battle;
+      if (battle) {
+        const result = await useSafariBattleItem(runtime, { itemId: use.dataset.bagUseItem, partyIndex });
+        globalThis.__maplessLastBattleItemResult = result;
+        if (result.turnConsumed) close();
+      } else {
+        const result = useSafariBagItemOnPartyPokemon(runtime, { itemId: use.dataset.bagUseItem, partyIndex });
+        if (result.persistenceRequested) saveSafariPlayableRun(window.localStorage, runtime);
+      }
+    } catch (error) {
+      globalThis.__maplessLastError = error;
+      console.error("[Mapless] Bag use failed", error);
+    } finally {
+      bagUseBusy = false;
+      window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
+      renderBag();
+    }
     return;
   }
   if (event.target === byId("game-menu")) close();
