@@ -16,6 +16,14 @@ function removePanel() {
   byId("carryover-next-run-panel")?.remove();
 }
 
+function rememberPresentationError(message, state) {
+  const error = new Error(message);
+  error.name = "CarryoverPresentationError";
+  error.state = typeof structuredClone === "function" ? structuredClone(state) : { ...state };
+  globalThis.__maplessLastError = error;
+  return error;
+}
+
 function candidateButton(candidate) {
   const pokemon = candidate.pokemon ?? {};
   const button = document.createElement("button");
@@ -39,7 +47,10 @@ async function renderCarryover() {
     return;
   }
   const boardCard = byId("board-card");
-  if (!boardCard) return;
+  if (!boardCard) {
+    rememberPresentationError("carryover presentation board-card is unavailable", state);
+    return;
+  }
   rendering = true;
   try {
     const candidates = await listSafariCarryoverCandidates(globalThis.__maplessSafariRuntime);
