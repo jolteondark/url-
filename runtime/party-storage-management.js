@@ -175,6 +175,14 @@ export function copyStoredPokemon(state, {
 export function moveStoredPokemon(state, options = {}) {
   const copied = copyStoredPokemon(state, options);
   if (!copied.result) return copied;
+  if (copied.destination.box === options.boxSrc && copied.destination.index === options.indexSrc) {
+    return {
+      result: true,
+      state: copied.state,
+      destination: copied.destination,
+      operations: [...copied.operations, { op: "move_noop", box: options.boxSrc, index: options.indexSrc }],
+    };
+  }
   const deleted = deleteStoredPokemon(copied.state, options.boxSrc, options.indexSrc);
   return {
     result: true,
