@@ -606,7 +606,7 @@ window.addEventListener("safari-preview-start", (event) => {
         note("Persistence load: " + loaded.key);
       }
     } catch (error) {
-      note("Load error: " + (error?.name ?? error));
+      note("Load error: " + (error?.name ?? "Error"));
     }
     render();
     return;
