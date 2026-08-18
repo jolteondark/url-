@@ -45,3 +45,4 @@ assert.match(finalizer, /trainer_prize_money/);
 assert.match(finalizer, /givePotion/);
 
 console.log("Safari normal Board start/round/lifecycle are eagerly bound direct owners with canonical seeded accuracy ownership: ok");
+await import("./safari-normal-battle-type-effectiveness-smoke.mjs");
