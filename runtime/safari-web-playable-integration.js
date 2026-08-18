@@ -3,6 +3,7 @@ import { replaceSafariNormalBattlePlayer, resolveSafariNormalBattleRound } from 
 import {
   attemptSafariCapture as attemptSafariNormalCapture,
   returnSafariToDayBoard as returnSafariNormalToDayBoard,
+  useSafariNormalBattleItem,
 } from "./safari-normal-battle-lifecycle.js";
 import { activateSafariWebCombatCell } from "./safari-web-combat-start.js";
 import {
@@ -121,6 +122,13 @@ export async function replaceSafariBattlePlayer(runtime, replacementPartyIndex) 
   } else {
     result = replaceSafariNormalBattlePlayer(runtime, replacementPartyIndex);
   }
+  publishRuntimeChanged();
+  return result;
+}
+
+export async function useSafariBattleItem(runtime, options = {}) {
+  if (needsFullBattleIntegration(runtime)) throw new Error("boundary battle item owner is unavailable");
+  const result = useSafariNormalBattleItem(runtime, options);
   publishRuntimeChanged();
   return result;
 }
