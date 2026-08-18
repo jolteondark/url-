@@ -1,4 +1,5 @@
 import { projectSafariGeneralGrowthRates } from "./safari-general-growth-rate-facts.js";
+import { safariGeneralSpeciesTypesV108 } from "./safari-general-species-type-facts.js";
 
 // Lightweight Safari bootstrap projection from canonical source-v0.9.108.
 //
@@ -18,15 +19,15 @@ export const SAFARI_MOVE_MASTERS = { ...EXACT_BOOT_MOVES };
 
 const BOOT_SPECIES = Object.freeze({
   EEVEE: Object.freeze({
-    id: "EEVEE", name: "Eevee", base_stats: Object.freeze({ HP: 55, ATTACK: 55, DEFENSE: 50, SPEED: 55, SPECIAL_ATTACK: 45, SPECIAL_DEFENSE: 65 }),
+    id: "EEVEE", name: "Eevee", types: Object.freeze(["NORMAL"]), base_stats: Object.freeze({ HP: 55, ATTACK: 55, DEFENSE: 50, SPEED: 55, SPECIAL_ATTACK: 45, SPECIAL_DEFENSE: 65 }),
     base_exp: 65, catch_rate: 45, dex_number: 133, gender_ratio: "FemaleOneEighth", growth_rate: "Medium",
   }),
   RATTATA: Object.freeze({
-    id: "RATTATA", name: "Rattata", base_stats: Object.freeze({ HP: 30, ATTACK: 56, DEFENSE: 35, SPEED: 72, SPECIAL_ATTACK: 25, SPECIAL_DEFENSE: 35 }),
+    id: "RATTATA", name: "Rattata", types: Object.freeze(["NORMAL"]), base_stats: Object.freeze({ HP: 30, ATTACK: 56, DEFENSE: 35, SPEED: 72, SPECIAL_ATTACK: 25, SPECIAL_DEFENSE: 35 }),
     base_exp: 51, catch_rate: 255, dex_number: 19, gender_ratio: "Female50Percent", growth_rate: "Medium",
   }),
   PIKACHU: Object.freeze({
-    id: "PIKACHU", name: "Pikachu", base_stats: Object.freeze({ HP: 35, ATTACK: 55, DEFENSE: 40, SPEED: 90, SPECIAL_ATTACK: 50, SPECIAL_DEFENSE: 50 }),
+    id: "PIKACHU", name: "Pikachu", types: Object.freeze(["ELECTRIC"]), base_stats: Object.freeze({ HP: 35, ATTACK: 55, DEFENSE: 40, SPEED: 90, SPECIAL_ATTACK: 50, SPECIAL_DEFENSE: 50 }),
     base_exp: 112, catch_rate: 190, dex_number: 25, gender_ratio: "Female50Percent", growth_rate: "Medium",
   }),
 });
@@ -92,10 +93,11 @@ export function installSafariGeneralMasters(speciesMasters, moveMasters) {
   // encounter/trainer owners concretize only their selected masters with their
   // existing Object.assign calls.
   //
-  // GrowthRate is generated from the canonical PBS species source separately
-  // from the compressed GENERAL payload. Compose it at this shared master
-  // boundary so every selected species carries the same canonical growth_rate
-  // without eagerly reading all 875 source masters.
+  // GrowthRate and type membership are generated from canonical PBS-derived
+  // data separately from the compressed GENERAL payload. Compose both at this
+  // shared master boundary so every selected species carries one canonical
+  // growth_rate and one/two canonical types without eagerly reading all 875
+  // source masters.
   //
   // Installation is transactional. A Safari/runtime failure after only part of
   // the descriptors were defined must not leave shared masters half-mutated
@@ -117,7 +119,8 @@ export function installSafariGeneralMasters(speciesMasters, moveMasters) {
       if (master?.growth_rate != null && master.growth_rate !== growthRate) {
         throw new Error(`Safari growth-rate mismatch for ${id}: ${master.growth_rate}/${growthRate}`);
       }
-      return master?.growth_rate === growthRate ? master : Object.freeze({ ...master, growth_rate: growthRate });
+      const types = safariGeneralSpeciesTypesV108(id);
+      return Object.freeze({ ...master, growth_rate: growthRate, types });
     });
     const moveCount = installLazyMasterProjection(SAFARI_MOVE_MASTERS, moveMasters);
     Object.assign(SAFARI_MOVE_MASTERS, EXACT_BOOT_MOVES);
