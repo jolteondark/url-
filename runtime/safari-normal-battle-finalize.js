@@ -194,7 +194,10 @@ export function finalizeNormalBattle(runtime) {
 
   const runEnd = markMaplessRunEnd(runtime, battle.decision);
   const operations = [...runEnd.operations, ...completeBoardEvent(state, battle)];
-  if (battle.decision === 1 && battle.kind === "wild") operations.push(...awardWildWin(runtime, battle));
+  // The direct round owner already commits EXP to the persistent player Pokemon
+  // and records battle.exp_gained. Finalize must only apply the victory reward;
+  // recalculating EXP here awarded ordinary wild victories twice.
+  if (battle.decision === 1 && battle.kind === "wild") operations.push(...givePotion(runtime, battle));
   if (battle.decision === 1 && battle.kind === "trainer") operations.push(...givePotion(runtime, battle));
   if (battle.kind === "trainer") operations.push(...payTrainerPrize(runtime, battle));
   battle.completed = true;
