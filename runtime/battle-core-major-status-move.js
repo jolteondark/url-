@@ -26,6 +26,12 @@ export const MAJOR_STATUS_MOVE_EFFECT_SOURCES_V108 = Object.freeze({
     requiresMoveTypeEffectiveness: false,
     sourceOwner: "canonical FunctionCode + Battle::Battler#pbCanInflictStatus?",
   }),
+  FreezeTarget: Object.freeze({
+    functionCode: "FreezeTarget",
+    status: "FROZEN",
+    requiresMoveTypeEffectiveness: false,
+    sourceOwner: "canonical FunctionCode + Battle::Battler#pbCanInflictStatus?",
+  }),
 });
 
 // Kept for the existing Thunder Wave source-pin callers.
