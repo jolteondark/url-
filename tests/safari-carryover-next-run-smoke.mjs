@@ -107,8 +107,8 @@ assert.match(uiSource, /持ち越し候補を読み込めませんでした。�
   "candidate load failure must never trap Run End without fallback");
 assert.match(uiSource, /window\.dispatchEvent\(new CustomEvent\("safari-runtime-changed"\)\)/,
   "successful selection must repaint the main preview");
-assert.match(previewSource, /preview-app\.js\?v=20260818-1558/,
-  "rescue boot must not retain an older preview-app instance");
+assert.match(previewSource, /preview-app\.js\?v=20260818-1740/,
+  "carryover acceptance must follow the current preview-app cache key instead of pinning the older rescue build");
 assert.match(previewSource, /carryover-next-run-presentation\.js\?v=20260818-1558/);
 assert.match(previewSource, /await carryoverPresentation\.renderSafariCarryoverSelection\?\.\(\)/,
   "preview must explicitly render selector after saved runtime restore");
