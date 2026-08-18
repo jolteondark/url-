@@ -6,11 +6,10 @@ import {
 } from "./general-encounter-species-pools.js";
 import { projectGeneralEncounterRules } from "./general-encounter-rules-master.js";
 import {
-  SAFARI_GENERAL_MOVE_MASTERS,
-  SAFARI_GENERAL_SPECIES_MASTERS,
+  SAFARI_MOVE_MASTERS,
+  SAFARI_SPECIES_MASTERS,
   safariCanonicalResetMoves,
-} from "./safari-general-encounter-data-loader.js";
-import { SAFARI_MOVE_MASTERS, SAFARI_SPECIES_MASTERS } from "./safari-playable-data.js";
+} from "./safari-playable-data.js";
 
 const POOLS = projectGeneralEncounterSpeciesPools();
 export const SAFARI_GENERAL_TYPES = Object.freeze(Object.keys(POOLS));
@@ -73,14 +72,17 @@ export function resolveSafariGeneralEncounter({
     });
   }
 
-  const speciesMaster = SAFARI_GENERAL_SPECIES_MASTERS[resolved.species_id];
+  const speciesMaster = SAFARI_SPECIES_MASTERS[resolved.species_id];
   if (!speciesMaster) throw new RangeError(`missing Safari General species master: ${resolved.species_id}`);
   const moveIds = safariCanonicalResetMoves(resolved.species_id, resolved.level);
   const moveMasters = Object.fromEntries(moveIds.map((id) => {
-    const master = SAFARI_GENERAL_MOVE_MASTERS[id];
+    const master = SAFARI_MOVE_MASTERS[id];
     if (!master) throw new RangeError(`missing Safari General move master: ${id}`);
     return [id, master];
   }));
+  // Reading a selected lazy slot above materializes only that selected master.
+  // Reassign it through the shared owner so subsequent Battle consumers use a
+  // concrete ordinary property without touching the other GENERAL entries.
   Object.assign(SAFARI_SPECIES_MASTERS, { [resolved.species_id]: speciesMaster });
   Object.assign(SAFARI_MOVE_MASTERS, moveMasters);
   return {
