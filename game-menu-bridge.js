@@ -1,8 +1,10 @@
-import { saveSafariPlayableRun, useSafariBattleItem } from "./runtime/safari-web-playable-integration.js";
+import { SAFARI_MOVE_PRESENTATION, saveSafariPlayableRun, useSafariBattleItem } from "./runtime/safari-web-playable-integration.js";
 import { useSafariBagItemOnPartyPokemon } from "./runtime/safari-bag-item-use.js";
+import { formatSafariBattlePresentationEvent } from "./battle-presentation-narration.js";
 
 const byId = (id) => document.getElementById(id);
 const moneyFormat = new Intl.NumberFormat("ja-JP");
+const sleep = (milliseconds) => new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 let active = "party";
 let bagUseBusy = false;
 
@@ -50,6 +52,59 @@ function battleBagCommandAvailable(runtime) {
   if (!battle) return true;
   if (battle.completed || battle.player_replacement_required || battle.origin === "boundary_trial") return false;
   return !byId("capture")?.disabled;
+}
+
+function setBattleControlsDisabled(disabled) {
+  for (const button of document.querySelectorAll("#moves button, #capture, #flee")) button.disabled = disabled;
+}
+
+function battlePresentationName(runtime, side) {
+  const visible = byId(side + "-name")?.textContent?.trim();
+  if (visible) return visible;
+  const battle = runtime?.variables?.mapless?.battle;
+  if (side === "player") {
+    const index = Number(battle?.player_party_index ?? 0);
+    return runtime?.player?.party?.[index]?.species ?? runtime?.player?.party?.[0]?.species ?? "味方のポケモン";
+  }
+  return battle?.foe?.species ?? "相手のポケモン";
+}
+
+async function playBattleItemPresentation(runtime, events = []) {
+  for (const event of events) {
+    const message = formatSafariBattlePresentationEvent(event, {
+      actorName: battlePresentationName(runtime, event.actor),
+      targetName: battlePresentationName(runtime, event.target),
+      moveName: SAFARI_MOVE_PRESENTATION[event.moveId]?.name ?? event.moveId,
+      notice: runtime?.variables?.mapless?.notice,
+    });
+    if (message && byId("battle-message")) byId("battle-message").textContent = message;
+    if (event.type === "battle_item") {
+      const pokemon = runtime?.player?.party?.[Number(event.partyIndex ?? 0)];
+      const maxHp = Number(pokemon?.max_hp ?? 0);
+      if (byId("player-hp") && maxHp > 0) byId("player-hp").textContent = `${event.hpAfter} / ${maxHp}`;
+      if (byId("player-hp-bar") && maxHp > 0) byId("player-hp-bar").style.width = Math.max(0, Math.min(100, Number(event.hpAfter) / maxHp * 100)) + "%";
+      await sleep(260);
+    } else if (event.type === "move_started") {
+      const actor = byId(event.actor + "-combatant");
+      actor?.classList.add("lunge");
+      await sleep(180);
+      actor?.classList.remove("lunge");
+    } else if (event.type === "damage_applied") {
+      const target = byId(event.target + "-combatant");
+      const hp = byId(event.target + "-hp");
+      const bar = byId(event.target + "-hp-bar");
+      const maxHp = Number(event.targetMaxHp ?? 0);
+      if (hp && maxHp > 0) hp.textContent = `${event.hpAfter} / ${maxHp}`;
+      if (bar && maxHp > 0) bar.style.width = Math.max(0, Math.min(100, Number(event.hpAfter) / maxHp * 100)) + "%";
+      target?.classList.add("hit");
+      await sleep(220);
+      target?.classList.remove("hit");
+    } else if (event.type === "miss") {
+      await sleep(240);
+    } else if (event.type === "faint" || event.type === "trainer_next") {
+      await sleep(280);
+    }
+  }
 }
 
 function renderBag() {
@@ -164,13 +219,17 @@ byId("game-menu")?.addEventListener("click", async (event) => {
     const partyIndex = Number(row?.querySelector(".bag-target-select")?.value);
     if (!runtime) return;
     bagUseBusy = true;
+    setBattleControlsDisabled(true);
     renderBag();
     try {
       const battle = runtime.variables?.mapless?.battle;
       if (battle) {
         const result = await useSafariBattleItem(runtime, { itemId: use.dataset.bagUseItem, partyIndex });
         globalThis.__maplessLastBattleItemResult = result;
-        if (result.turnConsumed) close();
+        if (result.turnConsumed) {
+          close();
+          await playBattleItemPresentation(runtime, result.presentation ?? []);
+        }
       } else {
         const result = useSafariBagItemOnPartyPokemon(runtime, { itemId: use.dataset.bagUseItem, partyIndex });
         if (result.persistenceRequested) saveSafariPlayableRun(window.localStorage, runtime);
