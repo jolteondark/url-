@@ -2,8 +2,10 @@ import {
   installSafariGeneralMasters,
   safariGeneralMastersInstalled,
 } from "./safari-playable-data.js";
+import { safariGeneralLoaderSpecifier } from "./safari-general-retry-url.js";
 
 let loading = null;
+let generalDataRetryGeneration = 0;
 let encounterLoading = null;
 let trainerLoading = null;
 let encounterRuntime = null;
@@ -36,20 +38,26 @@ export async function ensureSafariGeneralData() {
     return { loaded: false, alreadyLoaded: true };
   }
   if (!loading) {
-    traceGeneralCombat("general_data_import_start");
-    loading = import("./safari-general-encounter-data-loader.js")
+    const retryGeneration = generalDataRetryGeneration;
+    const loaderSpecifier = safariGeneralLoaderSpecifier(retryGeneration);
+    traceGeneralCombat("general_data_import_start", { retry_generation: retryGeneration });
+    loading = import(loaderSpecifier)
       .then((data) => {
-        traceGeneralCombat("general_data_import_ready");
+        traceGeneralCombat("general_data_import_ready", { retry_generation: retryGeneration });
         const installed = installSafariGeneralMasters(
           data.SAFARI_GENERAL_SPECIES_MASTERS,
           data.SAFARI_GENERAL_MOVE_MASTERS,
         );
-        traceGeneralCombat("general_masters_installed", installed);
+        traceGeneralCombat("general_masters_installed", { ...installed, retry_generation: retryGeneration });
         return { loaded: true, alreadyLoaded: false, ...installed };
       })
       .catch((error) => {
         loading = null;
-        traceError("general_data_import_error", error);
+        generalDataRetryGeneration += 1;
+        traceError("general_data_import_error", error, {
+          retry_generation: retryGeneration,
+          next_retry_generation: generalDataRetryGeneration,
+        });
         throw error;
       });
   } else {
