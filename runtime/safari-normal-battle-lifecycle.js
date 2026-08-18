@@ -1,7 +1,7 @@
 import { resolveCaptureFlow } from "./battle-capture-flow.js";
 import { routeCaughtQueueToPartyStorage } from "./caught-queue-party-storage.js";
+import { resolveDayBoardPlayableTurn } from "./mapless-day-board-playable-turn.js";
 import { SAFARI_SPECIES_MASTERS } from "./safari-playable-data.js";
-import { finalizeNormalBattle } from "./safari-normal-battle-finalize.js";
 
 function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
@@ -13,6 +13,67 @@ function stateOf(runtime) {
 
 function requestsSave(operations = []) {
   return operations.some((operation) => operation?.op === "request_save");
+}
+
+function baseTurnInput(state, index) {
+  return {
+    index,
+    day: state.day,
+    board_events: state.board_events,
+    board_revealed: state.board_revealed,
+    board_consumed: state.board_consumed,
+    board_visited: state.board_visited,
+    notice: state.notice,
+    scene_is_self: true,
+    scene_same: true,
+    event_stage_active: true,
+    pending_hatches: [],
+  };
+}
+
+function finalizeCaughtNormalWild(runtime) {
+  const state = stateOf(runtime);
+  const battle = state.battle;
+  const encounter = battle.encounter ?? {};
+  const input = baseTurnInput(state, battle.board_index);
+  input.wild = {
+    can_battle: true,
+    encounter: {
+      species_id: encounter.species_id ?? battle.foe.species,
+      level: encounter.level ?? battle.foe.level,
+    },
+    species_exists: true,
+    species_name: encounter.species_name ?? battle.foe.species,
+    outcome: 4,
+    run_end_pending: false,
+    old_consumed: false,
+    game_temp_present: true,
+  };
+
+  const turn = resolveDayBoardPlayableTurn(input);
+  state.board_events = turn.state.board_events;
+  state.board_revealed = turn.state.board_revealed;
+  state.board_consumed = turn.state.board_consumed;
+  const completionOperations = [...turn.operations];
+
+  battle.completed = true;
+  battle.return_target = "day_board";
+  battle.last_operations = [...(battle.last_operations ?? []), ...completionOperations];
+  battle.presentation = [
+    ...(battle.presentation ?? []),
+    {
+      type: "battle_result",
+      decision: 4,
+      captured: true,
+      expGained: 0,
+      reward: null,
+      moneyGained: 0,
+      returnTarget: "day_board",
+    },
+  ];
+  state.last_operations = completionOperations;
+  state.notice = `${encounter.species_name ?? battle.foe.species}を捕まえました。`;
+  return completionOperations;
 }
 
 export function attemptSafariNormalCapture(runtime) {
@@ -80,7 +141,7 @@ export function attemptSafariNormalCapture(runtime) {
     result: "caught",
     destination: battle.capture_destination,
   }];
-  finalizeNormalBattle(runtime);
+  finalizeCaughtNormalWild(runtime);
 
   return {
     runtime,
