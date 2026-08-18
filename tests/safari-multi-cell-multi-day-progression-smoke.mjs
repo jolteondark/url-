@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { prepareSafariNormalEventV108 } from "../runtime/mapless-normal-event-v108-preparation.js";
 import { attemptSafariFlee } from "../runtime/safari-flee-command.js";
+import {
+  applySafariBoundaryTrialEntry,
+  applySafariCampRecovery,
+  prepareSafariCampNextDay,
+} from "../runtime/safari-camp-next-day-command.js";
 import { resolveSafariMachineGachaInteraction } from "../runtime/safari-playable-integration.js";
 
 globalThis.CustomEvent = class CustomEvent {
@@ -19,6 +24,14 @@ class MemoryStorage {
 
 function state(runtime) { return runtime.variables.mapless; }
 function moveId(move) { return typeof move === "string" ? move : move?.id; }
+function nextDayIndex(runtime) {
+  const index = state(runtime).board_events.findIndex((entry) => entry?.kind === "next_day");
+  assert.ok(index >= 0, "generated Day Board must retain one next_day cell");
+  return index;
+}
+function partyIdentity(runtime) {
+  return runtime.player.party.map((pokemon, index) => pokemon?.personal_id ?? pokemon?.id ?? pokemon?.uuid ?? `${pokemon?.species}:${index}`);
+}
 
 const runtime = web.createSafariPlayableRuntime();
 const current = state(runtime);
@@ -121,9 +134,14 @@ assert.deepEqual(continued.player.party, expectedParty, "Continue must preserve 
 assert.deepEqual(continued.bag, expectedBag, "Continue must preserve Bag/Money after facility/event/Battle cells");
 assert.equal(continuedState.location, "day_board");
 
-// Advance through the existing day/floor owner and require the generated next Board state.
+// Advance through the same camp owner used by the real UI, then consume the next_day Board cell.
 const dayBefore = Number(continuedState.day);
-const nextDay = await web.activateSafariDayBoardCell(continued, 4);
+const firstNextDayIndex = nextDayIndex(continued);
+const firstCamp = prepareSafariCampNextDay(continued, firstNextDayIndex, true);
+applySafariCampRecovery(continued, firstCamp);
+const firstBoundary = applySafariBoundaryTrialEntry(continued, firstCamp);
+assert.equal(firstBoundary.entered, false, "DAY 2 must remain an ordinary Board floor");
+const nextDay = await web.activateSafariDayBoardCell(continued, firstNextDayIndex);
 assert.equal(nextDay.result, "day_advanced");
 assert.equal(continuedState.day, dayBefore + 1);
 assert.equal(continuedState.board_events.length, 8);
@@ -132,4 +150,43 @@ assert.deepEqual(continuedState.board_consumed, Array(8).fill(false));
 assert.deepEqual(continuedState.board_visited, Array(8).fill(false));
 assert.equal(continuedState.location, "day_board");
 
-console.log("Safari fresh -> multi-cell -> save/Continue -> next-day Board progression: ok");
+// Keep the same continued run alive across ordinary days using only the camp/day owners.
+const expectedIdentity = partyIdentity(continued);
+while (Number(continuedState.day) < 9) {
+  const before = Number(continuedState.day);
+  const index = nextDayIndex(continued);
+  const camp = prepareSafariCampNextDay(continued, index, true);
+  applySafariCampRecovery(continued, camp);
+  const boundary = applySafariBoundaryTrialEntry(continued, camp);
+  assert.equal(boundary.entered, false, `DAY ${before + 1} must remain an ordinary Board floor`);
+  const advanced = await web.activateSafariDayBoardCell(continued, index);
+  assert.equal(advanced.result, "day_advanced");
+  assert.equal(continuedState.day, before + 1);
+  assert.equal(continuedState.location, "day_board");
+  assert.deepEqual(continuedState.board_revealed, Array(8).fill(false));
+  assert.deepEqual(continuedState.board_consumed, Array(8).fill(false));
+  assert.deepEqual(continuedState.board_visited, Array(8).fill(false));
+  assert.deepEqual(partyIdentity(continued), expectedIdentity, "camp/day progression must keep the same Party identities");
+  assert.deepEqual(continued.bag, expectedBag, "camp/day progression must not recreate or clear Bag/Money");
+}
+
+// DAY 9 -> 10 must suspend normal Board progression and enter the existing boundary-trial owner.
+assert.equal(continuedState.day, 9);
+const boundaryIndex = nextDayIndex(continued);
+const suspendedBoard = structuredClone(continuedState.board_events);
+const boundaryCamp = prepareSafariCampNextDay(continued, boundaryIndex, true);
+assert.equal(Number(boundaryCamp.day_board?.day), 10);
+applySafariCampRecovery(continued, boundaryCamp);
+const boundaryEntry = applySafariBoundaryTrialEntry(continued, boundaryCamp);
+assert.equal(boundaryEntry.entered, true);
+assert.equal(continuedState.day, 10);
+assert.equal(continuedState.location, "boundary_trial");
+assert.equal(continuedState.board_suspended_for_boundary, true);
+assert.equal(continuedState.boundary_trial?.result, "preparation_required");
+assert.ok(continuedState.boundary_trial?.pending_leader, "boundary owner must materialize a pending leader before presentation");
+assert.equal(continuedState.battle, null, "boundary entry must not invent a second Battle before preparation");
+assert.deepEqual(continuedState.board_events, suspendedBoard, "DAY 10 must suspend the prior Board instead of generating a normal Board");
+assert.deepEqual(partyIdentity(continued), expectedIdentity, "boundary entry must retain the continued Party");
+assert.deepEqual(continued.bag, expectedBag, "boundary entry must retain Bag/Money from the continued run");
+
+console.log("Safari fresh -> multi-cell -> save/Continue -> multi-day camp -> boundary progression: ok");
