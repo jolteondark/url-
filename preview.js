@@ -1,6 +1,7 @@
 let appPromise = null;
 let replacementPresentationPromise = null;
 let carryoverPresentationPromise = null;
+let battleTurnPhasePresentationPromise = null;
 let loading = false;
 
 const SAVE_KEY = "mapless.safari.playable.v4";
@@ -78,7 +79,12 @@ async function startPreview(action) {
     await appPromise;
     replacementPresentationPromise ??= import("./battle-player-replacement-presentation.js?v=20260818-1440");
     carryoverPresentationPromise ??= import("./carryover-next-run-presentation.js?v=20260818-1558");
-    const [, carryoverPresentation] = await Promise.all([replacementPresentationPromise, carryoverPresentationPromise]);
+    battleTurnPhasePresentationPromise ??= import("./battle-turn-phase-presentation.js?v=20260818-1645");
+    const [, carryoverPresentation] = await Promise.all([
+      replacementPresentationPromise,
+      carryoverPresentationPromise,
+      battleTurnPhasePresentationPromise,
+    ]);
     traceBattleStart("preview_app_import_ready");
     window.dispatchEvent(new CustomEvent("safari-preview-start", { detail: { action } }));
     await carryoverPresentation.renderSafariCarryoverSelection?.();
@@ -100,6 +106,7 @@ async function startPreview(action) {
     appPromise = null;
     replacementPresentationPromise = null;
     carryoverPresentationPromise = null;
+    battleTurnPhasePresentationPromise = null;
     globalThis.__maplessLastError = error;
     notice("ゲームの読み込みに失敗しました: " + (error?.message ?? error) + "。もう一度開始できます。");
     console.error("[Mapless] preview app load failed", error);
