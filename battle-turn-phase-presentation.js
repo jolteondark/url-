@@ -43,6 +43,16 @@ function phaseFor(battle) {
   return { key: "command", text: `Turn ${Number(battle.turn ?? 1)} • コマンド選択` };
 }
 
+function paintPhaseOnly(key, text) {
+  const phase = ensurePhaseNode();
+  const card = byId("battle-card");
+  if (!phase || !card) return;
+  phase.hidden = false;
+  phase.textContent = text;
+  phase.dataset.phase = key;
+  card.dataset.turnPhase = key;
+}
+
 function renderPhase() {
   const battle = battleState();
   const card = byId("battle-card");
@@ -59,12 +69,7 @@ function renderPhase() {
 
   const current = phaseFor(battle);
   if (!current) return;
-  if (phase) {
-    phase.hidden = false;
-    phase.textContent = current.text;
-    phase.dataset.phase = current.key;
-  }
-  card.dataset.turnPhase = current.key;
+  paintPhaseOnly(current.key, current.text);
   setCommandLock(current.key === "resolving");
 }
 
@@ -107,9 +112,10 @@ battleCard?.addEventListener("click", (event) => {
 
   resolving = true;
   submittedTurn = Number(battle.turn ?? 1);
-  renderPhase();
-  // Let the click that started this turn reach preview-app, then make the
-  // command surface inert before another user input can be dispatched.
+  paintPhaseOnly("resolving", `Turn ${submittedTurn} • 行動処理中`);
+  // Let the click that started this turn reach preview-app first. The microtask
+  // runs before any second user input can dispatch, avoiding Safari cancelling
+  // the initiating click when an element becomes inert during event capture.
   queueMicrotask(() => {
     setCommandLock(true);
     scheduleSync();
