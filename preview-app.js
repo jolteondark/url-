@@ -26,6 +26,7 @@ import {
   safariGeneralCombatReady,
   safariGeneralDataReady,
 } from "./runtime/safari-general-data-demand.js";
+import { formatSafariBattlePresentationEvent } from "./battle-presentation-narration.js";
 
 let runtime = createSafariPlayableRuntime();
 let busy = false;
@@ -46,6 +47,31 @@ function mapless() {
 function activeBattlePlayer(battle = mapless().battle) {
   const index = Number(battle?.player_party_index ?? 0);
   return runtime.player.party[index] ?? runtime.player.party[0];
+}
+
+function combatantPresentationName(side) {
+  const visible = byId(side + "-name")?.textContent?.trim();
+  if (visible) return visible;
+  if (side === "player") return activeBattlePlayer()?.species ?? "味方のポケモン";
+  if (side === "foe") return mapless().battle?.foe?.species ?? "相手のポケモン";
+  return "ポケモン";
+}
+
+function presentationMessage(event) {
+  return formatSafariBattlePresentationEvent(event, {
+    actorName: combatantPresentationName(event.actor),
+    targetName: combatantPresentationName(event.target),
+    moveName: SAFARI_MOVE_PRESENTATION[event.moveId]?.name ?? event.moveId,
+    notice: mapless().notice,
+  });
+}
+
+function setBattlePresentationMessage(text) {
+  if (!text) return;
+  const message = byId("battle-message");
+  if (!message) return;
+  message.dataset.presentationOwner = "event";
+  if (message.textContent !== text) message.textContent = text;
 }
 
 function potionQuantity() {
@@ -272,12 +298,15 @@ function render() {
 
 async function playPresentation(events) {
   for (const event of events) {
+    const message = presentationMessage(event);
+    if (message) setBattlePresentationMessage(message);
+
     if (event.type === "move_started") {
       const actor = byId(event.actor + "-combatant");
       actor.classList.add("lunge");
-      await sleep(150);
+      await sleep(180);
       actor.classList.remove("lunge");
-      note((SAFARI_MOVE_PRESENTATION[event.moveId]?.name ?? event.moveId) + "！");
+      note(message ?? ((SAFARI_MOVE_PRESENTATION[event.moveId]?.name ?? event.moveId) + "！"));
     } else if (event.type === "damage_applied") {
       const target = byId(event.target + "-combatant");
       const battle = mapless().battle;
@@ -285,13 +314,18 @@ async function playPresentation(events) {
       byId(event.target + "-hp").textContent = event.hpAfter + " / " + pokemon.max_hp;
       byId(event.target + "-hp-bar").style.width = percent(event.hpAfter, pokemon.max_hp) + "%";
       target.classList.add("hit");
-      await sleep(180);
+      await sleep(220);
       target.classList.remove("hit");
-      note(event.target + " HP " + event.hpBefore + " → " + event.hpAfter);
+      note(message ?? (event.target + " HP " + event.hpBefore + " → " + event.hpAfter));
     } else if (event.type === "miss") {
-      note(event.actor + "の攻撃は外れた。");
+      note(message ?? (event.actor + "の攻撃は外れた。"));
+      await sleep(240);
     } else if (event.type === "faint") {
-      note(event.target + " faint");
+      note(message ?? (event.target + " faint"));
+      await sleep(280);
+    } else if (event.type === "trainer_next") {
+      note(message ?? "Trainer next");
+      await sleep(280);
     } else if (event.type === "turn_end") {
       note("Turn " + event.turn + " end");
     } else if (event.type === "battle_result") {
@@ -299,8 +333,10 @@ async function playPresentation(events) {
       if (event.expGained) note("EXP +" + event.expGained);
       if (event.reward?.item) note(event.reward.item + "+" + event.reward.quantity);
       if (event.moneyGained) note("Money +" + moneyFormat.format(event.moneyGained) + "円");
+      if (message) await sleep(300);
     } else if (event.type === "capture") {
-      note("Capture → " + event.destination);
+      note(message ?? ("Capture → " + event.destination));
+      if (message) await sleep(300);
     }
   }
 }
