@@ -18,6 +18,8 @@ export function formatSafariBattlePresentationEvent(event = {}, context = {}) {
     }
     case "damage_applied":
       return `${targetName}のHP ${Number(event.hpBefore ?? 0)} → ${Number(event.hpAfter ?? 0)}`;
+    case "battle_item":
+      return `${actorName}は${event.itemId === "POTION" ? "キズぐすり" : (event.itemId || "アイテム")}を使った！ HP ${Number(event.hpBefore ?? 0)} → ${Number(event.hpAfter ?? 0)}`;
     case "miss":
       return `${actorName}の攻撃は外れた！`;
     case "faint":
