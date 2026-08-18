@@ -46,26 +46,36 @@ export async function ensureSafariGeneralData() {
     const retryGeneration = generalDataRetryGeneration;
     const loaderSpecifier = safariGeneralLoaderSpecifier(retryGeneration);
     traceGeneralCombat("general_data_import_start", { retry_generation: retryGeneration });
-    loading = import(loaderSpecifier)
-      .then((data) => {
-        traceGeneralCombat("general_data_import_ready", { retry_generation: retryGeneration });
-        const installed = installSafariGeneralMasters(
-          data.SAFARI_GENERAL_SPECIES_MASTERS,
-          data.SAFARI_GENERAL_MOVE_MASTERS,
-        );
-        traceGeneralCombat("general_masters_installed", { ...installed, retry_generation: retryGeneration });
-        loading = null;
-        return { loaded: true, alreadyLoaded: false, ...installed };
-      })
-      .catch((error) => {
-        loading = null;
+    loading = (async () => {
+      let data;
+      try {
+        data = await import(loaderSpecifier);
+      } catch (error) {
         generalDataRetryGeneration += 1;
         traceError("general_data_import_error", error, {
           retry_generation: retryGeneration,
           next_retry_generation: generalDataRetryGeneration,
         });
         throw error;
-      });
+      }
+
+      traceGeneralCombat("general_data_import_ready", { retry_generation: retryGeneration });
+      let installed;
+      try {
+        installed = installSafariGeneralMasters(
+          data.SAFARI_GENERAL_SPECIES_MASTERS,
+          data.SAFARI_GENERAL_MOVE_MASTERS,
+        );
+      } catch (error) {
+        traceError("general_master_install_error", error, { retry_generation: retryGeneration });
+        throw error;
+      }
+
+      traceGeneralCombat("general_masters_installed", { ...installed, retry_generation: retryGeneration });
+      return { loaded: true, alreadyLoaded: false, ...installed };
+    })().finally(() => {
+      loading = null;
+    });
   } else {
     traceGeneralCombat("general_data_import_join");
   }
