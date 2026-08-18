@@ -6,6 +6,7 @@ import {
   applySafariCampRecovery,
   prepareSafariCampNextDay,
 } from "../runtime/safari-camp-next-day-command.js";
+import { startSafariBoundaryTrialBattle } from "../runtime/safari-boundary-trial-start.js";
 import { resolveSafariMachineGachaInteraction } from "../runtime/safari-playable-integration.js";
 
 globalThis.CustomEvent = class CustomEvent {
@@ -189,4 +190,70 @@ assert.deepEqual(continuedState.board_events, suspendedBoard, "DAY 10 must suspe
 assert.deepEqual(partyIdentity(continued), expectedIdentity, "boundary entry must retain the continued Party");
 assert.deepEqual(continued.bag, expectedBag, "boundary entry must retain Bag/Money from the continued run");
 
-console.log("Safari fresh -> multi-cell -> save/Continue -> multi-day camp -> boundary progression: ok");
+// Continue the same run through the existing boundary trainer Battle owner.
+const boundaryLeader = continuedState.boundary_trial.pending_leader;
+startSafariBoundaryTrialBattle(continued);
+assert.equal(continuedState.battle?.kind, "trainer");
+assert.equal(continuedState.battle?.trainer_party_index, 0);
+for (let expectedIndex = 0; expectedIndex < 3; expectedIndex += 1) {
+  const trialBattle = continuedState.battle;
+  const foeIndex = Number(trialBattle.trainer_party_index ?? 0);
+  assert.equal(foeIndex, expectedIndex);
+  trialBattle.foe.hp = 1;
+  trialBattle.foe.fainted = false;
+  trialBattle.trainer_party[foeIndex].hp = 1;
+  trialBattle.trainer_party[foeIndex].fainted = false;
+  const playerIndex = Number(trialBattle.player_party_index ?? 0);
+  const player = continued.player.party[playerIndex];
+  player.hp = player.max_hp;
+  player.stats.ATTACK = 999;
+  player.stats.SPEED = 999;
+  const result = await web.resolveSafariBattleRound(continued, moveId(player.moves[0]));
+  if (expectedIndex < 2) {
+    assert.equal(result.decision, 0);
+    assert.equal(result.replacementApplied, true);
+    assert.equal(continuedState.battle.trainer_party_index, expectedIndex + 1);
+    assert.equal(continuedState.battle.completed, false);
+  } else {
+    assert.equal(result.decision, 1);
+    assert.equal(continuedState.battle.completed, true);
+    assert.equal(continuedState.boundary_trial.result, "victory_returned_to_board");
+    assert.equal(continuedState.boundary_trial.last_leader, boundaryLeader);
+  }
+}
+
+// Boundary victory must resume this same run on a fresh DAY 11 Board.
+const boundaryReturn = await web.returnSafariToDayBoard(continued);
+assert.equal(boundaryReturn.target, "day_board");
+assert.equal(continuedState.day, 11);
+assert.equal(continuedState.location, "day_board");
+assert.equal(continuedState.battle, null);
+assert.equal(continuedState.board_events.length, 8);
+assert.deepEqual(continuedState.board_revealed, Array(8).fill(false));
+assert.deepEqual(continuedState.board_consumed, Array(8).fill(false));
+assert.deepEqual(continuedState.board_visited, Array(8).fill(false));
+assert.equal(continuedState.boundary_trial.trial_count, 1);
+assert.equal(continuedState.boundary_trial.last_leader, boundaryLeader);
+assert.equal(continuedState.boundary_trial.trial_floor, null);
+assert.equal(continuedState.boundary_trial.result, "returned_to_board");
+assert.deepEqual(partyIdentity(continued), expectedIdentity, "boundary victory must preserve the same Party identities");
+assert.deepEqual(continued.bag, expectedBag, "boundary victory must preserve Bag/Money");
+
+// Prove the post-boundary Board is genuinely playable by advancing once more to DAY 12.
+const day11NextIndex = nextDayIndex(continued);
+const day12Camp = prepareSafariCampNextDay(continued, day11NextIndex, true);
+applySafariCampRecovery(continued, day12Camp);
+const day12Boundary = applySafariBoundaryTrialEntry(continued, day12Camp);
+assert.equal(day12Boundary.entered, false, "DAY 12 must be an ordinary Board floor");
+const day12 = await web.activateSafariDayBoardCell(continued, day11NextIndex);
+assert.equal(day12.result, "day_advanced");
+assert.equal(continuedState.day, 12);
+assert.equal(continuedState.location, "day_board");
+assert.equal(continuedState.board_events.length, 8);
+assert.deepEqual(continuedState.board_revealed, Array(8).fill(false));
+assert.deepEqual(continuedState.board_consumed, Array(8).fill(false));
+assert.deepEqual(continuedState.board_visited, Array(8).fill(false));
+assert.deepEqual(partyIdentity(continued), expectedIdentity, "post-boundary progression must keep Party identity");
+assert.deepEqual(continued.bag, expectedBag, "post-boundary progression must keep Bag/Money");
+
+console.log("Safari fresh -> multi-cell -> save/Continue -> multi-day -> boundary victory -> DAY 12 progression: ok");
