@@ -20,8 +20,10 @@ const started = await web.activateSafariDayBoardCell(runtime, 0);
 assert.equal(started.result, "dispatched");
 assert.ok(state.battle && state.battle.kind === "wild" && !state.battle.completed);
 
+const playerIndex = Number(state.battle.player_party_index ?? 0);
+const playerBefore = structuredClone(runtime.player.party[playerIndex]);
+const foeBefore = structuredClone(state.battle.foe);
 const turnBefore = Number(state.battle.turn ?? 1);
-const hpBefore = Number(runtime.player.party[Number(state.battle.player_party_index ?? 0)].hp);
 const failed = await web.attemptSafariCapture(runtime, {
   captureRandomSeed: 1,
   randomValues: [65535, 65535, 65535, 65535],
@@ -35,10 +37,24 @@ assert.equal(
   turnBefore + 1,
   "failed capture must consume exactly one player action and advance the Battle turn once",
 );
-assert.ok(
-  Number(runtime.player.party[Number(state.battle.player_party_index ?? 0)].hp) <= hpBefore,
-  "opponent response after failed capture must not heal the active player",
+assert.equal(failed.opponentResponse?.playerActionConsumedWithoutMove, true, "capture must consume the player action without synthesizing a player move");
+assert.equal(
+  failed.opponentResponse?.ppIntegration?.commits?.filter((commit) => commit.actor === "player").length,
+  0,
+  "failed capture must not consume player move PP",
 );
+assert.equal(
+  failed.opponentResponse?.ppIntegration?.commits?.filter((commit) => commit.actor === "foe").length,
+  1,
+  "the canonical opponent response must consume exactly one foe move PP",
+);
+const playerAfter = runtime.player.party[Number(state.battle.player_party_index ?? 0)];
+assert.ok(Number(playerAfter.hp) <= Number(playerBefore.hp), "opponent response after failed capture must not heal the active player");
+assert.deepEqual(playerAfter.moves, playerBefore.moves, "failed capture itself must not mutate player move PP");
+assert.equal(playerAfter.status, playerBefore.status, "player status must remain reflected through the Battle runtime");
+assert.equal(playerAfter.item ?? null, playerBefore.item ?? null, "player held item must remain reflected through the Battle runtime");
+assert.ok(Number(state.battle.foe.hp) === Number(foeBefore.hp), "failed capture must not damage the foe before its response");
+assert.equal(state.battle.completed, false, "surviving a failed capture response must continue Battle");
 
 const previewSource = fs.readFileSync(new URL("../preview-app.js", import.meta.url), "utf8");
 const captureHandlerStart = previewSource.indexOf('byId("capture").addEventListener');
@@ -48,7 +64,8 @@ const captureHandler = previewSource.slice(captureHandlerStart, captureHandlerEn
 assert.doesNotMatch(
   captureHandler,
   /note\("捕獲先: " \+ result\.destination\)/,
-  "failed capture UI must not print an undefined capture destination",
+  "failed capture UI must not unconditionally print a capture destination",
 );
+assert.match(captureHandler, /result\.result === "caught"/, "capture UI must branch on the capture result before reading destination");
 
-console.log("Safari failed capture -> opponent response -> next turn, Board remains active: ok");
+console.log("Safari failed capture -> canonical foe response -> next turn, Battle stays active: ok");
