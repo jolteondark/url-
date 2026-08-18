@@ -28,7 +28,7 @@ async function loadBoardPresentation() {
   loadStyle("./event-presentation.css");
   return Promise.all([
     loadModule("./game-presentation.js"),
-    loadModule("./run-end-presentation.js"),
+    loadModule("./run-end-presentation.js?v=20260818-1407"),
   ]);
 }
 
