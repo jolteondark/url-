@@ -16,6 +16,12 @@ function movePp(pokemon, id) {
   return typeof move === "object" && move ? Number(move.pp) : null;
 }
 
+function moveActors(result) {
+  return (result.presentation ?? [])
+    .filter((event) => event.type === "move_started")
+    .map((event) => event.actor);
+}
+
 async function startBattle(kind) {
   const runtime = webPlayable.createSafariPlayableRuntime();
   const state = runtime.variables.mapless;
@@ -33,8 +39,9 @@ async function startBattle(kind) {
   return { runtime, state };
 }
 
-// Wild: prove a durable nonterminal turn carries HP + PP into a terminal turn,
-// then prove the completed Battle can return to the Board through the public facade.
+// Wild: prove one browser command resolves exactly one canonical turn. With the
+// player forced faster and both sides durable, the operation/presentation order
+// must be player -> foe exactly once, while HP + PP carry into the next turn.
 {
   const { runtime, state } = await startBattle("wild");
   const battle = state.battle;
@@ -56,11 +63,15 @@ async function startBattle(kind) {
   battle.foe.stats.SPECIAL_ATTACK = 1;
   battle.foe.stats.DEFENSE = 999;
   battle.foe.stats.SPECIAL_DEFENSE = 999;
+  battle.foe.stats.SPEED = 1;
 
   const ppBefore = movePp(player, selectedMoveId);
+  const turnBefore = Number(battle.turn ?? 1);
   const first = await webPlayable.resolveSafariBattleRound(runtime, selectedMoveId);
   assert.equal(first.decision, 0, "wild first durable turn must stay nonterminal");
-  assert.equal(state.battle.turn, 2, "wild Battle must advance exactly one turn");
+  assert.equal(state.battle.turn, turnBefore + 1, "one wild browser input must advance exactly one Battle turn");
+  assert.deepEqual(moveActors(first), ["player", "foe"],
+    "a faster player and surviving foe must each act exactly once in canonical priority order");
   const hpAfterFirst = Number(runtime.player.party[playerIndex].hp);
   const foeHpAfterFirst = Number(state.battle.foe.hp);
   assert.ok(hpAfterFirst > 0 && hpAfterFirst <= player.max_hp, "wild player HP must remain live after first turn");
@@ -73,8 +84,11 @@ async function startBattle(kind) {
   runtime.player.party[playerIndex].stats.ATTACK = 999;
   runtime.player.party[playerIndex].stats.SPECIAL_ATTACK = 999;
   state.battle.foe.hp = 1;
+  const secondTurnBefore = Number(state.battle.turn);
   const second = await webPlayable.resolveSafariBattleRound(runtime, selectedMoveId);
   assert.equal(second.decision, 1, "wild terminal KO must resolve as victory");
+  assert.equal(state.battle.turn, secondTurnBefore + 1, "terminal wild input must still consume exactly one Battle turn");
+  assert.deepEqual(moveActors(second), ["player"], "a faster terminal KO must not execute a stale foe action after fainting");
   assert.equal(state.battle.completed, true, "wild victory must complete Battle");
   assert.equal(state.board_consumed[0], true, "wild victory must consume the Board cell");
   assert.ok(Number(runtime.player.party[playerIndex].hp) <= hpAfterFirst,
@@ -86,8 +100,9 @@ async function startBattle(kind) {
   assert.equal(state.location, "day_board", "wild return must land on Day Board");
 }
 
-// Trainer: force two opponents. First KO must stay nonterminal and replace the foe;
-// final KO alone may complete the Battle and Board event.
+// Trainer: force two opponents. Each input must resolve one turn only; the first
+// KO replaces the foe without allowing the fainted foe to act, and final KO alone
+// may complete the Battle and Board event.
 {
   const { runtime, state } = await startBattle("trainer");
   const battle = state.battle;
@@ -112,15 +127,20 @@ async function startBattle(kind) {
   secondFoe.fainted = false;
   firstFoe.stats.ATTACK = 1;
   firstFoe.stats.SPECIAL_ATTACK = 1;
+  firstFoe.stats.SPEED = 1;
   secondFoe.stats.ATTACK = 1;
   secondFoe.stats.SPECIAL_ATTACK = 1;
+  secondFoe.stats.SPEED = 1;
   battle.trainer_party = [firstFoe, secondFoe];
   battle.trainer_party_index = 0;
   battle.trainer_party_order = [0, 1];
   battle.foe = structuredClone(firstFoe);
 
+  const firstTurnBefore = Number(battle.turn ?? 1);
   const first = await webPlayable.resolveSafariBattleRound(runtime, selectedMoveId);
   assert.equal(first.decision, 0, "trainer first KO with reserve must remain nonterminal");
+  assert.equal(state.battle.turn, firstTurnBefore + 1, "one trainer browser input must advance exactly one Battle turn");
+  assert.deepEqual(moveActors(first), ["player"], "a faster intermediate KO must not give the fainted foe a stale action");
   assert.equal(state.battle.completed, false, "trainer intermediate KO must not complete Battle");
   assert.equal(state.board_consumed[0], false, "trainer intermediate KO must not consume Board completion");
   assert.equal(Number(state.battle.trainer_party_index), 1, "trainer first KO must advance to the reserve foe");
@@ -130,8 +150,11 @@ async function startBattle(kind) {
   state.battle.trainer_party[1].hp = 1;
   runtime.player.party[playerIndex].stats.ATTACK = 999;
   runtime.player.party[playerIndex].stats.SPECIAL_ATTACK = 999;
+  const finalTurnBefore = Number(state.battle.turn);
   const final = await webPlayable.resolveSafariBattleRound(runtime, selectedMoveId);
   assert.equal(final.decision, 1, "trainer final KO must resolve as victory");
+  assert.equal(state.battle.turn, finalTurnBefore + 1, "terminal trainer input must advance exactly one Battle turn");
+  assert.deepEqual(moveActors(final), ["player"], "trainer final KO must not execute the defeated foe after fainting");
   assert.equal(state.battle.completed, true, "trainer final KO must complete Battle");
   assert.equal(state.board_consumed[0], true, "trainer final victory must consume the Board cell");
   assert.ok(Number(state.battle.trainer_exp_gained ?? 0) + Number(state.battle.exp_gained ?? 0) > 0,
@@ -143,4 +166,4 @@ async function startBattle(kind) {
   assert.equal(state.location, "day_board", "trainer return must land on Day Board");
 }
 
-console.log("Safari common browser Battle vertical: multi-turn wild + trainer replacement + KO + Board return: ok");
+console.log("Safari common browser Battle vertical: one-input-one-turn + action order + HP/PP + replacement + KO + Board return: ok");
