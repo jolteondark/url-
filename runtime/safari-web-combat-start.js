@@ -51,7 +51,7 @@ function materializePokemon(input) {
     move_masters: SAFARI_MOVE_MASTERS,
   });
 }
-function setBattle(runtime, index, kind, opponent, operations, trainer = null, encounterResolution = null, generated = null) {
+function setBattle(runtime, index, kind, opponent, operations, trainer = null, encounterResolution = null, generated = null, trainerParty = null) {
   const state = stateOf(runtime);
   const battleStart = resolveBattleStartCore({ sendOuts: [[0, runtime.player.party[0]], [1, opponent]] });
   const lastOperations = [...operations, ...(encounterResolution?.operations ?? []), ...battleStart.operations];
@@ -64,7 +64,7 @@ function setBattle(runtime, index, kind, opponent, operations, trainer = null, e
     captured: false,
     foe: opponent,
     trainer,
-    trainer_party: trainer?.party?.map(materializePokemon) ?? null,
+    trainer_party: trainerParty,
     trainer_party_index: trainer ? 0 : null,
     trainer_seed: trainer?.seed ?? null,
     prize_money: trainer?.prize_money ?? null,
@@ -111,8 +111,7 @@ function startTrainer(runtime, event, index, operations) {
   const state = stateOf(runtime);
   const trainer = trainerGenerator.generateSafariDynamicTrainer({ day: state.day, seed: event.trainer_seed });
   const party = trainer.party.map(materializePokemon);
-  setBattle(runtime, index, "trainer", party[0], operations, trainer);
-  state.battle.trainer_party = party;
+  setBattle(runtime, index, "trainer", party[0], operations, trainer, null, null, party);
   state.notice = `${trainer.trainer_full_name}が勝負を仕掛けてきた！`;
 }
 

@@ -1,8 +1,15 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 
 // Keep GENERAL cold during module import. This mirrors an iPhone session whose
 // first combat cell is a trainer rather than benefiting from any prior wild load.
 globalThis.window = {};
+
+const combatStartSource = fs.readFileSync(new URL("../runtime/safari-web-combat-start.js", import.meta.url), "utf8");
+assert.equal((combatStartSource.match(/\.map\(materializePokemon\)/g) ?? []).length, 1,
+  "selected trainer Party must be materialized exactly once before Battle state install");
+assert.match(combatStartSource, /trainer_party:\s*trainerParty/,
+  "Battle state must reuse the already materialized selected trainer Party");
 
 const {
   activateSafariDayBoardCell,
@@ -73,4 +80,4 @@ assert.equal(state.battle.turn, 2, "cold trainer Battle must advance through the
 assert.ok(Number(runtime.player.party[0].hp) > 0, "cold trainer first round must retain live player HP");
 assert.ok(Number(state.battle.foe.hp) > 0, "cold trainer first round must retain live foe HP");
 
-console.log("Safari cold trainer board -> Battle owner -> first round smoke passed");
+console.log("Safari cold trainer board -> single selected Party materialization -> Battle owner -> first round smoke passed");
