@@ -8,6 +8,18 @@ export const MAJOR_STATUS_MOVE_EFFECT_SOURCES_V108 = Object.freeze({
     requiresMoveTypeEffectiveness: true,
     sourceOwner: "canonical FunctionCode + Battle::Battler#pbCanInflictStatus?",
   }),
+  ParalyzeTarget: Object.freeze({
+    functionCode: "ParalyzeTarget",
+    status: "PARALYSIS",
+    requiresMoveTypeEffectiveness: false,
+    sourceOwner: "canonical FunctionCode + Battle::Battler#pbCanInflictStatus?",
+  }),
+  PoisonTarget: Object.freeze({
+    functionCode: "PoisonTarget",
+    status: "POISON",
+    requiresMoveTypeEffectiveness: false,
+    sourceOwner: "canonical FunctionCode + Battle::Battler#pbCanInflictStatus?",
+  }),
   BurnTarget: Object.freeze({
     functionCode: "BurnTarget",
     status: "BURN",
