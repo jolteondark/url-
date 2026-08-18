@@ -79,6 +79,7 @@ export async function listSafariCarryoverCandidates(runtime) {
 
 export async function prepareSafariNextRun(runtime, selection = null) {
   const result = await (await carryover()).prepareSafariNextRun(runtime, selection);
+  globalThis.__maplessSafariRuntime = runtime;
   publishRuntimeChanged();
   return result;
 }
