@@ -5,15 +5,27 @@ function clone(value) {
     : Object.fromEntries(Object.entries(value).map(([key, item]) => [key, clone(item)]));
 }
 
+function normalizeActiveIndex(party, requestedIndex) {
+  if (!Array.isArray(party) || party.length === 0) return -1;
+  const parsed = Number(requestedIndex);
+  if (Number.isInteger(parsed) && parsed >= 0 && parsed < party.length && party[parsed] != null) return parsed;
+  return party.findIndex((pokemon) => pokemon != null);
+}
+
+function normalizeActiveState(value) {
+  value.active_index = normalizeActiveIndex(value.party, value.active_index);
+  return value;
+}
+
 function stateOf(input) {
   if (!input || typeof input !== "object") throw new TypeError("state is required");
-  return {
+  return normalizeActiveState({
     ...clone(input),
     party: Array.isArray(input.party) ? input.party.map(clone) : [],
     boxes: Array.isArray(input.boxes)
       ? input.boxes.map((box) => ({ ...clone(box), slots: Array.isArray(box?.slots) ? box.slots.map(clone) : [] }))
       : [],
-  };
+  });
 }
 
 function capacity(value, fallback, field) {
@@ -38,12 +50,28 @@ export function activeParty(state) {
   return stateOf(state).party.filter((pokemon) => pokemonAble(pokemon));
 }
 
+export function activePartyIndex(state) {
+  return stateOf(state).active_index;
+}
+
+export function activePokemon(state) {
+  const value = stateOf(state);
+  return value.active_index < 0 ? null : value.party[value.active_index] ?? null;
+}
+
 export function ablePokemonCount(state) {
   return activeParty(state).length;
 }
 
 export function allFainted(state) {
   return ablePokemonCount(state) === 0;
+}
+
+function activeIndexAfterRemoval(activeIndex, removedIndex, newLength) {
+  if (newLength <= 0) return -1;
+  if (activeIndex > removedIndex) return activeIndex - 1;
+  if (activeIndex === removedIndex) return Math.min(removedIndex, newLength - 1);
+  return activeIndex;
 }
 
 export function removePokemonAtIndex(state, index) {
@@ -55,7 +83,10 @@ export function removePokemonAtIndex(state, index) {
   if (!hasOtherAble) {
     return { result: false, state: value, operations: [{ op: "remove_rejected", reason: "last_able" }] };
   }
+  const activeIndex = value.active_index;
   value.party.splice(index, 1);
+  value.active_index = activeIndexAfterRemoval(activeIndex, index, value.party.length);
+  normalizeActiveState(value);
   return { result: true, state: value, operations: [{ op: "remove_party", index }] };
 }
 
@@ -90,8 +121,14 @@ function firstFree(value, box, maxPartySize, defaultBoxCapacity) {
 export function deleteStoredPokemon(state, box, index) {
   const value = stateOf(state);
   if (getPokemon(value, box, index) != null) {
-    setPokemon(value, box, index, null);
-    if (box < 0) value.party = value.party.filter((pokemon) => pokemon != null);
+    if (box < 0) {
+      const activeIndex = value.active_index;
+      value.party.splice(index, 1);
+      value.active_index = activeIndexAfterRemoval(activeIndex, index, value.party.length);
+      normalizeActiveState(value);
+    } else {
+      setPokemon(value, box, index, null);
+    }
   }
   return { state: value, operations: [{ op: "delete", box, index }] };
 }
@@ -122,6 +159,8 @@ export function copyStoredPokemon(state, {
     }
     value.party.push(clone(pokemon));
     value.party = value.party.filter((entry) => entry != null);
+    normalizeActiveState(value);
+    destinationIndex = value.party.length - 1;
   } else {
     setPokemon(value, boxDst, destinationIndex, pokemon);
   }
