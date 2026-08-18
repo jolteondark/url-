@@ -7,6 +7,7 @@ import {
 } from "./pokemon-runtime.js";
 import { interactiveSafariStreetPerformer } from "./safari-street-performer-interaction.js";
 import { interactiveSafariMushroomField } from "./safari-mushroom-field-interaction.js";
+import { interactiveSafariHotSpring } from "./safari-hot-spring-interaction.js";
 import { activateSafariDayBoardCell as activateSafariDayBoardCellBase } from "./safari-playable-integration-wounded.js";
 
 function moveId(move) {
@@ -36,6 +37,7 @@ export function activateSafariDayBoardCell(runtime, index) {
   if (event?.kind === "normal_event") {
     if (event.normal_event_id === "street_performer") return interactiveSafariStreetPerformer(runtime, index);
     if (event.normal_event_id === "mushroom_field") return interactiveSafariMushroomField(runtime, index);
+    if (event.normal_event_id === "hot_spring") return interactiveSafariHotSpring(runtime, index);
   }
   if (!event || event.kind !== "center") return activateSafariDayBoardCellBase(runtime, index);
 
