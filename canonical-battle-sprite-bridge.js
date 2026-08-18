@@ -1,3 +1,4 @@
+import { shouldFreezeCanonicalBattleSprite } from "./battle-sprite-phase-gate.js";
 import { resolveInlineCanonicalBattleSprite } from "./runtime/safari-canonical-battle-sprite-inline.js";
 import { resolveSafariCanonicalBugBattleSprite } from "./runtime/safari-canonical-battle-sprite-bug.js";
 import { resolveSafariCanonicalFileBattleSprite } from "./runtime/safari-canonical-battle-sprite-assets.js";
@@ -94,11 +95,22 @@ function renderSide({ side, battlerIndex, nameId, combatantId }) {
   setHidden(fallback, true);
 }
 
+function battleCard() {
+  return document.getElementById("battle-card");
+}
+
 function render() {
   scheduled = false;
   ensureStyle();
-  const battle = document.getElementById("battle-card");
+  const battle = battleCard();
   if (!battle || battle.hidden) return;
+
+  // Runtime state is committed before preview-app finishes playing the old
+  // combatant's event queue. Keep the already rendered sprite stable until the
+  // shared turn-phase contract leaves RESOLVING; otherwise a trainer reserve can
+  // visually replace the foe before the defeated foe's hit/faint animation ends.
+  if (shouldFreezeCanonicalBattleSprite(battle)) return;
+
   for (const side of SIDES) renderSide(side);
 }
 
@@ -108,7 +120,22 @@ function schedule() {
   requestAnimationFrame(render);
 }
 
+function installPhaseResync() {
+  const card = battleCard();
+  if (!card || typeof MutationObserver !== "function") return;
+  const observer = new MutationObserver(() => {
+    // Do not spin on repeated RESOLVING mutations. The one transition out of
+    // RESOLVING schedules the runtime-owned sprite that is current at that time.
+    if (!shouldFreezeCanonicalBattleSprite(card)) schedule();
+  });
+  observer.observe(card, {
+    attributes: true,
+    attributeFilter: ["data-turn-phase", "hidden"],
+  });
+}
+
 ensureStyle();
 render();
+installPhaseResync();
 window.addEventListener("pageshow", schedule, { passive: true });
 window.addEventListener("safari-runtime-changed", schedule, { passive: true });
