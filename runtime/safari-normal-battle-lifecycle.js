@@ -76,7 +76,7 @@ function finalizeCaughtNormalWild(runtime) {
   return completionOperations;
 }
 
-export function attemptSafariNormalCapture(runtime) {
+export function attemptSafariCapture(runtime) {
   const state = stateOf(runtime);
   const battle = state.battle;
   if (!battle || battle.completed || battle.kind !== "wild") {
@@ -154,7 +154,7 @@ export function attemptSafariNormalCapture(runtime) {
   };
 }
 
-export function returnSafariNormalBattleToDayBoard(runtime) {
+export function returnSafariToDayBoard(runtime) {
   const state = stateOf(runtime);
   const battle = state.battle;
   if (!battle?.completed) throw new Error("completed battle is required");
