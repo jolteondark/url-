@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { prepareSafariNormalEventV108 } from "../runtime/mapless-normal-event-v108-preparation.js";
 import { attemptSafariFlee } from "../runtime/safari-flee-command.js";
+import { resolveSafariMachineGachaInteraction } from "../runtime/safari-playable-integration.js";
 
 globalThis.CustomEvent = class CustomEvent {
   constructor(type, init = {}) { this.type = type; this.detail = init.detail; }
@@ -54,7 +55,7 @@ assert.equal(current.board_consumed[0], true);
 assert.equal(runtime.player.party[0].hp, runtime.player.party[0].max_hp);
 
 // Canonical normal-event owner: buy one machine-gacha item and leave.
-const gachaResult = web.resolveSafariMachineGachaInteraction(runtime, 1, ["buy", "leave"]);
+const gachaResult = resolveSafariMachineGachaInteraction(runtime, 1, ["buy", "leave"]);
 assert.equal(gachaResult.draws, 1);
 assert.equal(current.board_consumed[1], true);
 assert.equal(current.board_events[1].normal_resolved, true);
