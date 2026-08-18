@@ -53,7 +53,7 @@ assert.ok(Number(playerAfter.hp) <= Number(playerBefore.hp), "opponent response 
 assert.deepEqual(playerAfter.moves, playerBefore.moves, "failed capture itself must not mutate player move PP");
 assert.equal(playerAfter.status, playerBefore.status, "player status must remain reflected through the Battle runtime");
 assert.equal(playerAfter.item ?? null, playerBefore.item ?? null, "player held item must remain reflected through the Battle runtime");
-assert.ok(Number(state.battle.foe.hp) === Number(foeBefore.hp), "failed capture must not damage the foe before its response");
+assert.equal(Number(state.battle.foe.hp), Number(foeBefore.hp), "failed capture must not damage the foe before its response");
 assert.equal(state.battle.completed, false, "surviving a failed capture response must continue Battle");
 
 const previewSource = fs.readFileSync(new URL("../preview-app.js", import.meta.url), "utf8");
@@ -61,11 +61,10 @@ const captureHandlerStart = previewSource.indexOf('byId("capture").addEventListe
 const captureHandlerEnd = previewSource.indexOf('\nbyId("flee").addEventListener', captureHandlerStart);
 assert.ok(captureHandlerStart >= 0 && captureHandlerEnd > captureHandlerStart, "capture UI handler must exist");
 const captureHandler = previewSource.slice(captureHandlerStart, captureHandlerEnd);
-assert.doesNotMatch(
-  captureHandler,
-  /note\("捕獲先: " \+ result\.destination\)/,
-  "failed capture UI must not unconditionally print a capture destination",
-);
-assert.match(captureHandler, /result\.result === "caught"/, "capture UI must branch on the capture result before reading destination");
+const caughtBranch = captureHandler.indexOf('result.result === "caught"');
+const destinationRead = captureHandler.indexOf('result.destination');
+assert.ok(caughtBranch >= 0, "capture UI must branch on caught before reading destination");
+assert.ok(destinationRead > caughtBranch, "capture destination must only be read after the caught-result branch");
+assert.match(captureHandler, /else note\("Capture: " \+ result\.result\)/, "failed capture UI must render the failed result without a destination");
 
 console.log("Safari failed capture -> canonical foe response -> next turn, Battle stays active: ok");
