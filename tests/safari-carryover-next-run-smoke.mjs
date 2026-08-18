@@ -77,6 +77,8 @@ assert.deepEqual(
 
 const prepared = await web.prepareSafariNextRun(runtime, { boxIndex: 0, slotIndex: 0 });
 assert.equal(prepared.result, "prepared", "eligible boxed carryover must prepare the next run");
+assert.equal(globalThis.__maplessSafariRuntime, runtime,
+  "next-run preparation must leave the live Safari runtime pointing at the prepared run, not a temporary template");
 assert.equal(runtime.storage_system.boxes[0].slots[0] ?? null, null,
   "selected boxed original must be removed only after carry normalization succeeds");
 assert.equal(runtime.player.party.length, 1, "next run must begin with exactly one keeper");
