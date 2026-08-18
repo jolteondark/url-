@@ -1,0 +1,29 @@
+.battle-phase-pill {
+  margin-inline-start: auto;
+  min-width: 8.5rem;
+  text-align: center;
+}
+
+#battle-card[data-turn-phase="command"] .battle-phase-pill {
+  font-weight: 800;
+}
+
+#battle-card[data-turn-phase="resolving"] .battle-command-panel {
+  opacity: 0.72;
+}
+
+#battle-card[data-turn-phase="resolving"] #moves,
+#battle-card[data-turn-phase="resolving"] .battle-actions {
+  pointer-events: none;
+}
+
+#battle-card[data-turn-phase="resolving"] .battle-message {
+  min-height: 2.6em;
+}
+
+#battle-card[data-turn-phase="replacement"] .battle-phase-pill,
+#battle-card[data-turn-phase="result"] .battle-phase-pill,
+#battle-card[data-turn-phase="resolving"] .battle-phase-pill {
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
