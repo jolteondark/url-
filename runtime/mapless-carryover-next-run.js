@@ -20,14 +20,16 @@ import {
 
 const ZERO_STATS = Object.freeze({ HP: 0, ATTACK: 0, DEFENSE: 0, SPECIAL_ATTACK: 0, SPECIAL_DEFENSE: 0, SPEED: 0 });
 const PSEUDO_FINALS = new Set(["DRAGONITE", "TYRANITAR", "SALAMENCE", "METAGROSS", "GARCHOMP", "HYDREIGON", "GOODRA", "KOMMOO", "DRAGAPULT", "BAXCALIBUR"]);
-const LEGENDARY_STARTERS = new Set(["ARTICUNO", "ZAPDOS", "MOLTRES", "RAIKOU", "ENTEI", "SUICUNE", "REGIROCK", "REGICE", "REGISTEEL", "UXIE", "MESPRIT", "AZELF", "HEATRAN", "REGIGIGAS", "CRESSELIA", "TORNADUS", "THUNDURUS", "LANDORUS", "KUBFU", "URSHIFU", "GLASTRIER", "SPECTRIER", "ENAMORUS", "OKIDOGI", "MUNKIDORI", "FEZANDIPITI"]);
-const SPECIAL_STARTERS = new Set(["MEWTWO", "MEW", "LUGIA", "HOOH", "CELEBI", "KYOGRE", "GROUDON", "RAYQUAZA", "JIRACHI", "DEOXYS", "DIALGA", "PALKIA", "GIRATINA", "PHIONE", "MANAPHY", "DARKRAI", "SHAYMIN", "ARCEUS", "VICTINI", "RESHIRAM", "ZEKROM", "KYUREM", "KELDEO", "MELOETTA", "GENESECT", "XERNEAS", "YVELTAL", "ZYGARDE", "DIANCIE", "HOOPA", "VOLCANION", "COSMOG", "COSMOEM", "SOLGALEO", "LUNALA", "NECROZMA", "MAGEARNA", "MARSHADOW", "ZACIAN", "ZAMAZENTA", "ETERNATUS", "CALYREX", "KORAIDON", "MIRAIDON"]);
+const LEGEND_CATEGORIES = new Set(["LEGENDARY", "MYTHICAL"]);
+const SPECIAL_CATEGORIES = new Set(["SUB_LEGENDARY", "ULTRA_BEAST", "PARADOX"]);
 
+// source-v0.9.108 MaplessCarryover::CLASS_RULES. The public Safari seed money
+// remains the existing startup owner; this module applies only the canonical multiplier.
 const CLASS_RULES = Object.freeze({
-  general: Object.freeze({ money: 1, supplies: Object.freeze([["POKEBALL", 5], ["POTION", 3]]) }),
-  pseudo_final: Object.freeze({ money: 0.8, supplies: Object.freeze([["POKEBALL", 5]]) }),
-  legendary: Object.freeze({ money: 0.6, supplies: Object.freeze([["POKEBALL", 3]]) }),
-  special: Object.freeze({ money: 0.35, supplies: Object.freeze([["POKEBALL", 1]]) }),
+  general: Object.freeze({ partyLimit: 6, money: 1, supplies: Object.freeze([["POKEBALL", 5], ["POTION", 3]]) }),
+  pseudo_final: Object.freeze({ partyLimit: 6, money: 0.5, supplies: Object.freeze([]) }),
+  special: Object.freeze({ partyLimit: 5, money: 0.25, supplies: Object.freeze([["POKEBALL", 1], ["POTION", 1]]) }),
+  legend: Object.freeze({ partyLimit: 5, money: 0, supplies: Object.freeze([]) }),
 });
 
 function clone(value) { return structuredClone(value); }
@@ -36,19 +38,34 @@ function stateOf(runtime) {
   if (!state || typeof state !== "object" || Array.isArray(state)) throw new TypeError("runtime variables.mapless state is required");
   return state;
 }
+function categoryOf(pokemon) {
+  const value = pokemon?.category_tag ?? pokemon?.species_category ?? pokemon?.category ?? null;
+  return value == null ? null : String(value).toUpperCase();
+}
 
 export function classifySafariCarryover(pokemon) {
   if (!pokemon || pokemonEgg(pokemon)) return null;
   const species = String(pokemon.species ?? "").toUpperCase();
   if (!species) return null;
+  const category = categoryOf(pokemon);
+  if (category === "ENEMY_ONLY") return null;
+  if (LEGEND_CATEGORIES.has(category)) return "legend";
+  if (SPECIAL_CATEGORIES.has(category)) return "special";
   if (PSEUDO_FINALS.has(species)) return "pseudo_final";
-  if (LEGENDARY_STARTERS.has(species)) return "legendary";
-  if (SPECIAL_STARTERS.has(species)) return "special";
+  // Canonical classify rescues missing category lookup to :GENERAL. Public
+  // ordinary Pokemon currently do not duplicate Game Data category metadata.
   return "general";
 }
 
+export function safariCarryoverPartyLimit(carryClass) {
+  return CLASS_RULES[carryClass]?.partyLimit ?? CLASS_RULES.general.partyLimit;
+}
+
 async function normalizeCarriedPokemon(source) {
-  await ensureSafariGeneralData();
+  const needsGeneralMasters = !SAFARI_SPECIES_MASTERS[source?.species]
+    || (source?.moves ?? []).some((move) => !SAFARI_MOVE_MASTERS[typeof move === "string" ? move : move?.id]);
+  if (needsGeneralMasters) await ensureSafariGeneralData();
+
   const original = clone(source);
   for (const key of Object.keys(original)) {
     if (key.startsWith("mapless_") && !["mapless_bonus_stats", "mapless_applied_bonus_stats"].includes(key)) delete original[key];
@@ -110,6 +127,7 @@ function applyClassRules(runtime, carryClass) {
     if (!addBagItem(runtime.bag.slots, maxSlots, maxPerSlot, item, quantity)) throw new Error(`failed to add carryover supply: ${item}`);
   }
   runtime.bag.money = Math.floor(SAFARI_PLAYABLE_STARTING_MONEY * rule.money);
+  return rule;
 }
 
 function applyFreshRunBoard(runtime, fresh) {
@@ -142,12 +160,15 @@ export async function prepareSafariNextRun(runtime, selection = null) {
     const candidate = stagedStorage.boxes?.[selection.boxIndex]?.slots?.[selection.slotIndex] ?? null;
     carryClass = classifySafariCarryover(candidate);
     if (!carryClass) return { result: "ineligible", operations: [] };
+    // Normalize the clone first. Storage deletion is committed only after this succeeds.
     keeper = await normalizeCarriedPokemon(candidate);
     const deleted = deleteStoredPokemon(stagedStorage, selection.boxIndex, selection.slotIndex);
     stagedStorage.boxes = deleted.state.boxes;
     stagedStorage.currentBox = deleted.state.currentBox;
     operations.push(...deleted.operations, { op: "choose_carryover", carryClass, box: selection.boxIndex, slot: selection.slotIndex });
   } else {
+    // Canonical fallback exists only when the player explicitly starts the next run
+    // without a boxed selection. The pending-home state itself never gets a starter.
     const freshStarter = createSafariPlayableRuntime().player.party[0];
     carryClass = "general";
     keeper = await normalizeCarriedPokemon(freshStarter);
@@ -159,7 +180,7 @@ export async function prepareSafariNextRun(runtime, selection = null) {
   runtime.storage_system.currentBox = stagedStorage.currentBox;
   runtime.player.party = [keeper];
   applyFreshRunBoard(runtime, fresh);
-  applyClassRules(runtime, carryClass);
+  const rule = applyClassRules(runtime, carryClass);
 
   state.mapless_carry_class = carryClass;
   state.mapless_run_active = true;
@@ -168,11 +189,11 @@ export async function prepareSafariNextRun(runtime, selection = null) {
   state.mapless_carryover_pending = false;
   state.mapless_carryover_overflow = false;
   operations.push(
-    { op: "set_carry_class", value: carryClass },
+    { op: "set_carry_class", value: carryClass, partyLimit: rule.partyLimit },
     { op: "set_run_active", value: true },
     { op: "set_run_prepared", value: true },
     { op: "set_carryover_pending", value: false },
     { op: "request_save", reason: "mapless_prepare_run" },
   );
-  return { result: "prepared", carryClass, operations };
+  return { result: "prepared", carryClass, partyLimit: rule.partyLimit, operations };
 }
