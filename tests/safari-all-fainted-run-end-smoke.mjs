@@ -8,6 +8,12 @@ globalThis.CustomEvent = class CustomEvent {
 globalThis.window = { dispatchEvent() { return true; } };
 
 const web = await import("../runtime/safari-web-playable-integration.js");
+class MemoryStorage {
+  constructor() { this.map = new Map(); }
+  getItem(key) { return this.map.has(key) ? this.map.get(key) : null; }
+  setItem(key, value) { this.map.set(key, String(value)); }
+  removeItem(key) { this.map.delete(key); }
+}
 const runtime = web.createSafariPlayableRuntime();
 const state = runtime.variables.mapless;
 
@@ -98,11 +104,31 @@ assert.deepEqual(state.board_events, [], "finish_run must retire the finished Da
 assert.deepEqual(state.board_revealed, []);
 assert.deepEqual(state.board_consumed, []);
 assert.deepEqual(state.board_visited, []);
+assert.equal(state.village, null, "finish_run must clear the old run village state");
 assert.equal(returned.persistenceRequested, true,
   "canonical finish_run transition must request persistence");
 const homeCell = web.boardCellPresentation(runtime, 0);
 assert.equal(homeCell.kind, "run_end", "home state must render without indexing the retired Board");
 assert.equal(homeCell.disabled, true);
+
+// Persist and Continue the closed run. Startup normalization must not silently
+// create a new village/Board/encounter while carryover selection is pending.
+const storage = new MemoryStorage();
+web.saveSafariPlayableRun(storage, runtime);
+const loaded = web.loadSafariPlayableRun(storage, web.createSafariPlayableRuntime());
+assert.equal(loaded.found, true);
+const restored = loaded.state;
+const restoredState = restored.variables.mapless;
+assert.equal(restoredState.location, "home");
+assert.equal(restoredState.mapless_run_active, false);
+assert.equal(restoredState.mapless_run_prepared, false);
+assert.equal(restoredState.mapless_carryover_pending, true);
+assert.deepEqual(restoredState.board_events, [], "Continue must keep finished Board retired");
+assert.equal(restoredState.village, null, "Continue must not prepare a new village before carryover choice");
+assert.equal(Object.prototype.hasOwnProperty.call(restoredState, "preview_encounter_seed"), false,
+  "Continue at carryover home must not seed a new encounter stream");
+assert.equal(restored.player.party.length, 0);
+assert.equal(restored.storage_system.boxes.reduce((sum, box) => sum + box.slots.filter(Boolean).length, 0), storedAfter);
 
 // Lock the Safari composition boundary without duplicating run state in UI.
 const previewSource = fs.readFileSync(new URL("../preview-app.js", import.meta.url), "utf8");
