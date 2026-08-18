@@ -30,14 +30,15 @@ assert.equal(started.result, "dispatched");
 assert.ok(state.battle && state.battle.kind === "wild" && !state.battle.completed);
 
 // One usable Pokemon. Exercise the real failed-Run opponent-only path and make
-// that single canonical foe response KO the Party.
+// that single canonical foe response KO the Party. SWIFT has canonical
+// accuracy 0 in the Safari projection, so the terminal fixture cannot miss.
 assert.equal(runtime.player.party.length, 1);
 const player = runtime.player.party[0];
 player.hp = 1;
 player.stats.DEFENSE = 1;
 player.stats.SPECIAL_DEFENSE = 1;
 player.stats.SPEED = 1;
-state.battle.foe.moves = [{ id: "TACKLE", ppup: 0, pp: 35 }];
+state.battle.foe.moves = [{ id: "SWIFT", ppup: 0, pp: 20 }];
 state.battle.foe.stats.ATTACK = 999;
 state.battle.foe.stats.SPECIAL_ATTACK = 999;
 state.battle.foe.stats.SPEED = 999;
