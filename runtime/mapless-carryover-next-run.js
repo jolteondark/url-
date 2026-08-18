@@ -7,6 +7,7 @@ import {
   pokemonMoveTotalPp,
   recalculatePokemonStats,
 } from "./pokemon-runtime.js";
+import { safariCanonicalSpeciesCategory } from "./safari-carryover-category-projection.js";
 import { ensureSafariGeneralData } from "./safari-general-data-demand.js";
 import {
   SAFARI_MOVE_MASTERS,
@@ -23,8 +24,8 @@ const PSEUDO_FINALS = new Set(["DRAGONITE", "TYRANITAR", "SALAMENCE", "METAGROSS
 const LEGEND_CATEGORIES = new Set(["LEGENDARY", "MYTHICAL"]);
 const SPECIAL_CATEGORIES = new Set(["SUB_LEGENDARY", "ULTRA_BEAST", "PARADOX"]);
 
-// source-v0.9.108 MaplessCarryover::CLASS_RULES. The public Safari seed money
-// remains the existing startup owner; this module applies only the canonical multiplier.
+// Exact source-v0.9.108 MaplessCarryover::CLASS_RULES. Public Safari's
+// SAFARI_PLAYABLE_STARTING_MONEY remains the existing base-start-money owner.
 const CLASS_RULES = Object.freeze({
   general: Object.freeze({ partyLimit: 6, money: 1, supplies: Object.freeze([["POKEBALL", 5], ["POTION", 3]]) }),
   pseudo_final: Object.freeze({ partyLimit: 6, money: 0.5, supplies: Object.freeze([]) }),
@@ -38,22 +39,16 @@ function stateOf(runtime) {
   if (!state || typeof state !== "object" || Array.isArray(state)) throw new TypeError("runtime variables.mapless state is required");
   return state;
 }
-function categoryOf(pokemon) {
-  const value = pokemon?.category_tag ?? pokemon?.species_category ?? pokemon?.category ?? null;
-  return value == null ? null : String(value).toUpperCase();
-}
 
 export function classifySafariCarryover(pokemon) {
   if (!pokemon || pokemonEgg(pokemon)) return null;
   const species = String(pokemon.species ?? "").toUpperCase();
   if (!species) return null;
-  const category = categoryOf(pokemon);
+  const category = safariCanonicalSpeciesCategory(species);
   if (category === "ENEMY_ONLY") return null;
   if (LEGEND_CATEGORIES.has(category)) return "legend";
   if (SPECIAL_CATEGORIES.has(category)) return "special";
   if (PSEUDO_FINALS.has(species)) return "pseudo_final";
-  // Canonical classify rescues missing category lookup to :GENERAL. Public
-  // ordinary Pokemon currently do not duplicate Game Data category metadata.
   return "general";
 }
 
@@ -90,7 +85,7 @@ async function normalizeCarriedPokemon(source) {
     nature_stat_changes: natureMaster.stat_changes ?? [],
     previous_mapless_bonus_stats: clone(ZERO_STATS),
   });
-  const moves = normalized.moves.map((move) => {
+  const moves = normalized.moves.slice(0, 4).map((move) => {
     const master = SAFARI_MOVE_MASTERS[move.id];
     if (!master) throw new Error(`carryover move master unavailable: ${move.id}`);
     return { ...move, pp: pokemonMoveTotalPp(master.total_pp, Number(move.ppup ?? 0)) };
@@ -168,7 +163,7 @@ export async function prepareSafariNextRun(runtime, selection = null) {
     operations.push(...deleted.operations, { op: "choose_carryover", carryClass, box: selection.boxIndex, slot: selection.slotIndex });
   } else {
     // Canonical fallback exists only when the player explicitly starts the next run
-    // without a boxed selection. The pending-home state itself never gets a starter.
+    // without a boxed selection. Pending home itself never gets a temporary starter.
     const freshStarter = createSafariPlayableRuntime().player.party[0];
     carryClass = "general";
     keeper = await normalizeCarriedPokemon(freshStarter);
