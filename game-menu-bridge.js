@@ -1,5 +1,6 @@
 import { saveSafariPlayableRun, useSafariBattleItem } from "./runtime/safari-web-playable-integration.js";
 import { useSafariBagItemOnPartyPokemon } from "./runtime/safari-bag-item-use.js";
+import { playSafariBattleCommandPresentation } from "./battle-command-presentation-bridge.js?v=20260819-0217";
 
 const byId = (id) => document.getElementById(id);
 const moneyFormat = new Intl.NumberFormat("ja-JP");
@@ -170,7 +171,10 @@ byId("game-menu")?.addEventListener("click", async (event) => {
       if (battle) {
         const result = await useSafariBattleItem(runtime, { itemId: use.dataset.bagUseItem, partyIndex });
         globalThis.__maplessLastBattleItemResult = result;
-        if (result.turnConsumed) close();
+        if (result.turnConsumed) {
+          close();
+          await playSafariBattleCommandPresentation(result.presentation ?? []);
+        }
       } else {
         const result = useSafariBagItemOnPartyPokemon(runtime, { itemId: use.dataset.bagUseItem, partyIndex });
         if (result.persistenceRequested) saveSafariPlayableRun(window.localStorage, runtime);
