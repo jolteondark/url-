@@ -15,6 +15,17 @@ SAFARI_MOVE_MASTERS.THUNDERWAVE = Object.freeze({
   type: "ELECTRIC",
   function_code: "ParalyzeTargetIfNotTypeImmune",
 });
+SAFARI_MOVE_MASTERS.WILLOWISP = Object.freeze({
+  id: "WILLOWISP",
+  name: "Will-O-Wisp",
+  category: "Status",
+  power: 0,
+  accuracy: 85,
+  total_pp: 15,
+  priority: 0,
+  type: "FIRE",
+  function_code: "BurnTarget",
+});
 
 const pokemon = ({ species = "EEVEE", types = ["NORMAL"], status = "NONE", speed = 100 } = {}) => ({
   species,
@@ -76,6 +87,43 @@ const electricPrepared = prepareReflectedMajorStatusBattleInput({ battleInput: b
 assert.equal(electricPrepared.rounds[0].actions[0].battleStatusInput, undefined);
 assert.equal(electricPrepared.rounds[0].actions[0].majorStatusEffectResolution?.reason, "type_immunity");
 
+const burnBattleInput = {
+  rounds: [{ actions: [{
+    kind: "move",
+    battlerIndex: 0,
+    targetBattlerIndex: 1,
+    moveId: "WILLOWISP",
+    accuracyInput: { baseAccuracy: 85, randomRoll: 0 },
+  }] }],
+};
+const burnTarget = pokemon();
+const burnPrepared = prepareReflectedMajorStatusBattleInput({
+  battleInput: burnBattleInput,
+  pokemon: burnTarget,
+  reflectedBattlerIndex: 1,
+});
+assert.equal(burnPrepared.rounds[0].actions[0].battleStatusInput?.newStatus, "BURN");
+assert.equal(burnPrepared.rounds[0].actions[0].majorStatusEffectResolution?.canInflict, true);
+assert.equal(burnPrepared.rounds[0].actions[0].majorStatusEffectResolution?.typeResolution, undefined,
+  "Will-O-Wisp must use major-status eligibility, not damaging move type effectiveness");
+
+const burnHitInput = structuredClone(burnPrepared);
+burnHitInput.rounds[0].actions[0].accuracyResolution = { hit: true };
+const burnCommit = commitBattleSystemsStatusRuntime({ battleInput: burnHitInput, turn, pokemon: burnTarget, reflectedBattlerIndex: 1 });
+assert.equal(burnCommit.pokemon.status, "BURN", "an executed, accurate Will-O-Wisp must persist burn on its target");
+assert.equal(burnCommit.commits.length, 1);
+
+const burnMissInput = structuredClone(burnPrepared);
+burnMissInput.rounds[0].actions[0].accuracyResolution = { hit: false };
+const burnMissCommit = commitBattleSystemsStatusRuntime({ battleInput: burnMissInput, turn, pokemon: burnTarget, reflectedBattlerIndex: 1 });
+assert.equal(burnMissCommit.pokemon.status, "NONE", "a missed Will-O-Wisp must not inflict burn");
+
+const fireTarget = pokemon({ species: "CHARMANDER", types: ["FIRE"] });
+const firePrepared = prepareReflectedMajorStatusBattleInput({ battleInput: burnBattleInput, pokemon: fireTarget, reflectedBattlerIndex: 1 });
+assert.equal(firePrepared.rounds[0].actions[0].battleStatusInput, undefined);
+assert.equal(firePrepared.rounds[0].actions[0].majorStatusEffectResolution?.reason, "type_immunity",
+  "Fire-type burn immunity must remain owned by pbCanInflictStatus eligibility");
+
 const ordinary = prepareReflectedMajorStatusBattleInput({
   battleInput: { rounds: [{ actions: [{ kind: "move", targetBattlerIndex: 1, moveId: "TACKLE" }] }] },
   pokemon: { species: "NOT_A_GENERAL_SPECIES", hp: 10, status: "NONE" },
@@ -84,4 +132,4 @@ const ordinary = prepareReflectedMajorStatusBattleInput({
 assert.equal(ordinary.rounds[0].actions[0].battleStatusInput, undefined,
   "ordinary non-status rounds must not force GENERAL type projection just because Battle status support is installed");
 
-console.log("ordinary Thunder Wave status owner smoke: ok");
+console.log("ordinary Thunder Wave / Will-O-Wisp major status owner smoke: ok");
