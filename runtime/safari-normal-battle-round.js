@@ -167,6 +167,27 @@ function applyWildResolved(runtime, resolved, playerIndex) {
   return finish(runtime, battle, resolved, operations);
 }
 
+function wildOpponentChoice(state, battle, playerIndex, player) {
+  return resolveBrowserOpponentMoveChoiceCanonical({
+    battleKind: "wild",
+    player,
+    foe: battle.foe,
+    moveMasters: SAFARI_MOVE_MASTERS,
+    aiRandomSeed: seedFor(state, battle),
+    trainerSkill: 0,
+    trainerFlags: [],
+    ownReserveCount: 0,
+    foeReserveCount: reserveCount(runtimePartyForChoice(player, state), playerIndex),
+    mechanicsGeneration: 9,
+    turnCount: Math.max(0, Number(battle.turn ?? 1) - 1),
+    canSwitchLax: false,
+  });
+}
+
+function runtimePartyForChoice(player, state) {
+  return state?.__runtimeParty ?? player?.__party ?? [];
+}
+
 function resolveWild(runtime, selectedMoveId, playerActionConsumedWithoutMove = false) {
   const state = stateOf(runtime);
   const battle = state.battle;
