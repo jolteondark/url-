@@ -76,6 +76,7 @@ const initial = resolvePokemonRuntimeMasters({
   nature_master: { id: "HARDY", stat_changes: [] },
   move_masters: SAFARI_MOVE_MASTERS,
 });
+initial.hp = 15;
 const runtime = {
   player: { party: [initial] },
   variables: { mapless: { battle: { completed: false, player_party_index: 0 } } },
@@ -109,7 +110,8 @@ assert.equal(after.status_count, 2, "status counter must survive");
 assert.equal(after.ability_id, "KEEPABILITY", "ability identity must survive");
 assert.equal(after.ability_index, 1, "ability slot must survive");
 assert.equal(Object.prototype.hasOwnProperty.call(after, "__battle_move_decisions"), false, "battle-only choices must not leak into persisted Pokemon state");
-assert.notEqual(after.hp, after.max_hp, "level/evolution must not full-heal an injured Pokemon");
+assert.ok(after.max_hp > initial.max_hp, "level/evolution fixture must increase max HP");
+assert.equal(after.hp, initial.hp + (after.max_hp - initial.max_hp), "injured current HP must track the exact canonical max-HP delta rather than full-heal");
 assert.deepEqual(committed.commits[0].evolution, { from: "REALRUNTEST", to: "REALRUNTEST2", method: "Level", parameter: 12 });
 assert.deepEqual(committed.commits[0].unsupportedEvolutionMethods, ["Item"], "unsupported evolution methods on the evolved species must stay explicit in the real-run commit");
 
@@ -117,4 +119,26 @@ const saved = saveRunState({ player: { party: [after] } }, { valueIds: ["player"
 const fresh = loadRunState(saved.payload, {}, { valueIds: ["player"] }).state;
 assert.deepEqual(fresh.player.party[0], after, "fresh Continue must preserve the evolved individual exactly");
 
-console.log("Safari Battle EXP move choice -> multi-level moves -> Level evolution -> Save/Continue: PASS");
+const faintedRuntime = {
+  player: { party: [structuredClone(initial)] },
+  variables: { mapless: { battle: { completed: false, player_party_index: 0 } } },
+};
+faintedRuntime.player.party[0].hp = 0;
+setSafariBattleMoveLearningDecision(faintedRuntime, { level: 11, moveId: "NEWONE", forgetIndex: 1 });
+setSafariBattleMoveLearningDecision(faintedRuntime, { level: 12, moveId: "NEWTWO", forgetIndex: 2 });
+const faintedExpInput = normalBattleExpInput(faintedRuntime.player.party[0], defeatedFoe, false);
+const faintedCommitted = commitBattleSystemsExpRuntime({
+  pokemon: faintedRuntime.player.party[0],
+  battleInput: { rounds: [{ actions: [{ postHitResolution: { operations: [{ op: "gain_exp_request" }] }, battleExpInput: faintedExpInput }] }] },
+  turn: { operations: [{ op: "use_move", round: 1, action: 0 }] },
+});
+assert.equal(faintedCommitted.pokemon.level, 12, "fainted real-run branch must still receive the same multi-level EXP growth");
+assert.equal(faintedCommitted.pokemon.species, "REALRUNTEST2", "fainted real-run branch must still resolve eligible Level evolution");
+assert.ok(faintedCommitted.pokemon.max_hp > initial.max_hp, "fainted fixture must exercise a positive max-HP delta");
+assert.equal(faintedCommitted.pokemon.hp, 0, "level/evolution stat growth must not revive a fainted Pokemon");
+const faintedSaved = saveRunState({ player: { party: [faintedCommitted.pokemon] } }, { valueIds: ["player"] });
+const faintedFresh = loadRunState(faintedSaved.payload, {}, { valueIds: ["player"] }).state;
+assert.equal(faintedFresh.player.party[0].hp, 0, "fresh Continue must preserve fainted HP after level/evolution");
+assert.equal(faintedFresh.player.party[0].personal_id, initial.personal_id, "fainted evolution must preserve individual identity through Continue");
+
+console.log("Safari Battle EXP move choice -> multi-level moves -> Level evolution -> canonical HP -> Save/Continue: PASS");
