@@ -110,6 +110,7 @@ const legacySource = fs.readFileSync(new URL("../battle-turn-phase-presentation.
 const replacementSource = fs.readFileSync(new URL("../battle-player-replacement-presentation.js", import.meta.url), "utf8");
 const bagSource = fs.readFileSync(new URL("../game-menu-bridge.js", import.meta.url), "utf8");
 const flowPolishSource = fs.readFileSync(new URL("../battle-dppt-flow-polish.js", import.meta.url), "utf8");
+const menuFlowGuardSource = fs.readFileSync(new URL("../battle-dppt-menu-flow-guard.js", import.meta.url), "utf8");
 const indexSource = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
 
 for (const phase of [
@@ -140,6 +141,10 @@ assert.match(flowPolishSource, /return current\.phase \?\? null/,
   "DPt flow polish must read the orchestrator phase directly");
 assert.doesNotMatch(flowPolishSource, /current\.completed|previewCommandBusy|player_replacement_required/,
   "DPt flow polish must not infer a second Battle phase truth");
+assert.match(menuFlowGuardSource, /return battle\(\)\?\.phase === "COMMAND"/,
+  "DPt menu flow guard must use COMMAND as the sole Battle command truth");
+assert.doesNotMatch(menuFlowGuardSource, /\.completed|player_replacement_required|previewCommandBusy/,
+  "DPt menu flow guard must not infer command availability from legacy Battle flags");
 assert.doesNotMatch(indexSource, /battle-command-unlock-guard/,
   "shell must not load a second COMMAND unlock owner");
 
