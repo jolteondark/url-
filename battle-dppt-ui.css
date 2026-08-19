@@ -1,3 +1,6 @@
+@import url("https://fonts.googleapis.com/css2?family=DotGothic16&display=swap");
+@import url("./battle-dppt-font.css?v=20260820-0741");
+
 /* Diamond/Pearl/Platinum-inspired battle presentation layer. Visual only. */
 #battle-card.battle-scene{
   --dppt-ink:#202020;--dppt-line:#4b4b4b;--dppt-silver:#dfe2df;--dppt-silver-dark:#aeb5b1;--dppt-panel:#f7f6e8;--dppt-green:#58c763;
@@ -13,7 +16,7 @@
 #battle-card .battle-info-panel{border:2px solid #2f3434;border-radius:2px;background:linear-gradient(180deg,#fffef5 0,#f2f1e6 62%,#d8dbd2 100%);box-shadow:2px 2px 0 #7c827f;color:var(--dppt-ink);padding:5px 8px 5px}
 #battle-card .foe-info{left:7px;top:16px;width:min(47%,235px);clip-path:none}
 #battle-card .player-info{right:7px;bottom:10px;width:min(49%,245px);clip-path:none}
-#battle-card .pokemon-name strong{font-family:"Arial Narrow","Helvetica Neue",sans-serif;font-size:.82rem;font-weight:900;letter-spacing:.01em;color:#151515}
+#battle-card .pokemon-name strong{font-size:.82rem;font-weight:900;letter-spacing:.01em;color:#151515}
 #battle-card .pokemon-name span,#battle-card .combatant small{color:#292929;font-size:.58rem;font-weight:850}
 #battle-card .hp-row{margin-top:3px;gap:4px}.hp-row>span{font-size:.48rem!important}
 #battle-card .hp-track{height:7px;border:1px solid #3e4341;border-radius:1px;padding:1px;background:#232624}
