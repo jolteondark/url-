@@ -87,7 +87,6 @@ function finalizeCaughtNormalWild(runtime) {
   state.board_consumed = turn.state.board_consumed;
   const completionOperations = [...turn.operations];
 
-  battle.completed = true;
   battle.return_target = "day_board";
   battle.last_operations = [...(battle.last_operations ?? []), ...completionOperations];
   battle.presentation = [
