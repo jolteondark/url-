@@ -61,6 +61,31 @@ function runtime(battle = {}) {
       .some((step) => step.completed),
     false,
   );
+
+  const traceLength = battle.phase_trace.length;
+  const replay = commitSafariBattleResolution(rt, structuredClone(result), "move");
+  assert.equal(replay.phase, SAFARI_BATTLE_PHASE.RESULT);
+  assert.equal(battle.phase_trace.length, traceLength,
+    "replaying an already-committed terminal resolution must not duplicate reward/result phases");
+  assert.equal(battle.phase_trace.filter((step) => step.phase === SAFARI_BATTLE_PHASE.REWARD_GROWTH).length, 1);
+  assert.equal(battle.phase_trace.filter((step) => step.phase === SAFARI_BATTLE_PHASE.RESULT).length, 1);
+}
+
+{
+  const rt = runtime();
+  ensureSafariBattleOrchestrator(rt);
+  beginSafariBattleCommand(rt, "move");
+  commitSafariBattleResolution(rt, {
+    decision: 2,
+    operations: [{ op: "use_move", actor: "foe" }, { op: "faint", target: "player" }],
+  }, "move");
+  const battle = rt.variables.mapless.battle;
+  assert.equal(battle.completed, true);
+  assert.deepEqual(
+    battle.phase_trace.map((step) => step.phase),
+    ["COMMAND", "ACTION_1", "CHECK_1", "POST_FAINT", "POST_VICTORY", "REWARD_GROWTH", "RESULT"],
+    "loss/run-end terminals still pass through the single REWARD_GROWTH checkpoint",
+  );
 }
 
 {
