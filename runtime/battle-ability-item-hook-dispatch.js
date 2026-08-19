@@ -24,6 +24,14 @@ function requireHookPoint(hook) {
   return normalized;
 }
 
+function pokemonRuntimeSourceCanonical(pokemon) {
+  if (!pokemon || typeof pokemon !== "object" || Array.isArray(pokemon)) return {};
+  const source = { ...pokemon };
+  if (Object.prototype.hasOwnProperty.call(pokemon, "ability")) source.ability_id = pokemon.ability;
+  if (Object.prototype.hasOwnProperty.call(pokemon, "held_item")) source.item = pokemon.held_item;
+  return source;
+}
+
 export function resolveBattleAbilityItemHookCanonical({
   hook,
   user = {},
@@ -37,13 +45,15 @@ export function resolveBattleAbilityItemHookCanonical({
   moldBreaker = false,
 } = {}) {
   const phase = requireHookPoint(hook);
+  const runtimeUser = pokemonRuntimeSourceCanonical(user);
+  const runtimeTarget = pokemonRuntimeSourceCanonical(target);
   if (phase === "switch_in") {
-    return resolveSwitchInAbilityItemHookCanonical({ user, target });
+    return resolveSwitchInAbilityItemHookCanonical({ user: runtimeUser, target: runtimeTarget });
   }
   if (phase === "action_before") {
     return resolveActionBeforeAbilityItemHookCanonical({
-      user,
-      target,
+      user: runtimeUser,
+      target: runtimeTarget,
       move,
       selectedMoveId,
       lockedMoveId,
@@ -51,17 +61,17 @@ export function resolveBattleAbilityItemHookCanonical({
   }
   if (phase === "action_after") {
     return resolveActionAfterAbilityItemHookCanonical({
-      user,
-      target,
+      user: runtimeUser,
+      target: runtimeTarget,
       move,
       damageDealt,
     });
   }
   if (phase === "turn_end") {
-    return resolveTurnEndAbilityItemHookCanonical(user, context);
+    return resolveTurnEndAbilityItemHookCanonical(runtimeUser, context);
   }
   return resolveSurvivalAbilityItemHookCanonical({
-    target,
+    target: runtimeTarget,
     incomingDamage,
     moldBreaker,
   });
@@ -72,8 +82,8 @@ export const BATTLE_ABILITY_ITEM_SHARED_HOOK_CONTRACT_CANONICAL = Object.freeze(
   boundaries: BATTLE_ABILITY_ITEM_BOUNDARIES_CANONICAL,
   implementedCoverage: BATTLE_ABILITY_ITEM_IMPLEMENTED_COVERAGE_CANONICAL,
   pokemonRuntimeSource: Object.freeze({
-    ability: "pokemon.ability",
-    heldItem: "pokemon.held_item (pokemon.item compatibility alias accepted by canonical owner)",
+    ability: "pokemon.ability (authoritative when present; ability_id is legacy-only fallback)",
+    heldItem: "pokemon.held_item (authoritative when present, including null; pokemon.item is legacy-only fallback)",
   }),
   mutationOwnership: Object.freeze({
     switchIn: "battle stat-stage owner",
