@@ -61,6 +61,17 @@ function focusCarryoverChoice(panel) {
   target.focus({ preventScroll:true });
 }
 
+function focusPreparedDayBoard() {
+  const state = stateOfRuntime();
+  if (state?.location !== "day_board" || state.battle || state.shop) return;
+  const boardCard = byId("board-card");
+  if (!boardCard || boardCard.hidden) return;
+  const target = boardCard.querySelector("#board button:not(:disabled), #enter-village:not(:disabled)");
+  if (!(target instanceof HTMLElement)) return;
+  boardCard.scrollIntoView?.({ behavior:"smooth", block:"start", inline:"nearest" });
+  target.focus({ preventScroll:true });
+}
+
 function disableCarryoverChoices(panel = byId("carryover-next-run-panel")) {
   if (!panel) return;
   const active = document.activeElement;
@@ -144,6 +155,7 @@ async function choose(selection) {
     }
     removePanel();
     window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
+    requestAnimationFrame(focusPreparedDayBoard);
   } catch (error) {
     rememberExactError(error, stateOfRuntime());
   } finally {
