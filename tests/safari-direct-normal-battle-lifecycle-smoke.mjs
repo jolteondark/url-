@@ -9,15 +9,21 @@ globalThis.window = { dispatchEvent() { return true; } };
 const web = await import("../runtime/safari-web-playable-integration.js");
 
 const facadeSource = fs.readFileSync(new URL("../runtime/safari-web-playable-integration.js", import.meta.url), "utf8");
-assert.match(facadeSource, /safari-normal-battle-lifecycle\.js\?v=/,
+assert.match(facadeSource, /safari-normal-battle-lifecycle\.js/,
   "normal capture/return must load the direct lifecycle owner");
 assert.doesNotMatch(facadeSource, /normalLifecycleModulePromise\s*=\s*import\("\.\/safari-playable-integration-pre-wounded\.js"\)/,
   "normal capture/return must not re-enter the pre-wounded migration chain");
 assert.match(facadeSource, /useSafariNormalBattleItem/,
   "normal BattleUse must expose the shared direct lifecycle owner");
+assert.match(facadeSource, /commitSafariNormalTerminalRewardGrowth/,
+  "normal Fight terminal mutations must be committed by the central REWARD_GROWTH callback");
 const finalizeSource = fs.readFileSync(new URL("../runtime/safari-normal-battle-finalize.js", import.meta.url), "utf8");
 assert.doesNotMatch(finalizeSource, /\bbattle\.completed\s*=\s*true\b/,
   "normal terminal mechanics finalizer must not publish completion before the central RESULT boundary");
+assert.match(finalizeSource, /battle\.phase !== "REWARD_GROWTH"/,
+  "normal terminal reward/Board/save mutations must be blocked before REWARD_GROWTH");
+assert.match(finalizeSource, /normal_terminal_reward_growth_committed/,
+  "normal terminal REWARD_GROWTH commit must be guarded exactly once");
 
 function moveId(move) {
   return typeof move === "string" ? move : move?.id;
@@ -153,6 +159,7 @@ for (const kind of ["wild", "trainer"]) {
   assert.equal(missing.result, "item_missing");
   assert.equal(missing.turnConsumed, false, `${kind} missing Potion must not consume the turn`);
   assert.equal(Number(battle.turn), turnAfterUse);
+  assert.equal(quantity(runtime, "POTION"), potionAfterUse);
 }
 
 console.log("Safari direct normal lifecycle: capture plus shared Battle Potion -> foe-only single turn across wild/trainer: ok");
