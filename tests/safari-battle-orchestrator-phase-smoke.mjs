@@ -98,9 +98,34 @@ function runtime(battle = {}) {
   commitSafariBattleResolution(rt, result, "move");
   assert.equal(rt.variables.mapless.battle.phase, SAFARI_BATTLE_PHASE.REPLACEMENT);
   assert.equal(rt.variables.mapless.battle.completed, false);
+  assert.equal(rt.variables.mapless.battle.phase_trace.some((step) => step.phase === SAFARI_BATTLE_PHASE.ACTION_2), false,
+    "foe-first player KO must not invent a player ACTION_2");
   rt.variables.mapless.battle.player_replacement_required = false;
   completeSafariBattleReplacement(rt, {});
   assert.equal(rt.variables.mapless.battle.phase, SAFARI_BATTLE_PHASE.COMMAND);
+}
+
+for (const commandKind of ["item", "capture", "flee", "switch"]) {
+  const rt = runtime();
+  ensureSafariBattleOrchestrator(rt);
+  beginSafariBattleCommand(rt, commandKind);
+  commitSafariBattleResolution(rt, {
+    decision: 0,
+    operations: [{ op: "use_move", actor: "foe" }],
+  }, commandKind);
+  const phases = rt.variables.mapless.battle.phase_trace.map((step) => step.phase);
+  assert.deepEqual(phases, ["COMMAND", "ACTION_1", "CHECK_1", "ACTION_2", "CHECK_2", "COMMAND"],
+    `${commandKind} consumes ACTION_1, so one living-foe response must be ACTION_2 exactly once`);
+}
+
+for (const commandKind of ["item", "capture", "flee", "switch"]) {
+  const rt = runtime();
+  ensureSafariBattleOrchestrator(rt);
+  beginSafariBattleCommand(rt, commandKind);
+  commitSafariBattleResolution(rt, { decision: 0, operations: [] }, commandKind);
+  const phases = rt.variables.mapless.battle.phase_trace.map((step) => step.phase);
+  assert.equal(phases.includes("ACTION_2"), false,
+    `${commandKind} must not invent ACTION_2 when no foe response occurred`);
 }
 
 console.log("safari battle orchestrator phase smoke: PASS");
