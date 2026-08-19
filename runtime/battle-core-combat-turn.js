@@ -12,6 +12,7 @@ import { resolveUseMoveInstructCanonical } from "./battle-core-use-move-instruct
 import { resolveUseMoveDancerCanonical } from "./battle-core-use-move-dancer.js";
 import { materializeSeededAccuracyDamageCanonical } from "./battle-core-seeded-accuracy-damage.js";
 import { materializeSeededSecondaryEffectsCanonical } from "./battle-core-seeded-secondary-effect.js";
+import { applyTriggeredFlinchToLaterActionCanonical } from "./battle-core-transient-flinch.js";
 
 function resolveTryUseMoveInputCanonical(action) {
   if (action?.kind !== "move" || !action.useMoveInput?.tryUseMoveInput) return { action, resolution: null };
@@ -59,13 +60,35 @@ function resolveCombatActionCanonical(action) {
   return resolveUseMoveDancerCanonical(instructed);
 }
 
+function resolveCombatRoundCanonical(round = {}) {
+  const actions = structuredClone(Array.isArray(round.actions) ? round.actions : []);
+  const requestedOrder = Array.isArray(round.priorityOrder)
+    ? round.priorityOrder.map(Number).filter((index) => Number.isInteger(index) && index >= 0 && index < actions.length)
+    : actions.map((_, index) => index);
+  const order = [...new Set([...requestedOrder, ...actions.map((_, index) => index)])];
+
+  for (let orderIndex = 0; orderIndex < order.length; orderIndex += 1) {
+    const actionIndex = order[orderIndex];
+    const resolved = resolveCombatActionCanonical(actions[actionIndex]);
+    actions[actionIndex] = resolved;
+    if (!resolved || resolved.kind !== "move") continue;
+
+    for (let laterIndex = orderIndex + 1; laterIndex < order.length; laterIndex += 1) {
+      const targetActionIndex = order[laterIndex];
+      const targetAction = actions[targetActionIndex];
+      if (!targetAction || Number(targetAction.battlerIndex) !== Number(resolved.targetBattlerIndex)) continue;
+      const flinch = applyTriggeredFlinchToLaterActionCanonical({ sourceAction: resolved, targetAction });
+      if (flinch.applied) actions[targetActionIndex] = flinch.action;
+      break;
+    }
+  }
+  return { ...round, actions };
+}
+
 export function prepareCombatTurnInputCanonical(input = {}) {
   let seeded = input.combatRandomSeed === undefined ? input : materializeSeededAccuracyDamageCanonical(input);
   seeded = seeded.secondaryEffectRandomSeed === undefined ? seeded : materializeSeededSecondaryEffectsCanonical(seeded);
-  const rounds = (Array.isArray(seeded.rounds) ? seeded.rounds : []).map((round) => ({
-    ...round,
-    actions: (Array.isArray(round.actions) ? round.actions : []).map(resolveCombatActionCanonical),
-  }));
+  const rounds = (Array.isArray(seeded.rounds) ? seeded.rounds : []).map(resolveCombatRoundCanonical);
   return { ...seeded, rounds };
 }
 
