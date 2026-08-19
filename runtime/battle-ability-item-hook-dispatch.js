@@ -7,6 +7,10 @@ import {
   resolveSwitchInAbilityItemHookCanonical,
   resolveTurnEndAbilityItemHookCanonical,
 } from "./battle-core-ability-item-modifiers.js";
+import {
+  BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL,
+  resolveNormalPlayActionBeforeAbilityItemExtensionCanonical,
+} from "./battle-core-ability-item-normal-play-extension.js";
 
 export const BATTLE_ABILITY_ITEM_HOOK_POINTS_CANONICAL = Object.freeze([
   "switch_in",
@@ -32,6 +36,60 @@ function pokemonRuntimeSourceCanonical(pokemon) {
   return source;
 }
 
+function combinedCoverageCanonical() {
+  const abilityIds = Object.freeze([...new Set([
+    ...(BATTLE_ABILITY_ITEM_IMPLEMENTED_COVERAGE_CANONICAL.abilityIds ?? []),
+    ...(BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL.abilityIds ?? []),
+  ])].sort());
+  const itemIds = Object.freeze([...new Set([
+    ...(BATTLE_ABILITY_ITEM_IMPLEMENTED_COVERAGE_CANONICAL.itemIds ?? []),
+    ...(BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL.itemIds ?? []),
+  ])].sort());
+  return Object.freeze({
+    abilityIds,
+    itemIds,
+    abilityCount: abilityIds.length,
+    itemCount: itemIds.length,
+    classificationCounts: Object.freeze({
+      ...BATTLE_ABILITY_ITEM_IMPLEMENTED_COVERAGE_CANONICAL.classificationCounts,
+      normalPlayExtension: BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL.classificationCounts,
+    }),
+  });
+}
+
+export const BATTLE_ABILITY_ITEM_SHARED_IMPLEMENTED_COVERAGE_CANONICAL = combinedCoverageCanonical();
+
+function resolveSharedActionBeforeCanonical({ runtimeUser, runtimeTarget, move, selectedMoveId, lockedMoveId }) {
+  const base = resolveActionBeforeAbilityItemHookCanonical({
+    user: runtimeUser,
+    target: runtimeTarget,
+    move,
+    selectedMoveId,
+    lockedMoveId,
+  });
+  const extension = resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({
+    user: runtimeUser,
+    target: runtimeTarget,
+    move,
+  });
+  const baseDamageMultiplierInput = base?.modifiers?.damageMultiplierInput ?? {};
+  const baseExternalDefenseMultiplier = Number(baseDamageMultiplierInput.externalDefenseMultiplier ?? 1);
+  const extensionDefenseMultiplier = Number(extension.damageMultiplierInput.externalDefenseMultiplier ?? 1);
+  return Object.freeze({
+    ...base,
+    modifiers: Object.freeze({
+      ...base.modifiers,
+      damageMultiplierInput: Object.freeze({
+        ...baseDamageMultiplierInput,
+        externalDefenseMultiplier: baseExternalDefenseMultiplier * extensionDefenseMultiplier,
+      }),
+    }),
+    priorityModifier: extension.priorityModifier,
+    criticalStageDelta: extension.criticalStageDelta,
+    moveSelection: extension.moveSelection,
+  });
+}
+
 export function resolveBattleAbilityItemHookCanonical({
   hook,
   user = {},
@@ -51,9 +109,9 @@ export function resolveBattleAbilityItemHookCanonical({
     return resolveSwitchInAbilityItemHookCanonical({ user: runtimeUser, target: runtimeTarget });
   }
   if (phase === "action_before") {
-    return resolveActionBeforeAbilityItemHookCanonical({
-      user: runtimeUser,
-      target: runtimeTarget,
+    return resolveSharedActionBeforeCanonical({
+      runtimeUser,
+      runtimeTarget,
       move,
       selectedMoveId,
       lockedMoveId,
@@ -80,7 +138,7 @@ export function resolveBattleAbilityItemHookCanonical({
 export const BATTLE_ABILITY_ITEM_SHARED_HOOK_CONTRACT_CANONICAL = Object.freeze({
   hookPoints: BATTLE_ABILITY_ITEM_HOOK_POINTS_CANONICAL,
   boundaries: BATTLE_ABILITY_ITEM_BOUNDARIES_CANONICAL,
-  implementedCoverage: BATTLE_ABILITY_ITEM_IMPLEMENTED_COVERAGE_CANONICAL,
+  implementedCoverage: BATTLE_ABILITY_ITEM_SHARED_IMPLEMENTED_COVERAGE_CANONICAL,
   pokemonRuntimeSource: Object.freeze({
     ability: "pokemon.ability (authoritative when present; ability_id is legacy-only fallback)",
     heldItem: "pokemon.held_item (authoritative when present, including null; pokemon.item is legacy-only fallback)",
