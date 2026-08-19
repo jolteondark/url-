@@ -38,22 +38,21 @@ const battleCard = new FakeElement("battle-card");
 new FakeElement("battle-topline");
 new FakeElement("battle-command-panel");
 const battleMessage = new FakeElement("battle-message");
-battleMessage.textContent = "技を選んでください。";
 const moves = new FakeElement("moves");
 const capture = new FakeElement("capture");
-new FakeElement("flee");
+const flee = new FakeElement("flee");
 const returnBoard = new FakeElement("return-board");
 const moveButton = new FakeElement("move-button");
 moveButton.dataset.moveId = "TACKLE";
 moveButton.closest = (selector) => selector.includes("#moves button[data-move-id]") ? moveButton : null;
+capture.closest = (selector) => selector.includes("#capture") ? capture : null;
+flee.closest = (selector) => selector.includes("#flee") ? flee : null;
 returnBoard.closest = (selector) => selector === "#return-board" ? returnBoard : null;
 
-const documentStub = {
+globalThis.document = {
   getElementById(id) { return byId.get(id) ?? null; },
   createElement() { return new FakeElement(); },
 };
-
-globalThis.document = documentStub;
 globalThis.window = {
   addEventListener(type, listener) { windowListeners.set(type, listener); },
 };
@@ -62,221 +61,137 @@ globalThis.requestAnimationFrame = (callback) => {
   return frames.length;
 };
 globalThis.cancelAnimationFrame = () => {};
-globalThis.MutationObserver = class MutationObserver {
-  constructor() {}
-  observe() {}
-};
+globalThis.MutationObserver = class MutationObserver { observe() {} };
+
 globalThis.__maplessSafariRuntime = {
-  variables: { mapless: { battle: { turn: 1, completed: false, player_replacement_required: false } } },
+  variables: {
+    mapless: {
+      battle: {
+        turn: 1,
+        phase: "COMMAND",
+        phase_trace: [{ phase: "COMMAND", turn: 1 }],
+        completed: false,
+        player_replacement_required: false,
+      },
+    },
+  },
 };
 
-const runOneFrame = () => {
-  const callback = frames.shift();
-  assert.ok(callback, "expected a scheduled animation frame");
-  callback();
-};
+const battle = () => globalThis.__maplessSafariRuntime.variables.mapless.battle;
 const flushFrames = () => {
   let guard = 0;
   while (frames.length) {
     frames.shift()();
-    guard += 1;
-    if (guard > 20) throw new Error("turn phase frame loop did not settle");
+    if (++guard > 20) throw new Error("phase render loop did not settle");
   }
 };
-const commandClick = () => ({
-  target: moveButton,
+const sync = () => {
+  windowListeners.get("safari-runtime-changed")?.();
+  flushFrames();
+};
+const click = (target) => ({
+  target,
   preventDefault() { this.prevented = true; },
   stopImmediatePropagation() { this.stopped = true; },
 });
-const returnClick = () => ({
-  target: returnBoard,
-  preventDefault() { this.prevented = true; },
-  stopImmediatePropagation() { this.stopped = true; },
-});
-const battle = () => globalThis.__maplessSafariRuntime.variables.mapless.battle;
 
-await import(`../battle-turn-phase-presentation.js?phase-smoke=${Date.now()}`);
-flushFrames();
-assert.equal(phaseNode?.textContent, "コマンド選択", "numeric Turn stays owned by preview #turn");
-assert.equal(battleMessage.textContent, "技を選んでください。");
-assert.equal(battleCard.dataset.turnPhase, "command");
-
-capture.disabled = true;
-windowListeners.get("safari-runtime-changed")();
-runOneFrame();
-assert.equal(battleCard.dataset.turnPhase, "resolving",
-  "Bag-owned busy state outside battle-card must enter the shared RESOLVING phase");
-assert.equal(phaseNode.textContent, "行動処理中");
-assert.equal(moves.inert, true, "Bag turn must keep Battle commands inert through the shared phase owner");
-windowListeners.get("safari-battle-presentation-event")({ detail: { event: { type: "battle_item", actor: "player" } } });
-assert.equal(battleCard.dataset.turnAction, "item", "Bag presentation must share the action-unit phase dataset");
-assert.equal(phaseNode.textContent, "アイテム処理中");
-windowListeners.get("safari-battle-presentation-event")({ detail: { event: { type: "move_started", actor: "foe" } } });
-assert.equal(battleCard.dataset.turnAction, "foe", "Bag opponent response must advance the same owner-ordered action dataset");
-assert.equal(phaseNode.textContent, "相手action処理中");
-capture.disabled = false;
-windowListeners.get("safari-runtime-changed")();
-runOneFrame();
-assert.equal(battleCard.dataset.turnPhase, "command");
-assert.equal(battleCard.dataset.turnAction, undefined);
-assert.equal(moves.inert, false);
-flushFrames();
-
-const first = commandClick();
-battleCard.listeners.get("click")(first);
-assert.equal(first.prevented, undefined, "first command must be allowed through to preview-app");
-assert.equal(battleCard.dataset.turnPhase, "resolving");
-assert.equal(phaseNode.textContent, "行動処理中");
-assert.equal(battleMessage.textContent, "ターンを処理しています…");
-await Promise.resolve();
-assert.equal(moves.inert, true, "moves must become inert before another user input can dispatch");
-
-windowListeners.get("safari-battle-presentation-event")({ detail: { event: { type: "move_started", actor: "player" } } });
-assert.equal(battleCard.dataset.turnAction, "player");
-assert.equal(phaseNode.textContent, "味方action処理中");
-battleMessage.dataset.presentationOwner = "event";
-battleMessage.textContent = "EEVEEのたいあたり！";
-runOneFrame();
-assert.equal(battleCard.dataset.turnPhase, "resolving");
-assert.equal(battleMessage.textContent, "EEVEEのたいあたり！",
-  "phase sync must preserve concrete presentation-event narration while RESOLVING");
-assert.equal(battleMessage.dataset.presentationOwner, "event");
-
-const duplicate = commandClick();
-battleCard.listeners.get("click")(duplicate);
-assert.equal(duplicate.prevented, true, "duplicate command during RESOLVING must be prevented");
-assert.equal(duplicate.stopped, true, "duplicate command must not reach preview-app");
-
-capture.disabled = false;
-battle().turn = 2;
+await import(`../battle-turn-phase-presentation.js?orchestrator-ui=${Date.now()}`);
 flushFrames();
 assert.equal(battleCard.dataset.turnPhase, "command");
 assert.equal(phaseNode.textContent, "コマンド選択");
-assert.equal(battleMessage.textContent, "技を選んでください。", "COMMAND restores the normal prompt");
-assert.equal(battleMessage.dataset.presentationOwner, undefined, "COMMAND releases event narration ownership");
-assert.equal(battleCard.dataset.turnAction, undefined);
+assert.equal(battleMessage.textContent, "技を選んでください。");
 assert.equal(moves.inert, false);
 
-const terminalCommand = commandClick();
-battleCard.listeners.get("click")(terminalCommand);
-await Promise.resolve();
-capture.disabled = true;
-battle().turn = 3;
-battle().completed = true;
-windowListeners.get("safari-runtime-changed")();
-runOneFrame();
-assert.equal(battleCard.dataset.turnPhase, "resolving",
-  "owner terminal state must not beat the still-active presentation busy lock");
-assert.equal(phaseNode.textContent, "行動処理中");
-assert.equal(battleMessage.textContent, "ターンを処理しています…");
-capture.disabled = false;
-battleMessage.dataset.presentationOwner = "event";
-battleMessage.textContent = "バトルに勝利した！";
-runOneFrame();
-assert.equal(battleCard.dataset.turnPhase, "result");
-assert.equal(phaseNode.textContent, "結果");
-assert.equal(battleMessage.textContent, "バトルに勝利した！", "RESULT must preserve preview-owned terminal notice");
-assert.equal(returnBoard.disabled, false, "RESULT return must remain available before submission");
-flushFrames();
+// COMMAND is the only normal command phase. ACTION/CHECK/POST_* must lock all
+// move/capture/flee inputs without re-deciding mechanics.
+for (const phase of ["ACTION_1", "CHECK_1", "ACTION_2", "CHECK_2", "POST_FAINT", "POST_VICTORY", "REWARD_GROWTH"]) {
+  battle().phase = phase;
+  battle().phase_trace.push({ phase, turn: 1 });
+  sync();
+  assert.equal(moves.inert, true, `${phase} must lock moves`);
+  assert.equal(capture.inert, true, `${phase} must lock capture`);
+  assert.equal(flee.inert, true, `${phase} must lock flee`);
+  const duplicate = click(moveButton);
+  battleCard.listeners.get("click")(duplicate);
+  assert.equal(duplicate.prevented, true, `${phase} duplicate command must be prevented`);
+  assert.equal(duplicate.stopped, true);
+}
 
-battle().completed = false;
-battle().player_replacement_required = false;
-battle().turn = 3;
-windowListeners.get("safari-runtime-changed")();
-flushFrames();
-assert.equal(battleMessage.textContent, "技を選んでください。");
-assert.equal(battleMessage.dataset.presentationOwner, undefined);
-const replacementCommand = commandClick();
-battleCard.listeners.get("click")(replacementCommand);
-await Promise.resolve();
+// Owner operations may be presented while the owner is in a non-COMMAND phase;
+// the UI only changes the action label, never priority/speed/KO ownership.
+battle().phase = "ACTION_1";
+windowListeners.get("safari-battle-presentation-event")({ detail: { event: { type: "move_started", actor: "foe" } } });
+assert.equal(battleCard.dataset.turnAction, "foe");
+assert.equal(phaseNode.textContent, "相手action処理中");
+
+// Thin compatibility: preview-app's async mutex can outlive the owner transition.
+// While it drains, show the preceding orchestrator trace phase instead of inventing
+// a local RESOLVING phase. This prevents the KO/send-out gap from flashing COMMAND.
+battle().phase = "COMMAND";
+battle().phase_trace.push({ phase: "POST_FAINT", turn: 1 }, { phase: "REPLACEMENT", turn: 1 }, { phase: "COMMAND", turn: 1 });
 capture.disabled = true;
-battle().turn = 4;
-battle().player_replacement_required = true;
-windowListeners.get("safari-runtime-changed")();
-runOneFrame();
-assert.equal(phaseNode.textContent, "行動処理中");
-assert.equal(battleMessage.textContent, "ターンを処理しています…");
-windowListeners.get("safari-battle-presentation-event")({ detail: { event: { type: "trainer_next", actor: "foe" } } });
-assert.equal(battleCard.dataset.turnAction, "sendout", "trainer reserve send-out must remain inside RESOLVING");
-assert.equal(phaseNode.textContent, "交代演出中");
-assert.equal(moves.inert, true);
+sync();
+assert.equal(battleCard.dataset.turnPhase, "replacement");
+assert.notEqual(battleMessage.textContent, "技を選んでください.");
+assert.equal(moves.inert, true, "trainer reserve presentation stays locked before COMMAND is exposed");
 capture.disabled = false;
-runOneFrame();
+sync();
+assert.equal(battleCard.dataset.turnPhase, "command");
+assert.equal(moves.inert, false, "trainer reserve returns to COMMAND only after presentation mutex drains");
+
+// Player replacement is an owner phase, not completed/player_replacement UI logic.
+battle().phase = "REPLACEMENT";
+battle().player_replacement_required = true;
+sync();
 assert.equal(battleCard.dataset.turnPhase, "replacement");
 assert.equal(phaseNode.textContent, "交代選択");
 assert.equal(battleMessage.textContent, "次のポケモンを選んでください。");
-assert.equal(battleMessage.dataset.presentationOwner, undefined);
 assert.equal(moves.inert, true);
-flushFrames();
 
+// RESULT: all normal commands stay locked and RETURN alone is accepted.
+battle().phase = "RESULT";
+battle().completed = true;
 battle().player_replacement_required = false;
-battle().turn = 4;
-windowListeners.get("safari-runtime-changed")();
-flushFrames();
-const fleeLikeCommand = commandClick();
-battleCard.listeners.get("click")(fleeLikeCommand);
-await Promise.resolve();
-capture.disabled = true;
-globalThis.__maplessSafariRuntime.variables.mapless.battle = null;
-battleCard.hidden = false;
-windowListeners.get("safari-runtime-changed")();
-runOneFrame();
-assert.equal(battleCard.dataset.turnPhase, "resolving");
-assert.equal(phaseNode.textContent, "行動処理中");
-assert.equal(battleMessage.textContent, "ターンを処理しています…");
-battleCard.hidden = true;
-runOneFrame();
-assert.equal(phaseNode.hidden, true);
-assert.equal(frames.length, 0);
-
-// Result -> Board is also a single-submit transition. Keep the visible result button
-// enabled until the first click, then lock it until the owner has removed Battle and
-// preview has hidden the card.
-globalThis.__maplessSafariRuntime.variables.mapless.battle = {
-  turn: 5,
-  completed: true,
-  player_replacement_required: false,
-};
-battleCard.hidden = false;
-returnBoard.hidden = false;
+battle().phase_trace.push({ phase: "REWARD_GROWTH", turn: 1 }, { phase: "RESULT", turn: 1 });
 returnBoard.disabled = false;
-returnBoard.inert = false;
-battleMessage.textContent = "バトルに勝利した！";
-windowListeners.get("safari-runtime-changed")();
-flushFrames();
+sync();
 assert.equal(battleCard.dataset.turnPhase, "result");
-assert.equal(returnBoard.disabled, false);
-const firstReturn = returnClick();
-battleCard.listeners.get("click")(firstReturn);
-assert.equal(firstReturn.prevented, undefined, "first Result return must reach preview-app");
-assert.equal(phaseNode.textContent, "戻っています…");
-await Promise.resolve();
-assert.equal(returnBoard.disabled, true, "Result return locks before another tap can dispatch");
-assert.equal(returnBoard.inert, true);
-const duplicateReturn = returnClick();
-battleCard.listeners.get("click")(duplicateReturn);
-assert.equal(duplicateReturn.prevented, true, "duplicate Result return must be prevented");
-assert.equal(duplicateReturn.stopped, true, "duplicate Result return must not reach preview-app");
-globalThis.__maplessSafariRuntime.variables.mapless.battle = null;
-battleCard.hidden = false;
-windowListeners.get("safari-runtime-changed")();
-runOneFrame();
-assert.equal(phaseNode.textContent, "戻っています…", "return stays locked until Battle card is hidden");
-battleCard.hidden = true;
-runOneFrame();
-assert.equal(phaseNode.hidden, true);
-assert.equal(returnBoard.disabled, false);
+assert.equal(moves.inert, true);
+assert.equal(capture.inert, true);
+assert.equal(flee.inert, true);
 assert.equal(returnBoard.inert, false);
-assert.equal(frames.length, 0);
+for (const target of [moveButton, capture, flee]) {
+  const blocked = click(target);
+  battleCard.listeners.get("click")(blocked);
+  assert.equal(blocked.prevented, true, "RESULT must reject every non-return command");
+}
+const firstReturn = click(returnBoard);
+battleCard.listeners.get("click")(firstReturn);
+assert.equal(firstReturn.prevented, undefined, "RESULT allows exactly the Return path to owner");
 
-const previewSource = fs.readFileSync(new URL("../preview.js", import.meta.url), "utf8");
-const indexSource = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
-const deferredSource = fs.readFileSync(new URL("../deferred-ui-loader.js", import.meta.url), "utf8");
-assert.match(previewSource, /preview-app\.js\?v=20260818-2318/,
-  "public preview must require-load the current preview-app build");
-assert.match(previewSource, /battle-turn-phase-presentation\.js\?v=20260819-1435/);
-assert.match(indexSource, /preview\.js\?v=20260819-1435/);
-assert.match(indexSource, /build 20260819-1435/);
-assert.doesNotMatch(deferredSource, /battle-turn-phase-presentation/);
+// Once the owner advances to RETURN, a second tap is rejected synchronously.
+battle().phase = "RETURN";
+sync();
+const duplicateReturn = click(returnBoard);
+battleCard.listeners.get("click")(duplicateReturn);
+assert.equal(duplicateReturn.prevented, true);
+assert.equal(duplicateReturn.stopped, true);
+assert.equal(returnBoard.inert, true);
 
-console.log("Safari Battle UI: owner-ordered action phases, Bag, replacement/result and return share one busy lifecycle: ok");
+// Terminal presentation tail must not flash RESULT early while preview is still busy.
+battle().phase = "RESULT";
+returnBoard.disabled = true;
+sync();
+assert.equal(battleCard.dataset.turnPhase, "reward_growth");
+assert.notEqual(battleMessage.textContent, "技を選んでください。", "KO tail must never regress to command prompt");
+returnBoard.disabled = false;
+sync();
+assert.equal(battleCard.dataset.turnPhase, "result");
+
+const source = fs.readFileSync(new URL("../battle-turn-phase-presentation.js", import.meta.url), "utf8");
+assert.doesNotMatch(source, /let resolving|let returning|submittedTurn|resolutionSettled/,
+  "legacy local RESOLVING/return phase state must stay removed");
+assert.match(source, /battle\.phase/);
+assert.match(source, /phase_trace/);
+
+console.log("Safari Battle UI: orchestrator phase is the command/replace/result/return truth; compatibility busy only delays exposing final owner phase: ok");
