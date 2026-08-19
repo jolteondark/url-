@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { materializeSeededSecondaryEffectsCanonical } from "../runtime/battle-core-seeded-secondary-effect.js";
 import { prepareCombatTurnInputCanonical } from "../runtime/battle-core-combat-turn.js";
+import { buildBrowserBattleActionInput } from "../runtime/browser-battle-round-runtime.js";
 
 const input = {
   secondaryEffectRandomSeed: 1,
@@ -76,5 +77,42 @@ const sheerForce = materializeSeededSecondaryEffectsCanonical({
   }] }],
 });
 assert.equal(sheerForce.rounds[0].actions[0].secondaryEffectInputs[0].triggered, false);
+
+const basePokemon = (ability) => ({
+  species: "EEVEE",
+  ability,
+  level: 20,
+  hp: 60,
+  max_hp: 60,
+  status: "NONE",
+  types: ["NORMAL"],
+  stats: { ATTACK: 40, DEFENSE: 40, SPECIAL_ATTACK: 40, SPECIAL_DEFENSE: 40, SPEED: 40 },
+  moves: [{ id: "BITE", pp: 10, ppup: 0 }],
+});
+const bite = { id: "BITE", type: "DARK", category: "Physical", power: 60, accuracy: 100, total_pp: 25, priority: 0 };
+const actionFacts = buildBrowserBattleActionInput({
+  actor: basePokemon("SERENEGRACE"),
+  target: basePokemon("SHIELDDUST"),
+  move: bite,
+  moveIndex: 0,
+  battlerIndex: 0,
+  targetBattlerIndex: 1,
+  reflectPp: false,
+});
+assert.equal(actionFacts.mechanicsGeneration, 9);
+assert.equal(actionFacts.userHasSereneGrace, true);
+assert.equal(actionFacts.targetHasShieldDust, true);
+assert.equal(actionFacts.userHasSheerForce, false);
+assert.equal(actionFacts.moldBreaker, false);
+const moldBreakerFacts = buildBrowserBattleActionInput({
+  actor: basePokemon({ id: "MOLDBREAKER" }),
+  target: basePokemon("SHIELDDUST"),
+  move: bite,
+  moveIndex: 0,
+  battlerIndex: 0,
+  targetBattlerIndex: 1,
+  reflectPp: false,
+});
+assert.equal(moldBreakerFacts.moldBreaker, true);
 
 console.log(JSON.stringify({ ok: true, rolls: [37,12,72], verticalWired: true, resolvedDamageOwner: true, abilityFactsWired: true }));
