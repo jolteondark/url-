@@ -3,6 +3,9 @@ import {
   BATTLE_ABILITY_ITEM_SHARED_HOOK_CONTRACT_CANONICAL,
   resolveBattleAbilityItemHookCanonical,
 } from "../runtime/battle-ability-item-hook-dispatch.js";
+import {
+  resolveNormalPlayActionBeforeAbilityItemExtensionCanonical,
+} from "../runtime/battle-core-ability-item-normal-play-extension.js";
 
 const pokemon = (ability = "NONE", heldItem = null, extra = {}) => ({
   ability,
@@ -79,6 +82,29 @@ const pokemon = (ability = "NONE", heldItem = null, extra = {}) => ({
     selectedMoveId: "GROWL",
   });
   assert.equal(result.moveSelection.blocked, false, "held_item=null must suppress a stale Assault Vest alias");
+}
+
+// The extension is also a public owner. It must preserve Pokemon Runtime source authority
+// even when consumed directly instead of through the shared dispatcher.
+{
+  const result = resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({
+    user: { ability: null, ability_id: "PRANKSTER", held_item: null, item: "ASSAULTVEST" },
+    target: { ability: null, ability_id: "NONE", held_item: null, item: "ASSAULTVEST" },
+    move: { id: "GROWL", type: "NORMAL", category: "Status", power: 0 },
+  });
+  assert.equal(result.priorityModifier, 0, "ability=null must suppress a stale Prankster alias");
+  assert.equal(result.moveSelection.blocked, false, "held_item=null must suppress a stale Assault Vest alias");
+  assert.equal(result.damageMultiplierInput.externalDefenseMultiplier, 1, "target held_item=null must suppress stale Assault Vest defense");
+}
+
+{
+  const legacy = resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({
+    user: { ability_id: "PRANKSTER", item: "ASSAULTVEST" },
+    target: { item: "ASSAULTVEST" },
+    move: { id: "GROWL", type: "NORMAL", category: "Status", power: 0 },
+  });
+  assert.equal(legacy.priorityModifier, 1, "legacy ability_id remains fallback when ability is absent");
+  assert.equal(legacy.moveSelection.blocked, true, "legacy item remains fallback when held_item is absent");
 }
 
 const coverage = BATTLE_ABILITY_ITEM_SHARED_HOOK_CONTRACT_CANONICAL.implementedCoverage;
