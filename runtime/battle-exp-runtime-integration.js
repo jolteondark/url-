@@ -30,6 +30,19 @@ function preserveAuthoritativeBattleFields(before, after) {
   return next;
 }
 
+function deferredDescriptor(roundIndex, actionIndex, battleExpInput) {
+  const input = structuredClone(battleExpInput);
+  input.deferCommit = false;
+  return {
+    roundIndex,
+    actionIndex,
+    deferred: true,
+    expGained: 0,
+    operations: [],
+    battleExpInput: input,
+  };
+}
+
 export function commitBattleSystemsExpRuntime({ battleInput = {}, turn = {}, pokemon } = {}) {
   let runtime = pokemon;
   const commits = [];
@@ -42,6 +55,10 @@ export function commitBattleSystemsExpRuntime({ battleInput = {}, turn = {}, pok
   for (const [roundIndex, round] of (Array.isArray(battleInput.rounds) ? battleInput.rounds : []).entries()) {
     for (const [actionIndex, action] of (Array.isArray(round.actions) ? round.actions : []).entries()) {
       if (!executed.has(`${roundIndex}:${actionIndex}`) || !hasGainExpRequest(action) || !action?.battleExpInput) continue;
+      if (action.battleExpInput.deferCommit === true) {
+        commits.push(deferredDescriptor(roundIndex, actionIndex, action.battleExpInput));
+        continue;
+      }
       if (runtime?.exp == null || runtime?.level == null) throw new TypeError("pokemon exp and level are required for battle EXP reflection");
       const before = runtime;
       const beforeLevel = Number(runtime.level);
@@ -93,6 +110,33 @@ export function commitBattleSystemsExpRuntime({ battleInput = {}, turn = {}, pok
           ...structuredClone(flow.operations ?? []),
           ...(evolutionDeferred ? [] : structuredClone(evolution?.operations ?? [])),
         ],
+      });
+    }
+  }
+  return { pokemon: runtime, commits };
+}
+
+export function commitDeferredBattleSystemsExpRuntime({ deferredCommits = [], pokemon } = {}) {
+  let runtime = pokemon;
+  const commits = [];
+  for (const deferred of deferredCommits ?? []) {
+    if (deferred?.deferred !== true || !deferred?.battleExpInput) continue;
+    const committed = commitBattleSystemsExpRuntime({
+      pokemon: runtime,
+      battleInput: {
+        rounds: [{ actions: [{
+          postHitResolution: { operations: [{ op: "gain_exp_request" }] },
+          battleExpInput: { ...structuredClone(deferred.battleExpInput), deferCommit: false },
+        }] }],
+      },
+      turn: { operations: [{ op: "use_move", round: 1, action: 0 }] },
+    });
+    runtime = committed.pokemon;
+    for (const commit of committed.commits) {
+      commits.push({
+        ...commit,
+        roundIndex: Number(deferred.roundIndex ?? commit.roundIndex ?? 0),
+        actionIndex: Number(deferred.actionIndex ?? commit.actionIndex ?? 0),
       });
     }
   }

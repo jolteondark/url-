@@ -25,6 +25,19 @@ function runtime(battle = {}) {
   };
 }
 
+function deferredExpIntegration() {
+  return {
+    commits: [{
+      roundIndex: 0,
+      actionIndex: 0,
+      deferred: true,
+      expGained: 0,
+      operations: [],
+      battleExpInput: { growthRate: "Medium", deferCommit: false },
+    }],
+  };
+}
+
 {
   const rt = runtime();
   assert.equal(ensureSafariBattleOrchestrator(rt), SAFARI_BATTLE_PHASE.COMMAND);
@@ -38,8 +51,6 @@ function runtime(battle = {}) {
       { op: "request_save" },
     ],
   };
-  // Compatibility finalizers may still mark terminal completion before returning.
-  // The orchestration owner must hide that until its RESULT boundary.
   rt.variables.mapless.battle.completed = true;
   commitSafariBattleResolution(rt, result, "move");
   const battle = rt.variables.mapless.battle;
@@ -125,7 +136,7 @@ function runtime(battle = {}) {
 }
 
 {
-  const rt = runtime();
+  const rt = runtime({ kind: "trainer" });
   ensureSafariBattleOrchestrator(rt);
   beginSafariBattleCommand(rt, "move");
   const result = {
@@ -134,14 +145,15 @@ function runtime(battle = {}) {
     operations: [
       { op: "use_move", actor: "player" },
       { op: "faint", target: "foe" },
-      { op: "gain_exp", amount: 20 },
-      { op: "level_up", level: 6 },
     ],
+    expIntegration: deferredExpIntegration(),
   };
   let rewardGrowthCommits = 0;
   commitSafariBattleResolution(rt, result, "move", {
     rewardGrowthCommit: (current) => {
       rewardGrowthCommits += 1;
+      assert.equal(current.expIntegration.commits[0].deferred, true,
+        "trainer reserve growth must reach REWARD_GROWTH as a deferred EXP descriptor");
       return current;
     },
   });
@@ -156,7 +168,7 @@ function runtime(battle = {}) {
 }
 
 {
-  const rt = runtime({ player_replacement_required: true });
+  const rt = runtime({ player_replacement_required: true, player_party_index: 2 });
   ensureSafariBattleOrchestrator(rt);
   beginSafariBattleCommand(rt, "move");
   const result = {
@@ -166,15 +178,31 @@ function runtime(battle = {}) {
       { op: "use_move", actor: "foe" },
       { op: "faint", target: "player" },
     ],
+    expIntegration: deferredExpIntegration(),
   };
   commitSafariBattleResolution(rt, result, "move");
-  assert.equal(rt.variables.mapless.battle.phase, SAFARI_BATTLE_PHASE.REPLACEMENT);
-  assert.equal(rt.variables.mapless.battle.completed, false);
-  assert.equal(rt.variables.mapless.battle.phase_trace.some((step) => step.phase === SAFARI_BATTLE_PHASE.ACTION_2), false,
+  const battle = rt.variables.mapless.battle;
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.REPLACEMENT);
+  assert.equal(battle.completed, false);
+  assert.equal(battle.phase_trace.some((step) => step.phase === SAFARI_BATTLE_PHASE.ACTION_2), false,
     "foe-first player KO must not invent a player ACTION_2");
-  rt.variables.mapless.battle.player_replacement_required = false;
-  completeSafariBattleReplacement(rt, {});
-  assert.equal(rt.variables.mapless.battle.phase, SAFARI_BATTLE_PHASE.COMMAND);
+  assert.equal(battle.pending_reward_growth.recipientPartyIndex, 2,
+    "player replacement must preserve the original EXP recipient slot until growth commits");
+  battle.player_replacement_required = false;
+  let replacementGrowthCommits = 0;
+  const replacementResult = completeSafariBattleReplacement(rt, {}, {
+    rewardGrowthCommit: (current) => {
+      replacementGrowthCommits += 1;
+      assert.equal(current.rewardGrowthRecipientPartyIndex, 2);
+      assert.equal(current.expIntegration.commits[0].deferred, true);
+      return current;
+    },
+  });
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.COMMAND);
+  assert.equal(replacementGrowthCommits, 1);
+  assert.equal(battle.pending_reward_growth, null);
+  assert.deepEqual(battle.phase_trace.slice(-3).map((step) => step.phase), ["REPLACEMENT", "REWARD_GROWTH", "COMMAND"]);
+  assert.equal(replacementResult.rewardGrowthRecipientPartyIndex, 2);
 }
 
 {

@@ -75,8 +75,12 @@ function hasFaint(result) {
   return resolvedOperations(result).some((operation) => operation?.op === "faint" || operation?.op === "faint_self");
 }
 
+function hasDeferredGrowth(result) {
+  return (result?.expIntegration?.commits ?? []).some((commit) => commit?.deferred === true);
+}
+
 function hasRewardGrowthTail(result) {
-  return resolvedOperations(result).some((operation) => [
+  return hasDeferredGrowth(result) || resolvedOperations(result).some((operation) => [
     "gain_exp",
     "level_up",
     "learn_move",
@@ -153,9 +157,6 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   const battle = battleOf(runtime);
   if (!battle.phase) ensureSafariBattleOrchestrator(runtime);
 
-  // Terminal mechanics owners may be observed more than once by compatibility adapters.
-  // RESULT is already the committed terminal boundary, so replaying the same resolution
-  // must not append another POST_VICTORY/REWARD_GROWTH/RESULT tail or replay deferred commits.
   if (battle.phase === SAFARI_BATTLE_PHASE.RESULT && battle.completed) {
     battle.pending_command_kind = null;
     if (requestsPersistence(result)) result.persistenceRequested = true;
@@ -174,9 +175,6 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   const foeReplacementApplied = Boolean(result?.foeReplacementApplied);
   const terminalResolution = decision !== 0 || Boolean(battle.completed);
 
-  // Compatibility mechanics owners may still set completed while producing terminal
-  // operations. Hide that legacy detail before any orchestration checkpoint; RESULT is
-  // the only externally visible completion boundary.
   if (terminalResolution) battle.completed = false;
 
   const actors = actionActors(result);
@@ -191,12 +189,15 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   if (fainted) tracePhase(battle, SAFARI_BATTLE_PHASE.POST_FAINT, "faint/terminal checkpoint");
 
   if (playerReplacementRequired) {
+    if (hasDeferredGrowth(result)) {
+      battle.pending_reward_growth = {
+        expIntegration: structuredClone(result.expIntegration),
+        recipientPartyIndex: Number(battle.player_party_index ?? 0),
+      };
+    }
     tracePhase(battle, SAFARI_BATTLE_PHASE.REPLACEMENT, "player replacement required");
   } else if (foeReplacementApplied && decision === 0) {
     tracePhase(battle, SAFARI_BATTLE_PHASE.REPLACEMENT, "trainer reserve sent out");
-    // The compatibility round owner can already expose per-KO EXP/level/move operations.
-    // They belong to the central growth checkpoint even though the battle continues with
-    // a reserve, so do not skip REWARD_GROWTH just because RESULT is not terminal yet.
     if (hasRewardGrowthTail(result)) {
       result = commitRewardGrowthCheckpoint(battle, result, rewardGrowthCommit, "replacement growth checkpoint");
     }
@@ -223,7 +224,7 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   return result;
 }
 
-export function completeSafariBattleReplacement(runtime, result = {}) {
+export function completeSafariBattleReplacement(runtime, result = {}, { rewardGrowthCommit = null } = {}) {
   const battle = battleOf(runtime);
   const phase = ensureSafariBattleOrchestrator(runtime);
   if (phase !== SAFARI_BATTLE_PHASE.REPLACEMENT) {
@@ -231,6 +232,15 @@ export function completeSafariBattleReplacement(runtime, result = {}) {
   }
   if (battle.player_replacement_required) {
     throw new Error("replacement owner did not clear player replacement requirement");
+  }
+  const pendingGrowth = battle.pending_reward_growth ?? null;
+  if (pendingGrowth) {
+    result = commitRewardGrowthCheckpoint(battle, {
+      ...result,
+      expIntegration: structuredClone(pendingGrowth.expIntegration),
+      rewardGrowthRecipientPartyIndex: Number(pendingGrowth.recipientPartyIndex),
+    }, rewardGrowthCommit, "replacement growth checkpoint");
+    battle.pending_reward_growth = null;
   }
   tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, "player replacement completed");
   result.phase = battle.phase;

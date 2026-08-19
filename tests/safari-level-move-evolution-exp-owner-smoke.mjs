@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { commitBattleSystemsExpRuntime } from "../runtime/battle-exp-runtime-integration.js";
+import { commitBattleSystemsExpRuntime, commitDeferredBattleSystemsExpRuntime } from "../runtime/battle-exp-runtime-integration.js";
 import { minimumExpForLevel } from "../runtime/pokemon-growth-rate.js";
 import { resolvePokemonRuntimeMasters } from "../runtime/pokemon-runtime-masters.js";
 import { saveRunState, loadRunState } from "../runtime/run-persistence.js";
@@ -85,12 +85,29 @@ setSafariBattleMoveLearningDecision(runtime, { level: 11, moveId: "NEWONE", forg
 setSafariBattleMoveLearningDecision(runtime, { level: 12, moveId: "NEWTWO", forgetIndex: 2 });
 
 const defeatedFoe = { species: "REALRUNFOE", level: 10 };
-const expInput = normalBattleExpInput(runtime.player.party[0], defeatedFoe, false);
-assert.deepEqual(expInput.moveDecisions, {
+const deferredExpInput = normalBattleExpInput(runtime.player.party[0], defeatedFoe, false);
+assert.equal(deferredExpInput.deferCommit, true, "normal Safari battle EXP must defer mutation to REWARD_GROWTH");
+assert.deepEqual(deferredExpInput.moveDecisions, {
   "11:NEWONE": { forgetIndex: 1 },
   "12:NEWTWO": { forgetIndex: 2 },
 }, "explicit Safari battle move-learning decisions must reach the Battle EXP owner");
 
+const deferred = commitBattleSystemsExpRuntime({
+  pokemon: runtime.player.party[0],
+  battleInput: { rounds: [{ actions: [{ postHitResolution: { operations: [{ op: "gain_exp_request" }] }, battleExpInput: deferredExpInput }] }] },
+  turn: { operations: [{ op: "use_move", round: 1, action: 0 }] },
+});
+assert.equal(deferred.pokemon.exp, initial.exp, "round resolution must not mutate EXP before REWARD_GROWTH");
+assert.equal(deferred.commits.length, 1);
+assert.equal(deferred.commits[0].deferred, true);
+assert.deepEqual(deferred.commits[0].operations, []);
+
+const rewardGrowth = commitDeferredBattleSystemsExpRuntime({ deferredCommits: deferred.commits, pokemon: deferred.pokemon });
+assert.equal(rewardGrowth.commits.length, 1, "REWARD_GROWTH must consume the deferred descriptor exactly once");
+assert.ok(rewardGrowth.commits[0].expGained > 0);
+assert.equal(rewardGrowth.commits[0].deferred, undefined);
+
+const expInput = { ...normalBattleExpInput(runtime.player.party[0], defeatedFoe, false), deferCommit: false };
 const committed = commitBattleSystemsExpRuntime({
   pokemon: runtime.player.party[0],
   battleInput: { rounds: [{ actions: [{ postHitResolution: { operations: [{ op: "gain_exp_request" }] }, battleExpInput: expInput }] }] },
@@ -126,7 +143,7 @@ const faintedRuntime = {
 faintedRuntime.player.party[0].hp = 0;
 setSafariBattleMoveLearningDecision(faintedRuntime, { level: 11, moveId: "NEWONE", forgetIndex: 1 });
 setSafariBattleMoveLearningDecision(faintedRuntime, { level: 12, moveId: "NEWTWO", forgetIndex: 2 });
-const faintedExpInput = normalBattleExpInput(faintedRuntime.player.party[0], defeatedFoe, false);
+const faintedExpInput = { ...normalBattleExpInput(faintedRuntime.player.party[0], defeatedFoe, false), deferCommit: false };
 const faintedCommitted = commitBattleSystemsExpRuntime({
   pokemon: faintedRuntime.player.party[0],
   battleInput: { rounds: [{ actions: [{ postHitResolution: { operations: [{ op: "gain_exp_request" }] }, battleExpInput: faintedExpInput }] }] },
@@ -141,4 +158,4 @@ const faintedFresh = loadRunState(faintedSaved.payload, {}, { valueIds: ["player
 assert.equal(faintedFresh.player.party[0].hp, 0, "fresh Continue must preserve fainted HP after level/evolution");
 assert.equal(faintedFresh.player.party[0].personal_id, initial.personal_id, "fainted evolution must preserve individual identity through Continue");
 
-console.log("Safari Battle EXP move choice -> multi-level moves -> Level evolution -> canonical HP -> Save/Continue: PASS");
+console.log("Safari Battle EXP defers mutation to REWARD_GROWTH and preserves canonical growth/evolution: PASS");

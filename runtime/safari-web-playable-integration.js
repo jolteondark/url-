@@ -7,6 +7,7 @@ import {
   useSafariNormalBattleItem,
 } from "./safari-normal-battle-lifecycle.js";
 import { commitSafariNormalLevelEvolutionRewardGrowth, commitSafariNormalTerminalRewardGrowth } from "./safari-normal-battle-finalize.js";
+import { commitSafariNormalExpRewardGrowth } from "./safari-normal-battle-exp-reward-growth.js";
 import {
   abortSafariBattleCommand,
   abortSafariBattleReturn,
@@ -89,10 +90,16 @@ function beginNormalBattleCommand(runtime, kind) {
   return true;
 }
 
+function commitNormalRewardGrowth(runtime, current) {
+  let committed = commitSafariNormalExpRewardGrowth(runtime, current);
+  committed = commitSafariNormalTerminalRewardGrowth(runtime, committed);
+  return committed;
+}
+
 function commitNormalBattleCommand(runtime, result, kind) {
   if (!stateOf(runtime).battle || needsFullBattleIntegration(runtime)) return result;
   return commitSafariBattleResolution(runtime, result, kind, {
-    rewardGrowthCommit: (current) => commitSafariNormalTerminalRewardGrowth(runtime, current),
+    rewardGrowthCommit: (current) => commitNormalRewardGrowth(runtime, current),
   });
 }
 
@@ -158,7 +165,9 @@ export async function replaceSafariBattlePlayer(runtime, replacementPartyIndex) 
     result = await module.replaceSafariBattlePlayer(runtime, replacementPartyIndex);
   } else {
     result = replaceSafariNormalBattlePlayer(runtime, replacementPartyIndex);
-    completeSafariBattleReplacement(runtime, result);
+    result = completeSafariBattleReplacement(runtime, result, {
+      rewardGrowthCommit: (current) => commitSafariNormalExpRewardGrowth(runtime, current),
+    });
   }
   publishRuntimeChanged();
   return result;
