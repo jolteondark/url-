@@ -216,6 +216,11 @@ export function finalizeNormalBattle(runtime) {
   const state = stateOf(runtime);
   const battle = state.battle;
   if (!battle || battle.completed || Number(battle.decision) === 0) return [];
+  // The mechanics round can discover a terminal decision before the central state machine
+  // reaches REWARD_GROWTH. Rewards, Board consume, run-end marking and save requests must
+  // not mutate runtime state until that explicit checkpoint.
+  if (battle.phase !== "REWARD_GROWTH") return [];
+  if (battle.normal_terminal_reward_growth_committed === true) return [];
 
   const runEnd = markMaplessRunEnd(runtime, battle.decision);
   const operations = [...runEnd.operations];
@@ -224,8 +229,8 @@ export function finalizeNormalBattle(runtime) {
   if (battle.kind === "trainer") operations.push(...payTrainerPrize(runtime, battle));
   operations.push(...completeBoardEvent(state, battle));
   operations.push({ op: "request_save", reason: "battle_result" });
-  // RESULT is the sole completion boundary. This compatibility finalizer assembles
-  // rewards/Board/save, while Level evolution remains pending for REWARD_GROWTH.
+  // RESULT is the sole completion boundary. This owner commits the existing reward/Board
+  // mechanics at REWARD_GROWTH; completion itself remains owned by the orchestrator.
   battle.return_target = runEnd.marked ? "home" : "day_board";
   battle.last_operations = [...(battle.last_operations ?? []), ...operations];
   battle.presentation = [
@@ -241,6 +246,7 @@ export function finalizeNormalBattle(runtime) {
       returnTarget: battle.return_target,
     },
   ];
+  battle.normal_terminal_reward_growth_committed = true;
   state.last_operations = operations;
   const label = battle.kind === "trainer"
     ? (battle.trainer?.trainer_full_name ?? state.board_events?.[battle.board_index]?.trainer_full_name ?? "トレーナー")
@@ -249,4 +255,15 @@ export function finalizeNormalBattle(runtime) {
     ? "手持ちが全滅しました。ラン終了処理へ進みます。"
     : battle.decision === 1 ? `${label}に勝利しました。` : "戦闘に敗北しました。";
   return operations;
+}
+
+export function commitSafariNormalTerminalRewardGrowth(runtime, result = {}) {
+  const state = stateOf(runtime);
+  const battle = state.battle;
+  if (!battle || Number(battle.decision) === 0) return result;
+  finalizeNormalBattle(runtime);
+  result.operations = [...(battle.last_operations ?? result.operations ?? [])];
+  result.presentation = [...(battle.presentation ?? result.presentation ?? [])];
+  result.persistenceRequested = requestsSave(result.operations);
+  return commitSafariNormalLevelEvolutionRewardGrowth(runtime, result);
 }
