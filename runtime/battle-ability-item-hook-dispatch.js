@@ -86,6 +86,10 @@ function resolveSharedActionBeforeCanonical({ runtimeUser, runtimeTarget, move, 
       ...base.modifiers,
       damageMultiplierInput: Object.freeze({
         ...baseDamageMultiplierInput,
+        externalPowerMultiplier: multiplyFinite(
+          baseDamageMultiplierInput.externalPowerMultiplier,
+          extension.damageMultiplierInput.externalPowerMultiplier,
+        ),
         externalAttackMultiplier: multiplyFinite(
           baseDamageMultiplierInput.externalAttackMultiplier,
           extension.damageMultiplierInput.externalAttackMultiplier,
@@ -93,6 +97,10 @@ function resolveSharedActionBeforeCanonical({ runtimeUser, runtimeTarget, move, 
         externalDefenseMultiplier: multiplyFinite(
           baseDamageMultiplierInput.externalDefenseMultiplier,
           extension.damageMultiplierInput.externalDefenseMultiplier,
+        ),
+        externalFinalDamageMultiplier: multiplyFinite(
+          baseDamageMultiplierInput.externalFinalDamageMultiplier,
+          extension.damageMultiplierInput.externalFinalDamageMultiplier,
         ),
       }),
       accuracyModifierInput: Object.freeze({
