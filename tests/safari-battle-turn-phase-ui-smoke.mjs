@@ -109,6 +109,7 @@ const adapterSource = fs.readFileSync(new URL("../battle-phase-ui-adapter.js", i
 const legacySource = fs.readFileSync(new URL("../battle-turn-phase-presentation.js", import.meta.url), "utf8");
 const replacementSource = fs.readFileSync(new URL("../battle-player-replacement-presentation.js", import.meta.url), "utf8");
 const bagSource = fs.readFileSync(new URL("../game-menu-bridge.js", import.meta.url), "utf8");
+const commandMenuSource = fs.readFileSync(new URL("../battle-dppt-command-menu.js", import.meta.url), "utf8");
 const flowPolishSource = fs.readFileSync(new URL("../battle-dppt-flow-polish.js", import.meta.url), "utf8");
 const menuFlowGuardSource = fs.readFileSync(new URL("../battle-dppt-menu-flow-guard.js", import.meta.url), "utf8");
 const indexSource = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
@@ -135,8 +136,16 @@ assert.match(replacementSource, /battle\?\.phase === REPLACEMENT_PHASE/);
 assert.doesNotMatch(replacementSource, /previewCommandBusy|battle\.completed|player_replacement_required/,
   "replacement presentation must use orchestrator REPLACEMENT as its UI truth");
 assert.match(bagSource, /battle\.phase === "COMMAND"/);
+assert.match(bagSource, /safari-game-menu-closed/,
+  "closing Party or Bag must publish an explicit handoff instead of relying on observer timing");
+assert.match(bagSource, /menu\.contains\(focused\).*focused\.blur\(\)/s,
+  "closing the game menu must clear focus before hiding the focused control");
 assert.doesNotMatch(bagSource, /battle\.completed|battle\.player_replacement_required|capture"\)\?\.disabled|setBattleControlsDisabled/,
   "Battle Bag must not derive availability from legacy completed/replacement/DOM busy state");
+assert.match(commandMenuSource, /safari-game-menu-closed", returnToRootAfterGameMenuClose/,
+  "Battle command composition must consume the explicit game-menu close signal");
+assert.match(commandMenuSource, /returnToRootAfterGameMenuClose[\s\S]*phaseOf\(battle\) !== "COMMAND"[\s\S]*setMenu\("root"\)/,
+  "Party/Bag close must deterministically return a live COMMAND battle to root");
 assert.match(flowPolishSource, /return current\.phase \?\? null/,
   "DPt flow polish must read the orchestrator phase directly");
 assert.doesNotMatch(flowPolishSource, /current\.completed|previewCommandBusy|player_replacement_required/,
