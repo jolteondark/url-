@@ -59,7 +59,11 @@ function combinedCoverageCanonical() {
 
 export const BATTLE_ABILITY_ITEM_SHARED_IMPLEMENTED_COVERAGE_CANONICAL = combinedCoverageCanonical();
 
-function resolveSharedActionBeforeCanonical({ runtimeUser, runtimeTarget, move, selectedMoveId, lockedMoveId }) {
+function multiplyFinite(...values) {
+  return values.reduce((product, value) => product * Number(value ?? 1), 1);
+}
+
+function resolveSharedActionBeforeCanonical({ runtimeUser, runtimeTarget, move, selectedMoveId, lockedMoveId, context }) {
   const base = resolveActionBeforeAbilityItemHookCanonical({
     user: runtimeUser,
     target: runtimeTarget,
@@ -71,18 +75,41 @@ function resolveSharedActionBeforeCanonical({ runtimeUser, runtimeTarget, move, 
     user: runtimeUser,
     target: runtimeTarget,
     move,
+    context,
   });
   const baseDamageMultiplierInput = base?.modifiers?.damageMultiplierInput ?? {};
-  const baseExternalDefenseMultiplier = Number(baseDamageMultiplierInput.externalDefenseMultiplier ?? 1);
-  const extensionDefenseMultiplier = Number(extension.damageMultiplierInput.externalDefenseMultiplier ?? 1);
+  const baseAccuracyModifierInput = base?.modifiers?.accuracyModifierInput ?? {};
+  const baseSpeedInput = base?.modifiers?.speedInput ?? {};
   return Object.freeze({
     ...base,
     modifiers: Object.freeze({
       ...base.modifiers,
       damageMultiplierInput: Object.freeze({
         ...baseDamageMultiplierInput,
-        externalDefenseMultiplier: baseExternalDefenseMultiplier * extensionDefenseMultiplier,
+        externalAttackMultiplier: multiplyFinite(
+          baseDamageMultiplierInput.externalAttackMultiplier,
+          extension.damageMultiplierInput.externalAttackMultiplier,
+        ),
+        externalDefenseMultiplier: multiplyFinite(
+          baseDamageMultiplierInput.externalDefenseMultiplier,
+          extension.damageMultiplierInput.externalDefenseMultiplier,
+        ),
       }),
+      accuracyModifierInput: Object.freeze({
+        ...baseAccuracyModifierInput,
+        externalAccuracyMultiplier: multiplyFinite(
+          baseAccuracyModifierInput.externalAccuracyMultiplier,
+          extension.accuracyModifierInput.externalAccuracyMultiplier,
+        ),
+      }),
+      speedInput: Object.freeze({
+        ...baseSpeedInput,
+        abilityMultiplier: multiplyFinite(
+          baseSpeedInput.abilityMultiplier,
+          extension.speedInput.abilityMultiplier,
+        ),
+      }),
+      damageCalculationInput: extension.damageCalculationInput,
     }),
     priorityModifier: extension.priorityModifier,
     criticalStageDelta: extension.criticalStageDelta,
@@ -115,6 +142,7 @@ export function resolveBattleAbilityItemHookCanonical({
       move,
       selectedMoveId,
       lockedMoveId,
+      context,
     });
   }
   if (phase === "action_after") {
