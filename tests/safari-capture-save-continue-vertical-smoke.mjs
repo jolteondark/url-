@@ -1,3 +1,4 @@
+import "./safari-capture-reward-growth-checkpoint-smoke.mjs";
 import assert from "node:assert/strict";
 import { materializeSafariCaptureRandomValues } from "../runtime/safari-normal-battle-lifecycle.js";
 
