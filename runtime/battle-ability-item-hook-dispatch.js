@@ -15,6 +15,10 @@ import {
   BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL,
   resolveNormalPlayActionBeforeAbilityItemExtensionCanonical,
 } from "./battle-core-ability-item-normal-play-extension.js";
+import {
+  BATTLE_STATUS_CURE_BERRY_COVERAGE_CANONICAL,
+  resolveStatusCureBerryHookCanonical,
+} from "./battle-core-status-cure-berry-extension.js";
 
 export const BATTLE_ABILITY_ITEM_HOOK_POINTS_CANONICAL = Object.freeze([
   "switch_in",
@@ -50,6 +54,7 @@ function combinedCoverageCanonical() {
     ...(BATTLE_ABILITY_ITEM_IMPLEMENTED_COVERAGE_CANONICAL.itemIds ?? []),
     ...(BATTLE_ABILITY_ITEM_ENTRY_EXTENSION_COVERAGE_CANONICAL.itemIds ?? []),
     ...(BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL.itemIds ?? []),
+    ...(BATTLE_STATUS_CURE_BERRY_COVERAGE_CANONICAL.itemIds ?? []),
   ])].sort());
   return Object.freeze({
     abilityIds,
@@ -60,6 +65,7 @@ function combinedCoverageCanonical() {
       ...BATTLE_ABILITY_ITEM_IMPLEMENTED_COVERAGE_CANONICAL.classificationCounts,
       entryExtension: BATTLE_ABILITY_ITEM_ENTRY_EXTENSION_COVERAGE_CANONICAL.classificationCounts,
       normalPlayExtension: BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL.classificationCounts,
+      statusCureBerryExtension: BATTLE_STATUS_CURE_BERRY_COVERAGE_CANONICAL.classificationCounts,
     }),
   });
 }
@@ -160,6 +166,20 @@ function resolveSharedActionBeforeCanonical({ runtimeUser, runtimeTarget, move, 
   });
 }
 
+function resolveSharedActionAfterCanonical({ runtimeUser, runtimeTarget, move, damageDealt }) {
+  const base = resolveActionAfterAbilityItemHookCanonical({
+    user: runtimeUser,
+    target: runtimeTarget,
+    move,
+    damageDealt,
+  });
+  return Object.freeze({
+    ...base,
+    userStatusBerry: resolveStatusCureBerryHookCanonical(runtimeUser),
+    targetStatusBerry: resolveStatusCureBerryHookCanonical(runtimeTarget),
+  });
+}
+
 export function resolveBattleAbilityItemHookCanonical({
   hook,
   user = {},
@@ -189,9 +209,9 @@ export function resolveBattleAbilityItemHookCanonical({
     });
   }
   if (phase === "action_after") {
-    return resolveActionAfterAbilityItemHookCanonical({
-      user: runtimeUser,
-      target: runtimeTarget,
+    return resolveSharedActionAfterCanonical({
+      runtimeUser,
+      runtimeTarget,
       move,
       damageDealt,
     });
@@ -217,7 +237,7 @@ export const BATTLE_ABILITY_ITEM_SHARED_HOOK_CONTRACT_CANONICAL = Object.freeze(
   mutationOwnership: Object.freeze({
     switchIn: "battle stat-stage owner; consume request goes to held-item lifecycle owner",
     actionBefore: "command/action owner",
-    actionAfter: "Pokemon HP + held-item lifecycle owners",
+    actionAfter: "Pokemon HP/status + held-item lifecycle owners",
     turnEnd: "battle runtime reflection owners",
     survival: "Pokemon HP + held-item lifecycle owners",
   }),
