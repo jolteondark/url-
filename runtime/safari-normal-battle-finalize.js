@@ -63,6 +63,11 @@ export function normalBattleExpInput(player, defeatedFoe, trainerBattle = false)
       nature_master: natureMaster,
       move_masters: SAFARI_MOVE_MASTERS,
     },
+    evolutionMasters: {
+      species_masters: SAFARI_SPECIES_MASTERS,
+      nature_master: natureMaster,
+      move_masters: SAFARI_MOVE_MASTERS,
+    },
   };
 }
 
@@ -134,6 +139,17 @@ function payTrainerPrize(runtime, battle) {
   return [{ op: "trainer_prize_money", requested, adjusted, applied: gained, carryClass, trainer: battle.trainer?.trainer_full_name ?? null }];
 }
 
+function terminalRewardPresentation(battle) {
+  if (Number(battle.decision) !== 1) return [];
+  const events = [];
+  if (battle.reward?.item) {
+    events.push({ type: "item_reward", item: battle.reward.item, quantity: Number(battle.reward.quantity ?? 1) });
+  }
+  const moneyGained = Number(battle.money_gained ?? 0);
+  if (moneyGained > 0) events.push({ type: "money_reward", amount: moneyGained });
+  return events;
+}
+
 export function finalizeNormalBattle(runtime) {
   const state = stateOf(runtime);
   const battle = state.battle;
@@ -154,6 +170,7 @@ export function finalizeNormalBattle(runtime) {
   battle.last_operations = [...(battle.last_operations ?? []), ...operations];
   battle.presentation = [
     ...(battle.presentation ?? []),
+    ...terminalRewardPresentation(battle),
     {
       type: "battle_result",
       decision: battle.decision,
