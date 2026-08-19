@@ -1,5 +1,10 @@
 import { resolveBrowserWildBattleCommand } from "./browser-battle-wild-command-handoff.js";
 import { resolveSafariNormalWildOpponentResponse } from "./safari-normal-battle-round.js";
+import {
+  abortSafariBattleCommand,
+  beginSafariBattleCommand,
+  commitSafariBattleResolution,
+} from "./safari-battle-orchestrator.js";
 
 function browserRunSeed() {
   if (globalThis.crypto && typeof globalThis.crypto.getRandomValues === "function") {
@@ -47,7 +52,7 @@ function fleePresentation(player, foe, resolved) {
   };
 }
 
-export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), randomRoll = undefined } = {}) {
+function resolveSafariFleeOwned(runtime, { runRandomSeed = browserRunSeed(), randomRoll = undefined } = {}) {
   const state = runtime?.variables?.mapless;
   const battle = state?.battle;
   if (!state || !battle || battle.completed) throw new Error("active battle is required");
@@ -108,6 +113,7 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
         runtime,
         escaped: false,
         blocked: false,
+        decision: Number(battle.decision ?? 0),
         resolution: resolved,
         availability: command.availability,
         terminalStateHandoff: command.terminalStateHandoff,
@@ -125,6 +131,7 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
       runtime,
       escaped: false,
       blocked,
+      decision: Number(battle.decision ?? 0),
       resolution: resolved,
       availability: command.availability,
       terminalStateHandoff: command.terminalStateHandoff,
@@ -152,15 +159,39 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
   state.location = "day_board";
   state.notice = "うまく逃げ切った！";
   state.last_operations = operations;
+  state.last_battle_phase_trace = [
+    ...(battle.phase_trace ?? []),
+    {
+      phase: "RETURN",
+      turn: Number(battle.turn ?? 0),
+      reason: "flee returned to day board",
+      completed: false,
+    },
+  ].slice(-96);
   return {
     runtime,
     escaped: true,
     blocked: false,
     target: "day_board",
+    decision: 3,
     resolution: resolved,
     availability: command.availability,
     terminalStateHandoff: command.terminalStateHandoff,
     operations,
     presentation: [presentation],
   };
+}
+
+export function attemptSafariFlee(runtime, options = {}) {
+  const state = runtime?.variables?.mapless;
+  if (!state?.battle) throw new Error("active battle is required");
+  beginSafariBattleCommand(runtime, "flee");
+  try {
+    const result = resolveSafariFleeOwned(runtime, options);
+    if (state.battle) commitSafariBattleResolution(runtime, result, "flee");
+    return result;
+  } catch (error) {
+    if (state.battle) abortSafariBattleCommand(runtime, `flee failed:${error?.message ?? error}`);
+    throw error;
+  }
 }
