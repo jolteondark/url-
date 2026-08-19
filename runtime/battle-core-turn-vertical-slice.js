@@ -133,6 +133,32 @@ function appendTryUseOperations(operations, action, roundNo, actionIndex) {
   }
 }
 
+function appendHpFunctionOperations(operations, action, roundNo, actionIndex) {
+  const resolved = action?.hpFunctionResolution;
+  if (!resolved) return;
+  const battlerIndex = Number(action.battlerIndex);
+  if (Number(resolved.heal ?? 0) > 0) {
+    operations.push({
+      op: "reduce_self_hp", effect: "heal", healing: true,
+      round: roundNo, action: actionIndex, battlerIndex,
+      amount: -Number(resolved.heal), hpBefore: Number(resolved.hpBefore), hpAfter: Number(resolved.hpBefore) + Number(resolved.heal),
+      functionCode: resolved.functionCode,
+    });
+  }
+  if (Number(resolved.selfDamage ?? 0) > 0) {
+    const damageHpBefore = Number(resolved.hpBefore) + Number(resolved.heal ?? 0);
+    operations.push({
+      op: "reduce_self_hp", effect: "self_damage", selfDamage: true,
+      round: roundNo, action: actionIndex, battlerIndex,
+      amount: Number(resolved.selfDamage), hpBefore: damageHpBefore, hpAfter: Number(resolved.hpAfter),
+      functionCode: resolved.functionCode,
+    });
+  }
+  if (Number(resolved.hpAfter) <= 0 && Number(resolved.hpBefore) > 0) {
+    operations.push({ op: "faint_self", round: roundNo, action: actionIndex, battlerIndex, functionCode: resolved.functionCode });
+  }
+}
+
 export function resolveGenericTurnVerticalSlice(input = {}, { allowIncomplete = false } = {}) {
   const rounds = Array.isArray(input.rounds) ? input.rounds : [];
   let decision = Number(input.initialDecision ?? 0);
@@ -222,6 +248,7 @@ export function resolveGenericTurnVerticalSlice(input = {}, { allowIncomplete = 
         }
         if (action.fainted) operations.push({ op: "faint", round: roundNo, action: actionIndex });
       }
+      appendHpFunctionOperations(operations, action, roundNo, actionIndex);
       const judged = judgeCanonical(action.judgeState ?? {});
       operations.push({ op: "judge", round: roundNo, action: actionIndex, decision: judged });
       if (action.judgeState) decision = judged;
