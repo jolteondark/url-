@@ -84,6 +84,9 @@ export function resolveBattleLoopCanonical(input = {}) {
         operations.push({ op: "calc_damage", round: roundNo, action: actionIndex, damage });
         if (action.hpBefore !== undefined) operations.push({ op: "reduce_hp", round: roundNo, action: actionIndex, ...reduceHpCanonical({ hp: action.hpBefore, totalHp: action.totalHp, amount: damage, fainted: action.faintedBefore, registerDamage: action.registerDamage !== false }) });
         if (action.fainted) operations.push({ op: "faint", round: roundNo, action: actionIndex });
+        for (const applied of action.statStageResolution?.applied ?? []) {
+          operations.push({ op: "stat_stage_change", round: roundNo, action: actionIndex, ...applied });
+        }
       }
       const judged = judgeCanonical(action.judgeState ?? {});
       operations.push({ op: "judge", round: roundNo, action: actionIndex, decision: judged });
