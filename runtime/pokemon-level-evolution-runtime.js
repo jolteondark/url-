@@ -16,6 +16,7 @@ function normalizeEvolution(entry) {
 
 function levelEvolutionTarget(speciesMaster, level) {
   const unsupportedMethods = new Set();
+  let eligible = null;
   for (const raw of speciesMaster?.evolutions ?? []) {
     const evolution = normalizeEvolution(raw);
     if (!evolution?.species || !evolution.method) continue;
@@ -25,11 +26,16 @@ function levelEvolutionTarget(speciesMaster, level) {
     }
     const requiredLevel = Number(evolution.parameter);
     if (!Number.isInteger(requiredLevel) || requiredLevel < 1) continue;
-    if (level >= requiredLevel) {
-      return { target: evolution.species, method: evolution.method, parameter: requiredLevel, unsupportedMethods: [...unsupportedMethods] };
+    if (!eligible && level >= requiredLevel) {
+      eligible = { target: evolution.species, method: evolution.method, parameter: requiredLevel };
     }
   }
-  return { target: null, method: null, parameter: null, unsupportedMethods: [...unsupportedMethods] };
+  return {
+    target: eligible?.target ?? null,
+    method: eligible?.method ?? null,
+    parameter: eligible?.parameter ?? null,
+    unsupportedMethods: [...unsupportedMethods],
+  };
 }
 
 export function resolvePokemonLevelEvolution(runtime, {

@@ -13,7 +13,10 @@ const source = {
     { level: 11, move: "NEWONE" },
     { level: 12, move: "NEWTWO" },
   ],
-  evolutions: [{ species: "TESTMON2", method: "Level", parameter: 12 }],
+  evolutions: [
+    { species: "TESTMON2", method: "Level", parameter: 12 },
+    { species: "TESTMON3", method: "Item", parameter: "MOONSTONE" },
+  ],
 };
 const evolved = {
   id: "TESTMON2",
@@ -23,7 +26,7 @@ const evolved = {
   level_moves: [],
   evolutions: [{ species: "TESTMON3", method: "Item", parameter: "MOONSTONE" }],
 };
-const foe = { id: "FOE", base_exp: 10000 };
+const foe = { id: "FOE", base_exp: 500 };
 const nature = { id: "HARDY", stat_changes: [] };
 const moveMasters = Object.fromEntries(
   ["OLD1", "OLD2", "OLD3", "OLD4", "NEWONE", "NEWTWO"].map((id, index) => [id, { id, total_pp: 10 + index }]),
@@ -104,7 +107,7 @@ const committed = commitBattleSystemsExpRuntime({
   turn: { operations: [{ op: "use_move", round: 1, action: 0 }] },
 });
 const after = committed.pokemon;
-assert.equal(after.level >= 12, true, "Battle EXP must cross multiple levels");
+assert.equal(after.level, 12, "Battle EXP must cross exactly levels 11 and 12 in this vertical");
 assert.equal(after.species, "TESTMON2", "eligible Level evolution must commit after level-up");
 assert.equal(after.form, 1, "target canonical form must be applied");
 assert.equal(after.personal_id, initial.personal_id, "evolution must not create a new individual");
@@ -122,7 +125,7 @@ assert.equal(after.max_hp > initialMaxHp, true, "level/evolution must recalculat
 assert.equal(after.hp, initialHp + (after.max_hp - initialMaxHp), "current HP must follow canonical max-HP-delta handling");
 assert.notEqual(after.hp, after.max_hp, "level/evolution must not full-heal an injured Pokemon");
 assert.deepEqual(committed.commits[0].evolution, { from: "TESTMON", to: "TESTMON2", method: "Level", parameter: 12 });
-assert.deepEqual(committed.commits[0].unsupportedEvolutionMethods, []);
+assert.deepEqual(committed.commits[0].unsupportedEvolutionMethods, ["Item"], "unsupported evolution methods on the source species must remain explicit even when Level evolution succeeds");
 
 const saved = saveRunState({ player: { party: [after] } }, { valueIds: ["player"] });
 const fresh = loadRunState(saved.payload, {}, { valueIds: ["player"] }).state;
