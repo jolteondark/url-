@@ -91,4 +91,5 @@ assert.equal((ordinaryRound.operations ?? []).filter((op) => op.op === "use_move
 assert.equal(ordinaryRound.decision, 0);
 assert.equal(ordinaryRound.battleRuntimeIntegration.awaitingNextRound, true, "one input must resolve exactly one nonterminal round");
 
-console.log(JSON.stringify({ ok: true, canonicalParalysisRoll100: true, seed1Stops: true, noPpOnBlockedAction: true, secondActorActsOnce: true }));
+await import("./battle-status-transient-action-gate-smoke.mjs");
+console.log(JSON.stringify({ ok: true, canonicalParalysisRoll100: true, seed1Stops: true, noPpOnBlockedAction: true, secondActorActsOnce: true, allStatusGatesMandatory: true }));
