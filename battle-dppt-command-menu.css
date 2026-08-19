@@ -118,6 +118,12 @@
 #battle-card[data-dppt-menu="fight"] .move-grid button:focus-visible,#battle-card[data-dppt-menu="fight"] .move-grid button:active:not(:disabled){outline:0;background:linear-gradient(180deg,#fff8cf,#e7d17c);box-shadow:inset 0 0 0 3px #fff7c2,0 0 0 2px #40474c;transform:none}
 #battle-card[data-dppt-menu="fight"] .move-grid button:focus-visible::before,#battle-card[data-dppt-menu="fight"] .move-grid button:active::before{opacity:1;color:#24292d}
 
+/* Battle overlays are single-purpose: no irrelevant tabs, one obvious back control. */
+#game-menu[data-battle-command-menu] .game-menu-head{align-items:center}
+#game-menu[data-battle-command-menu] #game-menu-close{width:auto;min-width:74px;padding:8px 12px;border-radius:7px;font-weight:900;font-size:.82rem}
+#game-menu[data-battle-command-menu] .game-menu-sheet{max-height:min(82dvh,660px)}
+#battle-menu-ball-use{width:100%;min-height:50px;margin:0 0 10px;border:2px solid #394047;border-radius:8px;background:linear-gradient(180deg,#d94b52,#a92733);color:#fff;font-weight:900;box-shadow:inset 0 0 0 2px rgba(255,255,255,.35)}
+
 @media(max-width:540px) and (orientation:portrait){
   #battle-card[data-dppt-menu="root"] .battle-command-panel{grid-template-rows:auto minmax(176px,auto);gap:6px;padding-top:6px}
   #battle-card[data-dppt-menu="root"] .battle-message{min-height:66px;padding:12px 14px;font-size:.9rem}
@@ -129,4 +135,5 @@
   #battle-card[data-dppt-menu="fight"] .move-grid button strong{font-size:.76rem}
   #battle-card .dppt-move-meta{font-size:.48rem!important}
   #battle-card .dppt-move-type{min-width:39px;padding:2px 3px}
+  #game-menu[data-battle-command-menu] .game-menu-sheet{height:min(78dvh,620px)}
 }
