@@ -186,9 +186,7 @@ export function beginSafariBattleCommand(runtime, commandKind = "move") {
 export function abortSafariBattleCommand(runtime, reason = "command failed") {
   const battle = stateOf(runtime).battle;
   if (!battle) return null;
-  if ([SAFARI_BATTLE_PHASE.RESULT, SAFARI_BATTLE_PHASE.RETURN, SAFARI_BATTLE_PHASE.REPLACEMENT].includes(battle.phase)) {
-    return battle.phase;
-  }
+  if (battle.phase !== SAFARI_BATTLE_PHASE.ACTION_1) return battle.phase;
   rollbackSpeculativeAction(battle);
   battle.pending_command_kind = null;
   return tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, reason);
