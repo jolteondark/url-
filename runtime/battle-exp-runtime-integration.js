@@ -66,10 +66,11 @@ export function commitBattleSystemsExpRuntime({ battleInput = {}, turn = {}, pok
       if (evolutionMasters && Number(flow.pokemon.level) > beforeLevel) {
         const beforeEvolution = runtime;
         evolution = resolvePokemonLevelEvolution(runtime, evolutionMasters);
-        if (action.battleExpInput.deferEvolution === true) {
+        const hasEligibleLevelEvolution = Boolean(evolution?.levelEvolutionCandidate);
+        if (action.battleExpInput.deferEvolution === true && hasEligibleLevelEvolution) {
           evolutionDeferred = true;
           runtime = { ...runtime, __battle_level_evolution_pending: true };
-        } else {
+        } else if (hasEligibleLevelEvolution) {
           runtime = preserveAuthoritativeBattleFields(beforeEvolution, preserveFaintedHp(beforeEvolution, evolution.pokemon));
           evolution = { ...evolution, pokemon: runtime };
         }
@@ -85,7 +86,7 @@ export function commitBattleSystemsExpRuntime({ battleInput = {}, turn = {}, pok
         level: Number(flow.pokemon.level),
         moves: structuredClone(runtime.moves),
         evolution: evolutionDeferred ? null : (evolution ? structuredClone(evolution.evolution) : null),
-        pendingEvolution: evolutionDeferred ? structuredClone(evolution?.evolution ?? null) : null,
+        pendingEvolution: evolutionDeferred ? structuredClone(evolution?.levelEvolutionCandidate ?? null) : null,
         evolutionDeferred,
         unsupportedEvolutionMethods: evolution ? [...evolution.unsupportedMethods] : [],
         operations: [
