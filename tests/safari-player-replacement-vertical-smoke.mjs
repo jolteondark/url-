@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { SAFARI_BATTLE_PHASE } from "../runtime/safari-battle-orchestrator.js";
 
 globalThis.CustomEvent = class CustomEvent {
   constructor(type, init = {}) { this.type = type; this.detail = init.detail; }
@@ -29,6 +30,7 @@ const started = await web.activateSafariDayBoardCell(runtime, 0);
 assert.equal(started.result, "dispatched");
 assert.ok(state.battle && state.battle.kind === "wild" && !state.battle.completed);
 assert.equal(Number(state.battle.player_party_index ?? 0), 0);
+assert.equal(state.battle.phase, SAFARI_BATTLE_PHASE.COMMAND);
 
 const active = runtime.player.party[0];
 active.hp = 1;
@@ -47,6 +49,8 @@ const ko = await web.resolveSafariBattleRound(runtime, moveId);
 assert.equal(ko.decision, 0,
   "active KO with a usable reserve must remain a nonterminal Battle");
 assert.ok(state.battle && !state.battle.completed);
+assert.equal(state.battle.phase, SAFARI_BATTLE_PHASE.REPLACEMENT,
+  "player KO must enter the central REPLACEMENT phase before another command");
 assert.equal(Number(runtime.player.party[0].hp), 0, "fainted active must remain fainted");
 assert.ok(Number(runtime.player.party[1].hp) > 0, "reserve must remain usable");
 assert.equal(Boolean(state.mapless_run_end_pending), false,
@@ -66,9 +70,10 @@ assert.equal(Number(state.battle.turn), turnBefore + 1,
   "replacement selection itself must not consume an additional Battle turn");
 assert.equal(Boolean(state.battle.player_replacement_required), false,
   "replacement requirement must clear after the canonical switch");
+assert.equal(state.battle.phase, SAFARI_BATTLE_PHASE.COMMAND,
+  "replacement owner completion alone may restore COMMAND");
 assert.ok(Number(runtime.player.party[1].hp) > 0);
 
-// Prove the selected reserve owns the very next command and terminal reflection.
 const selected = runtime.player.party[1];
 selected.stats.ATTACK = 999;
 selected.stats.SPECIAL_ATTACK = 999;
@@ -80,26 +85,32 @@ const selectedMoveId = typeof selected.moves[0] === "string" ? selected.moves[0]
 const final = await web.resolveSafariBattleRound(runtime, selectedMoveId);
 assert.equal(final.decision, 1, "replacement active must be able to finish the Battle");
 assert.equal(state.battle.completed, true);
+assert.equal(state.battle.phase, SAFARI_BATTLE_PHASE.RESULT,
+  "headless owner regression settles the terminal presentation directly to RESULT");
 assert.equal(Number(state.battle.player_party_index), 1,
   "terminal reflection must stay attached to the selected reserve slot");
 assert.equal(Boolean(state.mapless_run_end_pending), false);
 
-// Lock the browser wiring: replacement UI is a required preview module, but it
-// must share the exact same unversioned Battle facade instance as preview-app.
 const previewSource = fs.readFileSync(new URL("../preview.js", import.meta.url), "utf8");
 const replacementUiSource = fs.readFileSync(new URL("../battle-player-replacement-presentation.js", import.meta.url), "utf8");
 const deferredUiSource = fs.readFileSync(new URL("../deferred-ui-loader.js", import.meta.url), "utf8");
-assert.match(previewSource, /import\("\.\/battle-player-replacement-presentation\.js\?v=[^"']+"\)/,
-  "preview start must load the player replacement UI as a required gameplay module");
+assert.match(previewSource, /import\("\.\/battle-player-replacement-presentation\.js\?v=20260819-1650"\)/,
+  "preview start must require-load the orchestrator-aware replacement UI");
 assert.match(replacementUiSource, /from "\.\/runtime\/safari-web-playable-integration\.js"/,
   "replacement UI must call the shared Safari Battle facade");
+assert.match(replacementUiSource, /SAFARI_BATTLE_PHASE/,
+  "replacement visibility must follow the central orchestrator phase");
+assert.match(replacementUiSource, /battle\?\.phase === SAFARI_BATTLE_PHASE\.REPLACEMENT/,
+  "replacement UI must render only in REPLACEMENT");
+assert.doesNotMatch(replacementUiSource, /battle\.completed|player_replacement_required|previewCommandBusy|capture"\)\?\.disabled/,
+  "replacement UI must not reconstruct phase from legacy completion/replacement/busy flags");
+assert.doesNotMatch(replacementUiSource, /moves\.inert = true|capture\.inert = true|flee\.inert = true/,
+  "central phase presentation owns command lock; replacement adapter only renders legal options");
 assert.doesNotMatch(replacementUiSource, /safari-web-playable-integration\.js\?v=/,
   "replacement UI must not create a query-versioned second Battle facade instance");
 assert.doesNotMatch(deferredUiSource, /battle-player-replacement-presentation\.js/,
   "optional deferred UI must not load a second replacement module instance");
 assert.match(replacementUiSource, /replaceSafariBattlePlayer\(globalThis\.__maplessSafariRuntime, partyIndex\)/,
   "replacement buttons must hand the selected legal Party index to the shared facade");
-assert.match(replacementUiSource, /moves\.inert = true/,
-  "normal move commands must be blocked while replacement selection is required");
 
-console.log("Safari active KO -> legal reserve replacement -> next command -> victory + UI wiring: ok");
+console.log("Safari active KO -> orchestrator REPLACEMENT -> legal reserve -> COMMAND -> victory + UI wiring: ok");
