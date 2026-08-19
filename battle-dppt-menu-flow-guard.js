@@ -33,7 +33,7 @@ function injectBattleBall(tab) {
   const current = battle();
   const pane = byId("menu-bag-pane");
   const capture = byId("capture");
-  if (!current || current.kind !== "wild" || !pane || !capture || capture.disabled) return;
+  if (!current || current.phase !== "COMMAND" || current.kind !== "wild" || !pane || !capture) return;
 
   const button = document.createElement("button");
   button.id = "battle-menu-ball-use";
@@ -41,7 +41,7 @@ function injectBattleBall(tab) {
   button.className = "battle-menu-ball-use";
   button.textContent = "モンスターボールを使う";
   button.addEventListener("click", () => {
-    if (!inBattleCommand() || capture.disabled) return;
+    if (!inBattleCommand()) return;
     button.disabled = true;
     closeGameMenu();
     requestAnimationFrame(() => capture.click());
