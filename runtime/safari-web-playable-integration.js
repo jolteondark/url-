@@ -2,6 +2,7 @@ import { SAFARI_MOVE_PRESENTATION } from "./safari-move-presentation-live.js";
 import { replaceSafariNormalBattlePlayer, resolveSafariNormalBattleRound } from "./safari-normal-battle-round.js";
 import {
   attemptSafariCapture as attemptSafariNormalCapture,
+  commitSafariCapturedWildRewardGrowth,
   returnSafariToDayBoard as returnSafariNormalToDayBoard,
   useSafariNormalBattleItem,
 } from "./safari-normal-battle-lifecycle.js";
@@ -180,7 +181,13 @@ export async function attemptSafariCapture(runtime, options = {}) {
     beginSafariBattleCommand(runtime, "capture");
     try {
       const result = attemptSafariNormalCapture(runtime, options);
-      if (stateOf(runtime).battle) commitSafariBattleResolution(runtime, result, "capture");
+      if (stateOf(runtime).battle) {
+        commitSafariBattleResolution(runtime, result, "capture", {
+          rewardGrowthCommit: result?.result === "caught"
+            ? (current) => commitSafariCapturedWildRewardGrowth(runtime, current)
+            : null,
+        });
+      }
       publishRuntimeChanged();
       return result;
     } catch (error) {

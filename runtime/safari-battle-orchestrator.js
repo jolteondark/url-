@@ -142,13 +142,13 @@ export function abortSafariBattleCommand(runtime, reason = "command failed") {
   return tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, reason);
 }
 
-export function commitSafariBattleResolution(runtime, result, commandKind = null) {
+export function commitSafariBattleResolution(runtime, result, commandKind = null, { rewardGrowthCommit = null } = {}) {
   const battle = battleOf(runtime);
   if (!battle.phase) ensureSafariBattleOrchestrator(runtime);
 
   // Terminal mechanics owners may be observed more than once by compatibility adapters.
   // RESULT is already the committed terminal boundary, so replaying the same resolution
-  // must not append another POST_VICTORY/REWARD_GROWTH/RESULT tail.
+  // must not append another POST_VICTORY/REWARD_GROWTH/RESULT tail or replay deferred commits.
   if (battle.phase === SAFARI_BATTLE_PHASE.RESULT && battle.completed) {
     battle.pending_command_kind = null;
     if (requestsPersistence(result)) result.persistenceRequested = true;
@@ -195,6 +195,10 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
       SAFARI_BATTLE_PHASE.REWARD_GROWTH,
       hasRewardGrowthTail(result) || decision === 1 ? "automatic growth/reward tail" : "automatic growth/reward checkpoint",
     );
+    if (typeof rewardGrowthCommit === "function") {
+      const committed = rewardGrowthCommit(result);
+      if (committed && committed !== result) result = committed;
+    }
     tracePhase(battle, SAFARI_BATTLE_PHASE.RESULT, "battle result ready");
     battle.completed = true;
     battle.completed_phase = SAFARI_BATTLE_PHASE.RESULT;
