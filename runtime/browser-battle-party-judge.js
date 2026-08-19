@@ -1,5 +1,6 @@
 import { allFaintedCanonical, resolveJudgeCanonical } from "./battle-core-judge.js";
 import { reduceHpCanonical } from "./battle-core-turn-vertical-slice.js";
+import { resolveCanonicalHpFunctionEffect } from "./battle-core-hp-function-effects.js";
 
 function clone(value) {
   return structuredClone(value);
@@ -53,6 +54,28 @@ function replacementCheckpoint(parties, indexes) {
   };
 }
 
+function applyResolvedHpFunction(action, live, parties, indexes, resolvedDamage) {
+  const actor = Number(action.battlerIndex);
+  const input = action.hpFunctionInput;
+  if (!input || !Number.isInteger(actor) || actor < 0) return;
+  const hpBefore = Number(live.hp.get(actor) ?? action.actorHpBefore ?? 0);
+  const maxHp = Number(live.totalHp.get(actor) ?? action.actorTotalHp ?? hpBefore);
+  const targetAffected = Boolean(action.accuracyHit) && input.targetAffected !== false;
+  const resolution = resolveCanonicalHpFunctionEffect({
+    ...input,
+    actorHp: hpBefore,
+    actorMaxHp: maxHp,
+    resolvedDamage,
+    targetAffected,
+    moveExecuted: !action.moveSkipped,
+  });
+  action.hpFunctionResolution = resolution;
+  if (resolution.hpAfter !== hpBefore) {
+    live.hp.set(actor, Number(resolution.hpAfter));
+    reflectLiveHp(parties, indexes, actor, Number(resolution.hpAfter));
+  }
+}
+
 export function prepareBrowserPartyAwareJudgeStates(input = {}, {
   playerParty = [],
   foeParty = [],
@@ -82,6 +105,7 @@ export function prepareBrowserPartyAwareJudgeStates(input = {}, {
         live.hp.set(actor, Number(confusion.hpAfter));
         reflectLiveHp(parties, indexes, actor, Number(confusion.hpAfter));
       }
+      let resolvedDamage = 0;
       if (!action.moveSkipped && action.accuracyHit) {
         const target = Number(action.targetBattlerIndex);
         if (action.hpBefore !== undefined) {
@@ -94,23 +118,12 @@ export function prepareBrowserPartyAwareJudgeStates(input = {}, {
             fainted: hpBefore <= 0,
             registerDamage: action.registerDamage !== false,
           });
+          resolvedDamage = Number(reduced.amount);
           live.hp.set(target, reduced.hpAfter);
           reflectLiveHp(parties, indexes, target, reduced.hpAfter);
         }
-        if (action.selfDamageAfterHit !== undefined) {
-          const hpBefore = Number(live.hp.get(actor) ?? action.actorHpBefore ?? 0);
-          const totalHp = Number(live.totalHp.get(actor) ?? action.actorTotalHp ?? action.actorHpBefore ?? 0);
-          const reduced = reduceHpCanonical({
-            hp: hpBefore,
-            totalHp,
-            amount: Number(action.selfDamageAfterHit),
-            fainted: hpBefore <= 0,
-            registerDamage: action.registerSelfDamage === true,
-          });
-          live.hp.set(actor, reduced.hpAfter);
-          reflectLiveHp(parties, indexes, actor, reduced.hpAfter);
-        }
       }
+      if (!action.moveSkipped) applyResolvedHpFunction(action, live, parties, indexes, resolvedDamage);
       action.dynamicJudgeBattlers = false;
       action.judgeState = {
         playerParty: clone(parties.playerParty),
