@@ -1,10 +1,15 @@
+const INTIMIDATE_EXISTING_EFFECT_IMMUNITIES = new Set([
+  "INNERFOCUS",
+  "OBLIVIOUS",
+  "OWNTEMPO",
+  "SCRAPPY",
+]);
 const INTIMIDATE_STAT_DROP_BLOCKERS = new Set([
   "CLEARBODY",
   "FULLMETALBODY",
   "HYPERCUTTER",
   "WHITESMOKE",
 ]);
-
 const INTIMIDATE_REACTIVE_ABILITIES = new Set(["GUARDDOG", "RATTLED"]);
 const INTIMIDATE_REACTIVE_ITEMS = new Set(["ADRENALINEORB"]);
 
@@ -39,8 +44,7 @@ export function resolveIntimidateEntryReactionCanonical({ source = {}, target = 
   const sourceAbility = abilityId(source);
   const targetAbility = abilityId(target);
   const targetItem = heldItemId(target);
-  const isIntimidate = sourceAbility === "INTIMIDATE";
-  if (!isIntimidate) {
+  if (sourceAbility !== "INTIMIDATE") {
     return Object.freeze({
       applies: false,
       sourceAbility,
@@ -54,7 +58,7 @@ export function resolveIntimidateEntryReactionCanonical({ source = {}, target = 
     });
   }
 
-  if (INTIMIDATE_STAT_DROP_BLOCKERS.has(targetAbility)) {
+  if (INTIMIDATE_EXISTING_EFFECT_IMMUNITIES.has(targetAbility) || INTIMIDATE_STAT_DROP_BLOCKERS.has(targetAbility)) {
     return Object.freeze({
       applies: true,
       sourceAbility,
@@ -64,7 +68,7 @@ export function resolveIntimidateEntryReactionCanonical({ source = {}, target = 
       replaceBaseChanges: true,
       changes: Object.freeze([]),
       consumeRequest: null,
-      reason: "intimidate_stat_drop_immunity",
+      reason: "intimidate_effect_immunity",
     });
   }
 
