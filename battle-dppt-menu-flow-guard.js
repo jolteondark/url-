@@ -9,7 +9,7 @@ function inBattleCommand() {
 }
 
 function closeGameMenu() {
-  byId("game-menu-close")?.click();
+  window.dispatchEvent(new CustomEvent("safari-game-menu-close-requested", { detail: { source: "battle-dppt-menu-flow" } }));
 }
 
 function restoreNormalMenu() {
