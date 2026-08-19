@@ -82,7 +82,13 @@ export function commitBattleSystemsExpRuntime({ battleInput = {}, turn = {}, pok
       const evolutionMasters = action.battleExpInput.evolutionMasters ?? null;
       if (evolutionMasters && Number(flow.pokemon.level) > beforeLevel) {
         const beforeEvolution = runtime;
-        evolution = resolvePokemonLevelEvolution(runtime, evolutionMasters);
+        evolution = resolvePokemonLevelEvolution(runtime, {
+          ...evolutionMasters,
+          maxMoves: action.battleExpInput.maxMoves ?? 4,
+          moveDecisions: action.battleExpInput.moveDecisions ?? {},
+          moveDecisionResolver: action.battleExpInput.moveDecisionResolver ?? null,
+          moveDecisionResolverSource: action.battleExpInput.moveDecisionResolverSource ?? null,
+        });
         const hasEligibleLevelEvolution = Boolean(evolution?.levelEvolutionCandidate);
         if (action.battleExpInput.deferEvolution === true && hasEligibleLevelEvolution) {
           evolutionDeferred = true;

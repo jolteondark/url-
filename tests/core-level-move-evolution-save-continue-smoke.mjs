@@ -23,13 +23,18 @@ const evolved = {
   form: 1,
   growth_rate: "Medium",
   base_stats: { HP: 70, ATTACK: 65, DEFENSE: 60, SPECIAL_ATTACK: 55, SPECIAL_DEFENSE: 60, SPEED: 50 },
-  level_moves: [],
+  level_moves: [
+    { level: 0, move: "EVOLVEZERO" },
+    { level: 12, move: "EVOLVETWELVE" },
+    { level: 13, move: "NOTYET" },
+  ],
   evolutions: [{ species: "TESTMON3", method: "Item", parameter: "MOONSTONE" }],
 };
 const foe = { id: "FOE", base_exp: 500 };
 const nature = { id: "HARDY", stat_changes: [] };
 const moveMasters = Object.fromEntries(
-  ["OLD1", "OLD2", "OLD3", "OLD4", "NEWONE", "NEWTWO"].map((id, index) => [id, { id, total_pp: 10 + index }]),
+  ["OLD1", "OLD2", "OLD3", "OLD4", "NEWONE", "NEWTWO", "EVOLVEZERO", "EVOLVETWELVE", "NOTYET"]
+    .map((id, index) => [id, { id, total_pp: 10 + index }]),
 );
 
 const initial = resolvePokemonRuntimeMasters({
@@ -83,6 +88,8 @@ const battleExpInput = {
   moveDecisions: {
     "11:NEWONE": { forgetIndex: 1 },
     "12:NEWTWO": { forgetIndex: 2 },
+    "12:EVOLVEZERO": { forgetIndex: 0 },
+    "12:EVOLVETWELVE": { forgetIndex: 3 },
   },
   runtimeMasters: {
     species_master: source,
@@ -116,19 +123,31 @@ assert.equal(after.status, "POISON", "status must survive evolution");
 assert.equal(after.status_count, 2, "status counter must survive evolution");
 assert.equal(after.ability_id, "KEEPABILITY", "ability identity must not disappear during evolution");
 assert.equal(after.ability_index, 1, "ability slot continuity must survive evolution");
-assert.deepEqual(after.moves.map((move) => move.id), ["OLD1", "NEWONE", "NEWTWO", "OLD4"]);
-assert.equal(after.moves[0].pp, 3, "unreplaced move PP must not refill");
-assert.equal(after.moves[3].pp, 6, "unreplaced move PP must not refill");
-assert.equal(after.moves[1].pp, moveMasters.NEWONE.total_pp, "newly learned move starts at canonical full PP");
-assert.equal(after.moves[2].pp, moveMasters.NEWTWO.total_pp, "newly learned move starts at canonical full PP");
+assert.deepEqual(
+  after.moves.map((move) => move.id),
+  ["EVOLVEZERO", "NEWONE", "NEWTWO", "EVOLVETWELVE"],
+  "evolved species must learn both level-0 and current-level evolution moves after species change",
+);
+assert.equal(after.moves[1].pp, moveMasters.NEWONE.total_pp, "pre-evolution level-up move PP must stay full");
+assert.equal(after.moves[2].pp, moveMasters.NEWTWO.total_pp, "pre-evolution level-up move PP must stay full");
+assert.equal(after.moves[0].pp, moveMasters.EVOLVEZERO.total_pp, "level-0 evolution move must start at canonical full PP");
+assert.equal(after.moves[3].pp, moveMasters.EVOLVETWELVE.total_pp, "current-level evolution move must start at canonical full PP");
+assert.equal(after.moves.some((move) => move.id === "NOTYET"), false, "unrelated future-level moves must not be learned on evolution");
 assert.equal(after.max_hp > initialMaxHp, true, "level/evolution must recalculate max HP");
 assert.equal(after.hp, initialHp + (after.max_hp - initialMaxHp), "current HP must follow canonical max-HP-delta handling");
 assert.notEqual(after.hp, after.max_hp, "level/evolution must not full-heal an injured Pokemon");
 assert.deepEqual(committed.commits[0].evolution, { from: "TESTMON", to: "TESTMON2", method: "Level", parameter: 12 });
 assert.deepEqual(committed.commits[0].unsupportedEvolutionMethods, ["Item"], "unsupported evolution methods on the source species must remain explicit even when Level evolution succeeds");
+assert.deepEqual(
+  committed.commits[0].operations
+    .filter((operation) => operation.reason === "evolution" && ["replace_move", "learn_move"].includes(operation.op))
+    .map((operation) => operation.move),
+  ["EVOLVEZERO", "EVOLVETWELVE"],
+  "post-evolution move learning must be represented explicitly in the growth operations",
+);
 
 const saved = saveRunState({ player: { party: [after] } }, { valueIds: ["player"] });
 const fresh = loadRunState(saved.payload, {}, { valueIds: ["player"] }).state;
 assert.deepEqual(fresh.player.party[0], after, "fresh Continue must preserve the evolved individual and all runtime state");
 
-console.log("Core level-up moves + Level evolution + Save/Continue vertical: PASS");
+console.log("Core level-up moves + post-evolution moves + Level evolution + Save/Continue vertical: PASS");
