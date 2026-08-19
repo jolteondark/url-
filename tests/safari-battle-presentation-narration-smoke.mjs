@@ -124,3 +124,4 @@ await import("./browser-status-move-no-damage-smoke.mjs");
 await import("./battle-canonical-status-eligibility-smoke.mjs");
 await import("./battle-ordinary-thunder-wave-status-owner.mjs");
 await import("./battle-ordinary-powder-major-status-owner.mjs");
+await import("./safari-consumed-action-foe-response-smoke.mjs");
