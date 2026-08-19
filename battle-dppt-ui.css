@@ -1,178 +1,42 @@
 /* Diamond/Pearl/Platinum-inspired battle presentation layer. Visual only. */
 #battle-card.battle-scene{
-  --dppt-ink:#202020;
-  --dppt-line:#4b4b4b;
-  --dppt-silver:#dfe2df;
-  --dppt-silver-dark:#aeb5b1;
-  --dppt-panel:#f7f6e8;
-  --dppt-green:#58c763;
-  --dppt-field:#a8d690;
-  --dppt-field2:#77b56d;
-  min-height:590px;
-  border:2px solid #565c5a;
-  border-radius:2px;
-  background:
-    radial-gradient(ellipse at 79% 29%,rgba(244,250,235,.95) 0 11%,rgba(203,231,184,.78) 12% 23%,transparent 24%),
-    radial-gradient(ellipse at 19% 67%,rgba(244,250,235,.9) 0 13%,rgba(196,226,178,.72) 14% 27%,transparent 28%),
-    linear-gradient(180deg,#dfe9d6 0 11%,#b7dba0 11% 51%,#8bc779 51% 70%,#d9ddd0 70% 100%);
+  --dppt-ink:#202020;--dppt-line:#4b4b4b;--dppt-silver:#dfe2df;--dppt-silver-dark:#aeb5b1;--dppt-panel:#f7f6e8;--dppt-green:#58c763;
+  min-height:590px;border:2px solid #565c5a;border-radius:2px;overflow:hidden;
+  background:linear-gradient(180deg,#313d72 0 8%,#6676a4 8% 15%,#b7dba0 15% 48%,#8bc779 48% 67%,#d9ddd0 67% 100%);
   box-shadow:0 0 0 2px #232726,0 5px 0 #171918;
 }
-#battle-card.battle-scene::before{
-  background:
-    linear-gradient(180deg,rgba(255,255,255,.42),transparent 14%),
-    repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 1px,transparent 1px 3px);
-}
-#battle-card .arena{height:408px}
-#battle-card .battle-info-panel{
-  border:2px solid #505654;
-  border-radius:2px;
-  background:linear-gradient(180deg,#faf8ec 0,#ecebdd 60%,#d9ddd3 100%);
-  box-shadow:2px 2px 0 #878d89,4px 4px 0 rgba(64,68,66,.42);
-  color:var(--dppt-ink);
-  padding:8px 11px 7px;
-}
-#battle-card .foe-info{
-  left:8px;
-  top:35px;
-  clip-path:polygon(0 0,93% 0,100% 25%,100% 100%,5% 100%,0 78%);
-}
-#battle-card .player-info{
-  right:8px;
-  bottom:7px;
-  clip-path:polygon(5% 0,100% 0,100% 78%,95% 100%,0 100%,0 22%);
-}
-#battle-card .pokemon-name strong{
-  font-family:"Arial Narrow","Helvetica Neue",sans-serif;
-  font-size:.96rem;
-  font-weight:900;
-  letter-spacing:.025em;
-  color:#202020;
-}
-#battle-card .pokemon-name span,
-#battle-card .combatant small{
-  color:#292929;
-  font-size:.66rem;
-  font-weight:800;
-}
-#battle-card .hp-row{margin-top:5px;gap:5px}
-#battle-card .hp-row>span{
-  color:#cb9d00;
-  font-size:.54rem;
-  font-weight:950;
-}
-#battle-card .hp-track{
-  height:9px;
-  border:2px solid #474d4b;
-  border-radius:1px;
-  padding:1px;
-  background:#242826;
-}
-#battle-card .hp-track span{
-  border-radius:0;
-  background:linear-gradient(180deg,#71df72 0,#45bd50 48%,#2a9635 49%,#39aa44 100%);
-  transition:width .12s linear,background .12s linear;
-}
-#battle-card .battle-info-panel[data-hp-zone="yellow"] .hp-track span{
-  background:linear-gradient(180deg,#f6db5d,#e4b42b 55%,#bf861b 56%,#d39e1e);
-}
-#battle-card .battle-info-panel[data-hp-zone="red"] .hp-track span{
-  background:linear-gradient(180deg,#f37b67,#db4a3c 55%,#a92d27 56%,#c63830);
-}
-#battle-card .player-info::after{
-  height:4px;
-  margin-top:4px;
-  border:1px solid #555b58;
-  background:linear-gradient(90deg,#54aee0 0 38%,#d8dbd7 38% 100%);
-}
-#battle-card .battle-platform{
-  background:radial-gradient(ellipse,rgba(83,131,73,.5) 0 42%,rgba(120,167,103,.28) 53%,rgba(222,239,211,.2) 61%,transparent 72%);
-}
-#battle-card .foe-platform{right:11px;bottom:3px;width:210px;height:52px}
-#battle-card .player-platform{left:-14px;bottom:17px;width:250px;height:58px}
-#battle-card .canonical-battle-sprite{image-rendering:pixelated;filter:drop-shadow(0 7px 2px rgba(50,84,46,.22))}
-#battle-card .combatant.foe .canonical-battle-sprite{right:19px;bottom:4px}
-#battle-card .combatant.player .canonical-battle-sprite{left:1px;bottom:7px}
-#battle-card .battle-command-panel{
-  min-height:170px;
-  border-top:3px solid #555b59;
-  background:#d6dad6;
-  grid-template-columns:44% 56%;
-}
-#battle-card .battle-message{
-  min-height:170px;
-  border:3px solid #555b59;
-  border-left:0;
-  border-bottom:0;
-  padding:15px 14px 18px;
-  background:linear-gradient(180deg,#faf9ee,#eeeddf);
-  color:#232323;
-  font-size:.91rem;
-  font-weight:750;
-  line-height:1.52;
-  box-shadow:inset 0 0 0 2px #b7beb9;
-}
-#battle-card .battle-message::after{color:#3a403e;font-size:.62rem}
-#battle-card .move-grid{
-  padding:4px;
-  gap:3px;
-  background:#777e7a;
-}
-#battle-card .move-grid button{
-  min-height:68px;
-  border:2px solid #515754;
-  border-radius:2px;
-  background:linear-gradient(180deg,#f7f8f3 0,#d9deda 100%);
-  color:#1f1f1f;
-  box-shadow:inset 0 0 0 1px #fff;
-  padding:7px 8px 6px 13px;
-}
-#battle-card .move-grid button:nth-child(1){background:linear-gradient(180deg,#fbf1f1,#e9d8d8)}
-#battle-card .move-grid button:nth-child(2){background:linear-gradient(180deg,#f2f5fb,#dce3ed)}
-#battle-card .move-grid button:nth-child(3){background:linear-gradient(180deg,#f4f8ed,#dfe9d6)}
-#battle-card .move-grid button:nth-child(4){background:linear-gradient(180deg,#faf7eb,#e8e0c9)}
-#battle-card .move-grid strong{font-size:.78rem;font-weight:900;letter-spacing:.01em}
-#battle-card .move-grid small{margin-top:3px;color:#4b4f4d;font-size:.5rem;font-weight:800}
-#battle-card .battle-actions{
-  padding:3px 4px 4px;
-  gap:3px;
-  background:#777e7a;
-}
-#battle-card .battle-actions button{
-  min-height:42px;
-  border:2px solid #515754;
-  border-radius:2px;
-  background:linear-gradient(180deg,#f4f6f3,#d4d9d5);
-  color:#202020;
-  box-shadow:inset 0 0 0 1px #fff;
-  font-size:.75rem;
-  font-weight:900;
-}
-#battle-card .battle-actions button.capture{background:linear-gradient(180deg,#f3ebe9,#dfcfcb);color:#202020}
-#battle-card .battle-actions #return-board{background:linear-gradient(180deg,#f2f4f2,#d3d8d4)}
-#battle-card #turn,
-#battle-card #battle-phase{
-  border:1px solid #777d79;
-  border-radius:2px;
-  background:rgba(246,246,239,.88);
-  color:#363a38;
-  font-size:.52rem;
-  font-weight:850;
-}
-#battle-card .canonical-status-badge{
-  border-radius:2px;
-  min-width:31px;
-  padding:1px 4px;
-  font-size:.52rem;
-}
+#battle-card.battle-scene::before{background:repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 1px,transparent 1px 3px)}
+#battle-card .arena{height:408px;border-bottom:10px solid #111;background:
+  radial-gradient(ellipse at 77% 32%,rgba(213,233,201,.9) 0 12%,rgba(165,205,142,.72) 13% 26%,transparent 27%),
+  radial-gradient(ellipse at 24% 72%,rgba(216,236,204,.9) 0 13%,rgba(164,204,142,.7) 14% 29%,transparent 30%),
+  linear-gradient(180deg,rgba(74,90,145,.12),transparent 18%)}
+#battle-card .battle-info-panel{border:2px solid #2f3434;border-radius:2px;background:linear-gradient(180deg,#fffef5 0,#f2f1e6 62%,#d8dbd2 100%);box-shadow:2px 2px 0 #7c827f;color:var(--dppt-ink);padding:5px 8px 5px}
+#battle-card .foe-info{left:7px;top:16px;width:min(47%,235px);clip-path:none}
+#battle-card .player-info{right:7px;bottom:10px;width:min(49%,245px);clip-path:none}
+#battle-card .pokemon-name strong{font-family:"Arial Narrow","Helvetica Neue",sans-serif;font-size:.82rem;font-weight:900;letter-spacing:.01em;color:#151515}
+#battle-card .pokemon-name span,#battle-card .combatant small{color:#292929;font-size:.58rem;font-weight:850}
+#battle-card .hp-row{margin-top:3px;gap:4px}.hp-row>span{font-size:.48rem!important}
+#battle-card .hp-track{height:7px;border:1px solid #3e4341;border-radius:1px;padding:1px;background:#232624}
+#battle-card .hp-track span{border-radius:0;background:linear-gradient(180deg,#75e877,#42c250 48%,#279236 49%,#36aa44);transition:width .11s linear,background .11s linear}
+#battle-card .battle-info-panel[data-hp-zone="yellow"] .hp-track span{background:linear-gradient(180deg,#f6dc5a,#e3b42a 55%,#be8618 56%,#d49e1f)}
+#battle-card .battle-info-panel[data-hp-zone="red"] .hp-track span{background:linear-gradient(180deg,#f37b67,#da493c 55%,#a92c26 56%,#c63830)}
+#battle-card .foe-info small{display:none}
+#battle-card .player-info small{font-size:.56rem;margin-top:2px}
+#battle-card .player-info::after{height:3px;margin-top:2px;border:1px solid #555b58;background:linear-gradient(90deg,#50a9df 0 38%,#d8dbd7 38% 100%)}
+#battle-card .battle-platform{background:radial-gradient(ellipse,rgba(72,120,62,.55) 0 42%,rgba(115,160,99,.3) 54%,transparent 72%)}
+#battle-card .foe-platform{right:18px;bottom:7px;width:194px;height:44px}.player-platform{left:-12px!important;bottom:18px!important;width:232px!important;height:54px!important}
+#battle-card .canonical-battle-sprite{image-rendering:pixelated;filter:drop-shadow(0 5px 2px rgba(50,84,46,.18))}
+#battle-card .combatant.foe .canonical-battle-sprite{right:28px;bottom:8px}#battle-card .combatant.player .canonical-battle-sprite{left:4px;bottom:8px}
+#battle-card .battle-command-panel{min-height:170px;border-top:0;background:#cdd1ce;grid-template-columns:44% 56%}
+#battle-card .battle-message{min-height:104px;border:2px solid #23292c;border-radius:0;padding:11px 13px 14px;background:linear-gradient(180deg,#fffef8,#ecece1);color:#202020;font-size:.86rem;font-weight:750;line-height:1.48;box-shadow:inset 0 0 0 2px #c8d9df}
+#battle-card .battle-message::after{color:#3a403e;font-size:.58rem}
+#battle-card #turn,#battle-card #battle-phase{display:none!important}
+#battle-card .canonical-status-badge{border-radius:1px;min-width:28px;padding:1px 3px;font-size:.48rem}
 @media(max-width:540px) and (orientation:portrait){
-  #battle-card.battle-scene{min-height:calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 4px)}
-  #battle-card .arena{height:min(57dvh,410px)}
-  #battle-card .battle-info-panel{width:59%;max-width:260px}
-  #battle-card .foe-info{top:28px;left:5px}
-  #battle-card .player-info{right:5px;bottom:5px}
-  #battle-card .battle-command-panel{grid-template-columns:43% 57%;min-height:164px}
-  #battle-card .battle-message{min-height:164px;font-size:.84rem;padding:13px 10px 16px}
-  #battle-card .move-grid button{min-height:63px;padding:6px 5px 5px 11px}
-  #battle-card .move-grid strong{font-size:.72rem}
-  #battle-card .move-grid small{font-size:.47rem}
+ #battle-card.battle-scene{min-height:calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 4px)}
+ #battle-card .arena{height:min(54dvh,390px)}
+ #battle-card .foe-info{top:11px;left:4px;width:47%}#battle-card .player-info{right:4px;bottom:8px;width:50%}
+ #battle-card .pokemon-name strong{font-size:.74rem}#battle-card .pokemon-name span,#battle-card .combatant small{font-size:.52rem}
+ #battle-card .battle-command-panel{grid-template-columns:43% 57%;min-height:190px}
+ #battle-card .battle-message{min-height:96px;font-size:.8rem;padding:10px 9px 13px}
 }
