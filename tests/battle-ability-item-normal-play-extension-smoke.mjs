@@ -144,6 +144,18 @@ const pokemon = (ability = "NONE", heldItem = null, extra = {}) => ({
 {
   const result = resolveBattleAbilityItemHookCanonical({
     hook: "action_before",
+    user: pokemon("MOLDBREAKER"),
+    target: pokemon("PRISMARMOR"),
+    move: { id: "BRICKBREAK", type: "FIGHTING", category: "Physical", power: 75 },
+    selectedMoveId: "BRICKBREAK",
+    context: { typeMod: 2 },
+  });
+  assert.equal(result.modifiers.damageMultiplierInput.externalFinalDamageMultiplier, 0.75);
+}
+
+{
+  const result = resolveBattleAbilityItemHookCanonical({
+    hook: "action_before",
     user: pokemon("SNIPER"),
     target: pokemon("DRYSKIN"),
     move: { id: "EMBER", type: "FIRE", category: "Special", power: 40 },
@@ -177,7 +189,7 @@ const pokemon = (ability = "NONE", heldItem = null, extra = {}) => ({
 }
 
 const coverage = BATTLE_ABILITY_ITEM_SHARED_HOOK_CONTRACT_CANONICAL.implementedCoverage;
-for (const ability of ["PRANKSTER", "SUPERLUCK", "SANDFORCE", "TINTEDLENS", "FILTER", "SNIPER"]) assert.ok(coverage.abilityIds.includes(ability));
+for (const ability of ["PRANKSTER", "SUPERLUCK", "SANDFORCE", "TINTEDLENS", "FILTER", "PRISMARMOR", "SNIPER"]) assert.ok(coverage.abilityIds.includes(ability));
 for (const item of ["ASSAULTVEST", "SCOPELENS", "RAZORCLAW", "HARDSTONE", "EXPERTBELT", "BRIGHTPOWDER"]) assert.ok(coverage.itemIds.includes(item));
 assert.equal(coverage.abilityCount, new Set(coverage.abilityIds).size);
 assert.equal(coverage.itemCount, new Set(coverage.itemIds).size);
