@@ -148,9 +148,11 @@ export function resolveAbilityItemActionModifiersCanonical({ user = {}, target =
   if (targetAbility === "WATERBUBBLE" && moveType === "FIRE" && !moldBreaker) finalDamageMultiplier *= 0.5;
   if (targetAbility === "THICKFAT" && ["FIRE", "ICE"].includes(moveType) && !moldBreaker) finalDamageMultiplier *= 0.5;
   if (targetAbility === "HEATPROOF" && moveType === "FIRE" && !moldBreaker) finalDamageMultiplier *= 0.5;
-  if (["MULTISCALE", "SHADOWSHIELD"].includes(targetAbility) && targetHp > 0 && targetHp === targetMaxHp && !moldBreaker) finalDamageMultiplier *= 0.5;
+  if (targetAbility === "MULTISCALE" && targetHp > 0 && targetHp === targetMaxHp && !moldBreaker) finalDamageMultiplier *= 0.5;
+  if (targetAbility === "SHADOWSHIELD" && targetHp > 0 && targetHp === targetMaxHp) finalDamageMultiplier *= 0.5;
   if (userItem === "MUSCLEBAND" && category === "Physical") finalDamageMultiplier *= 1.1;
   if (userItem === "WISEGLASSES" && category === "Special") finalDamageMultiplier *= 1.1;
+  if (userItem === "LIFEORB" && category !== "Status" && power > 0) finalDamageMultiplier *= 1.3;
 
   let abilitySpeedMultiplier = 1;
   const status = String(user.status ?? "NONE").toUpperCase();
@@ -282,9 +284,9 @@ export function resolveTurnEndAbilityItemHookCanonical(pokemon = {}, context = {
     hpDelta = fractionalHpDelta(pokemon, 1, 16, 1); reason = "ice_body";
   } else if (alive && ability === "DRYSKIN" && ["Rain", "HeavyRain"].includes(weather) && hp < maxHp) {
     hpDelta = fractionalHpDelta(pokemon, 1, 8, 1); reason = "dry_skin_rain";
-  } else if (alive && ability === "DRYSKIN" && ["Sun", "HarshSun"].includes(weather) && ability !== "MAGICGUARD") {
+  } else if (alive && ability === "DRYSKIN" && ["Sun", "HarshSun"].includes(weather)) {
     hpDelta = fractionalHpDelta(pokemon, 1, 8, -1); reason = "dry_skin_sun";
-  } else if (alive && ability === "SOLARPOWER" && ["Sun", "HarshSun"].includes(weather) && ability !== "MAGICGUARD") {
+  } else if (alive && ability === "SOLARPOWER" && ["Sun", "HarshSun"].includes(weather)) {
     hpDelta = fractionalHpDelta(pokemon, 1, 8, -1); reason = "solar_power";
   }
 
@@ -348,9 +350,10 @@ export function resolveActionAfterAbilityItemHookCanonical({ user = {}, target =
   const userAbility = battlePokemonAbilityIdCanonical(user);
   const userItem = battlePokemonHeldItemIdCanonical(user);
   const damaging = String(move?.category ?? "Status") !== "Status" && Number(damageDealt ?? 0) > 0;
+  const sheerForceSuppressesLifeOrb = userAbility === "SHEERFORCE" && Number(move?.effect_chance ?? move?.effectChance ?? 0) > 0;
   let userHpDelta = 0;
   let reason = null;
-  if (damaging && userItem === "LIFEORB" && userAbility !== "MAGICGUARD") {
+  if (damaging && userItem === "LIFEORB" && userAbility !== "MAGICGUARD" && !sheerForceSuppressesLifeOrb) {
     userHpDelta = fractionalHpDelta(user, 1, 10, -1); reason = "life_orb";
   } else if (damaging && userItem === "SHELLBELL") {
     const hp = integerHp(user, "hp");
