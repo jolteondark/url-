@@ -1,6 +1,7 @@
 import { resolveExpLevelMoveFlow } from "./battle-exp-level-move-flow.js";
 import { resolvePokemonRuntimeMasters } from "./pokemon-runtime-masters.js";
 import { updatePokemonRuntime } from "./pokemon-runtime.js";
+import { resolvePokemonLevelEvolution } from "./pokemon-level-evolution-runtime.js";
 
 function hasGainExpRequest(action) {
   return (action?.postHitResolution?.operations ?? []).some((entry) => entry.op === "gain_exp_request");
@@ -28,6 +29,7 @@ export function commitBattleSystemsExpRuntime({ battleInput = {}, turn = {}, pok
     for (const [actionIndex, action] of (Array.isArray(round.actions) ? round.actions : []).entries()) {
       if (!executed.has(`${roundIndex}:${actionIndex}`) || !hasGainExpRequest(action) || !action?.battleExpInput) continue;
       if (runtime?.exp == null || runtime?.level == null) throw new TypeError("pokemon exp and level are required for battle EXP reflection");
+      const beforeLevel = Number(runtime.level);
       const flow = resolveExpLevelMoveFlow({
         ...structuredClone(action.battleExpInput),
         pokemon: { exp: Number(runtime.exp), level: Number(runtime.level), moves: (runtime.moves ?? []).map(moveId) },
@@ -41,6 +43,14 @@ export function commitBattleSystemsExpRuntime({ battleInput = {}, turn = {}, pok
           level: Number(flow.pokemon.level),
           moves,
         });
+
+      let evolution = null;
+      const evolutionMasters = action.battleExpInput.evolutionMasters ?? null;
+      if (evolutionMasters && Number(flow.pokemon.level) > beforeLevel) {
+        evolution = resolvePokemonLevelEvolution(runtime, evolutionMasters);
+        runtime = evolution.pokemon;
+      }
+
       commits.push({
         roundIndex,
         actionIndex,
@@ -49,7 +59,9 @@ export function commitBattleSystemsExpRuntime({ battleInput = {}, turn = {}, pok
         exp: Number(flow.pokemon.exp),
         level: Number(flow.pokemon.level),
         moves: structuredClone(runtime.moves),
-        operations: structuredClone(flow.operations ?? []),
+        evolution: evolution ? structuredClone(evolution.evolution) : null,
+        unsupportedEvolutionMethods: evolution ? [...evolution.unsupportedMethods] : [],
+        operations: [...structuredClone(flow.operations ?? []), ...structuredClone(evolution?.operations ?? [])],
       });
     }
   }
