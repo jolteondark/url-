@@ -8,6 +8,13 @@ function battleState() {
   return globalThis.__maplessSafariRuntime?.variables?.mapless?.battle ?? null;
 }
 
+function replacementPhaseActive(battle) {
+  if (!battle) return false;
+  if (typeof battle.phase === "string" && battle.phase) return battle.phase === "REPLACEMENT";
+  // Thin compatibility for boundary/older persisted battles without orchestrator phase.
+  return Boolean(battle.player_replacement_required && !battle.completed);
+}
+
 function clearReplacementUi() {
   byId("player-replacement-panel")?.remove();
   const card = byId("battle-card");
@@ -20,15 +27,15 @@ function clearReplacementUi() {
   readyFrame = 0;
 }
 
-function previewCommandBusy() {
+function previewCompatibilityBusy() {
   return Boolean(byId("capture")?.disabled);
 }
 
 function updateReplacementButtonState() {
   readyFrame = 0;
   const battle = battleState();
-  if (!battle?.player_replacement_required || battle.completed) return;
-  const waiting = previewCommandBusy();
+  if (!replacementPhaseActive(battle) || !battle?.player_replacement_required) return;
+  const waiting = previewCompatibilityBusy();
   for (const button of byId("player-replacement-panel")?.querySelectorAll("button[data-player-replacement-party-index]") ?? []) {
     button.disabled = selecting || waiting;
   }
@@ -40,7 +47,7 @@ function replacementButton(option) {
   const button = document.createElement("button");
   button.type = "button";
   button.dataset.playerReplacementPartyIndex = String(option.partyIndex);
-  button.disabled = selecting || previewCommandBusy();
+  button.disabled = selecting || previewCompatibilityBusy();
 
   const name = document.createElement("strong");
   name.textContent = pokemon.species ?? `Party ${Number(option.partyIndex) + 1}`;
@@ -52,7 +59,7 @@ function replacementButton(option) {
 
 function syncReplacementUi() {
   const battle = battleState();
-  if (!battle?.player_replacement_required || battle.completed) {
+  if (!replacementPhaseActive(battle) || !battle?.player_replacement_required) {
     clearReplacementUi();
     return;
   }
@@ -93,9 +100,9 @@ function syncReplacementUi() {
 }
 
 async function chooseReplacement(button) {
-  if (selecting || previewCommandBusy()) return;
+  if (selecting || previewCompatibilityBusy()) return;
   const battle = battleState();
-  if (!battle?.player_replacement_required) return;
+  if (!replacementPhaseActive(battle) || !battle?.player_replacement_required) return;
   const partyIndex = Number(button.dataset.playerReplacementPartyIndex);
   const legal = (battle.player_replacement_options ?? [])
     .some((option) => Number(option?.partyIndex) === partyIndex);
@@ -115,7 +122,7 @@ async function chooseReplacement(button) {
 
 byId("battle-card")?.addEventListener("click", (event) => {
   const battle = battleState();
-  if (!battle?.player_replacement_required) return;
+  if (!replacementPhaseActive(battle) || !battle?.player_replacement_required) return;
 
   const replacement = event.target.closest("button[data-player-replacement-party-index]");
   if (replacement) {
