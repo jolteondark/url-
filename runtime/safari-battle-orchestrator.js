@@ -90,12 +90,16 @@ function hasRewardGrowthTail(result) {
   ].includes(operation?.op));
 }
 
-function rejectUnconsumedCommand(battle, result, commandKind) {
+function rollbackSpeculativeAction(battle) {
   const trace = Array.isArray(battle.phase_trace) ? battle.phase_trace : [];
   if (battle.phase === SAFARI_BATTLE_PHASE.ACTION_1 && trace.at(-1)?.phase === SAFARI_BATTLE_PHASE.ACTION_1) {
     trace.pop();
     battle.phase_trace = trace;
   }
+}
+
+function rejectUnconsumedCommand(battle, result, commandKind) {
+  rollbackSpeculativeAction(battle);
   battle.pending_command_kind = null;
   tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, `command not consumed:${commandKind}`);
   result.phase = battle.phase;
@@ -133,6 +137,7 @@ export function abortSafariBattleCommand(runtime, reason = "command failed") {
   if ([SAFARI_BATTLE_PHASE.RESULT, SAFARI_BATTLE_PHASE.RETURN, SAFARI_BATTLE_PHASE.REPLACEMENT].includes(battle.phase)) {
     return battle.phase;
   }
+  rollbackSpeculativeAction(battle);
   battle.pending_command_kind = null;
   return tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, reason);
 }
