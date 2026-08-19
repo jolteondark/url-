@@ -23,9 +23,9 @@ function scopedOperations(commits, battleTurn) {
       operations.push({
         ...structuredClone(operation),
         scope: "exp",
+        action: Number(commit.actionIndex ?? 0),
+        round: Number(commit.roundIndex ?? 0) + 1,
         battleTurn,
-        roundIndex: Number(commit.roundIndex ?? 0),
-        actionIndex: Number(commit.actionIndex ?? 0),
       });
     }
   }
