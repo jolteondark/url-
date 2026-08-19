@@ -6,7 +6,7 @@ import {
   returnSafariToDayBoard as returnSafariNormalToDayBoard,
   useSafariNormalBattleItem,
 } from "./safari-normal-battle-lifecycle.js";
-import { commitSafariNormalLevelEvolutionRewardGrowth } from "./safari-normal-battle-finalize.js";
+import { commitSafariNormalLevelEvolutionRewardGrowth, commitSafariNormalTerminalRewardGrowth } from "./safari-normal-battle-finalize.js";
 import {
   abortSafariBattleCommand,
   abortSafariBattleReturn,
@@ -92,7 +92,7 @@ function beginNormalBattleCommand(runtime, kind) {
 function commitNormalBattleCommand(runtime, result, kind) {
   if (!stateOf(runtime).battle || needsFullBattleIntegration(runtime)) return result;
   return commitSafariBattleResolution(runtime, result, kind, {
-    rewardGrowthCommit: (current) => commitSafariNormalLevelEvolutionRewardGrowth(runtime, current),
+    rewardGrowthCommit: (current) => commitSafariNormalTerminalRewardGrowth(runtime, current),
   });
 }
 
