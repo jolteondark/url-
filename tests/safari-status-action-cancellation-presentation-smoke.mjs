@@ -35,7 +35,7 @@ function actionOps(operations, actionIndex) {
 for (const [label, input, reasonOp] of [
   ["sleep", { status: "SLEEP", statusCount: 2 }, "continue_status_request"],
   ["frozen", { status: "FROZEN", frozenThawRoll: 99 }, "continue_status_request"],
-  ["paralysis", { status: "PARALYSIS", paralysisRoll4: 0 }, "continue_status_request"],
+  ["paralysis", { status: "PARALYSIS", paralysisRoll: 0 }, "continue_status_request"],
   ["flinch", { flinch: true }, "display_flinched"],
 ]) {
   const operations = loopFor(input);
@@ -107,6 +107,7 @@ const pokemon = (status, speed) => ({
   hp: 100,
   max_hp: 100,
   status,
+  status_count: 0,
   types: ["NORMAL"],
   stats: { ATTACK: 100, DEFENSE: 100, SPECIAL_ATTACK: 100, SPECIAL_DEFENSE: 100, SPEED: speed },
   moves: [{ id: "TACKLE", pp: 35, ppup: 0 }],
@@ -119,7 +120,7 @@ const browserRound = resolveBrowserBattleRound({
   selectedMoveId: "TACKLE",
   foeMoveId: "TACKLE",
   moveMasters,
-  combatRandomSeed: 3,
+  combatRandomSeed: 1,
   priorityRandomSeed: 1,
 });
 const playerOps = browserRound.operations.filter((operation) => operation.actor === "player");
@@ -134,4 +135,6 @@ assert.equal(formatSafariBattlePresentationEvent({ type: "status_recovered", act
 assert.equal(formatSafariBattlePresentationEvent({ type: "confusion_active", actor: "player", actorSpecies: "EEVEE" }, {}), "EEVEEはこんらんしている！");
 assert.equal(formatSafariBattlePresentationEvent({ type: "confusion_self_hit", actor: "player", actorSpecies: "EEVEE" }, {}), "EEVEEはわけもわからず自分を攻撃した！");
 
+await import("./battle-paralysis-stop-source-smoke.mjs");
+await import("./battle-status-transient-action-gate-smoke.mjs");
 console.log("Safari status/transient action cancellation presentation smoke PASS");
