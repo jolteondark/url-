@@ -52,6 +52,11 @@ function resolveBattleTypes(pokemon) {
     throw error;
   }
 }
+function canonicalAbilityId(pokemon) {
+  const ability = pokemon?.ability;
+  const id = typeof ability === "string" ? ability : ability?.id;
+  return String(id ?? "").toUpperCase();
+}
 export function buildBrowserBattleActionInput({ actor, target, move, moveIndex, battlerIndex, targetBattlerIndex, randomRoll = null, reflectPp, struggle = false }) {
   const special = move.category === "Special";
   const fixedDamageUserLevel = move.function_code === "FixedDamageUserLevel";
@@ -63,7 +68,19 @@ export function buildBrowserBattleActionInput({ actor, target, move, moveIndex, 
     : null;
   const accuracyInput = { baseAccuracy: move.accuracy };
   if (randomRoll !== null && randomRoll !== undefined) accuracyInput.randomRoll = Number(randomRoll);
-  const action = { kind: "move", battlerIndex, targetBattlerIndex, actorHpBefore: actor.hp, actorTotalHp: actor.max_hp, moveIndex, moveId: move.id, accuracyInput, hpBefore: target.hp, totalHp: target.max_hp };
+  const actorAbility = canonicalAbilityId(actor);
+  const targetAbility = canonicalAbilityId(target);
+  const action = {
+    kind: "move", battlerIndex, targetBattlerIndex,
+    actorHpBefore: actor.hp, actorTotalHp: actor.max_hp,
+    moveIndex, moveId: move.id, accuracyInput,
+    hpBefore: target.hp, totalHp: target.max_hp,
+    mechanicsGeneration: 9,
+    userHasSereneGrace: actorAbility === "SERENEGRACE",
+    userHasSheerForce: actorAbility === "SHEERFORCE",
+    targetHasShieldDust: targetAbility === "SHIELDDUST",
+    moldBreaker: ["MOLDBREAKER", "TERAVOLT", "TURBOBLAZE"].includes(actorAbility),
+  };
   if (actor.status === "PARALYSIS") {
     action.useMoveInput = { isStruggle: Boolean(struggle), tryUseMoveInput: { status: "PARALYSIS" } };
   }
