@@ -50,6 +50,24 @@ function ensurePanel(state) {
   return panel;
 }
 
+function focusCarryoverChoice(panel) {
+  const state = stateOfRuntime();
+  if (!state?.mapless_carryover_pending || state.location !== "home" || !panel?.isConnected) return;
+  const active = document.activeElement;
+  if (active instanceof HTMLElement && active !== document.body && active.getClientRects().length > 0) return;
+  const target = panel.querySelector("button:not(:disabled)");
+  if (!(target instanceof HTMLElement)) return;
+  panel.scrollIntoView?.({ behavior:"smooth", block:"center", inline:"nearest" });
+  target.focus({ preventScroll:true });
+}
+
+function disableCarryoverChoices(panel = byId("carryover-next-run-panel")) {
+  if (!panel) return;
+  const active = document.activeElement;
+  if (active instanceof HTMLElement && panel.contains(active)) active.blur();
+  for (const button of panel.querySelectorAll("button")) button.disabled = true;
+}
+
 function fallbackButton() {
   const fallback = document.createElement("button");
   fallback.type = "button";
@@ -99,6 +117,7 @@ export async function renderSafariCarryoverSelection() {
     panel.replaceChildren(heading, message, fallbackButton());
   } finally {
     rendering = false;
+    requestAnimationFrame(() => focusCarryoverChoice(panel));
   }
 }
 
@@ -115,6 +134,7 @@ function renderAfterPreviewRestore() {
 async function choose(selection) {
   if (selecting) return;
   selecting = true;
+  disableCarryoverChoices();
   try {
     const runtime = globalThis.__maplessSafariRuntime;
     const result = await prepareSafariNextRun(runtime, selection);
