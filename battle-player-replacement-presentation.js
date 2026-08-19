@@ -13,11 +13,6 @@ function replacementActive(battle = battleState()) {
   return battle?.phase === REPLACEMENT_PHASE;
 }
 
-function closeGameMenu() {
-  const menu = byId("game-menu");
-  if (menu && !menu.hidden) byId("game-menu-close")?.click();
-}
-
 function focusFirstReplacement() {
   const first = byId("player-replacement-panel")?.querySelector("button[data-player-replacement-party-index]:not(:disabled)");
   if (!(first instanceof HTMLElement)) return;
@@ -72,7 +67,6 @@ function syncReplacementUi() {
   }
 
   replacementWasActive = true;
-  closeGameMenu();
   const options = Array.isArray(battle.player_replacement_options)
     ? battle.player_replacement_options
     : [];
