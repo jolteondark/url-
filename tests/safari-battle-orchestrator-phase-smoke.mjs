@@ -35,10 +35,16 @@ function runtime(battle = {}) {
       { op: "request_save" },
     ],
   };
+  // Compatibility finalizers may still mark terminal completion before returning.
+  // The orchestration owner must hide that until its RESULT boundary.
+  rt.variables.mapless.battle.completed = true;
   commitSafariBattleResolution(rt, result, "move");
-  assert.equal(rt.variables.mapless.battle.phase, SAFARI_BATTLE_PHASE.RESULT);
+  const battle = rt.variables.mapless.battle;
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.RESULT);
+  assert.equal(battle.completed, true);
+  assert.equal(battle.completed_phase, SAFARI_BATTLE_PHASE.RESULT);
   assert.deepEqual(
-    rt.variables.mapless.battle.phase_trace.map((step) => step.phase),
+    battle.phase_trace.map((step) => step.phase),
     [
       "COMMAND",
       "ACTION_1",
@@ -48,6 +54,12 @@ function runtime(battle = {}) {
       "REWARD_GROWTH",
       "RESULT",
     ],
+  );
+  assert.equal(
+    battle.phase_trace
+      .filter((step) => ["CHECK_1", "POST_FAINT", "POST_VICTORY", "REWARD_GROWTH", "RESULT"].includes(step.phase))
+      .some((step) => step.completed),
+    false,
   );
 }
 
@@ -65,6 +77,7 @@ function runtime(battle = {}) {
   };
   commitSafariBattleResolution(rt, result, "move");
   assert.equal(rt.variables.mapless.battle.phase, SAFARI_BATTLE_PHASE.COMMAND);
+  assert.equal(rt.variables.mapless.battle.completed, false);
   const phases = rt.variables.mapless.battle.phase_trace.map((step) => step.phase);
   assert.deepEqual(phases.slice(-3), ["POST_FAINT", "REPLACEMENT", "COMMAND"]);
   assert.equal(phases.includes("RESULT"), false);
@@ -84,6 +97,7 @@ function runtime(battle = {}) {
   };
   commitSafariBattleResolution(rt, result, "move");
   assert.equal(rt.variables.mapless.battle.phase, SAFARI_BATTLE_PHASE.REPLACEMENT);
+  assert.equal(rt.variables.mapless.battle.completed, false);
   rt.variables.mapless.battle.player_replacement_required = false;
   completeSafariBattleReplacement(rt, {});
   assert.equal(rt.variables.mapless.battle.phase, SAFARI_BATTLE_PHASE.COMMAND);
