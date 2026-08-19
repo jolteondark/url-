@@ -204,10 +204,11 @@ function renderVillage() {
 }
 
 function renderMoves(player, battle) {
-  if (!battle || battle.completed) {
+  if (!battle) {
     byId("moves").replaceChildren();
     return;
   }
+  const commandAllowed = battle.phase === "COMMAND";
   const buttons = player.moves
     .map((move) => ({ move, id: moveId(move) }))
     .filter(({ id }) => SAFARI_MOVE_PRESENTATION[id])
@@ -217,7 +218,7 @@ function renderMoves(player, battle) {
       const button = document.createElement("button");
       button.type = "button";
       button.dataset.moveId = id;
-      button.disabled = busy || pp <= 0;
+      button.disabled = !commandAllowed || pp <= 0;
       const name = document.createElement("strong");
       name.textContent = details.name;
       const meta = document.createElement("small");
@@ -239,7 +240,6 @@ function renderBattle() {
   byId("battle-title").textContent = battle.origin === "village_bounty"
     ? "Bounty Battle"
     : battle.kind === "trainer" ? "Trainer Battle" : "Wild Battle";
-  byId("turn").textContent = battle.completed ? "Result" : "Turn " + battle.turn;
   byId("player-name").textContent = player.species;
   byId("player-level").textContent = "Lv." + player.level;
   byId("player-hp").textContent = player.hp + " / " + player.max_hp;
@@ -248,22 +248,11 @@ function renderBattle() {
   byId("foe-level").textContent = "Lv." + foe.level;
   byId("foe-hp").textContent = foe.hp + " / " + foe.max_hp;
   byId("foe-hp-bar").style.width = percent(foe.hp, foe.max_hp) + "%";
-  byId("battle-message").textContent = battle.completed
-    ? mapless().notice
-    : "技を選んでください。";
   renderMoves(player, battle);
-  byId("capture").hidden = battle.kind !== "wild" || battle.completed;
-  byId("capture").disabled = busy;
-  const flee = byId("flee");
-  const canFlee = battle.kind === "wild" && battle.origin !== "village_bounty" && !battle.completed;
-  flee.hidden = battle.completed;
-  flee.disabled = busy || !canFlee;
-  flee.textContent = canFlee ? "にげる" : "にげられない";
-  byId("return-board").hidden = !battle.completed;
-  byId("return-board").disabled = busy;
   byId("return-board").textContent = battle.return_target === "village"
     ? "村へ戻る"
     : battle.return_target === "home" ? "ホームへ" : "Day Boardへ戻る";
+  globalThis.__maplessApplyBattlePhaseUi?.();
 }
 
 function render() {
