@@ -28,12 +28,18 @@ function restoreNormalMenu() {
 }
 
 function injectBattleBall(tab) {
-  byId("battle-menu-ball-use")?.remove();
-  if (tab !== "bag") return;
+  if (tab !== "bag") {
+    byId("battle-menu-ball-use")?.remove();
+    return;
+  }
   const current = battle();
   const pane = byId("menu-bag-pane");
   const capture = byId("capture");
-  if (!current || current.phase !== "COMMAND" || current.kind !== "wild" || !pane || !capture) return;
+  if (!current || current.phase !== "COMMAND" || current.kind !== "wild" || !pane || !capture) {
+    byId("battle-menu-ball-use")?.remove();
+    return;
+  }
+  if (byId("battle-menu-ball-use")) return;
 
   const button = document.createElement("button");
   button.id = "battle-menu-ball-use";
@@ -114,9 +120,25 @@ if (menu && typeof MutationObserver === "function") {
   }).observe(menu, { attributes: true, attributeFilter: ["hidden"] });
 }
 
+const bagPane = byId("menu-bag-pane");
+if (bagPane && typeof MutationObserver === "function") {
+  let reinjectQueued = false;
+  new MutationObserver(() => {
+    if (reinjectQueued) return;
+    if (menu?.hidden || menu?.dataset.battleCommandMenu !== "bag" || !inBattleCommand()) return;
+    reinjectQueued = true;
+    requestAnimationFrame(() => {
+      reinjectQueued = false;
+      injectBattleBall("bag");
+    });
+  }).observe(bagPane, { childList: true, subtree: false });
+}
+
 window.addEventListener("safari-runtime-changed", () => {
   const current = battle();
   if (!current || current.phase !== "COMMAND") {
     if (menu && !menu.hidden && menu.dataset.battleCommandMenu) closeGameMenu();
+    return;
   }
+  if (menu && !menu.hidden && menu.dataset.battleCommandMenu === "bag") injectBattleBall("bag");
 });
