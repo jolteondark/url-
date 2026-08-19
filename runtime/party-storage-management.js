@@ -118,6 +118,13 @@ function firstFree(value, box, maxPartySize, defaultBoxCapacity) {
   return -1;
 }
 
+function sourceRejectionReason(value, box, index, maxPartySize, defaultBoxCapacity) {
+  if (!Number.isInteger(box) || box < -1 || box >= value.boxes.length) return "source_box";
+  if (!Number.isInteger(index) || index < 0) return "source_index";
+  if (box < 0) return index < value.party.length ? null : "source_index";
+  return index < maxPokemon(value, box, maxPartySize, defaultBoxCapacity) ? null : "source_index";
+}
+
 export function deleteStoredPokemon(state, box, index) {
   const value = stateOf(state);
   if (getPokemon(value, box, index) != null) {
@@ -159,6 +166,10 @@ export function copyStoredPokemon(state, {
   } else if (boxDst >= 0 && destinationIndex >= maxPokemon(value, boxDst, partyLimit, boxLimit)) {
     return { result: false, state: value, operations: [{ op: "copy_rejected", reason: "destination_index" }] };
   }
+  const sourceReason = sourceRejectionReason(value, boxSrc, indexSrc, partyLimit, boxLimit);
+  if (sourceReason) {
+    return { result: false, state: value, operations: [{ op: "copy_rejected", reason: sourceReason }] };
+  }
   const pokemon = getPokemon(value, boxSrc, indexSrc);
   if (pokemon == null) throw new TypeError("Trying to copy nil to storage");
   const sameLocation = boxDst === boxSrc && destinationIndex === indexSrc;
@@ -186,6 +197,12 @@ export function copyStoredPokemon(state, {
 
 export function moveStoredPokemon(state, options = {}) {
   const value = stateOf(state);
+  const partyLimit = capacity(options.maxPartySize, 6, "maxPartySize");
+  const boxLimit = capacity(options.defaultBoxCapacity, 30, "defaultBoxCapacity");
+  const sourceReason = sourceRejectionReason(value, options.boxSrc, options.indexSrc, partyLimit, boxLimit);
+  if (sourceReason) {
+    return { result: false, state: value, operations: [{ op: "move_rejected", reason: sourceReason }] };
+  }
   if (options.boxSrc < 0 && options.boxDst >= 0) {
     const sourcePokemon = getPokemon(value, options.boxSrc, options.indexSrc);
     const hasOtherAble = value.party.some((pokemon, index) => index !== options.indexSrc && pokemonAble(pokemon));
