@@ -119,6 +119,16 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   const battle = battleOf(runtime);
   if (!battle.phase) ensureSafariBattleOrchestrator(runtime);
 
+  const decision = Number(result?.decision ?? battle.decision ?? 0);
+  const playerReplacementRequired = Boolean(result?.playerReplacementRequired ?? battle.player_replacement_required);
+  const foeReplacementApplied = Boolean(result?.foeReplacementApplied);
+  const terminalResolution = decision !== 0 || Boolean(battle.completed);
+
+  // Compatibility mechanics owners may still set completed while producing terminal
+  // operations. Hide that legacy detail before any orchestration checkpoint; RESULT is
+  // the only externally visible completion boundary.
+  if (terminalResolution) battle.completed = false;
+
   const actors = actionActors(result);
   tracePhase(battle, SAFARI_BATTLE_PHASE.CHECK_1, "first action resolved");
   if (actors.length >= 2) {
@@ -126,17 +136,7 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
     tracePhase(battle, SAFARI_BATTLE_PHASE.CHECK_2, "second action checked");
   }
 
-  const decision = Number(result?.decision ?? battle.decision ?? 0);
-  const playerReplacementRequired = Boolean(result?.playerReplacementRequired ?? battle.player_replacement_required);
-  const foeReplacementApplied = Boolean(result?.foeReplacementApplied);
-  const terminalResolution = decision !== 0 || Boolean(battle.completed);
   const fainted = hasFaint(result) || playerReplacementRequired || foeReplacementApplied || terminalResolution;
-
-  // Legacy mechanics owners may still mark completion while producing their terminal
-  // operations. The orchestration owner hides that compatibility detail and makes
-  // RESULT the only externally visible completion boundary.
-  if (terminalResolution) battle.completed = false;
-
   if (fainted) tracePhase(battle, SAFARI_BATTLE_PHASE.POST_FAINT, "faint/terminal checkpoint");
 
   if (playerReplacementRequired) {
