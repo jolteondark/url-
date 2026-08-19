@@ -21,6 +21,31 @@ function phaseOf(battle = runtimeBattle()) {
   return battle.phase ?? (battle.completed ? "RESULT" : "COMMAND");
 }
 
+function visibleEnabled(selector, root = document) {
+  return [...root.querySelectorAll(selector)].find((node) => !node.hidden && !node.disabled && node.getClientRects().length > 0) ?? null;
+}
+
+function moveFocusForMode(mode) {
+  const card = byId("battle-card");
+  if (!card || card.hidden) return;
+  const active = document.activeElement;
+  const activeIsBattleControl = active instanceof HTMLElement && card.contains(active);
+  const activeIsHidden = activeIsBattleControl && (active.hidden || active.getClientRects().length === 0 || active.hasAttribute("disabled"));
+  if (activeIsHidden) active.blur();
+
+  let target = null;
+  if (mode === "root") target = visibleEnabled('#dppt-command-root button[data-dppt-command="fight"]', card);
+  if (mode === "fight") target = visibleEnabled('#moves button[data-move-id]', card) ?? visibleEnabled("#dppt-command-back", card);
+  if (mode === "bag") target = visibleEnabled("#dppt-battle-bag button", card) ?? visibleEnabled("#dppt-command-back", card);
+  if (mode === "result") target = visibleEnabled("#return-board", card);
+  if (!target || document.activeElement === target) return;
+  target.focus({ preventScroll:true });
+}
+
+function queueFocusForMode(mode) {
+  requestAnimationFrame(() => moveFocusForMode(mode));
+}
+
 function ensureRoot() {
   const panel = byId("battle-card")?.querySelector(".battle-command-panel");
   if (!panel) return null;
@@ -104,6 +129,7 @@ function setMenu(mode) {
     message.textContent = mode === "root" ? "どうする？" : mode === "fight" ? "わざを えらんでください。" : mode === "bag" ? "バッグを えらんでください。" : message.textContent;
   }
   if (mode === "fight") decorateMoves();
+  queueFocusForMode(mode);
   window.dispatchEvent(new CustomEvent("mapless-dppt-menu-changed", { detail: { mode } }));
 }
 
@@ -116,6 +142,8 @@ function sync() {
   ensureBagPanel();
   decorateMoves();
   if (!battle) {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && card.contains(active)) active.blur();
     delete card.dataset.dpptMenu;
     lastPhase = null;
     lastTurn = null;
@@ -137,8 +165,11 @@ function sync() {
     }
   } else if (phase === "RESULT") {
     card.dataset.dpptMenu = "result";
+    if (lastPhase !== "RESULT") queueFocusForMode("result");
   } else {
     card.dataset.dpptMenu = "locked";
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && card.contains(active) && (active.getClientRects().length === 0 || active.hasAttribute("disabled"))) active.blur();
   }
 
   const commandAllowed = phase === "COMMAND" && !battle.completed && !battle.player_replacement_required;
