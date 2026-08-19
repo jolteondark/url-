@@ -22,7 +22,7 @@ const result = resolveExpLevelMoveFlow({
   maxMoves: 4,
   expContext: {
     defeatedLevel: 10,
-    baseExp: 1020,
+    baseExp: 700,
     numParticipants: 1,
     participant: true,
     splitExpBetweenGainers: true,
