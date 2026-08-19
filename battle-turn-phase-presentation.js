@@ -1,12 +1,52 @@
 const byId = (id) => document.getElementById(id);
-let resolving = false;
-let returning = false;
-let submittedTurn = null;
 let presentationAction = null;
 let syncFrame = 0;
 
+const COMMAND = "COMMAND";
+const REPLACEMENT = "REPLACEMENT";
+const RESULT = "RESULT";
+const RETURN = "RETURN";
+const LEGACY_TERMINAL_PHASES = new Set([COMMAND, REPLACEMENT, RESULT]);
+
 function battleState() {
   return globalThis.__maplessSafariRuntime?.variables?.mapless?.battle ?? null;
+}
+
+function rawOwnerPhase(battle) {
+  if (!battle) return null;
+  if (typeof battle.phase === "string" && battle.phase) return battle.phase;
+  // Thin compatibility adapter for boundary/older persisted battles that predate
+  // the central orchestrator. Normal Battle UI must otherwise use battle.phase.
+  if (battle.completed) return RESULT;
+  if (battle.player_replacement_required) return REPLACEMENT;
+  return COMMAND;
+}
+
+function previewCompatibilityBusy(phase) {
+  if (phase === RESULT) return Boolean(byId("return-board")?.disabled);
+  return Boolean(byId("capture")?.disabled);
+}
+
+function previousOwnerPhase(battle, phase) {
+  const trace = Array.isArray(battle?.phase_trace) ? battle.phase_trace : [];
+  for (let index = trace.length - 1; index >= 0; index -= 1) {
+    const candidate = trace[index]?.phase;
+    if (candidate && candidate !== phase && candidate !== COMMAND) return candidate;
+  }
+  return phase;
+}
+
+function visibleOwnerPhase(battle) {
+  const phase = rawOwnerPhase(battle);
+  // preview-app still owns a generic async submit mutex. During the small
+  // compatibility window after the orchestrator has already reached its final
+  // COMMAND/REPLACEMENT/RESULT phase but the ordered presentation queue is still
+  // draining, keep showing the preceding orchestrator phase from phase_trace.
+  // No synthetic RESOLVING phase is created here.
+  if (battle?.phase && LEGACY_TERMINAL_PHASES.has(phase) && previewCompatibilityBusy(phase)) {
+    return previousOwnerPhase(battle, phase);
+  }
+  return phase;
 }
 
 function ensurePhaseNode() {
@@ -23,34 +63,27 @@ function ensurePhaseNode() {
   return phase;
 }
 
-function setCommandLock(locked) {
-  const battle = battleState();
-  const replacementRequired = Boolean(battle?.player_replacement_required && !battle?.completed);
-  const terminal = Boolean(battle?.completed);
-  const shouldLock = locked || replacementRequired || terminal;
+function commandAllowed(battle) {
+  return rawOwnerPhase(battle) === COMMAND && !previewCompatibilityBusy(COMMAND);
+}
+
+function returnAllowed(battle) {
+  return rawOwnerPhase(battle) === RESULT && !previewCompatibilityBusy(RESULT);
+}
+
+function setCommandLock(battle) {
+  const allowCommand = commandAllowed(battle);
+  const allowReturn = returnAllowed(battle);
   const moves = byId("moves");
   const capture = byId("capture");
   const flee = byId("flee");
   const returnBoard = byId("return-board");
-  if (moves) moves.inert = shouldLock;
-  if (capture) {
-    capture.inert = shouldLock;
-    capture.disabled = shouldLock;
-  }
-  if (flee) {
-    flee.inert = shouldLock;
-    flee.disabled = shouldLock;
-  }
-  if (returnBoard) {
-    returnBoard.inert = Boolean(locked || returning);
-    returnBoard.disabled = Boolean(locked || returning);
-  }
+  if (moves) moves.inert = !allowCommand;
+  if (capture) capture.inert = !allowCommand;
+  if (flee) flee.inert = !allowCommand;
+  if (returnBoard) returnBoard.inert = !allowReturn;
   const panel = byId("battle-card")?.querySelector(".battle-command-panel");
-  if (panel) panel.dataset.turnPhaseLocked = shouldLock || returning ? "true" : "false";
-}
-
-function previewCommandBusy() {
-  return Boolean(byId("capture")?.disabled);
+  if (panel) panel.dataset.turnPhaseLocked = allowCommand || allowReturn ? "false" : "true";
 }
 
 function actionText(action) {
@@ -61,102 +94,83 @@ function actionText(action) {
   if (action === "capture") return "捕獲処理中";
   if (action === "flee") return "逃走処理中";
   if (action === "automatic") return "自動効果処理中";
-  return "行動処理中";
+  return null;
 }
 
-function phaseFor(battle) {
-  if (!battle) return null;
-  if (returning) return { key: "resolving", text: "戻っています…" };
-  if (battle.completed && !(resolving || previewCommandBusy())) return { key: "result", text: "結果" };
-  if (battle.player_replacement_required && !(resolving || previewCommandBusy())) return { key: "replacement", text: "交代選択" };
-  if (resolving || previewCommandBusy()) return { key: "resolving", text: actionText(presentationAction) };
-  return { key: "command", text: "コマンド選択" };
+function phaseText(phase) {
+  if (presentationAction && phase !== COMMAND && phase !== RESULT && phase !== RETURN) {
+    return actionText(presentationAction) ?? phase;
+  }
+  switch (phase) {
+    case COMMAND: return "コマンド選択";
+    case "ACTION_1": return "第1行動";
+    case "CHECK_1": return "第1行動判定";
+    case "ACTION_2": return "第2行動";
+    case "CHECK_2": return "第2行動判定";
+    case "POST_FAINT": return "戦闘不能処理";
+    case REPLACEMENT: return "交代選択";
+    case "POST_VICTORY": return "勝敗確定";
+    case "REWARD_GROWTH": return "成長・報酬処理";
+    case RESULT: return "結果";
+    case RETURN: return "戻っています…";
+    default: return phase ?? "Battle";
+  }
 }
 
-function updateBattleMessage(key) {
+function updateBattleMessage(phase) {
   const message = byId("battle-message");
-  if (!message || key === "result") return;
-  if (key === "resolving" && message.dataset.presentationOwner === "event") return;
-  if (key !== "resolving") delete message.dataset.presentationOwner;
-  const text = key === "resolving"
-    ? returning ? "Day Boardへ戻っています…" : "ターンを処理しています…"
-    : key === "replacement"
-      ? "次のポケモンを選んでください。"
-      : "技を選んでください。";
-  if (message.textContent !== text) message.textContent = text;
-}
-
-function paintPhaseOnly(key, text) {
-  const phase = ensurePhaseNode();
-  const card = byId("battle-card");
-  if (!phase || !card) return;
-  phase.hidden = false;
-  if (phase.textContent !== text) phase.textContent = text;
-  phase.dataset.phase = key;
-  card.dataset.turnPhase = key;
-  if (key === "resolving" && presentationAction) card.dataset.turnAction = presentationAction;
-  else delete card.dataset.turnAction;
-  updateBattleMessage(key);
+  if (!message || phase === RESULT) return;
+  if (message.dataset.presentationOwner === "event" && phase !== COMMAND && phase !== REPLACEMENT) return;
+  if (phase === COMMAND) {
+    delete message.dataset.presentationOwner;
+    message.textContent = "技を選んでください。";
+  } else if (phase === REPLACEMENT) {
+    delete message.dataset.presentationOwner;
+    message.textContent = "次のポケモンを選んでください。";
+  } else if (phase === RETURN) {
+    message.textContent = "Day Boardへ戻っています…";
+  } else if (message.dataset.presentationOwner !== "event") {
+    message.textContent = "ターンを処理しています…";
+  }
 }
 
 function renderPhase() {
   const battle = battleState();
   const card = byId("battle-card");
   if (!card) return;
-  const phase = ensurePhaseNode();
+  const node = ensurePhaseNode();
   if (!battle) {
-    if ((resolving || returning) && !card.hidden) {
-      paintPhaseOnly("resolving", returning ? "戻っています…" : actionText(presentationAction));
-      setCommandLock(true);
-      return;
-    }
-    resolving = false;
-    returning = false;
-    submittedTurn = null;
     presentationAction = null;
-    if (phase) phase.hidden = true;
+    if (node) node.hidden = true;
     delete card.dataset.turnPhase;
     delete card.dataset.turnAction;
-    setCommandLock(false);
+    setCommandLock(null);
     return;
   }
 
-  const current = phaseFor(battle);
-  if (!current) return;
-  paintPhaseOnly(current.key, current.text);
-  setCommandLock(current.key === "resolving");
-}
-
-function resolutionSettled() {
-  const battle = battleState();
-  const card = byId("battle-card");
-  if (returning) return !battle && Boolean(card?.hidden);
-  if (!resolving) return false;
-  if (!battle) return Boolean(card?.hidden);
-  // The owner can commit KO/replacement/result before the corresponding faint,
-  // withdraw/send-out, automatic end-of-round effects, or result presentation
-  // has finished. Keep RESOLVING until preview/Bag releases its existing busy
-  // lock; do not unlock from post-round state alone.
-  if (previewCommandBusy()) return false;
-  if (battle.completed || battle.player_replacement_required) return true;
-  return Number(battle.turn ?? 0) !== Number(submittedTurn ?? 0);
-}
-
-function syncPhase() {
-  syncFrame = 0;
-  if (resolutionSettled()) {
-    resolving = false;
-    returning = false;
-    submittedTurn = null;
-    presentationAction = null;
+  const phase = visibleOwnerPhase(battle);
+  if (!phase) return;
+  if (node) {
+    node.hidden = false;
+    node.textContent = phaseText(phase);
+    node.dataset.phase = phase.toLowerCase();
   }
-  renderPhase();
-  if (resolving || returning) syncFrame = requestAnimationFrame(syncPhase);
+  card.dataset.turnPhase = phase.toLowerCase();
+  if (presentationAction && phase !== COMMAND && phase !== RESULT && phase !== RETURN) {
+    card.dataset.turnAction = presentationAction;
+  } else {
+    delete card.dataset.turnAction;
+  }
+  updateBattleMessage(phase);
+  setCommandLock(battle);
 }
 
 function scheduleSync() {
   if (syncFrame) return;
-  syncFrame = requestAnimationFrame(syncPhase);
+  syncFrame = requestAnimationFrame(() => {
+    syncFrame = 0;
+    renderPhase();
+  });
 }
 
 function presentationActionFor(event) {
@@ -173,45 +187,16 @@ function presentationActionFor(event) {
 const battleCard = byId("battle-card");
 battleCard?.addEventListener("click", (event) => {
   const battle = battleState();
+  if (!battle) return;
   const returnCommand = event.target.closest("#return-board");
   const command = event.target.closest("#moves button[data-move-id],#capture,#flee");
-  if ((!command && !returnCommand) || !battle) return;
+  if (!command && !returnCommand) return;
 
-  if (returnCommand) {
-    if (!battle.completed) return;
-    if (returning || resolving) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      return;
-    }
-    returning = true;
-    submittedTurn = null;
-    presentationAction = null;
-    paintPhaseOnly("resolving", "戻っています…");
-    queueMicrotask(() => {
-      setCommandLock(true);
-      scheduleSync();
-    });
-    return;
-  }
-
-  if (battle.completed) return;
-  if (resolving || returning || battle.player_replacement_required) {
+  const allowed = returnCommand ? returnAllowed(battle) : commandAllowed(battle);
+  if (!allowed) {
     event.preventDefault();
     event.stopImmediatePropagation();
-    return;
   }
-
-  const message = byId("battle-message");
-  if (message) delete message.dataset.presentationOwner;
-  resolving = true;
-  submittedTurn = Number(battle.turn ?? 1);
-  presentationAction = null;
-  paintPhaseOnly("resolving", "行動処理中");
-  queueMicrotask(() => {
-    setCommandLock(true);
-    scheduleSync();
-  });
 }, true);
 
 if (battleCard && typeof MutationObserver === "function") {
@@ -223,12 +208,7 @@ window.addEventListener("safari-battle-presentation-event", (event) => {
   if (!battleState()) return;
   const nextAction = presentationActionFor(event.detail?.event);
   if (nextAction) presentationAction = nextAction;
-  if (resolving || previewCommandBusy()) {
-    resolving = true;
-    paintPhaseOnly("resolving", actionText(presentationAction));
-    setCommandLock(true);
-  }
-  scheduleSync();
+  renderPhase();
 }, { passive: true });
 window.addEventListener("safari-runtime-changed", scheduleSync, { passive: true });
 window.addEventListener("pageshow", scheduleSync, { passive: true });
