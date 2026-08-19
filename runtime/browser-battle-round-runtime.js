@@ -7,6 +7,7 @@ import { resolveCanonicalBattleTypingV108 } from "./canonical-type-effectiveness
 import { safariGeneralPokemonTypesV108 } from "./safari-general-species-type-facts.js";
 import { resolveBattleSpeedCanonical } from "./battle-core-speed.js";
 import { createBattleStatStageStateCanonical, resolveBattleStatStageChangesCanonical } from "./battle-core-stat-stages.js";
+import { buildRestStatusInputCanonical, isCanonicalFixedDamageFunction, resolveCanonicalFixedDamage } from "./battle-core-hp-function-effects.js";
 
 function moveId(move) { return typeof move === "string" ? move : move?.id; }
 function requireMoveMaster(moveMasters, id) {
@@ -60,8 +61,8 @@ function canonicalAbilityId(pokemon) {
 }
 export function buildBrowserBattleActionInput({ actor, target, move, moveIndex, battlerIndex, targetBattlerIndex, randomRoll = null, reflectPp, struggle = false }) {
   const special = move.category === "Special";
-  const fixedDamageUserLevel = move.function_code === "FixedDamageUserLevel";
-  const damagingMove = move.category !== "Status" && (Number(move.power ?? 0) > 0 || fixedDamageUserLevel);
+  const fixedDamageFunction = isCanonicalFixedDamageFunction(move.function_code);
+  const damagingMove = move.category !== "Status" && (Number(move.power ?? 0) > 0 || fixedDamageFunction);
   const actorTypes = resolveBattleTypes(actor);
   const targetTypes = resolveBattleTypes(target);
   const typing = !struggle && damagingMove && move.type && actorTypes && targetTypes
@@ -75,13 +76,20 @@ export function buildBrowserBattleActionInput({ actor, target, move, moveIndex, 
   const action = {
     kind: "move", battlerIndex, targetBattlerIndex,
     actorHpBefore: actor.hp, actorTotalHp: actor.max_hp,
-    moveIndex, moveId: move.id, accuracyInput,
+    moveIndex, moveId: move.id, functionCode: move.function_code, moveCategory: move.category, accuracyInput,
     hpBefore: target.hp, totalHp: target.max_hp,
     mechanicsGeneration: 9,
     userHasSereneGrace: actorAbility === "SERENEGRACE",
     userHasSheerForce: actorAbility === "SHEERFORCE",
     targetHasShieldDust: targetAbility === "SHIELDDUST",
     moldBreaker: ["MOLDBREAKER", "TERAVOLT", "TURBOBLAZE"].includes(actorAbility),
+    hpFunctionInput: {
+      functionCode: move.function_code,
+      actorStatus: actor.status ?? "NONE",
+      actorAbility,
+      targetAffected: typing?.immune !== true,
+      struggle: Boolean(struggle),
+    },
   };
   if (statStageChanges.length > 0) {
     action.statStageEffectInput = {
@@ -102,11 +110,17 @@ export function buildBrowserBattleActionInput({ actor, target, move, moveIndex, 
       },
     };
   }
-  if (fixedDamageUserLevel && !typing?.immune) {
+  const fixedDamage = resolveCanonicalFixedDamage({
+    functionCode: move.function_code,
+    actorHp: actor.hp,
+    actorLevel: actor.level,
+    targetHp: target.hp,
+  });
+  if (fixedDamage !== null && !typing?.immune) {
     action.fixedDamageInput = {
-      damage: Number(actor.level),
+      damage: fixedDamage,
       functionCode: move.function_code,
-      source: "Battle::Move::FixedDamageUserLevel",
+      source: "canonical HP function owner",
     };
   } else if (damagingMove && !typing?.immune) {
     action.damageInput = {
@@ -137,7 +151,15 @@ export function buildBrowserBattleActionInput({ actor, target, move, moveIndex, 
       }],
     };
   }
-  if (struggle) { action.specialUsage = true; action.selfDamageAfterHit = Math.round(Number(actor.max_hp) / 4); action.registerSelfDamage = false; }
+  if (struggle) action.specialUsage = true;
+  const restStatusInput = buildRestStatusInputCanonical({
+    functionCode: move.function_code,
+    actorStatus: actor.status,
+    actorHp: actor.hp,
+    actorMaxHp: actor.max_hp,
+    battlerIndex,
+  });
+  if (restStatusInput) action.battleStatusInput = restStatusInput;
   if (reflectPp) {
     const pokemonMove = structuredClone(actor.moves[moveIndex]);
     action.battlePpInput = { move: { ...pokemonMove, totalPp: pokemonMoveTotalPp(move.total_pp, pokemonMove.ppup ?? 0) }, pokemonMoveIndex: moveIndex, baseTotalPp: move.total_pp };
