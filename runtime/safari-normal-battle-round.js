@@ -4,7 +4,12 @@ import { resolveBrowserPlayerReplacementContinuation } from "./browser-player-re
 import { resolveBrowserOpponentMoveChoiceCanonical } from "./battle-core-browser-opponent-move-choice.js";
 import { createBattleStatStageStateCanonical, resetBattleStatStagesForBattlerCanonical } from "./battle-core-stat-stages.js";
 import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
-import { finalizeNormalBattle, normalBattleExpInput } from "./safari-normal-battle-finalize.js";
+import {
+  finalizeNormalBattle,
+  normalBattleAcceptsCommand,
+  normalBattleExpInput,
+  setNormalBattleLifecyclePhase,
+} from "./safari-normal-battle-finalize.js";
 
 const moveId = (move) => typeof move === "string" ? move : move?.id;
 
@@ -21,17 +26,11 @@ function ensureBattleStatStages(battle) {
 
 function presentationCombatant(pokemon) {
   if (!pokemon) return null;
-  return Object.freeze({
-    species: pokemon.species ?? null,
-    maxHp: Number(pokemon.max_hp ?? 0),
-  });
+  return Object.freeze({ species: pokemon.species ?? null, maxHp: Number(pokemon.max_hp ?? 0) });
 }
 
 function presentationContext(player, foe) {
-  return Object.freeze({
-    player: presentationCombatant(player),
-    foe: presentationCombatant(foe),
-  });
+  return Object.freeze({ player: presentationCombatant(player), foe: presentationCombatant(foe) });
 }
 
 function bindPresentationIdentity(event, context) {
@@ -80,6 +79,14 @@ function battlePresentation(operations, context = null) {
       });
     } else if (operation.op === "faint" || operation.op === "faint_self") {
       events.push({ type: "faint", target: operation.target });
+    } else if (operation.op === "gain_exp") {
+      events.push({ type: "exp_gained", amount: Number(operation.amount ?? 0) });
+    } else if (operation.op === "level_up") {
+      events.push({ type: "level_up", level: Number(operation.level) });
+    } else if (operation.op === "learn_move" || operation.op === "replace_move") {
+      events.push({ type: "move_learned", moveId: operation.move, replacedMoveId: operation.forgotten ?? null });
+    } else if (operation.op === "level_evolution") {
+      events.push({ type: "evolution", from: operation.from, to: operation.to, method: operation.method });
     } else if (operation.op === "end_of_round" || operation.op === "end_of_round_phase") {
       events.push({ type: "turn_end", turn: operation.battleTurn ?? operation.turn ?? operation.round });
     }
@@ -109,8 +116,7 @@ function projectPlayerReplacement(battle, handoff, continuation = null) {
   const required = replacement.result === "replacement_selection_required";
   battle.player_replacement_required = required;
   battle.player_replacement_options = required
-    ? (replacement.replacementOptions ?? [])
-      .filter((option) => option?.canSwitchIn)
+    ? (replacement.replacementOptions ?? []).filter((option) => option?.canSwitchIn)
       .map((option) => ({ partyIndex: Number(option.partyIndex), pokemon: structuredClone(option.pokemon) }))
     : [];
   battle.player_replacement_handoff = required
@@ -119,11 +125,26 @@ function projectPlayerReplacement(battle, handoff, continuation = null) {
   return replacement;
 }
 
+function phaseAfterResolvedRound(battle, operations) {
+  const fainted = (operations ?? []).some((operation) => operation?.op === "faint" || operation?.op === "faint_self");
+  if (fainted) setNormalBattleLifecyclePhase(battle, "post_faint");
+  if (Number(battle.decision) !== 0) {
+    setNormalBattleLifecyclePhase(battle, Number(battle.decision) === 1 ? "post_victory" : "post_loss");
+    return;
+  }
+  if (battle.player_replacement_required) {
+    setNormalBattleLifecyclePhase(battle, "replacement");
+    return;
+  }
+  setNormalBattleLifecyclePhase(battle, "command");
+}
+
 function finish(runtime, battle, resolved, operations) {
   const state = stateOf(runtime);
   battle.last_operations = operations;
   battle.presentation = battlePresentation(operations, resolved.presentationContext ?? null);
   state.last_operations = operations;
+  phaseAfterResolvedRound(battle, operations);
   if (Number(battle.decision) !== 0) finalizeNormalBattle(runtime);
   return {
     ...resolved,
@@ -131,9 +152,10 @@ function finish(runtime, battle, resolved, operations) {
     decision: Number(battle.decision),
     operations: Number(battle.decision) !== 0 ? battle.last_operations : operations,
     presentation: battle.presentation,
+    lifecyclePhase: battle.lifecycle_phase,
     playerReplacementRequired: Boolean(battle.player_replacement_required),
     playerReplacementOptions: structuredClone(battle.player_replacement_options ?? []),
-    persistenceRequested: false,
+    persistenceRequested: Boolean(battle.terminal_save_requested),
   };
 }
 
@@ -205,6 +227,8 @@ function resolveTrainer(runtime, selectedMoveId, playerActionConsumedWithoutMove
     const trainerName = battle.trainer?.trainer_full_name ?? "トレーナー";
     battle.presentation.push({ type: "trainer_next", actor: "foe", trainer: trainerName, species: battle.foe?.species ?? null, partyIndex: battle.trainer_party_index });
     state.notice = `${trainerName}は${battle.foe?.species ?? "次のポケモン"}を繰り出した！`;
+    setNormalBattleLifecyclePhase(battle, "command");
+    result.lifecyclePhase = battle.lifecycle_phase;
   }
   return result;
 }
@@ -227,27 +251,6 @@ function applyWildResolved(runtime, resolved, playerIndex) {
   battle.turn += 1;
   const operations = (resolved.operations ?? []).map((operation) => ({ ...operation, battleTurn: turn }));
   return finish(runtime, battle, resolved, operations);
-}
-
-function wildOpponentChoice(state, battle, playerIndex, player) {
-  return resolveBrowserOpponentMoveChoiceCanonical({
-    battleKind: "wild",
-    player,
-    foe: battle.foe,
-    moveMasters: SAFARI_MOVE_MASTERS,
-    aiRandomSeed: seedFor(state, battle),
-    trainerSkill: 0,
-    trainerFlags: [],
-    ownReserveCount: 0,
-    foeReserveCount: reserveCount(runtimePartyForChoice(player, state), playerIndex),
-    mechanicsGeneration: 9,
-    turnCount: Math.max(0, Number(battle.turn ?? 1) - 1),
-    canSwitchLax: false,
-  });
-}
-
-function runtimePartyForChoice(player, state) {
-  return state?.__runtimeParty ?? player?.__party ?? [];
 }
 
 function resolveWild(runtime, selectedMoveId, playerActionConsumedWithoutMove = false) {
@@ -288,11 +291,13 @@ function resolveWild(runtime, selectedMoveId, playerActionConsumedWithoutMove = 
     playerActionConsumedWithoutMove,
     battleStatStages: ensureBattleStatStages(battle),
   });
-  return applyWildResolved(runtime, {
-    ...resolved,
-    opponentChoice: choice,
-    presentationContext: roundPresentationContext,
-  }, playerIndex);
+  return applyWildResolved(runtime, { ...resolved, opponentChoice: choice, presentationContext: roundPresentationContext }, playerIndex);
+}
+
+function requireNormalBattleCommand(battle) {
+  if (!normalBattleAcceptsCommand(battle)) {
+    throw new Error(`normal battle command is unavailable during ${battle?.lifecycle_phase ?? "inactive"}`);
+  }
 }
 
 export function resolveSafariNormalBattleRound(runtime, selectedMoveId) {
@@ -301,6 +306,8 @@ export function resolveSafariNormalBattleRound(runtime, selectedMoveId) {
   if (!battle || battle.completed) throw new Error("active battle is required");
   if (battle.origin === "boundary_trial") throw new Error("boundary battle must use the boundary owner");
   if (battle.player_replacement_required) throw new Error("player replacement is required before another battle command");
+  requireNormalBattleCommand(battle);
+  setNormalBattleLifecyclePhase(battle, "resolving_action");
   if (battle.kind === "trainer") return resolveTrainer(runtime, selectedMoveId, false);
   if (battle.kind === "wild") return resolveWild(runtime, selectedMoveId, false);
   throw new RangeError(`unsupported normal battle kind: ${battle.kind}`);
@@ -312,6 +319,8 @@ export function resolveSafariNormalBattleOpponentResponse(runtime) {
   if (!battle || battle.completed) throw new Error("active battle is required");
   if (battle.origin === "boundary_trial") throw new Error("boundary battle must use the boundary owner");
   if (battle.player_replacement_required) throw new Error("player replacement is required before another battle command");
+  requireNormalBattleCommand(battle);
+  setNormalBattleLifecyclePhase(battle, "resolving_action");
   if (battle.kind === "trainer") return resolveTrainer(runtime, null, true);
   if (battle.kind === "wild") return resolveWild(runtime, null, true);
   throw new RangeError(`unsupported normal battle kind: ${battle.kind}`);
@@ -328,9 +337,7 @@ export function replaceSafariNormalBattlePlayer(runtime, replacementPartyIndex) 
   const battle = state.battle;
   if (!battle || battle.completed) throw new Error("active battle is required");
   if (battle.origin === "boundary_trial") throw new Error("boundary battle must use the boundary owner");
-  if (!battle.player_replacement_required || !battle.player_replacement_handoff) {
-    throw new Error("player replacement is not required");
-  }
+  if (!battle.player_replacement_required || !battle.player_replacement_handoff) throw new Error("player replacement is not required");
   const replacement = resolveBrowserPlayerReplacementContinuation({
     battleContinuationHandoff: battle.player_replacement_handoff,
     replacementPartyIndex,
@@ -357,6 +364,7 @@ export function replaceSafariNormalBattlePlayer(runtime, replacementPartyIndex) 
   battle.player_replacement_options = [];
   battle.player_replacement_handoff = null;
   battle.last_operations = [...(battle.last_operations ?? []), ...(replacement.operations ?? [])];
+  setNormalBattleLifecyclePhase(battle, "command");
   state.last_operations = structuredClone(replacement.operations ?? []);
   state.notice = `${replacement.activePlayer?.species ?? "次のポケモン"}に交代した！`;
   return {
@@ -365,6 +373,7 @@ export function replaceSafariNormalBattlePlayer(runtime, replacementPartyIndex) 
     replacementPartyIndex: Number(handoff.playerActivePartyIndex),
     activePlayer: structuredClone(replacement.activePlayer),
     operations: structuredClone(replacement.operations ?? []),
+    lifecyclePhase: battle.lifecycle_phase,
     persistenceRequested: false,
   };
 }
