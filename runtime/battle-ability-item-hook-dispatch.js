@@ -8,6 +8,10 @@ import {
   resolveTurnEndAbilityItemHookCanonical,
 } from "./battle-core-ability-item-modifiers.js";
 import {
+  BATTLE_ABILITY_ITEM_ENTRY_EXTENSION_COVERAGE_CANONICAL,
+  resolveIntimidateEntryReactionCanonical,
+} from "./battle-core-ability-item-entry-extension.js";
+import {
   BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL,
   resolveNormalPlayActionBeforeAbilityItemExtensionCanonical,
 } from "./battle-core-ability-item-normal-play-extension.js";
@@ -39,10 +43,12 @@ function pokemonRuntimeSourceCanonical(pokemon) {
 function combinedCoverageCanonical() {
   const abilityIds = Object.freeze([...new Set([
     ...(BATTLE_ABILITY_ITEM_IMPLEMENTED_COVERAGE_CANONICAL.abilityIds ?? []),
+    ...(BATTLE_ABILITY_ITEM_ENTRY_EXTENSION_COVERAGE_CANONICAL.abilityIds ?? []),
     ...(BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL.abilityIds ?? []),
   ])].sort());
   const itemIds = Object.freeze([...new Set([
     ...(BATTLE_ABILITY_ITEM_IMPLEMENTED_COVERAGE_CANONICAL.itemIds ?? []),
+    ...(BATTLE_ABILITY_ITEM_ENTRY_EXTENSION_COVERAGE_CANONICAL.itemIds ?? []),
     ...(BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL.itemIds ?? []),
   ])].sort());
   return Object.freeze({
@@ -52,6 +58,7 @@ function combinedCoverageCanonical() {
     itemCount: itemIds.length,
     classificationCounts: Object.freeze({
       ...BATTLE_ABILITY_ITEM_IMPLEMENTED_COVERAGE_CANONICAL.classificationCounts,
+      entryExtension: BATTLE_ABILITY_ITEM_ENTRY_EXTENSION_COVERAGE_CANONICAL.classificationCounts,
       normalPlayExtension: BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL.classificationCounts,
     }),
   });
@@ -61,6 +68,26 @@ export const BATTLE_ABILITY_ITEM_SHARED_IMPLEMENTED_COVERAGE_CANONICAL = combine
 
 function multiplyFinite(...values) {
   return values.reduce((product, value) => product * Number(value ?? 1), 1);
+}
+
+function resolveSharedSwitchInCanonical({ runtimeUser, runtimeTarget }) {
+  const base = resolveSwitchInAbilityItemHookCanonical({ user: runtimeUser, target: runtimeTarget });
+  const reaction = resolveIntimidateEntryReactionCanonical({ source: runtimeUser, target: runtimeTarget });
+  if (!reaction.applies) return Object.freeze({ ...base, entryReaction: reaction, consumeRequest: null });
+  const baseChanges = reaction.replaceBaseChanges ? [] : [...(base.entry?.changes ?? [])];
+  const changes = Object.freeze([...baseChanges, ...(reaction.changes ?? [])]);
+  const entry = Object.freeze({
+    ...base.entry,
+    changes,
+    blocked: reaction.blocksAttackDrop ? true : Boolean(base.entry?.blocked),
+    reason: reaction.reason === "no_extension_reaction" ? base.entry?.reason : reaction.reason,
+  });
+  return Object.freeze({
+    ...base,
+    entry,
+    entryReaction: reaction,
+    consumeRequest: reaction.consumeRequest,
+  });
 }
 
 function resolveSharedActionBeforeCanonical({ runtimeUser, runtimeTarget, move, selectedMoveId, lockedMoveId, context }) {
@@ -141,7 +168,7 @@ export function resolveBattleAbilityItemHookCanonical({
   const runtimeUser = pokemonRuntimeSourceCanonical(user);
   const runtimeTarget = pokemonRuntimeSourceCanonical(target);
   if (phase === "switch_in") {
-    return resolveSwitchInAbilityItemHookCanonical({ user: runtimeUser, target: runtimeTarget });
+    return resolveSharedSwitchInCanonical({ runtimeUser, runtimeTarget });
   }
   if (phase === "action_before") {
     return resolveSharedActionBeforeCanonical({
@@ -180,7 +207,7 @@ export const BATTLE_ABILITY_ITEM_SHARED_HOOK_CONTRACT_CANONICAL = Object.freeze(
     heldItem: "pokemon.held_item (authoritative when present, including null; pokemon.item is legacy-only fallback)",
   }),
   mutationOwnership: Object.freeze({
-    switchIn: "battle stat-stage owner",
+    switchIn: "battle stat-stage owner; consume request goes to held-item lifecycle owner",
     actionBefore: "command/action owner",
     actionAfter: "Pokemon HP + held-item lifecycle owners",
     turnEnd: "battle runtime reflection owners",
