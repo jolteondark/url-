@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { finalizeNormalBattle } from "../runtime/safari-normal-battle-finalize.js";
 
 globalThis.CustomEvent = class CustomEvent {
   constructor(type, init = {}) { this.type = type; this.detail = init.detail; }
@@ -45,16 +46,26 @@ function primeFoe(battle) {
 function resultOrder(result) {
   return (result.presentation ?? []).map((event) => event.type);
 }
+function assertPhaseOrder(history, expected) {
+  let previous = -1;
+  for (const phase of expected) {
+    const index = history.indexOf(phase, previous + 1);
+    assert.ok(index > previous, `expected lifecycle phase ${phase} after ${expected[Math.max(0, expected.indexOf(phase) - 1)] ?? "start"}`);
+    previous = index;
+  }
+}
 
 const trace = [];
 
-// Wild last foe KO -> one EXP commit -> reward -> Board completion/save -> Result -> Return.
+// Wild last foe KO -> faint -> one EXP commit -> automatic level/move/evolution tail
+// (when supplied by Battle Systems) -> reward -> Board completion/save -> Result -> Return.
 {
   const runtime = web.createSafariPlayableRuntime();
   const state = runtime.variables.mapless;
   const index = state.board_events.findIndex((event) => event?.kind === "wild");
   assert.notEqual(index, -1);
   await Promise.resolve(web.activateSafariDayBoardCell(runtime, index));
+  assert.equal(state.battle.lifecycle_phase, "command", "fresh normal Battle must expose only command phase");
   const move = preparePlayer(runtime);
   primeFoe(state.battle);
   const expBefore = Number(runtime.player.party[0].exp ?? 0);
@@ -71,6 +82,9 @@ const trace = [];
   assert.equal(result.expIntegration?.commits?.length, 1, "last foe KO must create exactly one EXP commit");
   const gained = Number(result.expIntegration.commits[0].expGained ?? 0);
   assert.equal(Number(runtime.player.party[0].exp ?? 0), expBefore + gained);
+  assert.equal(state.battle.lifecycle_phase, "completed");
+  assert.equal(state.battle.terminal_finalize_applied, true);
+  assertPhaseOrder(state.battle.lifecycle_history ?? [], ["resolving_action", "post_faint", "post_victory", "completed"]);
   assert.equal(state.board_consumed[index], true);
   assert.equal(state.board_visited[index], true);
   assert.equal(operations.filter((op) => op.op === "request_save").length, 1);
@@ -83,10 +97,23 @@ const trace = [];
   assert.ok(rewardAt >= 0 && visitedAt > rewardAt && saveAt > visitedAt,
     "trace must order reward -> Board visited -> request_save before Result presentation");
 
+  // Exact terminal idempotence is owned by finalizeNormalBattle itself, not only by
+  // the later Return facade. A duplicate call may not replay reward/Board/save/Result.
+  const idempotentBag = structuredClone(runtime.bag);
+  const idempotentConsumed = structuredClone(state.board_consumed);
+  const idempotentVisited = structuredClone(state.board_visited);
+  const idempotentResultCount = state.battle.presentation.filter((event) => event.type === "battle_result").length;
+  assert.deepEqual(finalizeNormalBattle(runtime), [], "terminal finalize must be explicitly idempotent");
+  assert.deepEqual(runtime.bag, idempotentBag);
+  assert.deepEqual(state.board_consumed, idempotentConsumed);
+  assert.deepEqual(state.board_visited, idempotentVisited);
+  assert.equal(state.battle.presentation.filter((event) => event.type === "battle_result").length, idempotentResultCount);
+
   const resultStorage = new MemoryStorage();
   web.saveSafariPlayableRun(resultStorage, runtime);
   const loadedAtResult = web.loadSafariPlayableRun(resultStorage, web.createSafariPlayableRuntime()).state;
   assert.equal(loadedAtResult.variables.mapless.battle?.completed, true, "Save/Continue at Result must preserve completed Battle");
+  assert.equal(loadedAtResult.variables.mapless.battle?.lifecycle_phase, "completed");
   assert.equal(loadedAtResult.variables.mapless.board_consumed[index], true);
   assert.equal(loadedAtResult.variables.mapless.board_visited[index], true);
 
@@ -112,10 +139,11 @@ const trace = [];
   assert.deepEqual(loadedAfterReturn.variables.mapless.board_consumed, state.board_consumed);
   assert.deepEqual(loadedAfterReturn.variables.mapless.board_visited, state.board_visited);
 
-  trace.push({ scenario: "wild_terminal", operations, presentation: result.presentation, result: result.decision, returned: returned.target });
+  trace.push({ scenario: "wild_terminal", operations, presentation: result.presentation, phases: result.runtime.variables.mapless.last_battle_lifecycle ?? null, result: result.decision, returned: returned.target });
 }
 
-// Trainer reserve KO stays nonterminal; final KO alone finalizes prize/reward/Board/Result.
+// Trainer reserve KO stays in post-faint/send-out and returns to COMMAND. Only the
+// final KO may enter post_victory and finalize prize/reward/Board/Result.
 {
   const runtime = web.createSafariPlayableRuntime();
   const state = runtime.variables.mapless;
@@ -138,6 +166,9 @@ const trace = [];
   const firstKo = await Promise.resolve(web.resolveSafariBattleRound(runtime, move));
   assert.equal(firstKo.decision, 0);
   assert.equal(state.battle.completed, false);
+  assert.equal(state.battle.lifecycle_phase, "command", "trainer send-out tail must finish before the next command unlocks");
+  assert.equal(Boolean(state.battle.terminal_finalize_applied), false, "reserve KO must not enter terminal finalize");
+  assertPhaseOrder(state.battle.lifecycle_history ?? [], ["resolving_action", "post_faint", "command"]);
   assert.equal(state.board_consumed[index], false);
   assert.equal(state.board_visited[index], false);
   assert.equal((firstKo.presentation ?? []).filter((event) => event.type === "battle_result").length, 0);
@@ -155,6 +186,9 @@ const trace = [];
   const finalOps = opList(finalKo.operations);
   assert.equal(finalKo.decision, 1);
   assert.equal(state.battle.completed, true);
+  assert.equal(state.battle.lifecycle_phase, "completed");
+  assert.equal(state.battle.terminal_finalize_applied, true);
+  assertPhaseOrder(state.battle.lifecycle_history ?? [], ["post_faint", "post_victory", "completed"]);
   assert.equal(finalKo.expIntegration?.commits?.length, 1);
   assert.ok(Number(state.battle.trainer_exp_gained ?? 0) >= cumulativeAfterFirst);
   assert.equal(finalOps.filter((op) => op.op === "trainer_prize_money").length, 1);
@@ -162,6 +196,7 @@ const trace = [];
   assert.equal(state.board_consumed[index], true);
   assert.equal(state.board_visited[index], true);
   assert.equal((finalKo.presentation ?? []).filter((event) => event.type === "battle_result").length, 1);
+  assert.deepEqual(finalizeNormalBattle(runtime), [], "trainer terminal finalize must also be idempotent");
 
   trace.push({ scenario: "trainer_terminal", first: { operations: firstKo.operations, presentation: firstKo.presentation }, final: { operations: finalOps, presentation: finalKo.presentation } });
 }
