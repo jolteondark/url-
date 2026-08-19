@@ -61,6 +61,7 @@ function setBattle(runtime, index, kind, opponent, operations, trainer = null, e
     turn: 1,
     decision: 0,
     completed: false,
+    lifecycle_phase: "command",
     captured: false,
     foe: opponent,
     trainer,
@@ -83,14 +84,7 @@ function startWild(runtime, event, index, operations) {
   const state = stateOf(runtime);
   const speciesRoll = unitFromUint32(nextSafariEncounterSpeciesIndex(state, { day: state.day, boardIndex: index }));
   const varianceRoll = unitFromUint32(nextSafariEncounterSpeciesIndex(state, { day: state.day, boardIndex: index }));
-  const generated = encounterRuntime.resolveSafariGeneralEncounter({
-    day: state.day,
-    requiredType: event.type,
-    enemyRank: "NORMAL",
-    extraModifier: 0,
-    speciesRoll,
-    varianceRoll,
-  });
+  const generated = encounterRuntime.resolveSafariGeneralEncounter({ day: state.day, requiredType: event.type, enemyRank: "NORMAL", extraModifier: 0, speciesRoll, varianceRoll });
   const encounterResolution = resolveBrowserMaplessWildEncounter({
     day: state.day,
     event,
@@ -144,8 +138,6 @@ export async function activateSafariWebCombatCell(runtime, index) {
     if (dispatch.result === "dispatched") {
       if (event.kind === "wild") startWild(runtime, event, index, dispatch.operations);
       else startTrainer(runtime, event, index, dispatch.operations);
-      // Canonical wild/trainer owners consume the cell only once Battle start succeeds.
-      // Keep that commit after materialization so every pre-Battle failure remains retryable.
       dispatch.state.board_consumed[index] = true;
     }
 
