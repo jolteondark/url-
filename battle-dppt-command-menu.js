@@ -133,6 +133,13 @@ function setMenu(mode) {
   window.dispatchEvent(new CustomEvent("mapless-dppt-menu-changed", { detail: { mode } }));
 }
 
+function returnToRootAfterGameMenuClose() {
+  gameMenuWasOpen = false;
+  const battle = runtimeBattle();
+  if (!battle || phaseOf(battle) !== "COMMAND" || battle.completed || battle.player_replacement_required) return;
+  setMenu("root");
+}
+
 function sync() {
   const battle = runtimeBattle();
   const card = byId("battle-card");
@@ -212,6 +219,7 @@ byId("battle-card")?.addEventListener("click", (event) => {
 window.addEventListener("safari-runtime-changed", () => requestAnimationFrame(sync));
 window.addEventListener("safari-preview-start", () => requestAnimationFrame(sync));
 window.addEventListener("safari-game-menu-opened", () => requestAnimationFrame(sync));
+window.addEventListener("safari-game-menu-closed", returnToRootAfterGameMenuClose);
 window.addEventListener("pageshow", () => requestAnimationFrame(sync));
 if (typeof MutationObserver === "function") {
   new MutationObserver(() => requestAnimationFrame(sync)).observe(document.documentElement, { subtree:true, childList:true, attributes:true, attributeFilter:["hidden","disabled"] });
