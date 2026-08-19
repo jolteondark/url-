@@ -247,3 +247,170 @@
   #battle-card .foe .text-mon{right:50px}
   #battle-card .player .text-mon{left:49px}
 }
+
+/* Original-style composition pass: presentation only. */
+#battle-card .battle-info-panel{
+  border-radius:2px 10px 2px 10px;
+  box-shadow:3px 3px 0 rgba(48,58,54,.42);
+}
+#battle-card .foe-info{
+  clip-path:polygon(0 0,96% 0,100% 18%,100% 100%,4% 100%,0 82%);
+}
+#battle-card .player-info{
+  clip-path:polygon(4% 0,100% 0,100% 82%,96% 100%,0 100%,0 18%);
+}
+#battle-card .pokemon-name{
+  align-items:baseline;
+  gap:7px;
+}
+#battle-card .pokemon-name strong{
+  font-size:1.04rem;
+  font-weight:900;
+  letter-spacing:.035em;
+}
+#battle-card .canonical-level-value::before{
+  content:"Lv";
+  margin-right:2px;
+  font-size:.68em;
+  font-weight:900;
+}
+#battle-card .canonical-gender{
+  position:absolute;
+  top:10px;
+  right:46px;
+  font-size:.82rem;
+  font-weight:950;
+  line-height:1;
+}
+#battle-card .canonical-gender[data-gender="male"]{color:#4285d4}
+#battle-card .canonical-gender[data-gender="female"]{color:#dc5d83}
+#battle-card .canonical-status-badge{
+  position:absolute;
+  left:12px;
+  bottom:7px;
+  min-width:34px;
+  padding:2px 5px 1px;
+  border:1px solid rgba(20,25,27,.55);
+  border-radius:4px;
+  background:#858d91;
+  color:#fff;
+  font-size:.56rem;
+  font-weight:950;
+  line-height:1.15;
+  text-align:center;
+  letter-spacing:.03em;
+  text-shadow:0 1px 0 rgba(0,0,0,.35);
+}
+#battle-card .canonical-status-badge[data-status="BURN"],
+#battle-card .canonical-status-badge[data-status="BURNED"]{background:#d75a35}
+#battle-card .canonical-status-badge[data-status="POISON"],
+#battle-card .canonical-status-badge[data-status="POISONED"],
+#battle-card .canonical-status-badge[data-status="TOXIC"]{background:#9b65be}
+#battle-card .canonical-status-badge[data-status="PARALYSIS"],
+#battle-card .canonical-status-badge[data-status="PARALYZED"]{background:#d3a91e;color:#27240f}
+#battle-card .canonical-status-badge[data-status="SLEEP"],
+#battle-card .canonical-status-badge[data-status="ASLEEP"]{background:#8c959c}
+#battle-card .canonical-status-badge[data-status="FROZEN"],
+#battle-card .canonical-status-badge[data-status="FREEZE"]{background:#54a8c5}
+#battle-card .battle-info-panel[data-hp-zone="yellow"] .hp-track span{
+  background:linear-gradient(180deg,#f2d052,#d6a822);
+}
+#battle-card .battle-info-panel[data-hp-zone="red"] .hp-track span{
+  background:linear-gradient(180deg,#ef705e,#c73d35);
+}
+#battle-card .player-info small{
+  padding-right:3px;
+  text-align:right;
+  font-variant-numeric:tabular-nums;
+}
+#battle-card .foe-info small{
+  visibility:hidden;
+  height:0;
+  margin:0;
+}
+#battle-card .player-info::after{
+  content:"EXP";
+  display:block;
+  height:3px;
+  margin-top:4px;
+  border-top:1px solid rgba(45,57,61,.55);
+  background:linear-gradient(90deg,#57a9d8 0 42%,transparent 42% 100%);
+  color:transparent;
+  font-size:0;
+}
+#battle-card .canonical-battle-sprite{
+  filter:drop-shadow(0 10px 5px rgba(28,55,35,.25));
+}
+#battle-card .combatant.foe .canonical-battle-sprite{
+  right:22px;
+  bottom:5px;
+  transform-origin:50% 100%;
+}
+#battle-card .combatant.player .canonical-battle-sprite{
+  left:4px;
+  bottom:7px;
+  transform-origin:50% 100%;
+}
+#battle-card .battle-message{
+  position:relative;
+  border:4px solid #38464e;
+  border-left:0;
+  border-bottom:0;
+  box-shadow:inset 0 0 0 3px #8eaaa1;
+}
+#battle-card .battle-message::after{
+  content:"▼";
+  position:absolute;
+  right:10px;
+  bottom:7px;
+  color:#37464d;
+  font-size:.72rem;
+  opacity:.8;
+}
+#battle-card[data-turn-phase="COMMAND"] .battle-message::after{display:none}
+#battle-card .move-grid button{
+  position:relative;
+  text-align:left;
+}
+#battle-card .move-grid button:not(:disabled)::before{
+  content:"▶";
+  position:absolute;
+  left:4px;
+  top:50%;
+  transform:translateY(-50%);
+  font-size:.55rem;
+  opacity:0;
+}
+#battle-card .move-grid button:focus-visible::before,
+#battle-card .move-grid button:active::before{opacity:1}
+
+@media(max-width:540px) and (orientation:portrait){
+  body:has(#battle-card:not([hidden])) .game-header,
+  body:has(#battle-card:not([hidden])) .hud,
+  body:has(#battle-card:not([hidden])) .save-actions,
+  body:has(#battle-card:not([hidden])) .debug-drawer{
+    display:none;
+  }
+  body:has(#battle-card:not([hidden])) .app{
+    padding-top:max(4px,env(safe-area-inset-top));
+    padding-bottom:max(4px,env(safe-area-inset-bottom));
+  }
+  body:has(#battle-card:not([hidden])) .game-stage{
+    margin-top:0;
+  }
+  #battle-card.battle-scene{
+    min-height:calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 8px);
+    border-width:2px;
+    border-radius:0;
+    box-shadow:none;
+  }
+  #battle-card .arena{height:min(58dvh,420px)}
+  #battle-card .battle-info-panel{width:61%;max-width:270px}
+  #battle-card .foe-info{left:6px;top:27px}
+  #battle-card .player-info{right:6px;bottom:5px}
+  #battle-card .canonical-gender{top:9px;right:39px}
+  #battle-card .canonical-status-badge{left:10px;bottom:6px}
+  #battle-card .battle-command-panel{
+    min-height:calc(100dvh - min(58dvh,420px) - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 12px);
+  }
+}
