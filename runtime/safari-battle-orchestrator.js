@@ -62,6 +62,10 @@ function actionActors(result) {
   return actors;
 }
 
+function commandConsumesAction(commandKind) {
+  return ["item", "capture", "flee", "switch"].includes(String(commandKind ?? ""));
+}
+
 function hasFaint(result) {
   return resolvedOperations(result).some((operation) => operation?.op === "faint" || operation?.op === "faint_self");
 }
@@ -129,9 +133,11 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   // the only externally visible completion boundary.
   if (terminalResolution) battle.completed = false;
 
+  const resolvedCommandKind = commandKind ?? battle.pending_command_kind ?? "command";
   const actors = actionActors(result);
+  const secondActionOccurred = commandConsumesAction(resolvedCommandKind) ? actors.length >= 1 : actors.length >= 2;
   tracePhase(battle, SAFARI_BATTLE_PHASE.CHECK_1, "first action resolved");
-  if (actors.length >= 2) {
+  if (secondActionOccurred) {
     tracePhase(battle, SAFARI_BATTLE_PHASE.ACTION_2, "second action resolved");
     tracePhase(battle, SAFARI_BATTLE_PHASE.CHECK_2, "second action checked");
   }
@@ -153,7 +159,7 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
     battle.completed = true;
     battle.completed_phase = SAFARI_BATTLE_PHASE.RESULT;
   } else {
-    tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, `round complete:${commandKind ?? battle.pending_command_kind ?? "command"}`);
+    tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, `round complete:${resolvedCommandKind}`);
   }
 
   battle.pending_command_kind = null;
