@@ -28,6 +28,12 @@ function focusVisible(selector, root = document) {
   return node ?? null;
 }
 
+function clearBattleFocus() {
+  const card = byId("battle-card");
+  const active = document.activeElement;
+  if (card && active instanceof HTMLElement && card.contains(active)) active.blur();
+}
+
 function closeOverlayIfBattleAdvanced(phase) {
   const menu = byId("game-menu");
   if (!menu || menu.hidden || phase === "COMMAND" || phase === "REPLACEMENT") return;
@@ -82,13 +88,17 @@ function syncFlow() {
 
   const target = current?.return_target ?? null;
   if (!battlePresent && lastBattlePresent) {
+    clearBattleFocus();
     requestAnimationFrame(() => {
       const stateNow = state();
       if (lastReturnTarget === "home" || stateNow?.location === "home") {
         scrollTo(document.querySelector(".app"), "start");
       } else {
         scrollTo(byId("board-card"), "start");
-        requestAnimationFrame(focusBoardNextAction);
+        requestAnimationFrame(() => {
+          clearBattleFocus();
+          focusBoardNextAction();
+        });
       }
     });
   }
