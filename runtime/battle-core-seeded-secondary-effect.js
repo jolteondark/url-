@@ -34,6 +34,12 @@ function materializeSecondaryTarget(targetInput, rng, rolls, targetIndex) {
   return target;
 }
 
+function secondaryTargetWithResolvedDamage(targetInput, calculatedDamage) {
+  const target = targetInput ?? {};
+  if (target.calcDamage !== undefined) return target;
+  return { ...target, calcDamage: Number(calculatedDamage ?? 0) };
+}
+
 function materializeAction(action, rng) {
   const prepared = structuredClone(action ?? {});
   if (!Array.isArray(prepared.secondaryEffectInputs)) return prepared;
@@ -42,7 +48,12 @@ function materializeAction(action, rng) {
     return prepared;
   }
   const rolls = [];
-  prepared.secondaryEffectInputs = prepared.secondaryEffectInputs.map((target, index) => materializeSecondaryTarget(target, rng, rolls, index));
+  prepared.secondaryEffectInputs = prepared.secondaryEffectInputs.map((target, index) => materializeSecondaryTarget(
+    secondaryTargetWithResolvedDamage(target, prepared.calculatedDamage),
+    rng,
+    rolls,
+    index,
+  ));
   if (rolls.length) prepared.seededSecondaryEffectRolls = rolls;
   return prepared;
 }
