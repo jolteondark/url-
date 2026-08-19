@@ -151,6 +151,12 @@ assert.match(adapterSource, /Number\(currentBattle\?\.decision\) === 1 \? "ÂãùÂà
   "loss terminal checkpoint copy must be decision-aware");
 assert.match(adapterSource, /button\[data-bag-use-item\]/);
 assert.match(adapterSource, /button\[data-player-replacement-party-index\]/);
+assert.match(adapterSource, /function setOwnerAwarePhaseInteractive/,
+  "phase UI must preserve feature-owner disabled state for shared controls");
+assert.match(adapterSource, /battleOwnerDisabled/,
+  "phase UI must restore the Bag/replacement owner's disabled state after phase unlock");
+assert.doesNotMatch(adapterSource, /setInteractive\(button, commandAllowed\)|setInteractive\(button, replacementAllowed\)/,
+  "phase UI must not blindly re-enable Bag/replacement controls owned by another feature");
 assert.doesNotMatch(adapterSource, /currentBattle\.completed|previewCommandBusy|player_replacement_required|new MutationObserver|let resolving|let returning/,
   "active UI adapter must not infer a second Battle phase truth");
 assert.doesNotMatch(legacySource, /previewCommandBusy|player_replacement_required|battle\.completed|let resolving|let returning|new MutationObserver/,
