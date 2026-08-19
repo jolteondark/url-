@@ -1,0 +1,79 @@
+/* DPt-inspired typography layer. Visual-only: no battle mechanics. */
+#battle-card,
+#battle-card button,
+#battle-card input,
+#battle-card select,
+#battle-card .battle-message,
+#battle-card .battle-info-panel,
+#battle-card .pokemon-name,
+#battle-card .move-grid,
+#battle-card .dppt-command-root,
+#battle-card .dppt-battle-bag,
+#battle-card .player-replacement-panel {
+  font-family: "DotGothic16", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  font-synthesis: none;
+}
+
+#battle-card .battle-message,
+#battle-card .pokemon-name,
+#battle-card .dppt-command-root strong,
+#battle-card .move-grid button strong,
+#battle-card .player-replacement-heading {
+  letter-spacing: -0.035em;
+  line-height: 1.18;
+}
+
+#battle-card .battle-message {
+  font-size: 1rem;
+  font-weight: 400;
+  text-rendering: optimizeSpeed;
+  -webkit-font-smoothing: none;
+}
+
+#battle-card .pokemon-name strong,
+#battle-card .pokemon-name span,
+#battle-card #player-hp,
+#battle-card #foe-hp,
+#battle-card .dppt-move-pp,
+#battle-card .mode-pill {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.045em;
+}
+
+#battle-card .pokemon-name strong {
+  font-weight: 400;
+  font-size: 1.02em;
+}
+
+#battle-card .pokemon-name span,
+#battle-card .hp-row,
+#battle-card #player-hp,
+#battle-card #foe-hp {
+  font-weight: 400;
+}
+
+#battle-card .dppt-command-root button strong,
+#battle-card .dppt-battle-bag button strong,
+#battle-card .move-grid button strong,
+#battle-card .dppt-command-back {
+  font-weight: 400;
+  text-shadow: 1px 1px 0 rgba(0,0,0,.35);
+}
+
+#battle-card[data-dppt-menu="fight"] .move-grid button strong {
+  text-shadow: 1px 1px 0 rgba(255,255,255,.65);
+}
+
+#battle-card .dppt-command-root button small,
+#battle-card .dppt-battle-bag button small,
+#battle-card .dppt-move-meta {
+  font-family: "DotGothic16", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  letter-spacing: -0.02em;
+}
+
+@media(max-width:540px) and (orientation:portrait) {
+  #battle-card .battle-message { font-size: .96rem; }
+  #battle-card .pokemon-name strong { font-size: .98em; }
+  #battle-card .dppt-command-root button strong { font-size: .9rem; }
+  #battle-card .dppt-command-root button[data-dppt-command="fight"] strong { font-size: 1.05rem; }
+}
