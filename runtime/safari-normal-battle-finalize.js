@@ -9,11 +9,27 @@ import { SAFARI_MOVE_MASTERS, SAFARI_NATURE_MASTERS, SAFARI_SPECIES_MASTERS } fr
 
 const moveId = (move) => typeof move === "string" ? move : move?.id;
 const normalizeMoveId = (id) => id === "QUICK_ATTACK" ? "QUICKATTACK" : id;
+const COMMAND_PHASE = "command";
 
 function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
   if (!state || typeof state !== "object" || Array.isArray(state)) throw new TypeError("runtime variables.mapless state is required");
   return state;
+}
+
+export function setNormalBattleLifecyclePhase(battle, phase) {
+  if (!battle || typeof battle !== "object") throw new TypeError("battle state is required");
+  const next = String(phase);
+  battle.lifecycle_phase = next;
+  if (!Array.isArray(battle.lifecycle_history)) battle.lifecycle_history = [];
+  if (battle.lifecycle_history.at(-1) !== next) battle.lifecycle_history.push(next);
+  return next;
+}
+
+export function normalBattleAcceptsCommand(battle) {
+  if (!battle || battle.completed || Number(battle.decision ?? 0) !== 0) return false;
+  if (battle.player_replacement_required || battle.terminal_locked) return false;
+  return String(battle.lifecycle_phase ?? COMMAND_PHASE) === COMMAND_PHASE;
 }
 
 function baseTurnInput(state, index) {
@@ -58,20 +74,14 @@ export function normalBattleExpInput(player, defeatedFoe, trainerBattle = false)
   if (!natureMaster) throw new RangeError(`battle EXP nature is outside the Safari projection: ${natureId}`);
   return {
     ...resolveSafariBattleExpGrowthInput(player, defeatedFoe, speciesMaster, foeMaster, trainerBattle),
-    runtimeMasters: {
-      species_master: speciesMaster,
-      nature_master: natureMaster,
-      move_masters: SAFARI_MOVE_MASTERS,
-    },
-    evolutionMasters: {
-      species_masters: SAFARI_SPECIES_MASTERS,
-      nature_master: natureMaster,
-      move_masters: SAFARI_MOVE_MASTERS,
-    },
+    runtimeMasters: { species_master: speciesMaster, nature_master: natureMaster, move_masters: SAFARI_MOVE_MASTERS },
+    evolutionMasters: { species_masters: SAFARI_SPECIES_MASTERS, nature_master: natureMaster, move_masters: SAFARI_MOVE_MASTERS },
   };
 }
 
 function givePotion(runtime, battle) {
+  if (battle.victory_reward_applied) return [];
+  battle.victory_reward_applied = true;
   const receipt = resolveItemReceipt({
     slots: runtime.bag.slots,
     maxSlots: 20,
@@ -88,6 +98,7 @@ function givePotion(runtime, battle) {
 }
 
 function completeBoardEvent(state, battle) {
+  if (battle.board_completion_applied) return [];
   const event = state.board_events?.[battle.board_index];
   const input = baseTurnInput(state, battle.board_index);
   if (battle.kind === "wild") {
@@ -105,10 +116,7 @@ function completeBoardEvent(state, battle) {
   } else {
     input.trainer = {
       can_battle: true,
-      dynamic_result: {
-        outcome: battle.decision,
-        trainer_full_name: event?.trainer_full_name ?? battle.trainer?.trainer_full_name ?? "トレーナー",
-      },
+      dynamic_result: { outcome: battle.decision, trainer_full_name: event?.trainer_full_name ?? battle.trainer?.trainer_full_name ?? "トレーナー" },
       last_error: null,
     };
   }
@@ -123,6 +131,7 @@ function completeBoardEvent(state, battle) {
     state.board_visited[index] = true;
     operations.push({ op: "set_board_visited", index, value: true });
   }
+  battle.board_completion_applied = true;
   return operations;
 }
 
@@ -142,32 +151,20 @@ function payTrainerPrize(runtime, battle) {
 function terminalRewardPresentation(battle) {
   if (Number(battle.decision) !== 1) return [];
   const events = [];
-  if (battle.reward?.item) {
-    events.push({ type: "item_reward", item: battle.reward.item, quantity: Number(battle.reward.quantity ?? 1) });
-  }
+  if (battle.reward?.item) events.push({ type: "item_reward", item: battle.reward.item, quantity: Number(battle.reward.quantity ?? 1) });
   const moneyGained = Number(battle.money_gained ?? 0);
   if (moneyGained > 0) events.push({ type: "money_reward", amount: moneyGained });
   return events;
 }
 
-export function finalizeNormalBattle(runtime) {
-  const state = stateOf(runtime);
-  const battle = state.battle;
-  if (!battle || battle.completed || Number(battle.decision) === 0) return [];
+function requestTerminalSave(battle) {
+  if (battle.terminal_save_requested) return [];
+  battle.terminal_save_requested = true;
+  return [{ op: "request_save", reason: "battle_result" }];
+}
 
-  const runEnd = markMaplessRunEnd(runtime, battle.decision);
-  const operations = [...runEnd.operations];
-  // The direct round owner already commits EXP to the persistent player Pokemon
-  // and records battle.exp_gained. Finalize must only apply the victory reward;
-  // recalculating EXP here awarded ordinary wild victories twice.
-  if (battle.decision === 1 && battle.kind === "wild") operations.push(...givePotion(runtime, battle));
-  if (battle.decision === 1 && battle.kind === "trainer") operations.push(...givePotion(runtime, battle));
-  if (battle.kind === "trainer") operations.push(...payTrainerPrize(runtime, battle));
-  operations.push(...completeBoardEvent(state, battle));
-  operations.push({ op: "request_save", reason: "battle_result" });
-  battle.completed = true;
-  battle.return_target = runEnd.marked ? "home" : "day_board";
-  battle.last_operations = [...(battle.last_operations ?? []), ...operations];
+function appendTerminalResult(battle, returnTarget) {
+  if (battle.result_presentation_applied) return;
   battle.presentation = [
     ...(battle.presentation ?? []),
     ...terminalRewardPresentation(battle),
@@ -178,10 +175,43 @@ export function finalizeNormalBattle(runtime) {
       expGained: Number(battle.trainer_exp_gained ?? 0) + Number(battle.exp_gained ?? 0),
       reward: battle.reward ?? null,
       moneyGained: Number(battle.money_gained ?? 0),
-      returnTarget: battle.return_target,
+      returnTarget,
     },
   ];
+  battle.result_presentation_applied = true;
+}
+
+export function finalizeNormalBattle(runtime) {
+  const state = stateOf(runtime);
+  const battle = state.battle;
+  if (!battle || Number(battle.decision) === 0 || battle.completed || battle.terminal_finalize_applied) return [];
+
+  const terminalPhase = Number(battle.decision) === 1 ? "post_victory" : "post_loss";
+  setNormalBattleLifecyclePhase(battle, terminalPhase);
+  battle.terminal_locked = true;
+  const operations = [{ op: "battle_lifecycle_phase", phase: terminalPhase }];
+
+  // KO EXP/level/move/evolution are already committed by Battle Systems before
+  // this tail. Do not recalculate or replay them here.
+  if (battle.decision === 1) operations.push(...givePotion(runtime, battle));
+  if (battle.kind === "trainer") operations.push(...payTrainerPrize(runtime, battle));
+
+  const runEnd = markMaplessRunEnd(runtime, battle.decision);
+  operations.push(...runEnd.operations);
+  operations.push(...completeBoardEvent(state, battle));
+  operations.push(...requestTerminalSave(battle));
+
+  const returnTarget = runEnd.marked ? "home" : "day_board";
+  appendTerminalResult(battle, returnTarget);
+  battle.return_target = returnTarget;
+  battle.completed = true;
+  battle.terminal_finalize_applied = true;
+  battle.terminal_locked = false;
+  setNormalBattleLifecyclePhase(battle, "completed");
+  operations.push({ op: "battle_lifecycle_phase", phase: "completed" });
+  battle.last_operations = [...(battle.last_operations ?? []), ...operations];
   state.last_operations = operations;
+
   const label = battle.kind === "trainer"
     ? (battle.trainer?.trainer_full_name ?? state.board_events?.[battle.board_index]?.trainer_full_name ?? "トレーナー")
     : (battle.encounter?.species_name ?? battle.foe.species);
