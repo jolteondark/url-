@@ -20,8 +20,9 @@ const pokemon = (ability = "NONE", heldItem = null, extra = {}) => ({
 assert.deepEqual(BATTLE_ABILITY_ITEM_HOOK_POINTS_CANONICAL, [
   "switch_in", "action_before", "action_after", "turn_end", "survival",
 ]);
-assert.ok(BATTLE_ABILITY_ITEM_SHARED_HOOK_CONTRACT_CANONICAL.implementedCoverage.abilityCount >= 60);
-assert.ok(BATTLE_ABILITY_ITEM_SHARED_HOOK_CONTRACT_CANONICAL.implementedCoverage.itemCount >= 30);
+assert.ok(BATTLE_ABILITY_ITEM_SHARED_HOOK_CONTRACT_CANONICAL.implementedCoverage.abilityCount >= 80);
+assert.ok(BATTLE_ABILITY_ITEM_SHARED_HOOK_CONTRACT_CANONICAL.implementedCoverage.itemCount >= 58);
+assert.equal(BATTLE_ABILITY_ITEM_SHARED_HOOK_CONTRACT_CANONICAL.implementedCoverage.classificationCounts.entryExtension.intimidateStatDropBlockers, 4);
 assert.match(BATTLE_ABILITY_ITEM_SHARED_HOOK_CONTRACT_CANONICAL.pokemonRuntimeSource.ability, /^pokemon\.ability/);
 assert.match(BATTLE_ABILITY_ITEM_SHARED_HOOK_CONTRACT_CANONICAL.pokemonRuntimeSource.heldItem, /^pokemon\.held_item/);
 
@@ -34,6 +35,53 @@ assert.match(BATTLE_ABILITY_ITEM_SHARED_HOOK_CONTRACT_CANONICAL.pokemonRuntimeSo
   assert.equal(result.boundary, "switch_in");
   assert.equal(result.entry.changes[0].stat, "ATTACK");
   assert.equal(result.entry.changes[0].delta, -1);
+}
+
+{
+  const clearBody = resolveBattleAbilityItemHookCanonical({
+    hook: "switch_in",
+    user: pokemon("INTIMIDATE"),
+    target: pokemon("CLEARBODY"),
+  });
+  assert.equal(clearBody.entry.blocked, true);
+  assert.deepEqual(clearBody.entry.changes, []);
+
+  const guardDog = resolveBattleAbilityItemHookCanonical({
+    hook: "switch_in",
+    user: pokemon("INTIMIDATE"),
+    target: pokemon("GUARDDOG"),
+  });
+  assert.deepEqual(guardDog.entry.changes, [{ subject: "target", stat: "ATTACK", delta: 1 }]);
+
+  const rattled = resolveBattleAbilityItemHookCanonical({
+    hook: "switch_in",
+    user: pokemon("INTIMIDATE"),
+    target: pokemon("RATTLED"),
+  });
+  assert.deepEqual(rattled.entry.changes, [
+    { subject: "target", stat: "ATTACK", delta: -1 },
+    { subject: "target", stat: "SPEED", delta: 1 },
+  ]);
+
+  const orb = resolveBattleAbilityItemHookCanonical({
+    hook: "switch_in",
+    user: pokemon("INTIMIDATE"),
+    target: pokemon("NONE", "ADRENALINEORB"),
+  });
+  assert.deepEqual(orb.entry.changes, [
+    { subject: "target", stat: "ATTACK", delta: -1 },
+    { subject: "target", stat: "SPEED", delta: 1 },
+  ]);
+  assert.equal(orb.consumeRequest.item, "ADRENALINEORB");
+  assert.equal(orb.consumeRequest.permanent, true);
+
+  const immuneOrb = resolveBattleAbilityItemHookCanonical({
+    hook: "switch_in",
+    user: pokemon("INTIMIDATE"),
+    target: pokemon("INNERFOCUS", "ADRENALINEORB"),
+  });
+  assert.deepEqual(immuneOrb.entry.changes, []);
+  assert.equal(immuneOrb.consumeRequest, null, "Adrenaline Orb must not trigger when Intimidate does not affect the holder");
 }
 
 {
@@ -117,6 +165,10 @@ assert.match(BATTLE_ABILITY_ITEM_SHARED_HOOK_CONTRACT_CANONICAL.pokemonRuntimeSo
     damageDealt: 30,
   });
   assert.equal(actionAfter.targetBerry.triggered, false, "consumed berry must not resurrect from pokemon.item");
+
+  const staleOrb = pokemon("NONE", null, { item: "ADRENALINEORB" });
+  const switchIn = resolveBattleAbilityItemHookCanonical({ hook: "switch_in", user: pokemon("INTIMIDATE"), target: staleOrb });
+  assert.equal(switchIn.consumeRequest, null, "consumed Adrenaline Orb must not resurrect from pokemon.item");
 }
 
 {
