@@ -36,7 +36,7 @@ function phaseMessage(currentBattle, phase) {
   if (phase === "POST_FAINT") return notice || "ひんし処理中…";
   if (phase === "POST_VICTORY") return notice || "勝利処理中…";
   if (phase === "REWARD_GROWTH") return notice || "経験値・報酬を処理しています…";
-  if (phase === RESULT_PHASE) return notice || (Number(currentBattle?.decision) === 1 ? "勝利しました。" : "戦闘終了。);
+  if (phase === RESULT_PHASE) return notice || (Number(currentBattle?.decision) === 1 ? "勝利しました。" : "戦闘終了。");
   if (phase === RETURN_PHASE) return "戻っています…";
   return "行動を処理しています…";
 }
