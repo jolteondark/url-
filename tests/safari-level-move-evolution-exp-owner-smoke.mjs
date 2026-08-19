@@ -76,6 +76,7 @@ const initial = resolvePokemonRuntimeMasters({
   nature_master: { id: "HARDY", stat_changes: [] },
   move_masters: SAFARI_MOVE_MASTERS,
 });
+initial.hp = 15;
 const runtime = {
   player: { party: [initial] },
   variables: { mapless: { battle: { completed: false, player_party_index: 0 } } },
