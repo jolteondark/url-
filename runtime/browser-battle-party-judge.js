@@ -77,6 +77,11 @@ export function prepareBrowserPartyAwareJudgeStates(input = {}, {
         action.cancelledBecauseActorFainted = true;
         continue;
       }
+      const confusion = action?.tryUseMoveResolution?.confusionDamageResolution;
+      if (action.moveSkipped && confusion?.resolved && confusion.hpAfter !== undefined) {
+        live.hp.set(actor, Number(confusion.hpAfter));
+        reflectLiveHp(parties, indexes, actor, Number(confusion.hpAfter));
+      }
       if (!action.moveSkipped && action.accuracyHit) {
         const target = Number(action.targetBattlerIndex);
         if (action.hpBefore !== undefined) {
