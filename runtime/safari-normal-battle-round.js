@@ -2,6 +2,7 @@ import { resolveBrowserBattleRound } from "./browser-battle-round-runtime.js";
 import { resolveBrowserTrainerBattleRound } from "./browser-trainer-battle-round-runtime.js";
 import { resolveBrowserPlayerReplacementContinuation } from "./browser-player-replacement-continuation.js";
 import { resolveBrowserOpponentMoveChoiceCanonical } from "./battle-core-browser-opponent-move-choice.js";
+import { createBattleStatStageStateCanonical, resetBattleStatStagesForBattlerCanonical } from "./battle-core-stat-stages.js";
 import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
 import { finalizeNormalBattle, normalBattleExpInput } from "./safari-normal-battle-finalize.js";
 
@@ -11,6 +12,11 @@ function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
   if (!state || typeof state !== "object" || Array.isArray(state)) throw new TypeError("runtime variables.mapless state is required");
   return state;
+}
+
+function ensureBattleStatStages(battle) {
+  battle.stat_stages = createBattleStatStageStateCanonical(battle.stat_stages);
+  return battle.stat_stages;
 }
 
 function presentationCombatant(pokemon) {
@@ -128,6 +134,7 @@ function resolveTrainer(runtime, selectedMoveId, playerActionConsumedWithoutMove
       moveMasters: SAFARI_MOVE_MASTERS,
       playerBattleExpInput: playerActionConsumedWithoutMove ? null : normalBattleExpInput(player, defeatedFoe, true),
       playerActionConsumedWithoutMove,
+      battleStatStages: ensureBattleStatStages(battle),
     },
     ownedOpponentInput: {
       battleKind: "trainer",
@@ -155,6 +162,9 @@ function resolveTrainer(runtime, selectedMoveId, playerActionConsumedWithoutMove
   battle.trainer_party_index = Number(next?.foeActivePartyIndex ?? battle.trainer_party_index ?? 0);
   battle.trainer_party_order = structuredClone(next?.partyOrder ?? battle.trainer_party_order ?? null);
   battle.foe = structuredClone(resolved.foe);
+  battle.stat_stages = createBattleStatStageStateCanonical(resolved.statStages ?? battle.stat_stages);
+  if (resolved.foeReplacementApplied) battle.stat_stages = resetBattleStatStagesForBattlerCanonical(battle.stat_stages, 1);
+  if (resolved.playerReplacementApplied) battle.stat_stages = resetBattleStatStagesForBattlerCanonical(battle.stat_stages, 0);
   battle.decision = Number(next?.decision ?? resolved.decision ?? 0);
   projectPlayerReplacement(battle, resolved.playerReplacementContinuation?.battleContinuationHandoff ?? resolved.battleContinuationHandoff, resolved.playerReplacementContinuation);
   const roundExpGained = (resolved.expIntegration?.commits ?? []).reduce((sum, commit) => sum + Number(commit.expGained ?? 0), 0);
@@ -185,6 +195,7 @@ function applyWildResolved(runtime, resolved, playerIndex) {
   battle.player_party_index = Number(handoff?.playerActivePartyIndex ?? playerIndex);
   battle.player_party_order = structuredClone(handoff?.playerPartyOrder ?? battle.player_party_order ?? null);
   battle.foe = structuredClone(resolved.foe);
+  battle.stat_stages = createBattleStatStageStateCanonical(resolved.statStages ?? battle.stat_stages);
   battle.decision = Number(resolved.decision);
   projectPlayerReplacement(battle, handoff);
   const roundExpGained = (resolved.expIntegration?.commits ?? []).reduce((sum, commit) => sum + Number(commit.expGained ?? 0), 0);
@@ -252,6 +263,7 @@ function resolveWild(runtime, selectedMoveId, playerActionConsumedWithoutMove = 
     moveMasters: SAFARI_MOVE_MASTERS,
     playerBattleExpInput: playerActionConsumedWithoutMove ? null : normalBattleExpInput(player, defeatedFoe, false),
     playerActionConsumedWithoutMove,
+    battleStatStages: ensureBattleStatStages(battle),
   });
   return applyWildResolved(runtime, {
     ...resolved,
@@ -317,6 +329,7 @@ export function replaceSafariNormalBattlePlayer(runtime, replacementPartyIndex) 
   runtime.player.party = structuredClone(handoff.playerParty);
   battle.player_party_index = Number(handoff.playerActivePartyIndex);
   battle.player_party_order = structuredClone(replacement.partyOrder ?? battle.player_party_order ?? null);
+  battle.stat_stages = resetBattleStatStagesForBattlerCanonical(ensureBattleStatStages(battle), 0);
   battle.player_replacement_required = false;
   battle.player_replacement_options = [];
   battle.player_replacement_handoff = null;
