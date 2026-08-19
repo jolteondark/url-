@@ -90,7 +90,7 @@ assert.equal(phaseNode.textContent, "自動効果処理中",
   "owner-ordered automatic end-of-round work must not expose COMMAND while its presentation is active");
 assert.equal(moves.inert, true);
 
-for (const type of ["exp_gain", "level_up", "move_learned", "evolution", "battle_result"]) {
+for (const type of ["exp_gain", "level_up", "move_learned", "evolution", "item_reward", "money_reward", "battle_result"]) {
   listeners.get("safari-battle-presentation-event")({ detail: { event: { type } } });
   assert.equal(battleCard.dataset.turnPhase, "resolving");
   assert.equal(battleCard.dataset.turnAction, "automatic", `${type} remains in the automatic owner tail`);
