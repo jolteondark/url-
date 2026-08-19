@@ -97,6 +97,10 @@ assert.match(round, /targetSpecies/,
   "normal-round presentation must bind pre-round combatant identity to events");
 assert.match(round, /targetMaxHp/,
   "normal-round presentation must bind pre-round max HP for replacement-safe damage animation");
+assert.match(round, /continue_status_request/,
+  "normal-round presentation must project owner status-block operations instead of inferring status from UI state");
+assert.match(round, /display_confusion_self_damage/,
+  "normal-round presentation must preserve owner confusion self-hit ordering");
 assert.match(lifecycle, /presentation:\s*\[captureEvent, \.\.\.\(response\.presentation \?\? \[\]\)\]/,
   "failed capture action must be narrated before the opponent response using the existing presentation order");
 assert.match(spriteBridge, /if \(shouldFreezeCanonicalBattleSprite\(battle\)\) return;/,
@@ -112,6 +116,7 @@ assert.doesNotMatch(preview, /new MutationObserver\(/,
 
 console.log("Safari Battle presentation narration: event-bound identity + frozen sprite through RESOLVING: ok");
 await import("./safari-battle-action-order-presentation-smoke.mjs");
+await import("./safari-status-action-cancellation-presentation-smoke.mjs");
 await import("./safari-day10-day12-boundary-vertical-smoke.mjs");
 await import("./safari-postbattle-save-continue-smoke.mjs");
 await import("./safari-battle-bag-menu-smoke.mjs");
