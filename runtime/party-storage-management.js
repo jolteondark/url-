@@ -144,12 +144,20 @@ export function copyStoredPokemon(state, {
   const value = stateOf(state);
   const partyLimit = capacity(maxPartySize, 6, "maxPartySize");
   const boxLimit = capacity(defaultBoxCapacity, 30, "defaultBoxCapacity");
+  if (!Number.isInteger(boxDst) || boxDst < -1 || boxDst >= value.boxes.length) {
+    return { result: false, state: value, operations: [{ op: "copy_rejected", reason: "destination_box" }] };
+  }
   let destinationIndex = indexDst;
-  if (destinationIndex < 0 && boxDst < value.boxes.length) {
+  if (!Number.isInteger(destinationIndex) || destinationIndex < -1) {
+    return { result: false, state: value, operations: [{ op: "copy_rejected", reason: "destination_index" }] };
+  }
+  if (destinationIndex < 0) {
     destinationIndex = firstFree(value, boxDst, partyLimit, boxLimit);
     if (destinationIndex < 0) {
       return { result: false, state: value, operations: [{ op: "copy_rejected", reason: "no_destination" }] };
     }
+  } else if (boxDst >= 0 && destinationIndex >= maxPokemon(value, boxDst, partyLimit, boxLimit)) {
+    return { result: false, state: value, operations: [{ op: "copy_rejected", reason: "destination_index" }] };
   }
   const pokemon = getPokemon(value, boxSrc, indexSrc);
   if (pokemon == null) throw new TypeError("Trying to copy nil to storage");
