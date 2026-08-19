@@ -222,6 +222,13 @@ export function completeSafariBattleReturn(runtime, result = {}) {
   const state = stateOf(runtime);
   const battle = state.battle;
   if (battle) state.last_battle_phase_trace = structuredClone(battle.phase_trace ?? state.last_battle_phase_trace ?? []);
+  const operations = Array.isArray(result.operations) ? [...result.operations] : [];
+  if (!operations.some((operation) => operation?.op === "request_save")) {
+    operations.push({ op: "request_save", reason: "battle return committed" });
+  }
+  result.operations = operations;
+  result.persistenceRequested = true;
+  state.last_operations = operations;
   result.phase = SAFARI_BATTLE_PHASE.RETURN;
   result.phaseTrace = structuredClone(state.last_battle_phase_trace ?? []);
   return result;

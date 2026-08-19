@@ -6,6 +6,7 @@ import {
   beginSafariBattleReturn,
   commitSafariBattleResolution,
   completeSafariBattleReplacement,
+  completeSafariBattleReturn,
   ensureSafariBattleOrchestrator,
 } from "../runtime/safari-battle-orchestrator.js";
 
@@ -86,6 +87,24 @@ function runtime(battle = {}) {
     battle.phase_trace,
     "RETURN rollback must publish the same owner trace used by Save/Continue diagnostics",
   );
+
+  beginSafariBattleReturn(rt);
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.RETURN);
+  rt.variables.mapless.battle = null;
+  const returned = completeSafariBattleReturn(rt, {
+    target: "day_board",
+    operations: [{ op: "return_to_day_board" }],
+  });
+  assert.equal(returned.phase, SAFARI_BATTLE_PHASE.RETURN);
+  assert.equal(returned.persistenceRequested, true);
+  assert.equal(returned.operations.filter((operation) => operation.op === "request_save").length, 1,
+    "successful RETURN must expose exactly one post-Battle save checkpoint");
+  assert.equal(returned.phaseTrace.at(-1).phase, SAFARI_BATTLE_PHASE.RETURN);
+  const replayedReturn = completeSafariBattleReturn(rt, returned);
+  assert.equal(replayedReturn.operations.filter((operation) => operation.op === "request_save").length, 1,
+    "compatibility replay of the same RETURN result must not duplicate request_save");
+  assert.deepEqual(rt.variables.mapless.last_operations, replayedReturn.operations,
+    "the saved operation snapshot must be the same RETURN result exposed to persistence consumers");
 }
 
 {
