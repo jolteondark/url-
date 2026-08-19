@@ -4,6 +4,16 @@ function fallbackSideName(side) {
   return "ポケモン";
 }
 
+const STAT_LABEL = Object.freeze({
+  ATTACK: "こうげき",
+  DEFENSE: "ぼうぎょ",
+  SPECIAL_ATTACK: "とくこう",
+  SPECIAL_DEFENSE: "とくぼう",
+  SPEED: "すばやさ",
+  ACCURACY: "めいちゅう",
+  EVASION: "かいひ",
+});
+
 function publishPresentationEvent(event) {
   if (!event || typeof globalThis.window?.dispatchEvent !== "function" || typeof globalThis.CustomEvent !== "function") return;
   globalThis.window.dispatchEvent(new globalThis.CustomEvent("safari-battle-presentation-event", {
@@ -44,6 +54,13 @@ export function formatSafariBattlePresentationEvent(event = {}, context = {}) {
       return `${actorName}のこんらんが解けた！`;
     case "confusion_self_hit":
       return `${actorName}はわけもわからず自分を攻撃した！`;
+    case "stat_stage_change": {
+      const stat = STAT_LABEL[event.stat] || event.stat || "能力";
+      const delta = Number(event.appliedDelta ?? 0);
+      if (delta > 0) return `${targetName}の${stat}が${Math.abs(delta) >= 2 ? "ぐーんと" : ""}上がった！`;
+      if (delta < 0) return `${targetName}の${stat}が${Math.abs(delta) >= 2 ? "がくっと" : ""}下がった！`;
+      return `${targetName}の${stat}はもう変わらない！`;
+    }
     case "damage_applied":
       return `${targetName}のHP ${Number(event.hpBefore ?? 0)} → ${Number(event.hpAfter ?? 0)}`;
     case "battle_item":
