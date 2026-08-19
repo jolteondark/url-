@@ -259,6 +259,7 @@ byId("game-menu")?.addEventListener("click", async (event) => {
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !byId("game-menu")?.hidden) close();
 });
+window.addEventListener("safari-game-menu-close-requested", close);
 window.addEventListener("storage", () => {
   if (active === "bag" && !byId("game-menu")?.hidden) renderBag();
 });
