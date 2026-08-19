@@ -18,7 +18,7 @@ function runtimeBattle() {
 
 function phaseOf(battle = runtimeBattle()) {
   if (!battle) return null;
-  return battle.phase ?? (battle.completed ? "RESULT" : "COMMAND");
+  return battle.phase ?? null;
 }
 
 function visibleEnabled(selector, root = document) {
@@ -136,7 +136,7 @@ function setMenu(mode) {
 function returnToRootAfterGameMenuClose() {
   gameMenuWasOpen = false;
   const battle = runtimeBattle();
-  if (!battle || phaseOf(battle) !== "COMMAND" || battle.completed || battle.player_replacement_required) return;
+  if (!battle || phaseOf(battle) !== "COMMAND") return;
   setMenu("root");
 }
 
@@ -166,7 +166,7 @@ function sync() {
   const gameMenuOpen = Boolean(gameMenu && !gameMenu.hidden);
   const returnedFromGameMenu = gameMenuWasOpen && !gameMenuOpen && phase === "COMMAND";
 
-  if (phase === "COMMAND" && !battle.player_replacement_required) {
+  if (phase === "COMMAND") {
     if (enteredCommand || advancedTurn || returnedFromGameMenu || !["root", "fight", "bag"].includes(card.dataset.dpptMenu)) {
       setMenu("root");
     }
@@ -179,7 +179,7 @@ function sync() {
     if (active instanceof HTMLElement && card.contains(active) && (active.getClientRects().length === 0 || active.hasAttribute("disabled"))) active.blur();
   }
 
-  const commandAllowed = phase === "COMMAND" && !battle.completed && !battle.player_replacement_required;
+  const commandAllowed = phase === "COMMAND";
   for (const button of card.querySelectorAll("#dppt-command-root button,#dppt-command-back,#dppt-battle-bag button")) {
     button.disabled = !commandAllowed;
   }
