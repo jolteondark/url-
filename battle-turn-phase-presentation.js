@@ -9,6 +9,11 @@ function battleState() {
   return globalThis.__maplessSafariRuntime?.variables?.mapless?.battle ?? null;
 }
 
+function ownerPhase(battle = battleState()) {
+  const phase = battle?.phase;
+  return typeof phase === "string" && phase.length > 0 ? phase : null;
+}
+
 function ensurePhaseNode() {
   const topline = byId("battle-card")?.querySelector(".battle-topline");
   if (!topline) return null;
@@ -25,8 +30,9 @@ function ensurePhaseNode() {
 
 function setCommandLock(locked) {
   const battle = battleState();
-  const replacementRequired = Boolean(battle?.player_replacement_required && !battle?.completed);
-  const terminal = Boolean(battle?.completed);
+  const phase = ownerPhase(battle);
+  const replacementRequired = Boolean((phase === "REPLACEMENT" || battle?.player_replacement_required) && phase !== "RESULT");
+  const terminal = phase === "RESULT" || phase === "RETURN" || Boolean(battle?.completed);
   const shouldLock = locked || replacementRequired || terminal;
   const moves = byId("moves");
   const capture = byId("capture");
@@ -42,8 +48,9 @@ function setCommandLock(locked) {
     flee.disabled = shouldLock;
   }
   if (returnBoard) {
-    returnBoard.inert = Boolean(locked || returning);
-    returnBoard.disabled = Boolean(locked || returning);
+    const resultReady = phase === "RESULT" || Boolean(battle?.completed);
+    returnBoard.inert = Boolean(locked || returning || !resultReady);
+    returnBoard.disabled = Boolean(locked || returning || !resultReady);
   }
   const panel = byId("battle-card")?.querySelector(".battle-command-panel");
   if (panel) panel.dataset.turnPhaseLocked = shouldLock || returning ? "true" : "false";
@@ -67,6 +74,11 @@ function actionText(action) {
 function phaseFor(battle) {
   if (!battle) return null;
   if (returning) return { key: "resolving", text: "戻っています…" };
+  const phase = ownerPhase(battle);
+  if (phase === "COMMAND") return { key: "command", text: "コマンド選択" };
+  if (phase === "RESULT") return { key: "result", text: "結果" };
+  if (phase === "REPLACEMENT") return { key: "replacement", text: "交代選択" };
+  if (phase) return { key: "resolving", text: actionText(presentationAction) };
   if (battle.completed && !(resolving || previewCommandBusy())) return { key: "result", text: "結果" };
   if (battle.player_replacement_required && !(resolving || previewCommandBusy())) return { key: "replacement", text: "交代選択" };
   if (resolving || previewCommandBusy()) return { key: "resolving", text: actionText(presentationAction) };
@@ -133,10 +145,8 @@ function resolutionSettled() {
   if (returning) return !battle && Boolean(card?.hidden);
   if (!resolving) return false;
   if (!battle) return Boolean(card?.hidden);
-  // The owner can commit KO/replacement/result before the corresponding faint,
-  // withdraw/send-out, automatic end-of-round effects, or result presentation
-  // has finished. Keep RESOLVING until preview/Bag releases its existing busy
-  // lock; do not unlock from post-round state alone.
+  const phase = ownerPhase(battle);
+  if (phase) return phase === "COMMAND" || phase === "RESULT" || phase === "REPLACEMENT";
   if (previewCommandBusy()) return false;
   if (battle.completed || battle.player_replacement_required) return true;
   return Number(battle.turn ?? 0) !== Number(submittedTurn ?? 0);
@@ -178,7 +188,7 @@ battleCard?.addEventListener("click", (event) => {
   if ((!command && !returnCommand) || !battle) return;
 
   if (returnCommand) {
-    if (!battle.completed) return;
+    if (ownerPhase(battle) !== "RESULT" && !battle.completed) return;
     if (returning || resolving) {
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -195,6 +205,11 @@ battleCard?.addEventListener("click", (event) => {
     return;
   }
 
+  if (ownerPhase(battle) && ownerPhase(battle) !== "COMMAND") {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    return;
+  }
   if (battle.completed) return;
   if (resolving || returning || battle.player_replacement_required) {
     event.preventDefault();
@@ -223,7 +238,12 @@ window.addEventListener("safari-battle-presentation-event", (event) => {
   if (!battleState()) return;
   const nextAction = presentationActionFor(event.detail?.event);
   if (nextAction) presentationAction = nextAction;
-  if (resolving || previewCommandBusy()) {
+  const phase = ownerPhase();
+  if (phase && phase !== "COMMAND" && phase !== "RESULT" && phase !== "REPLACEMENT") {
+    resolving = true;
+    paintPhaseOnly("resolving", actionText(presentationAction));
+    setCommandLock(true);
+  } else if (!phase && (resolving || previewCommandBusy())) {
     resolving = true;
     paintPhaseOnly("resolving", actionText(presentationAction));
     setCommandLock(true);
