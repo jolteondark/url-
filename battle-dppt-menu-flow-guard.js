@@ -86,12 +86,12 @@ document.addEventListener("click", (event) => {
 window.addEventListener("safari-game-menu-opened", (event) => {
   const current = battle();
   if (!current) return;
-  if (current.phase !== "COMMAND") {
+  const tab = event.detail?.tab;
+  if (current.phase !== "COMMAND" || (tab !== "party" && tab !== "bag")) {
     closeGameMenu();
     return;
   }
-  const tab = event.detail?.tab;
-  if (tab === "party" || tab === "bag") lockMenuToBattlePurpose(tab);
+  lockMenuToBattlePurpose(tab);
 });
 
 const menu = byId("game-menu");
