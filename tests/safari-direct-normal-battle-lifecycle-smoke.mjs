@@ -15,6 +15,9 @@ assert.doesNotMatch(facadeSource, /normalLifecycleModulePromise\s*=\s*import\("\
   "normal capture/return must not re-enter the pre-wounded migration chain");
 assert.match(facadeSource, /useSafariNormalBattleItem/,
   "normal BattleUse must expose the shared direct lifecycle owner");
+const finalizeSource = fs.readFileSync(new URL("../runtime/safari-normal-battle-finalize.js", import.meta.url), "utf8");
+assert.doesNotMatch(finalizeSource, /\bbattle\.completed\s*=\s*true\b/,
+  "normal terminal mechanics finalizer must not publish completion before the central RESULT boundary");
 
 function moveId(move) {
   return typeof move === "string" ? move : move?.id;
@@ -46,6 +49,8 @@ const storedBefore = runtime.storage_system.boxes.reduce(
 const capture = await web.attemptSafariCapture(runtime, { randomValues: [0, 0, 0, 0] });
 assert.equal(capture.result, "caught", "explicit deterministic capture fixture must be caught");
 assert.equal(state.battle.completed, true, "caught wild must complete Battle");
+assert.equal(state.battle.phase, "RESULT", "public capture completion must be exposed at the central RESULT phase");
+assert.equal(state.battle.completed_phase, "RESULT", "RESULT must own the externally visible completion flag");
 assert.equal(state.battle.decision, 4, "capture must retain canonical capture decision");
 assert.equal(state.battle.captured, true);
 assert.equal(state.board_consumed[0], true, "capture must complete the Board wild event");
