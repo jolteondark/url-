@@ -104,6 +104,16 @@ export function beginSafariBattleCommand(runtime, commandKind = "move") {
   return battle.phase;
 }
 
+export function abortSafariBattleCommand(runtime, reason = "command failed") {
+  const battle = stateOf(runtime).battle;
+  if (!battle) return null;
+  if ([SAFARI_BATTLE_PHASE.RESULT, SAFARI_BATTLE_PHASE.RETURN, SAFARI_BATTLE_PHASE.REPLACEMENT].includes(battle.phase)) {
+    return battle.phase;
+  }
+  battle.pending_command_kind = null;
+  return tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, reason);
+}
+
 export function commitSafariBattleResolution(runtime, result, commandKind = null) {
   const battle = battleOf(runtime);
   if (!battle.phase) ensureSafariBattleOrchestrator(runtime);
