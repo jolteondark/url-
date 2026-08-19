@@ -1,3 +1,5 @@
+import "./runtime/safari-battle-presentation-speed.js?v=20260819-1714";
+
 const COMMAND_PHASE = "COMMAND";
 const RESULT_PHASE = "RESULT";
 const RETURN_PHASE = "RETURN";
