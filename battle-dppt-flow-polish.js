@@ -34,12 +34,6 @@ function clearBattleFocus() {
   if (card && active instanceof HTMLElement && card.contains(active)) active.blur();
 }
 
-function closeOverlayIfBattleAdvanced(phase) {
-  const menu = byId("game-menu");
-  if (!menu || menu.hidden || phase === "COMMAND") return;
-  byId("game-menu-close")?.click();
-}
-
 function contextualizeReturn(current) {
   const button = byId("return-board");
   if (!button || phaseOf(current) !== "RESULT") return;
@@ -64,7 +58,6 @@ function syncFlow() {
     requestAnimationFrame(() => scrollTo(byId("battle-card"), "start"));
   }
 
-  closeOverlayIfBattleAdvanced(phase);
   contextualizeReturn(current);
 
   if (battlePresent && phase === "COMMAND" && lastPhase !== "COMMAND") {
