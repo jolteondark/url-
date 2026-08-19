@@ -134,13 +134,24 @@ function runtime(battle = {}) {
     operations: [
       { op: "use_move", actor: "player" },
       { op: "faint", target: "foe" },
+      { op: "gain_exp", amount: 20 },
+      { op: "level_up", level: 6 },
     ],
   };
-  commitSafariBattleResolution(rt, result, "move");
+  let rewardGrowthCommits = 0;
+  commitSafariBattleResolution(rt, result, "move", {
+    rewardGrowthCommit: (current) => {
+      rewardGrowthCommits += 1;
+      return current;
+    },
+  });
   assert.equal(rt.variables.mapless.battle.phase, SAFARI_BATTLE_PHASE.COMMAND);
   assert.equal(rt.variables.mapless.battle.completed, false);
   const phases = rt.variables.mapless.battle.phase_trace.map((step) => step.phase);
-  assert.deepEqual(phases.slice(-3), ["POST_FAINT", "REPLACEMENT", "COMMAND"]);
+  assert.deepEqual(phases.slice(-4), ["POST_FAINT", "REPLACEMENT", "REWARD_GROWTH", "COMMAND"],
+    "trainer reserve KO growth must pass through the central REWARD_GROWTH checkpoint before the next COMMAND");
+  assert.equal(rewardGrowthCommits, 1,
+    "the replacement growth compatibility commit must be invoked exactly once for this resolution");
   assert.equal(phases.includes("RESULT"), false);
 }
 
