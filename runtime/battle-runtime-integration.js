@@ -45,6 +45,30 @@ export function reflectBattleCoreTryUseMoveHpToPokemonRuntime(runtime, preparedB
   return updatePokemonRuntime(runtime, { hp: Number(matches.at(-1).hpAfter) });
 }
 
+export function reflectBattleCoreTryUseMoveStatusToPokemonRuntime(runtime, preparedBattleInput, actionIndex) {
+  const rounds = Array.isArray(preparedBattleInput?.rounds) ? preparedBattleInput.rounds : [];
+  let reflected = updatePokemonRuntime(runtime, {});
+  let changed = false;
+  for (const round of rounds) {
+    const action = Array.isArray(round?.actions) ? round.actions[Number(actionIndex)] : null;
+    const input = action?.useMoveInput?.tryUseMoveInput;
+    const resolution = action?.tryUseMoveResolution;
+    if (!input || !resolution) continue;
+    const status = String(input.status ?? "NONE").toUpperCase();
+    const cured = (resolution.operations ?? []).some((op) => op.op === "cure_status_request" && String(op.status ?? "").toUpperCase() === status);
+    if (status === "SLEEP") {
+      reflected = updatePokemonRuntime(reflected, cured
+        ? { status: "NONE", status_count: 0 }
+        : { status_count: Number(resolution.statusCount ?? reflected.status_count ?? 0) });
+      changed = true;
+    } else if (status === "FROZEN" && cured) {
+      reflected = updatePokemonRuntime(reflected, { status: "NONE", status_count: 0 });
+      changed = true;
+    }
+  }
+  return { pokemon: reflected, changed };
+}
+
 function restrictPpReflectionToActions(battleInput, actionIndexes) {
   if (actionIndexes == null) return battleInput;
   const allowed = new Set(actionIndexes.map(Number));
@@ -79,7 +103,8 @@ export function commitBattleRuntimePokemonRound({
     const hpReflected = reflectBattleCoreHpToPokemonRuntime(ppCommitted.pokemon, turn, reflectedActionIndex);
     pokemonAfter = reflectBattleCoreTryUseMoveHpToPokemonRuntime(hpReflected, battleInput, reflectedTryUseMoveActionIndex);
   }
-  return { pokemon: pokemonAfter, ppCommitted };
+  const tryUseStatus = reflectBattleCoreTryUseMoveStatusToPokemonRuntime(pokemonAfter, battleInput, reflectedTryUseMoveActionIndex);
+  return { pokemon: tryUseStatus.pokemon, ppCommitted, tryUseStatusChanged: tryUseStatus.changed };
 }
 
 export function resolveBattleEndPersistenceIntegration({ decision, persistenceInput = null, reflectedPokemon = null, reflectedPartyIndex = 0, reflectMoves = false, reflectExpLevel = false, reflectStatus = false, reflectItem = false } = {}) {
@@ -163,6 +188,6 @@ export function resolveBattleRuntimeIntegration({ pokemon, sendOuts = [], battle
   const heldItemCommitted = commitBattleSystemsHeldItemRuntime({ battleInput: preparedBattleInput, turn, pokemon: statusCommitted.pokemon });
   const expCommitted = commitBattleSystemsExpRuntime({ battleInput: preparedBattleInput, turn, pokemon: heldItemCommitted.pokemon });
   const reflectedPokemon = expCommitted.pokemon; const decision = Number(turn.decision);
-  const postBattlePersistence = resolveBattleEndPersistenceIntegration({ decision, persistenceInput: postBattlePersistenceInput, reflectedPokemon, reflectedPartyIndex, reflectMoves: ppCommitted.commits.length > 0 || expCommitted.commits.length > 0, reflectExpLevel: expCommitted.commits.length > 0, reflectStatus: statusCommitted.commits.length > 0, reflectItem: heldItemCommitted.commits.length > 0 });
-  return { start, turn, pokemon: reflectedPokemon, battleResultHandoff: { decision, postBattlePersistenceApplied: postBattlePersistence !== null }, ...(useCanonicalAccuracyDamage ? { combatTrace: { rounds: structuredClone(preparedBattleInput.rounds ?? []) } } : {}), ...(ppPrepared.operations.length || ppCommitted.commits.length ? { battlePpIntegration: { prepared: ppPrepared.operations, commits: ppCommitted.commits } } : {}), ...(statusCommitted.commits.length ? { battleStatusIntegration: { commits: statusCommitted.commits } } : {}), ...(heldItemCommitted.commits.length ? { battleHeldItemIntegration: { commits: heldItemCommitted.commits } } : {}), ...(expCommitted.commits.length ? { battleExpIntegration: { commits: expCommitted.commits } } : {}), ...(postBattlePersistence ? { postBattlePersistence } : {}), ...(attackPhaseScheduling ? { attackPhaseScheduling } : {}) };
+  const postBattlePersistence = resolveBattleEndPersistenceIntegration({ decision, persistenceInput: postBattlePersistenceInput, reflectedPokemon, reflectedPartyIndex, reflectMoves: ppCommitted.commits.length > 0 || expCommitted.commits.length > 0, reflectExpLevel: expCommitted.commits.length > 0, reflectStatus: statusCommitted.commits.length > 0 || reflected.tryUseStatusChanged, reflectItem: heldItemCommitted.commits.length > 0 });
+  return { start, turn, pokemon: reflectedPokemon, battleResultHandoff: { decision, postBattlePersistenceApplied: postBattlePersistence !== null }, ...(useCanonicalAccuracyDamage ? { combatTrace: { rounds: structuredClone(preparedBattleInput.rounds ?? []) } } : {}), ...(ppPrepared.operations.length || ppCommitted.commits.length ? { battlePpIntegration: { prepared: ppPrepared.operations, commits: ppCommitted.commits } } : {}), ...(statusCommitted.commits.length ? { battleStatusIntegration: { commits: statusCommitted.commits } } : {}), ...(reflected.tryUseStatusChanged ? { battleTryUseStatusReflection: true } : {}), ...(heldItemCommitted.commits.length ? { battleHeldItemIntegration: { commits: heldItemCommitted.commits } } : {}), ...(expCommitted.commits.length ? { battleExpIntegration: { commits: expCommitted.commits } } : {}), ...(postBattlePersistence ? { postBattlePersistence } : {}), ...(attackPhaseScheduling ? { attackPhaseScheduling } : {}) };
 }
