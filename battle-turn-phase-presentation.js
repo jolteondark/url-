@@ -166,7 +166,7 @@ function presentationActionFor(event) {
   if (event.type === "trainer_next") return "sendout";
   if (event.type === "capture") return "capture";
   if (event.type === "flee") return "flee";
-  if (["turn_end", "exp_gain", "level_up", "move_learned", "move_replaced", "move_declined", "evolution", "battle_result"].includes(event.type)) return "automatic";
+  if (["turn_end", "exp_gain", "level_up", "move_learned", "move_replaced", "move_declined", "evolution", "item_reward", "money_reward", "battle_result"].includes(event.type)) return "automatic";
   return presentationAction;
 }
 
