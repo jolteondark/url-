@@ -61,6 +61,7 @@ function setBattle(runtime, index, kind, opponent, operations, trainer = null, e
     turn: 1,
     decision: 0,
     completed: false,
+    lifecycle_phase: "command",
     captured: false,
     foe: opponent,
     trainer,
@@ -144,9 +145,9 @@ export async function activateSafariWebCombatCell(runtime, index) {
     if (dispatch.result === "dispatched") {
       if (event.kind === "wild") startWild(runtime, event, index, dispatch.operations);
       else startTrainer(runtime, event, index, dispatch.operations);
-      // Canonical wild/trainer owners consume the cell only once Battle start succeeds.
-      // Keep that commit after materialization so every pre-Battle failure remains retryable.
-      dispatch.state.board_consumed[index] = true;
+      // Keep the Board event pending while Battle is active. The terminal
+      // Battle lifecycle owns consume/visited after EXP/reward resolution.
+      dispatch.state.board_consumed[index] = false;
     }
 
     state.board_events = dispatch.state.board_events;
