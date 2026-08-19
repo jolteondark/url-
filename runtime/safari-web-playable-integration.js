@@ -5,6 +5,7 @@ import {
   returnSafariToDayBoard as returnSafariNormalToDayBoard,
   useSafariNormalBattleItem,
 } from "./safari-normal-battle-lifecycle.js";
+import { depositSafariPartyPokemon as depositSafariPartyPokemonOwner, withdrawSafariStoragePokemon as withdrawSafariStoragePokemonOwner } from "./safari-party-storage-actions.js";
 import { activateSafariWebCombatCell } from "./safari-web-combat-start.js";
 import {
   boardCellPresentation as startupBoardCellPresentation,
@@ -158,6 +159,21 @@ export async function returnSafariToDayBoard(runtime) {
   publishRuntimeChanged();
   return result;
 }
+
+export function depositSafariPartyPokemon(runtime, partyIndex, options = {}) {
+  const result = depositSafariPartyPokemonOwner(runtime, partyIndex, options);
+  globalThis.__maplessSafariRuntime = runtime;
+  publishRuntimeChanged();
+  return result;
+}
+
+export function withdrawSafariStoragePokemon(runtime, boxIndex, slotIndex) {
+  const result = withdrawSafariStoragePokemonOwner(runtime, boxIndex, slotIndex);
+  globalThis.__maplessSafariRuntime = runtime;
+  publishRuntimeChanged();
+  return result;
+}
+
 export async function enterSafariVillage(runtime) { return (await full()).enterSafariVillage(runtime); }
 export async function leaveSafariVillage(runtime) { return (await full()).leaveSafariVillage(runtime); }
 export async function leaveSafariShop(runtime) { return (await full()).leaveSafariShop(runtime); }
