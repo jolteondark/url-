@@ -1,3 +1,5 @@
+import "./safari-browser-move-learning-resolver-install.js";
+
 let scheduled = false;
 let warming = false;
 let facadePromise = null;
