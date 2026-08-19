@@ -40,6 +40,12 @@ const failed = attemptSafariFlee(runtime, { runRandomSeed: 1, randomRoll: 255 })
 assert.equal(failed.escaped, false, "slow player with a high roll must exercise escape_failed");
 assert.equal(failed.blocked, false, "probabilistic escape failure is not a blocked Run command");
 assert.equal(failed.resolution.reason, "escape_failed");
+assert.equal(failed.phase, "COMMAND", "surviving a failed Run response must return to COMMAND");
+assert.deepEqual(
+  failed.phaseTrace.slice(-5).map((entry) => entry.phase),
+  ["ACTION_1", "CHECK_1", "ACTION_2", "CHECK_2", "COMMAND"],
+  "failed Run must consume ACTION_1 and place the canonical foe response in ACTION_2",
+);
 assert.ok(state.battle && !state.battle.completed, "surviving a failed Run response must keep Battle active");
 assert.equal(state.board_consumed[0], false, "failed Run must not consume the wild Board cell");
 assert.equal(state.board_visited[0], false, "failed Run must not mark the wild Board cell visited");
@@ -85,4 +91,4 @@ const fleeHandler = previewSource.slice(fleeHandlerStart, fleeHandlerEnd);
 assert.match(fleeHandler, /await playPresentation\(result\.presentation \?\? \[\]\)/,
   "failed Run UI must play the ordered flee-action + canonical opponent response presentation");
 
-console.log("Safari failed Run -> visible flee failure -> canonical foe response -> next turn: ok");
+console.log("Safari failed Run -> ACTION_1 flee failure -> ACTION_2 canonical foe response -> COMMAND: ok");

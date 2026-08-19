@@ -43,11 +43,43 @@ state.battle.foe.stats.SPEED = 1;
 const escaped = attemptSafariFlee(runtime, { runRandomSeed: 1, randomRoll: 255 });
 assert.equal(escaped.escaped, true, "fast player must escape the real Safari wild Battle");
 assert.equal(escaped.resolution.reason, "speed_escape");
-assert.equal(state.battle, null, "successful Run must clear Battle immediately");
-assert.equal(state.location, "day_board", "successful Run must return to Day Board");
-assert.equal(state.board_consumed[0], true, "successful Run must consume the wild Board cell");
-assert.equal(state.board_visited[0], true, "successful Run must mark the Board cell visited");
+assert.ok(state.battle, "successful Run must remain in Battle through RESULT until explicit RETURN");
+assert.equal(state.battle.completed, true, "successful Run completion must be published only at RESULT");
+assert.equal(state.battle.phase, "RESULT");
+assert.equal(state.battle.completed_phase, "RESULT");
+assert.equal(escaped.phase, "RESULT");
+assert.deepEqual(
+  escaped.phaseTrace.slice(-4).map((entry) => entry.phase),
+  ["POST_FAINT", "POST_VICTORY", "REWARD_GROWTH", "RESULT"],
+  "successful Run must pass through the central terminal tail",
+);
+assert.equal(escaped.operations.filter((operation) => operation.op === "request_save").length, 1,
+  "RESULT must expose exactly one terminal save request");
+assert.equal(escaped.operations.some((operation) => operation.op === "return_to_day_board"), false,
+  "flee mechanics must not perform RETURN before the central RETURN phase");
+assert.equal(state.location, "day_board", "Battle overlay remains anchored to the Day Board while RESULT is visible");
+assert.equal(state.board_consumed[0], true, "successful Run must consume the wild Board cell exactly once");
+assert.equal(state.board_visited[0], true, "successful Run must mark the Board cell visited exactly once");
 assert.match(state.notice, /逃げ切った/);
+
+// Save/Continue at RESULT must restore the completed Battle, not silently perform RETURN.
+const resultStorage = new MemoryStorage();
+web.saveSafariPlayableRun(resultStorage, runtime);
+const resultFresh = web.createSafariPlayableRuntime();
+const resultLoaded = web.loadSafariPlayableRun(resultStorage, resultFresh);
+assert.equal(resultLoaded.found, true);
+assert.equal(resultLoaded.state.variables.mapless.battle?.completed, true,
+  "Continue from a RESULT checkpoint must restore the completed Battle");
+assert.equal(resultLoaded.state.variables.mapless.battle?.phase, "RESULT");
+assert.equal(resultLoaded.state.variables.mapless.battle?.completed_phase, "RESULT");
+
+const returned = await web.returnSafariToDayBoard(runtime);
+assert.equal(returned.target, "day_board");
+assert.equal(returned.phase, "RETURN", "explicit return must be committed through the central RETURN phase");
+assert.equal(returned.operations.filter((operation) => operation.op === "request_save").length, 1,
+  "RETURN must request the Battle-cleared checkpoint exactly once");
+assert.equal(state.battle, null, "successful RETURN must clear Battle after RESULT");
+assert.equal(state.location, "day_board", "successful RETURN must reveal the Day Board");
 
 const expectedConsumed = structuredClone(state.board_consumed);
 const expectedVisited = structuredClone(state.board_visited);
@@ -62,8 +94,8 @@ const loaded = web.loadSafariPlayableRun(storage, fresh);
 assert.equal(loaded.found, true);
 const restored = loaded.state;
 const restoredState = restored.variables.mapless;
-assert.equal(restoredState.battle, null, "Continue must not resurrect an escaped Battle");
-assert.equal(restoredState.location, "day_board", "Continue must restore Day Board after Run");
+assert.equal(restoredState.battle, null, "Continue after RETURN must not resurrect an escaped Battle");
+assert.equal(restoredState.location, "day_board", "Continue after RETURN must restore Day Board");
 assert.deepEqual(restoredState.board_consumed, expectedConsumed,
   "Continue must preserve the consumed escaped wild cell");
 assert.deepEqual(restoredState.board_visited, expectedVisited,
@@ -134,7 +166,7 @@ if (continuedRound.opponentChoice?.command === "move" && continuedRound.opponent
   }
 }
 
-console.log("Safari Run -> save -> fresh Continue -> first ordinary trainer command is exactly one Battle turn: ok");
+console.log("Safari Run RESULT -> save/Continue -> RETURN -> save/Continue -> first ordinary trainer command: ok");
 
 // Keep the real-game progression vertical in the same normal/battle-entry gate.
 await import("./safari-multi-cell-multi-day-progression-smoke.mjs");

@@ -1,4 +1,9 @@
 import { resolveBrowserWildBattleCommand } from "./browser-battle-wild-command-handoff.js";
+import {
+  abortSafariBattleCommand,
+  beginSafariBattleCommand,
+  commitSafariBattleResolution,
+} from "./safari-battle-orchestrator.js";
 import { resolveSafariNormalWildOpponentResponse } from "./safari-normal-battle-round.js";
 
 function browserRunSeed() {
@@ -52,115 +57,133 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
   const battle = state?.battle;
   if (!state || !battle || battle.completed) throw new Error("active battle is required");
 
-  const playerPartyIndex = activePartyIndex(battle, runtime);
-  const player = runtime?.player?.party?.[playerPartyIndex];
-  const foe = battle.foe;
-  const trainerBattle = battle.kind === "trainer";
-  const facilityBlocked = battle.origin === "village_bounty";
-  const command = resolveBrowserWildBattleCommand({
-    command: "run",
-    player,
-    foe,
-    trainerBattle,
-    decision: Number(battle.decision ?? 0),
-    postBattlePersistenceInput: postBattlePersistenceInput(runtime),
-    reflectedPartyIndex: playerPartyIndex,
-    runInput: {
-      internalBattle: true,
-      canRun: battle.kind === "wild" && !facilityBlocked,
-      duringBattle: false,
-      runCommand: Number(battle.run_command ?? 0),
-      moreTypeEffects: false,
-      battlerHasGhostType: false,
-      certainEscapeByAbility: false,
-      certainEscapeByItem: false,
-      trappedInBattle: false,
-      trappedByOpponentAbility: false,
-      trappedByOpponentItem: false,
-      runRandomSeed,
-      randomRoll,
-    },
-  });
-  const resolved = command.run;
-  const presentation = fleePresentation(player, foe, resolved);
-  battle.run_command = resolved.runCommand;
+  beginSafariBattleCommand(runtime, "flee");
+  try {
+    const playerPartyIndex = activePartyIndex(battle, runtime);
+    const player = runtime?.player?.party?.[playerPartyIndex];
+    const foe = battle.foe;
+    const trainerBattle = battle.kind === "trainer";
+    const facilityBlocked = battle.origin === "village_bounty";
+    const command = resolveBrowserWildBattleCommand({
+      command: "run",
+      player,
+      foe,
+      trainerBattle,
+      decision: Number(battle.decision ?? 0),
+      postBattlePersistenceInput: postBattlePersistenceInput(runtime),
+      reflectedPartyIndex: playerPartyIndex,
+      runInput: {
+        internalBattle: true,
+        canRun: battle.kind === "wild" && !facilityBlocked,
+        duringBattle: false,
+        runCommand: Number(battle.run_command ?? 0),
+        moreTypeEffects: false,
+        battlerHasGhostType: false,
+        certainEscapeByAbility: false,
+        certainEscapeByItem: false,
+        trappedInBattle: false,
+        trappedByOpponentAbility: false,
+        trappedByOpponentItem: false,
+        runRandomSeed,
+        randomRoll,
+      },
+    });
+    const resolved = command.run;
+    const presentation = fleePresentation(player, foe, resolved);
+    battle.run_command = resolved.runCommand;
 
-  const baseOperation = {
-    op: "battle_flee",
-    result: resolved.result,
-    decision: resolved.decision,
-    reason: resolved.reason,
-    runCommand: resolved.runCommand,
-    rate: resolved.rate,
-    randomRoll: resolved.randomRoll,
-    runRandomSeed: Number(runRandomSeed) & 0x7fffffff,
-  };
+    const baseOperation = {
+      op: "battle_flee",
+      result: resolved.result,
+      decision: resolved.decision,
+      reason: resolved.reason,
+      runCommand: resolved.runCommand,
+      rate: resolved.rate,
+      randomRoll: resolved.randomRoll,
+      runRandomSeed: Number(runRandomSeed) & 0x7fffffff,
+    };
 
-  if (resolved.result !== 1 || resolved.decision !== 3) {
-    const blocked = resolved.result === 0;
-    if (resolved.reason === "escape_failed") {
-      const response = resolveSafariNormalWildOpponentResponse(runtime);
-      const operations = [baseOperation, ...(response.operations ?? [])];
+    if (resolved.result !== 1 || resolved.decision !== 3) {
+      const blocked = resolved.result === 0;
+      if (resolved.reason === "escape_failed") {
+        const response = resolveSafariNormalWildOpponentResponse(runtime);
+        const operations = [baseOperation, ...(response.operations ?? [])];
+        battle.last_operations = operations;
+        state.last_operations = operations;
+        if (!battle.completed) state.notice = "逃げられなかった！";
+        const result = {
+          runtime,
+          escaped: false,
+          blocked: false,
+          resolution: resolved,
+          availability: command.availability,
+          terminalStateHandoff: command.terminalStateHandoff,
+          opponentResponse: response,
+          decision: Number(response.decision ?? battle.decision ?? 0),
+          playerReplacementRequired: Boolean(response.playerReplacementRequired),
+          foeReplacementApplied: Boolean(response.foeReplacementApplied),
+          turnConsumed: true,
+          operations,
+          presentation: [presentation, ...(response.presentation ?? [])],
+          persistenceRequested: Boolean(response.persistenceRequested),
+        };
+        return commitSafariBattleResolution(runtime, result, "flee");
+      }
+      state.notice = blocked ? "この戦闘からは逃げられない！" : "逃げられなかった！";
+      const operations = [baseOperation];
       battle.last_operations = operations;
       state.last_operations = operations;
-      if (!battle.completed) state.notice = "逃げられなかった！";
-      return {
+      const result = {
         runtime,
         escaped: false,
-        blocked: false,
+        blocked,
         resolution: resolved,
         availability: command.availability,
         terminalStateHandoff: command.terminalStateHandoff,
-        opponentResponse: response,
+        decision: Number(battle.decision ?? 0),
+        turnConsumed: false,
         operations,
-        presentation: [presentation, ...(response.presentation ?? [])],
-        persistenceRequested: Boolean(response.persistenceRequested),
+        presentation: [presentation],
       };
+      return commitSafariBattleResolution(runtime, result, "flee");
     }
-    state.notice = blocked ? "この戦闘からは逃げられない！" : "逃げられなかった！";
-    const operations = [baseOperation];
+
+    commitTerminalPlayer(runtime, command.terminalStateHandoff, playerPartyIndex);
+    state.last_terminal_wild = structuredClone(command.terminalStateHandoff);
+
+    const index = Number(battle.board_index);
+    if (Number.isInteger(index) && index >= 0) {
+      if (Array.isArray(state.board_consumed) && index < state.board_consumed.length) state.board_consumed[index] = true;
+      if (Array.isArray(state.board_visited) && index < state.board_visited.length) state.board_visited[index] = true;
+    }
+
+    const operations = [
+      baseOperation,
+      { op: "terminal_wild_state_committed", resultKind: command.terminalStateHandoff?.resultKind ?? "fled", playerPartyIndex },
+      { op: "request_save", reason: "battle_flee" },
+    ];
+    battle.decision = 3;
+    battle.return_target = "day_board";
     battle.last_operations = operations;
+    state.notice = "うまく逃げ切った！";
     state.last_operations = operations;
-    return {
+    const result = {
       runtime,
-      escaped: false,
-      blocked,
+      escaped: true,
+      blocked: false,
+      target: "day_board",
+      decision: 3,
+      turnConsumed: true,
       resolution: resolved,
       availability: command.availability,
       terminalStateHandoff: command.terminalStateHandoff,
       operations,
       presentation: [presentation],
+      persistenceRequested: true,
     };
+    return commitSafariBattleResolution(runtime, result, "flee");
+  } catch (error) {
+    abortSafariBattleCommand(runtime, `flee failed:${error?.message ?? error}`);
+    throw error;
   }
-
-  commitTerminalPlayer(runtime, command.terminalStateHandoff, playerPartyIndex);
-  state.last_terminal_wild = structuredClone(command.terminalStateHandoff);
-
-  const index = Number(battle.board_index);
-  if (Number.isInteger(index) && index >= 0) {
-    if (Array.isArray(state.board_consumed) && index < state.board_consumed.length) state.board_consumed[index] = true;
-    if (Array.isArray(state.board_visited) && index < state.board_visited.length) state.board_visited[index] = true;
-  }
-
-  const operations = [
-    baseOperation,
-    { op: "terminal_wild_state_committed", resultKind: command.terminalStateHandoff?.resultKind ?? "fled", playerPartyIndex },
-    { op: "return_to_day_board" },
-    { op: "request_save", reason: "battle_flee" },
-  ];
-  state.battle = null;
-  state.location = "day_board";
-  state.notice = "うまく逃げ切った！";
-  state.last_operations = operations;
-  return {
-    runtime,
-    escaped: true,
-    blocked: false,
-    target: "day_board",
-    resolution: resolved,
-    availability: command.availability,
-    terminalStateHandoff: command.terminalStateHandoff,
-    operations,
-    presentation: [presentation],
-  };
 }
