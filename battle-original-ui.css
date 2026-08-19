@@ -1,0 +1,249 @@
+/* Battle-only visual layer. Mechanics and DOM ownership stay unchanged. */
+#battle-card.battle-scene{
+  --pkm-bg:#d9ead4;
+  --pkm-field:#8fcf78;
+  --pkm-field-dark:#65ae68;
+  --pkm-ink:#20242a;
+  --pkm-panel:#f8f7ee;
+  --pkm-line:#39434d;
+  --pkm-shadow:#7b847d;
+  min-height:590px;
+  border:3px solid #26313a;
+  border-radius:8px;
+  background:
+    radial-gradient(ellipse at 82% 27%,rgba(255,255,255,.55) 0 15%,transparent 16%),
+    radial-gradient(ellipse at 23% 66%,rgba(255,255,255,.42) 0 17%,transparent 18%),
+    linear-gradient(180deg,#cfe8d2 0 12%,#9bd282 12% 58%,#72bb70 58% 71%,#eef0df 71% 100%);
+  box-shadow:0 6px 0 #12191f,0 14px 28px rgba(0,0,0,.35);
+  overflow:hidden;
+}
+#battle-card.battle-scene::before{
+  background:linear-gradient(180deg,rgba(255,255,255,.28),transparent 22%);
+}
+#battle-card .battle-topline{
+  position:absolute;
+  top:4px;
+  left:6px;
+  right:6px;
+  padding:0;
+  margin:0;
+  z-index:12;
+  pointer-events:none;
+}
+#battle-card .battle-topline h2{
+  display:none;
+}
+#battle-card #turn,
+#battle-card #battle-phase{
+  min-height:22px;
+  padding:2px 7px;
+  border:1px solid rgba(39,55,57,.42);
+  border-radius:4px;
+  background:rgba(248,247,238,.88);
+  color:#4b5658;
+  font-size:.56rem;
+  box-shadow:none;
+}
+#battle-card .arena{
+  height:414px;
+  padding:0;
+}
+#battle-card .arena::after{
+  top:auto;
+  bottom:0;
+  left:0;
+  right:0;
+  height:42%;
+  background:linear-gradient(180deg,rgba(101,174,104,.06),rgba(62,133,75,.26));
+  border:0;
+}
+#battle-card .combatant{
+  height:50%;
+}
+#battle-card .battle-info-panel{
+  width:min(58%,300px);
+  padding:9px 12px 8px;
+  border:2px solid var(--pkm-line);
+  border-radius:4px;
+  background:linear-gradient(180deg,#fffef5,#e8eadc);
+  color:var(--pkm-ink);
+  box-shadow:4px 4px 0 rgba(64,72,67,.45);
+}
+#battle-card .foe-info{
+  left:10px;
+  top:38px;
+}
+#battle-card .player-info{
+  right:10px;
+  bottom:8px;
+}
+#battle-card .pokemon-name strong{
+  color:#171b20;
+  font-size:1rem;
+  letter-spacing:.02em;
+  text-shadow:none;
+}
+#battle-card .pokemon-name span,
+#battle-card .combatant small{
+  color:#30383d;
+  font-weight:800;
+}
+#battle-card .hp-row{
+  grid-template-columns:auto 1fr;
+  gap:6px;
+  margin-top:6px;
+}
+#battle-card .hp-row>span{
+  color:#d49b00;
+  font-size:.58rem;
+  letter-spacing:.05em;
+}
+#battle-card .hp-track{
+  height:9px;
+  border:2px solid #353b3f;
+  border-radius:2px;
+  background:#34393d;
+  padding:1px;
+  box-shadow:none;
+}
+#battle-card .hp-track span{
+  border-radius:0;
+  background:linear-gradient(180deg,#69db6e,#29a83b);
+  transition:width .18s linear,background .15s linear;
+}
+#battle-card .battle-platform{
+  background:radial-gradient(ellipse,rgba(63,108,58,.48) 0 44%,rgba(74,124,68,.2) 58%,transparent 72%);
+}
+#battle-card .foe-platform{
+  width:205px;
+  height:54px;
+  right:15px;
+  bottom:4px;
+}
+#battle-card .player-platform{
+  width:238px;
+  height:60px;
+  left:-10px;
+  bottom:18px;
+}
+#battle-card .text-mon{
+  opacity:.18;
+}
+#battle-card .foe .text-mon{
+  right:72px;
+  bottom:31px;
+  transform:scale(1.28);
+}
+#battle-card .player .text-mon{
+  left:76px;
+  bottom:38px;
+  transform:scale(1.5);
+}
+#battle-card .battle-command-panel{
+  min-height:176px;
+  padding:0;
+  border-top:4px solid #2f3941;
+  background:#f7f5e8;
+  color:#20242a;
+  display:grid;
+  grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);
+  grid-template-rows:auto auto;
+  gap:0;
+}
+#battle-card .battle-message{
+  grid-column:1;
+  grid-row:1 / span 2;
+  margin:0;
+  min-height:176px;
+  padding:18px 18px 20px;
+  border-right:4px solid #39434d;
+  color:#1f2529;
+  background:linear-gradient(180deg,#fffef5,#ecebdc);
+  font-size:1rem;
+  font-weight:750;
+  line-height:1.55;
+}
+#battle-card .move-grid{
+  grid-column:2;
+  grid-row:1;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:2px;
+  padding:6px;
+  background:#39434d;
+}
+#battle-card .move-grid button{
+  min-height:72px;
+  padding:8px 9px;
+  border:2px solid #39434d;
+  border-radius:3px;
+  background:linear-gradient(180deg,#fffef7,#e4e7da);
+  color:#20242a;
+  box-shadow:none;
+  align-items:flex-start;
+  justify-content:center;
+}
+#battle-card .move-grid button:active:not(:disabled){
+  transform:none;
+  background:#d7e8c8;
+  filter:none;
+}
+#battle-card .move-grid strong{
+  font-size:.88rem;
+  line-height:1.15;
+}
+#battle-card .move-grid small{
+  color:#515d62;
+  font-size:.57rem;
+  font-weight:750;
+}
+#battle-card .battle-actions{
+  grid-column:2;
+  grid-row:2;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:2px;
+  margin:0;
+  padding:2px 6px 6px;
+  background:#39434d;
+}
+#battle-card .battle-actions button{
+  min-height:44px;
+  border:2px solid #39434d;
+  border-radius:3px;
+  padding:7px;
+  background:linear-gradient(180deg,#fffef7,#e4e7da);
+  color:#20242a;
+  box-shadow:none;
+  font-weight:850;
+}
+#battle-card .battle-actions button.capture{
+  background:linear-gradient(180deg,#fffef7,#e4e7da);
+  color:#20242a;
+  box-shadow:none;
+}
+#battle-card .battle-actions #return-board{
+  grid-column:1/-1;
+  background:linear-gradient(180deg,#fffef7,#e4e7da);
+  color:#20242a;
+}
+#battle-card button:disabled{
+  opacity:.38;
+  filter:grayscale(.35);
+}
+@media(max-width:540px){
+  #battle-card.battle-scene{min-height:560px}
+  #battle-card .arena{height:386px}
+  #battle-card .battle-info-panel{width:62%;padding:8px 10px 7px}
+  #battle-card .foe-info{top:32px}
+  #battle-card .player-info{bottom:7px}
+  #battle-card .battle-command-panel{min-height:166px;grid-template-columns:42% 58%}
+  #battle-card .battle-message{min-height:166px;padding:14px 12px;border-right-width:3px;font-size:.91rem}
+  #battle-card .move-grid{padding:4px;gap:2px}
+  #battle-card .move-grid button{min-height:67px;padding:7px 6px}
+  #battle-card .move-grid strong{font-size:.78rem}
+  #battle-card .move-grid small{font-size:.52rem}
+  #battle-card .battle-actions{padding:2px 4px 4px}
+  #battle-card .foe .text-mon{right:50px}
+  #battle-card .player .text-mon{left:49px}
+}
