@@ -38,7 +38,7 @@ function contextualizeReturn(current) {
   const button = byId("return-board");
   if (!button || phaseOf(current) !== "RESULT") return;
   const target = current?.return_target ?? "day_board";
-  button.textContent = target === "home" ? "ラン結果へ" : "Day Boardへ戻る";
+  button.textContent = target === "home" ? "ラン結果へ" : target === "village" ? "村へ戻る" : "Day Boardへ戻る";
   button.setAttribute("aria-label", button.textContent);
 }
 
@@ -47,6 +47,12 @@ function focusBoardNextAction() {
   if (!board || board.hidden) return;
   focusVisible(".board-cell:not(:disabled):not(.consumed)", board)
     ?? focusVisible("#enter-village:not(:disabled)", board);
+}
+
+function focusVillageNextAction() {
+  const village = byId("village-card");
+  if (!village || village.hidden) return;
+  focusVisible("button:not(:disabled)", village);
 }
 
 function syncFlow() {
@@ -86,6 +92,12 @@ function syncFlow() {
       const stateNow = state();
       if (lastReturnTarget === "home" || stateNow?.location === "home") {
         scrollTo(document.querySelector(".app"), "start");
+      } else if (lastReturnTarget === "village" || stateNow?.location === "village") {
+        scrollTo(byId("village-card"), "start");
+        requestAnimationFrame(() => {
+          clearBattleFocus();
+          focusVillageNextAction();
+        });
       } else {
         scrollTo(byId("board-card"), "start");
         requestAnimationFrame(() => {
