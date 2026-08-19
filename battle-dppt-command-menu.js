@@ -8,6 +8,10 @@ const TYPE_LABELS = Object.freeze({
   ROCK:"いわ",GHOST:"ゴースト",DRAGON:"ドラゴン",DARK:"あく",STEEL:"はがね",FAIRY:"フェアリー",
 });
 
+let lastPhase = null;
+let lastTurn = null;
+let gameMenuWasOpen = false;
+
 function runtimeBattle() {
   return globalThis.__maplessSafariRuntime?.variables?.mapless?.battle ?? null;
 }
@@ -100,6 +104,7 @@ function setMenu(mode) {
     message.textContent = mode === "root" ? "どうする？" : mode === "fight" ? "わざを えらんでください。" : mode === "bag" ? "バッグを えらんでください。" : message.textContent;
   }
   if (mode === "fight") decorateMoves();
+  window.dispatchEvent(new CustomEvent("mapless-dppt-menu-changed", { detail: { mode } }));
 }
 
 function sync() {
@@ -112,12 +117,24 @@ function sync() {
   decorateMoves();
   if (!battle) {
     delete card.dataset.dpptMenu;
+    lastPhase = null;
+    lastTurn = null;
     return;
   }
   const phase = phaseOf(battle);
+  const turn = Number(battle.turn ?? 1);
   card.dataset.dpptPhase = phase ?? "";
+
+  const enteredCommand = phase === "COMMAND" && lastPhase !== "COMMAND";
+  const advancedTurn = phase === "COMMAND" && lastTurn != null && turn !== lastTurn;
+  const gameMenu = byId("game-menu");
+  const gameMenuOpen = Boolean(gameMenu && !gameMenu.hidden);
+  const returnedFromGameMenu = gameMenuWasOpen && !gameMenuOpen && phase === "COMMAND";
+
   if (phase === "COMMAND" && !battle.player_replacement_required) {
-    if (!["root", "fight", "bag"].includes(card.dataset.dpptMenu)) setMenu("root");
+    if (enteredCommand || advancedTurn || returnedFromGameMenu || !["root", "fight", "bag"].includes(card.dataset.dpptMenu)) {
+      setMenu("root");
+    }
   } else if (phase === "RESULT") {
     card.dataset.dpptMenu = "result";
   } else {
@@ -132,6 +149,10 @@ function sync() {
   if (ball) ball.disabled = !commandAllowed || battle.kind !== "wild" || byId("capture")?.disabled;
   const flee = card.querySelector('[data-dppt-command="flee"]');
   if (flee) flee.disabled = !commandAllowed || Boolean(byId("flee")?.disabled);
+
+  lastPhase = phase;
+  lastTurn = turn;
+  gameMenuWasOpen = gameMenuOpen;
 }
 
 byId("battle-card")?.addEventListener("click", (event) => {
@@ -159,6 +180,7 @@ byId("battle-card")?.addEventListener("click", (event) => {
 
 window.addEventListener("safari-runtime-changed", () => requestAnimationFrame(sync));
 window.addEventListener("safari-preview-start", () => requestAnimationFrame(sync));
+window.addEventListener("safari-game-menu-opened", () => requestAnimationFrame(sync));
 window.addEventListener("pageshow", () => requestAnimationFrame(sync));
 if (typeof MutationObserver === "function") {
   new MutationObserver(() => requestAnimationFrame(sync)).observe(document.documentElement, { subtree:true, childList:true, attributes:true, attributeFilter:["hidden","disabled"] });
