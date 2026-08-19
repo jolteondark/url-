@@ -4,6 +4,7 @@ let lastVillageVisible = false;
 let lastShopVisible = false;
 let lastBountyDepartVisible = false;
 let pending = false;
+let villageTransitionPending = null;
 
 function state() {
   return globalThis.__maplessSafariRuntime?.variables?.mapless ?? null;
@@ -57,7 +58,38 @@ function focusShopPrimary() {
     || focus(byId("shop-cancel"), { scroll: true });
 }
 
+function armVillageTransition(kind, button, event) {
+  if (villageTransitionPending) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    return false;
+  }
+  villageTransitionPending = kind;
+  if (button instanceof HTMLButtonElement) {
+    if (document.activeElement === button) button.blur();
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+  }
+  return true;
+}
+
+function settleVillageTransition(current) {
+  if (!villageTransitionPending) return;
+  const entering = villageTransitionPending === "enter";
+  const button = byId(entering ? "enter-village" : "leave-village");
+  const completed = entering
+    ? current?.location === "village"
+    : current?.location === "day_board";
+  const failedAndReenabled = button instanceof HTMLButtonElement && !button.disabled;
+  if (!completed && !failedAndReenabled) return;
+  if (button instanceof HTMLButtonElement) button.removeAttribute("aria-busy");
+  villageTransitionPending = null;
+}
+
 function sync() {
+  const current = state();
+  settleVillageTransition(current);
+
   const villageVisible = visible(byId("village-card"));
   const shopVisible = visible(byId("shop-card"));
   const bountyDepartVisible = enabled(byId("bounty-depart"));
@@ -101,18 +133,23 @@ function schedule() {
   });
 }
 
+// Village entry/exit are async owner transitions. Lock the initiating control synchronously so a portrait-Safari double tap cannot submit the same transition twice.
+byId("enter-village")?.addEventListener("click", (event) => {
+  armVillageTransition("enter", event.currentTarget, event);
+}, true);
+
+byId("leave-village")?.addEventListener("click", (event) => {
+  if (!armVillageTransition("leave", event.currentTarget, event)) return;
+  window.setTimeout(() => {
+    const next = firstBoardAction();
+    if (next) focus(next, { scroll: true, block: "start" });
+  }, 0);
+}, true);
+
 // Keep purchase flow inside the shop when it remains open; otherwise scene-change sync handles return.
 byId("shop-confirm")?.addEventListener("click", () => {
   window.setTimeout(() => {
     if (visible(byId("shop-card"))) focusShopPrimary();
-  }, 0);
-});
-
-// Leaving a village should land directly on the next playable Board action.
-byId("leave-village")?.addEventListener("click", () => {
-  window.setTimeout(() => {
-    const next = firstBoardAction();
-    if (next) focus(next, { scroll: true, block: "start" });
   }, 0);
 });
 
