@@ -68,6 +68,25 @@ export function formatSafariBattlePresentationEvent(event = {}, context = {}) {
       return `${actorName}の攻撃は外れた！`;
     case "faint":
       return `${targetName}は倒れた！`;
+    case "exp_gain":
+      return `${actorName}は ${Number(event.amount ?? 0)} EXP を得た！`;
+    case "level_up":
+      return `${actorName}は Lv.${Number(event.level ?? 0)} になった！`;
+    case "move_learned": {
+      const moveName = context.moveName || event.moveId || "新しい技";
+      return `${actorName}は${moveName}を覚えた！`;
+    }
+    case "move_replaced": {
+      const moveName = context.moveName || event.moveId || "新しい技";
+      const forgotten = event.forgottenMoveId || "以前の技";
+      return `${actorName}は${forgotten}を忘れて${moveName}を覚えた！`;
+    }
+    case "move_declined": {
+      const moveName = context.moveName || event.moveId || "新しい技";
+      return `${actorName}は${moveName}を覚えなかった。`;
+    }
+    case "evolution":
+      return `${event.from || actorName}は${event.to || "新しい姿"}に進化した！`;
     case "trainer_next":
       return `${event.trainer || "トレーナー"}は${event.species || "次のポケモン"}を繰り出した！`;
     case "capture":
@@ -78,8 +97,18 @@ export function formatSafariBattlePresentationEvent(event = {}, context = {}) {
       if (event.result === "escaped") return "うまく逃げ切った！";
       if (event.result === "blocked") return "この戦闘からは逃げられない！";
       return "逃げられなかった！";
-    case "battle_result":
-      return context.notice || null;
+    case "battle_result": {
+      if (Number(event.decision) !== 1) return context.notice || null;
+      const parts = ["勝利！"];
+      const exp = Number(event.expGained ?? 0);
+      if (exp > 0) parts.push(`${exp} EXP`);
+      if (event.reward?.item) parts.push(`${event.reward.item} ×${Number(event.reward.quantity ?? 1)}`);
+      const money = Number(event.moneyGained ?? 0);
+      if (money > 0) parts.push(`${money}円`);
+      const destination = event.returnTarget === "home" ? "ホーム" : event.returnTarget === "village" ? "村" : "Day Board";
+      parts.push(`Returnで${destination}へ`);
+      return parts.join(" / ");
+    }
     default:
       return null;
   }
