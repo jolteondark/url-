@@ -184,9 +184,12 @@ function sync() {
     button.disabled = !commandAllowed;
   }
   const ball = card.querySelector('[data-dppt-bag="ball"]');
-  if (ball) ball.disabled = !commandAllowed || battle.kind !== "wild" || byId("capture")?.disabled;
+  if (ball) ball.disabled = !commandAllowed || battle.kind !== "wild";
   const flee = card.querySelector('[data-dppt-command="flee"]');
-  if (flee) flee.disabled = !commandAllowed || Boolean(byId("flee")?.disabled);
+  if (flee) {
+    const canFlee = battle.kind === "wild" && battle.origin !== "village_bounty";
+    flee.disabled = !commandAllowed || !canFlee;
+  }
 
   lastPhase = phase;
   lastTurn = turn;
