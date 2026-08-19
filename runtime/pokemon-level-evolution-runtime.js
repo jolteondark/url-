@@ -50,6 +50,18 @@ function preserveAuthoritativeBattleFields(before, after) {
   return next;
 }
 
+function canonicalEvolutionBlocker(runtime) {
+  const heldItem = Object.prototype.hasOwnProperty.call(runtime ?? {}, "held_item")
+    ? runtime.held_item
+    : runtime?.item;
+  const ability = Object.prototype.hasOwnProperty.call(runtime ?? {}, "ability")
+    ? runtime.ability
+    : runtime?.ability_id;
+  if (String(heldItem ?? "").toUpperCase() === "EVERSTONE") return "EVERSTONE";
+  if (String(ability ?? "").toUpperCase() === "BATTLEBOND") return "BATTLEBOND";
+  return null;
+}
+
 export function resolvePokemonLevelEvolution(runtime, {
   species_masters,
   nature_master = null,
@@ -62,13 +74,15 @@ export function resolvePokemonLevelEvolution(runtime, {
   const sourceMaster = species_masters[runtime?.species];
   if (!sourceMaster) throw new RangeError(`missing species master for ${runtime?.species ?? "unknown species"}`);
   const candidate = levelEvolutionTarget(sourceMaster, Number(runtime.level));
-  if (!candidate.target) {
+  const blocker = canonicalEvolutionBlocker(runtime);
+  if (!candidate.target || blocker) {
     return {
       pokemon: runtime,
       evolved: false,
       evolution: null,
+      evolutionBlockedBy: blocker,
       unsupportedMethods: candidate.unsupportedMethods,
-      operations: [],
+      operations: blocker ? [{ op: "level_evolution_blocked", blocker }] : [],
     };
   }
 
@@ -90,6 +104,7 @@ export function resolvePokemonLevelEvolution(runtime, {
     pokemon: recalculated,
     evolved: true,
     evolution: { from: before.species, to: candidate.target, method: candidate.method, parameter: candidate.parameter },
+    evolutionBlockedBy: null,
     unsupportedMethods,
     operations: [{
       op: "level_evolution",
