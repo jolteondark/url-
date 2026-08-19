@@ -111,11 +111,52 @@ function rejectUnconsumedCommand(battle, result, commandKind) {
   return result;
 }
 
+function rewardGrowthCheckpointKey(battle, reason) {
+  return [
+    Number(battle.turn ?? 0),
+    Number(battle.decision ?? 0),
+    String(reason ?? "reward growth"),
+  ].join(":");
+}
+
+function incompleteRewardGrowthError(battle) {
+  const checkpoint = battle?.reward_growth_checkpoint;
+  if (battle?.phase !== SAFARI_BATTLE_PHASE.REWARD_GROWTH || checkpoint?.committed !== false) return null;
+  return new Error(`reward growth checkpoint is incomplete and cannot be replayed: ${checkpoint.key ?? "unknown"}`);
+}
+
 function commitRewardGrowthCheckpoint(battle, result, rewardGrowthCommit, reason) {
+  const key = rewardGrowthCheckpointKey(battle, reason);
+  const existing = battle.reward_growth_checkpoint;
+  if (existing?.key === key) {
+    if (existing.committed === true) return result;
+    throw incompleteRewardGrowthError(battle) ?? new Error(`reward growth checkpoint is incomplete: ${key}`);
+  }
+
   tracePhase(battle, SAFARI_BATTLE_PHASE.REWARD_GROWTH, reason);
-  if (typeof rewardGrowthCommit !== "function") return result;
-  const committed = rewardGrowthCommit(result);
-  return committed && committed !== result ? committed : result;
+  const checkpoint = {
+    key,
+    turn: Number(battle.turn ?? 0),
+    decision: Number(battle.decision ?? 0),
+    reason: reason ?? null,
+    committed: false,
+  };
+  battle.reward_growth_checkpoint = checkpoint;
+
+  if (typeof rewardGrowthCommit !== "function") {
+    checkpoint.committed = true;
+    return result;
+  }
+
+  try {
+    const committed = rewardGrowthCommit(result);
+    checkpoint.committed = true;
+    return committed && committed !== result ? committed : result;
+  } catch (error) {
+    checkpoint.errorName = error?.name ?? "Error";
+    checkpoint.errorMessage = error?.message ?? String(error);
+    throw error;
+  }
 }
 
 export function ensureSafariBattleOrchestrator(runtime) {
@@ -145,9 +186,7 @@ export function beginSafariBattleCommand(runtime, commandKind = "move") {
 export function abortSafariBattleCommand(runtime, reason = "command failed") {
   const battle = stateOf(runtime).battle;
   if (!battle) return null;
-  if ([SAFARI_BATTLE_PHASE.RESULT, SAFARI_BATTLE_PHASE.RETURN, SAFARI_BATTLE_PHASE.REPLACEMENT].includes(battle.phase)) {
-    return battle.phase;
-  }
+  if (battle.phase !== SAFARI_BATTLE_PHASE.ACTION_1) return battle.phase;
   rollbackSpeculativeAction(battle);
   battle.pending_command_kind = null;
   return tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, reason);
@@ -156,6 +195,9 @@ export function abortSafariBattleCommand(runtime, reason = "command failed") {
 export function commitSafariBattleResolution(runtime, result, commandKind = null, { rewardGrowthCommit = null } = {}) {
   const battle = battleOf(runtime);
   if (!battle.phase) ensureSafariBattleOrchestrator(runtime);
+
+  const incompleteGrowth = incompleteRewardGrowthError(battle);
+  if (incompleteGrowth) throw incompleteGrowth;
 
   if (battle.phase === SAFARI_BATTLE_PHASE.RESULT && battle.completed) {
     battle.pending_command_kind = null;
@@ -226,6 +268,8 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
 
 export function completeSafariBattleReplacement(runtime, result = {}, { rewardGrowthCommit = null } = {}) {
   const battle = battleOf(runtime);
+  const incompleteGrowth = incompleteRewardGrowthError(battle);
+  if (incompleteGrowth) throw incompleteGrowth;
   const phase = ensureSafariBattleOrchestrator(runtime);
   if (phase !== SAFARI_BATTLE_PHASE.REPLACEMENT) {
     throw new Error(`battle replacement is unavailable during ${phase}`);

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   SAFARI_BATTLE_PHASE,
+  abortSafariBattleCommand,
   abortSafariBattleReturn,
   beginSafariBattleCommand,
   beginSafariBattleReturn,
@@ -57,6 +58,8 @@ function deferredExpIntegration() {
   assert.equal(battle.phase, SAFARI_BATTLE_PHASE.RESULT);
   assert.equal(battle.completed, true);
   assert.equal(battle.completed_phase, SAFARI_BATTLE_PHASE.RESULT);
+  assert.equal(battle.reward_growth_checkpoint?.committed, true,
+    "central REWARD_GROWTH must publish its own committed checkpoint");
   assert.deepEqual(
     battle.phase_trace.map((step) => step.phase),
     [
@@ -116,6 +119,47 @@ function deferredExpIntegration() {
     "compatibility replay of the same RETURN result must not duplicate request_save");
   assert.deepEqual(rt.variables.mapless.last_operations, replayedReturn.operations,
     "the saved operation snapshot must be the same RETURN result exposed to persistence consumers");
+}
+
+{
+  const rt = runtime();
+  ensureSafariBattleOrchestrator(rt);
+  beginSafariBattleCommand(rt, "move");
+  let rewardGrowthCalls = 0;
+  const result = {
+    decision: 1,
+    operations: [{ op: "use_move", actor: "player" }, { op: "faint", target: "foe" }],
+  };
+  assert.throws(() => commitSafariBattleResolution(rt, result, "move", {
+    rewardGrowthCommit() {
+      rewardGrowthCalls += 1;
+      throw new Error("reward growth exploded:test");
+    },
+  }), /reward growth exploded:test/);
+  const battle = rt.variables.mapless.battle;
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.REWARD_GROWTH);
+  assert.equal(battle.completed, false,
+    "a failed REWARD_GROWTH commit must never leak terminal completion");
+  assert.equal(battle.reward_growth_checkpoint?.committed, false);
+  assert.equal(battle.reward_growth_checkpoint?.errorMessage, "reward growth exploded:test");
+  assert.equal(rewardGrowthCalls, 1);
+  const traceLength = battle.phase_trace.length;
+  assert.equal(abortSafariBattleCommand(rt, "compatibility wrapper caught reward failure"), SAFARI_BATTLE_PHASE.REWARD_GROWTH,
+    "command abort may roll back only speculative ACTION_1 and must not escape a failed central commit");
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.REWARD_GROWTH);
+  assert.throws(() => commitSafariBattleResolution(rt, result, "move", {
+    rewardGrowthCommit() {
+      rewardGrowthCalls += 1;
+      return result;
+    },
+  }), /reward growth checkpoint is incomplete and cannot be replayed/,
+  "a partially failed growth callback must fail closed instead of replaying EXP/reward/Board mutations");
+  assert.equal(rewardGrowthCalls, 1,
+    "central REWARD_GROWTH must never invoke a failed checkpoint callback twice");
+  assert.equal(battle.phase_trace.length, traceLength,
+    "fail-closed replay must not append duplicate CHECK/POST/REWARD phases");
+  assert.equal(battle.phase_trace.filter((step) => step.phase === SAFARI_BATTLE_PHASE.REWARD_GROWTH).length, 1);
+  assert.equal(battle.phase_trace.some((step) => step.phase === SAFARI_BATTLE_PHASE.RESULT), false);
 }
 
 {
