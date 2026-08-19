@@ -69,6 +69,15 @@ function battlePresentation(operations, context = null) {
       events.push({ type: "miss", actor: operation.actor, target: operation.target });
     } else if (operation.op === "reduce_hp" || operation.op === "reduce_self_hp") {
       events.push({ type: "damage_applied", actor: operation.actor, target: operation.target, amount: operation.amount, hpBefore: operation.hpBefore, hpAfter: operation.hpAfter });
+    } else if (operation.op === "stat_stage_change") {
+      events.push({
+        type: "stat_stage_changed",
+        actor: Number(operation.battlerIndex) === 0 ? "player" : "foe",
+        stat: operation.stat,
+        appliedDelta: Number(operation.appliedDelta ?? 0),
+        before: Number(operation.before ?? 0),
+        after: Number(operation.after ?? 0),
+      });
     } else if (operation.op === "faint" || operation.op === "faint_self") {
       events.push({ type: "faint", target: operation.target });
     } else if (operation.op === "end_of_round" || operation.op === "end_of_round_phase") {
