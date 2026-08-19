@@ -7,6 +7,8 @@ const byId = (id) => document.getElementById(id);
 let presentationAction = null;
 let syncFrame = 0;
 let completingPresentation = false;
+let resultBattle = null;
+let resultFacts = null;
 
 const LOCKED_PHASES = new Set([
   SAFARI_BATTLE_PHASE.ACTION_1,
@@ -100,9 +102,73 @@ function setCommandLock(phase) {
   if (panel) panel.dataset.turnPhaseLocked = commandAllowed ? "false" : "true";
 }
 
+function ensureResultFacts(battle) {
+  if (resultBattle !== battle) {
+    resultBattle = battle;
+    resultFacts = {
+      exp: 0,
+      levels: [],
+      moves: [],
+      evolutions: [],
+      items: [],
+      money: 0,
+      terminal: null,
+    };
+  }
+  return resultFacts;
+}
+
+function trackResultFact(battle, event) {
+  if (!battle || !event) return;
+  const facts = ensureResultFacts(battle);
+  if (event.type === "exp_gain") facts.exp += Math.max(0, Number(event.amount ?? 0));
+  else if (event.type === "level_up") facts.levels.push(Number(event.level ?? 0));
+  else if (["move_learned", "move_replaced", "move_declined"].includes(event.type)) {
+    facts.moves.push({ type: event.type, moveId: event.moveId ?? null, forgottenMoveId: event.forgottenMoveId ?? null });
+  } else if (event.type === "evolution") facts.evolutions.push({ from: event.from ?? null, to: event.to ?? null });
+  else if (event.type === "item_reward") facts.items.push({ item: event.item ?? "ITEM", quantity: Number(event.quantity ?? 1) });
+  else if (event.type === "money_reward") facts.money += Math.max(0, Number(event.amount ?? 0));
+  else if (event.type === "battle_result") facts.terminal = { ...event };
+}
+
+function resultSummary() {
+  const facts = resultFacts;
+  if (!facts?.terminal) return null;
+  const terminal = facts.terminal;
+  const parts = [Number(terminal.decision) === 1 ? "勝利！" : Number(terminal.decision) === 4 ? "捕獲成功！" : "戦闘終了"];
+  const exp = Math.max(Number(terminal.expGained ?? 0), Number(facts.exp ?? 0));
+  if (exp > 0) parts.push(`${exp} EXP`);
+  if (facts.levels.length) parts.push(`Lv.${facts.levels.at(-1)}`);
+  for (const move of facts.moves) {
+    if (!move.moveId) continue;
+    parts.push(move.type === "move_declined" ? `${move.moveId}を見送った` : `${move.moveId}習得`);
+  }
+  for (const evolution of facts.evolutions) {
+    if (evolution.to) parts.push(`${evolution.from ?? "進化"}→${evolution.to}`);
+  }
+  const terminalItem = terminal.reward?.item
+    ? [{ item: terminal.reward.item, quantity: Number(terminal.reward.quantity ?? 1) }]
+    : [];
+  const items = facts.items.length ? facts.items : terminalItem;
+  for (const item of items) parts.push(`${item.item} ×${item.quantity}`);
+  const money = Math.max(Number(terminal.moneyGained ?? 0), Number(facts.money ?? 0));
+  if (money > 0) parts.push(`${money}円`);
+  const destination = terminal.returnTarget === "home" ? "ホーム" : terminal.returnTarget === "village" ? "村" : "Day Board";
+  parts.push(`Returnで${destination}へ`);
+  return parts.join(" / ");
+}
+
 function updateBattleMessage(phase, key) {
   const message = byId("battle-message");
-  if (!message || phase === SAFARI_BATTLE_PHASE.RESULT) return;
+  if (!message) return;
+  if (phase === SAFARI_BATTLE_PHASE.RESULT) {
+    const summary = resultSummary();
+    if (summary) {
+      message.dataset.presentationOwner = "orchestrator-result";
+      message.textContent = summary;
+    }
+    return;
+  }
   if (LOCKED_PHASES.has(phase) && message.dataset.presentationOwner === "event") return;
   if (!LOCKED_PHASES.has(phase)) delete message.dataset.presentationOwner;
   const text = phase === SAFARI_BATTLE_PHASE.COMMAND
@@ -124,11 +190,14 @@ function renderPhase() {
   const node = ensurePhaseNode();
   if (!battle) {
     presentationAction = null;
+    resultBattle = null;
+    resultFacts = null;
     if (node) node.hidden = true;
     delete card.dataset.turnPhase;
     delete card.dataset.turnAction;
     return;
   }
+  ensureResultFacts(battle);
   const phase = battle.phase ?? SAFARI_BATTLE_PHASE.COMMAND;
   const view = phasePresentation(phase);
   if (node) {
@@ -221,8 +290,10 @@ if (saveRun && typeof MutationObserver === "function") {
 }
 
 window.addEventListener("safari-battle-presentation-event", (event) => {
-  if (!battleState()) return;
+  const battle = battleState();
+  if (!battle) return;
   const presentationEvent = event.detail?.event;
+  trackResultFact(battle, presentationEvent);
   const nextAction = presentationActionFor(presentationEvent);
   if (nextAction) presentationAction = nextAction;
   // game-menu Battle Bag does not toggle preview's global busy flag. Its owner
