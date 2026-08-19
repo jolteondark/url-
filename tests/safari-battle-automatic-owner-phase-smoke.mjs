@@ -109,3 +109,4 @@ assert.equal(moves.inert, true, "terminal owner state keeps commands inert after
 flushFrames();
 
 console.log("Safari Battle UI automatic owner tail remains RESOLVING until presentation settles: ok");
+await import("./safari-post-ko-lifecycle-vertical-smoke.mjs");
