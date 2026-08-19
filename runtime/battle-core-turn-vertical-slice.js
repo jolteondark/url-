@@ -123,6 +123,16 @@ export function calculatePriorityCanonical(entries = [], { trickRoom = false, on
   return { order: sorted.filter((entry) => onlySpeedSort || !entry.fainted).map((entry) => entry.actionIndex), entries: normalized };
 }
 
+function appendTryUseOperations(operations, action, roundNo, actionIndex) {
+  const confusionSelfHit = action?.tryUseMoveResolution?.reason === "confusion_self_hit";
+  for (const operation of action?.tryUseMoveResolution?.operations ?? []) {
+    const op = confusionSelfHit && operation.op === "reduce_hp"
+      ? "reduce_self_hp"
+      : (confusionSelfHit && operation.op === "faint" ? "faint_self" : operation.op);
+    operations.push({ ...operation, op, sourceOp: operation.op, round: roundNo, action: actionIndex });
+  }
+}
+
 export function resolveGenericTurnVerticalSlice(input = {}, { allowIncomplete = false } = {}) {
   const rounds = Array.isArray(input.rounds) ? input.rounds : [];
   let decision = Number(input.initialDecision ?? 0);
@@ -181,8 +191,26 @@ export function resolveGenericTurnVerticalSlice(input = {}, { allowIncomplete = 
         operations.push({ op: "cancel_action", round: roundNo, action: actionIndex, reason: "actor_fainted" });
         continue;
       }
+      appendTryUseOperations(operations, action, roundNo, actionIndex);
+      if (action.moveSkipped) {
+        operations.push({ op: "cancel_action", round: roundNo, action: actionIndex, reason: action.tryUseMoveResolution?.reason ?? "try_use_failed" });
+        const judged = judgeCanonical(action.judgeState ?? {});
+        operations.push({ op: "judge", round: roundNo, action: actionIndex, decision: judged });
+        if (action.judgeState) decision = judged;
+        if (decision > 0) break;
+        if (action.stopRoundForReplacement) {
+          for (let queuedIndex = orderIndex + 1; queuedIndex < order.length; queuedIndex += 1) {
+            const queuedActionIndex = order[queuedIndex];
+            const queuedAction = actions[queuedActionIndex];
+            if (!queuedAction || queuedAction.kind !== "move" || !isSelectedAction(queuedAction)) continue;
+            operations.push({ op: "cancel_action", round: roundNo, action: queuedActionIndex, reason: queuedAction.cancelledBecauseActorFainted ? "actor_fainted" : "replacement_checkpoint" });
+          }
+          stoppedForReplacement = true;
+          break;
+        }
+        continue;
+      }
       operations.push({ op: "use_move", round: roundNo, action: actionIndex });
-      if (action.moveSkipped) continue;
       const hit = Boolean(action.accuracyHit);
       operations.push({ op: "accuracy_check", round: roundNo, action: actionIndex, hit });
       if (hit) {
