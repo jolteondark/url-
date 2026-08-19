@@ -12,20 +12,51 @@ function pokemonTypes(pokemon) {
   return safariGeneralPokemonTypesV108(pokemon);
 }
 
+function secondaryFlinchEffectInputCanonical(move) {
+  if (!move || move.category === "Status") return null;
+  if (move.function_code !== "FlinchTarget") return null;
+  const effectChance = Number(move.effect_chance ?? 0);
+  if (!(effectChance > 0)) return null;
+  return {
+    effectChance,
+    functionCode: "FlinchTarget",
+  };
+}
+
 export function prepareReflectedMajorStatusBattleInput({ battleInput = {}, pokemon, reflectedBattlerIndex = null } = {}) {
-  if (reflectedBattlerIndex === null || reflectedBattlerIndex === undefined) return structuredClone(battleInput);
-  const reflectedIndex = Number(reflectedBattlerIndex);
   const prepared = structuredClone(battleInput);
   let targetTypes = null;
-  let hasSecondaryStatus = false;
+  let hasSecondaryEffect = false;
+  const reflectedIndex = reflectedBattlerIndex === null || reflectedBattlerIndex === undefined
+    ? null
+    : Number(reflectedBattlerIndex);
+
   prepared.rounds = (Array.isArray(prepared.rounds) ? prepared.rounds : []).map((round) => ({
     ...round,
     actions: (Array.isArray(round.actions) ? round.actions : []).map((action) => {
-      if (!action || action.kind !== "move" || Number(action.targetBattlerIndex) !== reflectedIndex) return action;
+      if (!action || action.kind !== "move") return action;
       const move = SAFARI_MOVE_MASTERS[action.moveId];
+      let preparedAction = action;
+
+      // Flinch is transient round state rather than persistent Pokemon status.
+      // Project only the canonical FunctionCode/EffectChance here; the Battle
+      // core applies it to a later target action after seeded chance + damage.
+      const flinchInput = secondaryFlinchEffectInputCanonical(move);
+      if (flinchInput) {
+        hasSecondaryEffect = true;
+        preparedAction = {
+          ...preparedAction,
+          secondaryEffectInputs: [
+            ...(Array.isArray(preparedAction.secondaryEffectInputs) ? preparedAction.secondaryEffectInputs : []),
+            flinchInput,
+          ],
+        };
+      }
+
+      if (reflectedIndex === null || Number(action.targetBattlerIndex) !== reflectedIndex) return preparedAction;
       const directSource = majorStatusMoveEffectSourceCanonical(move);
       const secondarySource = secondaryMajorStatusMoveEffectSourceCanonical(move);
-      if (!directSource && !secondarySource) return action;
+      if (!directSource && !secondarySource) return preparedAction;
       targetTypes ??= pokemonTypes(pokemon);
 
       if (directSource) {
@@ -35,9 +66,9 @@ export function prepareReflectedMajorStatusBattleInput({ battleInput = {}, pokem
           targetTypes,
           targetBattlerIndex: reflectedIndex,
         });
-        if (!effect?.battleStatusInput) return effect ? { ...action, majorStatusEffectResolution: effect } : action;
+        if (!effect?.battleStatusInput) return effect ? { ...preparedAction, majorStatusEffectResolution: effect } : preparedAction;
         return {
-          ...action,
+          ...preparedAction,
           battleStatusInput: effect.battleStatusInput,
           majorStatusEffectResolution: effect,
         };
@@ -50,19 +81,22 @@ export function prepareReflectedMajorStatusBattleInput({ battleInput = {}, pokem
         targetBattlerIndex: reflectedIndex,
       });
       if (!effect?.battleStatusInput || !effect?.secondaryEffectInput) {
-        return effect ? { ...action, secondaryMajorStatusEffectResolution: effect } : action;
+        return effect ? { ...preparedAction, secondaryMajorStatusEffectResolution: effect } : preparedAction;
       }
-      hasSecondaryStatus = true;
+      hasSecondaryEffect = true;
       return {
-        ...action,
-        secondaryEffectInputs: [effect.secondaryEffectInput],
+        ...preparedAction,
+        secondaryEffectInputs: [
+          ...(Array.isArray(preparedAction.secondaryEffectInputs) ? preparedAction.secondaryEffectInputs : []),
+          effect.secondaryEffectInput,
+        ],
         battleStatusInput: effect.battleStatusInput,
         secondaryMajorStatusEffectResolution: effect,
       };
     }),
   }));
 
-  if (hasSecondaryStatus && prepared.secondaryEffectRandomSeed === undefined && prepared.combatRandomSeed !== undefined) {
+  if (hasSecondaryEffect && prepared.secondaryEffectRandomSeed === undefined && prepared.combatRandomSeed !== undefined) {
     // Secondary effects already have a dedicated canonical seeded owner. Keep
     // them on a deterministic sibling stream without changing the established
     // accuracy/damage transcript used by direct-normal Battle.
