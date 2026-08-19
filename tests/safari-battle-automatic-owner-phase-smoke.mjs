@@ -90,9 +90,18 @@ assert.equal(phaseNode.textContent, "自動効果処理中",
   "owner-ordered automatic end-of-round work must not expose COMMAND while its presentation is active");
 assert.equal(moves.inert, true);
 
+for (const type of ["exp_gain", "level_up", "move_learned", "evolution", "battle_result"]) {
+  listeners.get("safari-battle-presentation-event")({ detail: { event: { type } } });
+  assert.equal(battleCard.dataset.turnPhase, "resolving");
+  assert.equal(battleCard.dataset.turnAction, "automatic", `${type} remains in the automatic owner tail`);
+  assert.equal(moves.inert, true);
+  assert.equal(capture.disabled, true);
+  assert.equal(flee.disabled, true);
+}
+
 // The mechanics owner can already have committed a terminal result while a
-// recoil/item/ability tail is still being presented. Busy wins until preview
-// releases its existing command lock; then RESULT is exposed exactly once.
+// recoil/item/ability/EXP/reward tail is still being presented. Busy wins until
+// preview releases its existing command lock; then RESULT is exposed exactly once.
 globalThis.__maplessSafariRuntime.variables.mapless.battle.turn = 2;
 globalThis.__maplessSafariRuntime.variables.mapless.battle.completed = true;
 listeners.get("safari-runtime-changed")();
@@ -109,4 +118,5 @@ assert.equal(moves.inert, true, "terminal owner state keeps commands inert after
 flushFrames();
 
 console.log("Safari Battle UI automatic owner tail remains RESOLVING until presentation settles: ok");
+await import("./safari-post-victory-presentation-smoke.mjs");
 await import("./safari-post-ko-lifecycle-vertical-smoke.mjs");
