@@ -31,6 +31,8 @@ state.location = "day_board";
 const started = await web.activateSafariDayBoardCell(runtime, 0);
 assert.equal(started.result, "dispatched", "cold trainer Board cell must dispatch");
 assert.ok(state.battle && !state.battle.completed, "cold trainer Battle must start");
+assert.equal(state.battle.lifecycle_phase, "command", "fresh Battle must begin at the command boundary");
+assert.equal(state.board_consumed[0], false, "Battle start must keep the Board event pending until terminal finalize");
 assert.ok(Array.isArray(state.battle.trainer_party) && state.battle.trainer_party.length > 0,
   "cold trainer Battle must retain the materialized Party");
 
@@ -56,8 +58,6 @@ firstFoe.hp = 1;
 firstFoe.fainted = false;
 secondFoe.hp = 1;
 secondFoe.fainted = false;
-// Make the replacement visibly different for presentation regression. Mechanics
-// still use the already materialized runtime Pokemon; only max HP differs here.
 secondFoe.max_hp = Math.max(Number(firstFoe.max_hp ?? 1) + 37, Number(secondFoe.max_hp ?? 1));
 firstFoe.stats.ATTACK = 1;
 firstFoe.stats.SPECIAL_ATTACK = 1;
@@ -74,11 +74,15 @@ const hpBefore = Number(player.hp);
 const first = await web.resolveSafariBattleRound(runtime, selectedMoveId);
 assert.equal(first.decision, 0, "first trainer KO with reserve must remain nonterminal");
 assert.equal(state.battle.completed, false, "reserve replacement must keep Battle active");
+assert.equal(state.battle.lifecycle_phase, "command", "send-out/entry tail must finish before the next command opens");
+assert.equal(Boolean(state.battle.terminal_finalize_applied), false, "reserve KO must never enter victory finalize");
 assert.equal(state.board_consumed[0], false, "intermediate KO must not consume Board cell");
 assert.equal(Number(state.battle.trainer_party_index), 1, "first KO must activate reserve trainer Pokemon");
 assert.ok(Number(state.battle.foe.hp) > 0, "replacement foe must be active");
 assert.ok(Number(runtime.player.party[playerIndex].hp) > 0 && Number(runtime.player.party[playerIndex].hp) <= hpBefore,
   "player HP must persist through trainer replacement");
+assert.equal(first.presentation.some((event) => event.type === "battle_result"), false,
+  "reserve KO must not expose terminal Result controls");
 
 const firstFoeDamage = first.presentation.find((event) => event.type === "damage_applied" && event.target === "foe");
 assert.ok(firstFoeDamage, "first trainer KO must expose foe damage presentation");
@@ -97,14 +101,23 @@ state.battle.foe.hp = 1;
 state.battle.trainer_party[1].hp = 1;
 const final = await web.resolveSafariBattleRound(runtime, selectedMoveId);
 assert.equal(final.decision, 1, "final trainer KO must resolve victory");
-assert.equal(state.battle.completed, true, "final KO must complete Battle");
+assert.equal(state.battle.completed, true, "final KO must complete Battle after its automatic tail");
+assert.equal(state.battle.lifecycle_phase, "completed");
+assert.equal(state.battle.terminal_finalize_applied, true);
 assert.equal(state.board_consumed[0], true, "final victory must consume Board cell");
+assert.equal(state.board_visited[0], true, "final victory must commit Board visited state");
 assert.ok(Number(state.battle.trainer_exp_gained ?? 0) + Number(state.battle.exp_gained ?? 0) > 0,
   "trainer multi-KO victory must retain EXP");
+assert.equal(final.operations.filter((operation) => operation.op === "trainer_prize_money").length, 1,
+  "final trainer prize must be applied exactly once");
+assert.equal(final.operations.filter((operation) => operation.op === "request_save" && operation.reason === "normal_battle_terminal").length, 1,
+  "terminal trainer tail must request save exactly once");
+assert.equal(final.presentation.filter((event) => event.type === "battle_result").length, 1,
+  "last trainer KO must expose exactly one Result");
 
 const returned = await web.returnSafariToDayBoard(runtime);
 assert.equal(returned.result, "returned", "completed cold trainer Battle must return through public facade");
 assert.equal(state.battle, null, "Board return must clear Battle state");
 assert.equal(state.location, "day_board", "Board return must land on Day Board");
 
-console.log("Safari cold trainer -> pre-replacement presentation identity -> reserve -> final victory -> Board return: ok");
+console.log("Safari cold trainer -> post-faint reserve -> next command -> terminal tail -> Board return: ok");
