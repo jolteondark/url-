@@ -1,7 +1,7 @@
-import { SAFARI_MOVE_PRESENTATION } from "./safari-web-playable-integration.js";
+import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
 
 function moveLabel(moveId) {
-  return SAFARI_MOVE_PRESENTATION?.[moveId]?.name ?? String(moveId);
+  return SAFARI_MOVE_MASTERS?.[moveId]?.name ?? String(moveId);
 }
 
 export function createSafariBrowserMoveLearningResolver({ promptFn = globalThis.prompt } = {}) {
