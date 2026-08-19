@@ -119,6 +119,10 @@ for (const phase of [
 assert.match(adapterSource, /const commandAllowed = phase === COMMAND_PHASE/);
 assert.match(adapterSource, /const replacementAllowed = phase === REPLACEMENT_PHASE/);
 assert.match(adapterSource, /const resultReady = phase === RESULT_PHASE/);
+assert.match(adapterSource, /Number\(currentBattle\?\.decision\) === 1 \? "Victory" : "Battle End"/,
+  "loss terminals may share the POST_VICTORY compatibility checkpoint but must not render victory copy");
+assert.match(adapterSource, /Number\(currentBattle\?\.decision\) === 1 \? "勝利処理中…" : "戦闘終了処理中…"/,
+  "loss terminal checkpoint copy must be decision-aware");
 assert.match(adapterSource, /button\[data-bag-use-item\]/);
 assert.match(adapterSource, /button\[data-player-replacement-party-index\]/);
 assert.doesNotMatch(adapterSource, /currentBattle\.completed|previewCommandBusy|player_replacement_required|new MutationObserver|let resolving|let returning/,
