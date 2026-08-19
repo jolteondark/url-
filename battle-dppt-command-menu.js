@@ -1,4 +1,12 @@
+import { SAFARI_MOVE_PRESENTATION } from "./runtime/safari-move-presentation-live.js";
+
 const byId = (id) => document.getElementById(id);
+
+const TYPE_LABELS = Object.freeze({
+  NORMAL:"ノーマル",FIRE:"ほのお",WATER:"みず",ELECTRIC:"でんき",GRASS:"くさ",ICE:"こおり",
+  FIGHTING:"かくとう",POISON:"どく",GROUND:"じめん",FLYING:"ひこう",PSYCHIC:"エスパー",BUG:"むし",
+  ROCK:"いわ",GHOST:"ゴースト",DRAGON:"ドラゴン",DARK:"あく",STEEL:"はがね",FAIRY:"フェアリー",
+});
 
 function runtimeBattle() {
   return globalThis.__maplessSafariRuntime?.variables?.mapless?.battle ?? null;
@@ -56,6 +64,32 @@ function ensureBagPanel() {
   return bag;
 }
 
+function decorateMoves() {
+  const moves = byId("moves");
+  if (!moves) return;
+  for (const button of moves.querySelectorAll("button[data-move-id]")) {
+    const id = button.dataset.moveId;
+    const details = SAFARI_MOVE_PRESENTATION[id];
+    if (!details) continue;
+    const type = String(details.type ?? "NORMAL").toUpperCase();
+    button.dataset.dpptType = type;
+    button.dataset.dpptCategory = String(details.category ?? "").toLowerCase();
+    const meta = button.querySelector("small");
+    if (!meta) continue;
+    const ppMatch = meta.textContent.match(/PP\s+(\d+)/);
+    const currentPp = ppMatch ? Number(ppMatch[1]) : details.totalPp;
+    meta.className = "dppt-move-meta";
+    meta.replaceChildren();
+    const typeBadge = document.createElement("span");
+    typeBadge.className = "dppt-move-type";
+    typeBadge.textContent = TYPE_LABELS[type] ?? type;
+    const pp = document.createElement("span");
+    pp.className = "dppt-move-pp";
+    pp.textContent = `PP ${currentPp}/${details.totalPp}`;
+    meta.append(typeBadge, pp);
+  }
+}
+
 function setMenu(mode) {
   const card = byId("battle-card");
   if (!card) return;
@@ -65,6 +99,7 @@ function setMenu(mode) {
     delete message.dataset.presentationOwner;
     message.textContent = mode === "root" ? "どうする？" : mode === "fight" ? "わざを えらんでください。" : mode === "bag" ? "バッグを えらんでください。" : message.textContent;
   }
+  if (mode === "fight") decorateMoves();
 }
 
 function sync() {
@@ -74,6 +109,7 @@ function sync() {
   ensureRoot();
   ensureBackButton();
   ensureBagPanel();
+  decorateMoves();
   if (!battle) {
     delete card.dataset.dpptMenu;
     return;
