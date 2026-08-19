@@ -38,7 +38,10 @@ function restoreBattleRoot() {
 }
 
 function clearReplacementUi() {
-  byId("player-replacement-panel")?.remove();
+  const panel = byId("player-replacement-panel");
+  const active = document.activeElement;
+  if (panel && active instanceof HTMLElement && panel.contains(active)) active.blur();
+  panel?.remove();
   const card = byId("battle-card");
   if (card) delete card.dataset.playerReplacementRequired;
 }
