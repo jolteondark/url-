@@ -30,8 +30,6 @@ async function loadBoardPresentation() {
 }
 
 async function loadBattleUi() {
-  // Core battle safety is battle-scene-only; do not make initial page paint wait
-  // for it. The core battle DOM/CSS already renders HP, moves, capture and flee.
   loadStyle("./battle-core-safety.css");
   await loadModule("./canonical-battle-sprite-bridge.js?v=20260818-1755");
 }
@@ -45,7 +43,7 @@ async function loadMenuUi() {
   loadStyle("./bridge-shell.css");
   loadStyle("./game-menu.css");
   await Promise.all([
-    loadModule("./game-menu-bridge.js?v=20260819-0317"),
+    loadModule("./game-menu-bridge.js?v=20260819-1745"),
     loadModule("./party-panel-bridge.js"),
     loadModule("./storage-panel-bridge.js"),
     loadModule("./party-storage-controls-bridge.js"),
@@ -72,8 +70,6 @@ function scheduleSceneBundleSync() {
 document.addEventListener("click", (event) => {
   const start = event.target.closest("#new-run,#continue-run");
   if (start) {
-    // Let preview.js arm the static board immediately, then add decorative board
-    // presentation without putting it back on the document startup path.
     queueMicrotask(() => loadBoardPresentation());
     scheduleSceneBundleSync();
     return;

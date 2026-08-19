@@ -50,19 +50,7 @@ function potionTargetSelect(runtime) {
 function battleBagCommandAvailable(runtime) {
   const battle = runtime?.variables?.mapless?.battle;
   if (!battle) return true;
-  if (battle.completed || battle.player_replacement_required || battle.origin === "boundary_trial") return false;
-  return !byId("capture")?.disabled;
-}
-
-function setBattleControlsDisabled(disabled) {
-  const moves = byId("moves");
-  if (moves) moves.inert = disabled;
-  for (const id of ["capture", "flee"]) {
-    const button = byId(id);
-    if (!button) continue;
-    button.inert = disabled;
-    button.disabled = disabled;
-  }
+  return battle.phase === "COMMAND" && battle.origin !== "boundary_trial";
 }
 
 function battlePresentationName(runtime, side) {
@@ -174,6 +162,7 @@ function renderBag() {
   }
   wrap.append(money, grid);
   pane.replaceChildren(wrap);
+  globalThis.__maplessApplyBattlePhaseUi?.();
 }
 
 function adoptPanels() {
@@ -224,14 +213,15 @@ byId("game-menu")?.addEventListener("click", async (event) => {
     const runtime = snapshot();
     const row = use.closest(".bag-slot");
     const partyIndex = Number(row?.querySelector(".bag-target-select")?.value);
-    if (!runtime) return;
+    if (!runtime || !battleBagCommandAvailable(runtime)) return;
     bagUseBusy = true;
-    setBattleControlsDisabled(true);
     renderBag();
     try {
       const battle = runtime.variables?.mapless?.battle;
       if (battle) {
-        const result = await useSafariBattleItem(runtime, { itemId: use.dataset.bagUseItem, partyIndex });
+        const pending = useSafariBattleItem(runtime, { itemId: use.dataset.bagUseItem, partyIndex });
+        globalThis.__maplessApplyBattlePhaseUi?.();
+        const result = await pending;
         globalThis.__maplessLastBattleItemResult = result;
         if (result.turnConsumed) {
           close();
@@ -246,7 +236,6 @@ byId("game-menu")?.addEventListener("click", async (event) => {
       console.error("[Mapless] Bag use failed", error);
     } finally {
       bagUseBusy = false;
-      setBattleControlsDisabled(false);
       window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
       renderBag();
     }
