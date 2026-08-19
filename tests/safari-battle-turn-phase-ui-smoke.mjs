@@ -105,6 +105,27 @@ for (const kind of ["item", "capture", "flee", "switch"]) {
   assert.equal(rt.variables.mapless.battle.phase, SAFARI_BATTLE_PHASE.COMMAND);
 }
 
+// A rejected/non-consuming Bag command must never become a committed ACTION/CHECK.
+{
+  const rt = runtime();
+  ensureSafariBattleOrchestrator(rt);
+  beginSafariBattleCommand(rt, "item");
+  const rejected = {
+    result: "no_effect",
+    turnConsumed: false,
+    operations: [],
+  };
+  commitSafariBattleResolution(rt, rejected, "item");
+  const phases = rt.variables.mapless.battle.phase_trace.map((step) => step.phase);
+  assert.deepEqual(phases, ["COMMAND", "COMMAND"],
+    "an unconsumed command must roll the speculative ACTION_1 back before returning to COMMAND");
+  assert.equal(phases.includes("CHECK_1"), false);
+  assert.equal(phases.includes("ACTION_2"), false);
+  assert.equal(rt.variables.mapless.battle.phase, SAFARI_BATTLE_PHASE.COMMAND);
+  assert.equal(rt.variables.mapless.battle.pending_command_kind, null);
+  assert.equal(rejected.phase, SAFARI_BATTLE_PHASE.COMMAND);
+}
+
 const adapterSource = fs.readFileSync(new URL("../battle-phase-ui-adapter.js", import.meta.url), "utf8");
 const legacySource = fs.readFileSync(new URL("../battle-turn-phase-presentation.js", import.meta.url), "utf8");
 const replacementSource = fs.readFileSync(new URL("../battle-player-replacement-presentation.js", import.meta.url), "utf8");
