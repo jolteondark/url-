@@ -1,4 +1,5 @@
 import { SAFARI_MOVE_PRESENTATION, saveSafariPlayableRun, useSafariBattleItem } from "./runtime/safari-web-playable-integration.js";
+import { SAFARI_BATTLE_PHASE, completeSafariBattlePresentation } from "./runtime/safari-battle-orchestrator.js";
 import { useSafariBagItemOnPartyPokemon } from "./runtime/safari-bag-item-use.js";
 import { formatSafariBattlePresentationEvent } from "./battle-presentation-narration.js";
 
@@ -8,14 +9,10 @@ const sleep = (milliseconds) => new Promise((resolve) => window.setTimeout(resol
 let active = "party";
 let bagUseBusy = false;
 
-function snapshot() {
-  return globalThis.__maplessSafariRuntime ?? null;
-}
-
+function snapshot() { return globalThis.__maplessSafariRuntime ?? null; }
 function bagSlots(runtime) {
-  const slots = Array.isArray(runtime?.bag?.slots) ? runtime.bag.slots : [];
   const totals = new Map();
-  for (const slot of slots) {
+  for (const slot of Array.isArray(runtime?.bag?.slots) ? runtime.bag.slots : []) {
     if (!slot) continue;
     const id = Array.isArray(slot) ? slot[0] : slot.id;
     const qty = Number(Array.isArray(slot) ? slot[1] : slot.quantity ?? 0);
@@ -24,7 +21,6 @@ function bagSlots(runtime) {
   }
   return [...totals].sort((a, b) => String(a[0]).localeCompare(String(b[0])));
 }
-
 function potionTargetSelect(runtime) {
   const select = document.createElement("select");
   select.className = "bag-target-select";
@@ -46,25 +42,12 @@ function potionTargetSelect(runtime) {
   select.disabled = firstUsable == null;
   return { select, hasTarget: firstUsable != null };
 }
-
 function battleBagCommandAvailable(runtime) {
   const battle = runtime?.variables?.mapless?.battle;
   if (!battle) return true;
-  if (battle.completed || battle.player_replacement_required || battle.origin === "boundary_trial") return false;
-  return !byId("capture")?.disabled;
+  if (battle.origin === "boundary_trial") return false;
+  return battle.phase === SAFARI_BATTLE_PHASE.COMMAND;
 }
-
-function setBattleControlsDisabled(disabled) {
-  const moves = byId("moves");
-  if (moves) moves.inert = disabled;
-  for (const id of ["capture", "flee"]) {
-    const button = byId(id);
-    if (!button) continue;
-    button.inert = disabled;
-    button.disabled = disabled;
-  }
-}
-
 function battlePresentationName(runtime, side) {
   const visible = byId(side + "-name")?.textContent?.trim();
   if (visible) return visible;
@@ -75,7 +58,6 @@ function battlePresentationName(runtime, side) {
   }
   return battle?.foe?.species ?? "相手のポケモン";
 }
-
 async function playBattleItemPresentation(runtime, events = []) {
   for (const event of events) {
     const message = formatSafariBattlePresentationEvent(event, {
@@ -106,14 +88,10 @@ async function playBattleItemPresentation(runtime, events = []) {
       target?.classList.add("hit");
       await sleep(220);
       target?.classList.remove("hit");
-    } else if (event.type === "miss") {
-      await sleep(240);
-    } else if (event.type === "faint" || event.type === "trainer_next") {
-      await sleep(280);
-    }
+    } else if (event.type === "miss") await sleep(240);
+    else if (event.type === "faint" || event.type === "trainer_next") await sleep(280);
   }
 }
-
 function renderBag() {
   const pane = byId("menu-bag-pane");
   if (!pane) return;
@@ -124,7 +102,6 @@ function renderBag() {
   head.className = "section-heading";
   head.innerHTML = '<h2>Bag</h2><span class="pill">INVENTORY</span>';
   wrap.append(head);
-
   if (!runtime) {
     const empty = document.createElement("div");
     empty.className = "bag-empty";
@@ -133,7 +110,6 @@ function renderBag() {
     pane.replaceChildren(wrap);
     return;
   }
-
   const money = document.createElement("div");
   money.className = "bag-money";
   const moneyLabel = document.createElement("span");
@@ -141,7 +117,6 @@ function renderBag() {
   const moneyValue = document.createElement("strong");
   moneyValue.textContent = moneyFormat.format(Number(runtime.bag?.money ?? 0)) + "円";
   money.append(moneyLabel, moneyValue);
-
   const grid = document.createElement("div");
   grid.className = "bag-grid";
   const rows = bagSlots(runtime);
@@ -154,7 +129,6 @@ function renderBag() {
       const amount = document.createElement("span");
       amount.textContent = "×" + qty;
       row.append(name, amount);
-
       if (id === "POTION") {
         const { select, hasTarget } = potionTargetSelect(runtime);
         const use = document.createElement("button");
@@ -175,7 +149,6 @@ function renderBag() {
   wrap.append(money, grid);
   pane.replaceChildren(wrap);
 }
-
 function adoptPanels() {
   const party = byId("party-detail-card");
   const box = byId("storage-detail-card");
@@ -184,7 +157,6 @@ function adoptPanels() {
   if (party && partyPane && party.parentElement !== partyPane) partyPane.append(party);
   if (box && boxPane && box.parentElement !== boxPane) boxPane.append(box);
 }
-
 function show(tab) {
   active = tab;
   adoptPanels();
@@ -198,35 +170,28 @@ function show(tab) {
   if (tab === "bag") renderBag();
   window.dispatchEvent(new CustomEvent("safari-game-menu-opened", { detail: { tab } }));
 }
-
 function close() {
   const menu = byId("game-menu");
   if (menu) menu.hidden = true;
   document.body.classList.remove("menu-open");
 }
-
 new MutationObserver(adoptPanels).observe(document.body, { childList: true, subtree: true });
 adoptPanels();
-
 byId("menu-party")?.addEventListener("click", () => show("party"));
 byId("menu-bag")?.addEventListener("click", () => show("bag"));
 byId("menu-box")?.addEventListener("click", () => show("box"));
 byId("game-menu-close")?.addEventListener("click", close);
 byId("game-menu")?.addEventListener("click", async (event) => {
   const tab = event.target.closest("button[data-menu-tab]");
-  if (tab) {
-    show(tab.dataset.menuTab);
-    return;
-  }
+  if (tab) { show(tab.dataset.menuTab); return; }
   const use = event.target.closest("button[data-bag-use-item]");
   if (use) {
     if (bagUseBusy) return;
     const runtime = snapshot();
     const row = use.closest(".bag-slot");
     const partyIndex = Number(row?.querySelector(".bag-target-select")?.value);
-    if (!runtime) return;
+    if (!runtime || !battleBagCommandAvailable(runtime)) return;
     bagUseBusy = true;
-    setBattleControlsDisabled(true);
     renderBag();
     try {
       const battle = runtime.variables?.mapless?.battle;
@@ -236,6 +201,8 @@ byId("game-menu")?.addEventListener("click", async (event) => {
         if (result.turnConsumed) {
           close();
           await playBattleItemPresentation(runtime, result.presentation ?? []);
+          completeSafariBattlePresentation(runtime, result);
+          window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
         }
       } else {
         const result = useSafariBagItemOnPartyPokemon(runtime, { itemId: use.dataset.bagUseItem, partyIndex });
@@ -246,7 +213,6 @@ byId("game-menu")?.addEventListener("click", async (event) => {
       console.error("[Mapless] Bag use failed", error);
     } finally {
       bagUseBusy = false;
-      setBattleControlsDisabled(false);
       window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
       renderBag();
     }
@@ -254,7 +220,6 @@ byId("game-menu")?.addEventListener("click", async (event) => {
   }
   if (event.target === byId("game-menu")) close();
 });
-
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !byId("game-menu")?.hidden) close();
 });
