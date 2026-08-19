@@ -42,7 +42,21 @@ function bindPresentationIdentity(event, context) {
 function battlePresentation(operations, context = null) {
   const events = [];
   for (const operation of operations ?? []) {
-    if (operation.op === "use_move") {
+    if (operation.op === "cure_status_request" && operation.status === "SLEEP") {
+      events.push({ type: "status_recovered", actor: operation.actor, status: "SLEEP" });
+    } else if (operation.op === "cure_status_request" && operation.status === "FROZEN") {
+      events.push({ type: "status_recovered", actor: operation.actor, status: "FROZEN" });
+    } else if (operation.op === "continue_status_request" && ["SLEEP", "FROZEN", "PARALYSIS"].includes(operation.status)) {
+      events.push({ type: "action_blocked", actor: operation.actor, reason: operation.status.toLowerCase() });
+    } else if (operation.op === "display_flinched") {
+      events.push({ type: "action_blocked", actor: operation.actor, reason: "flinch" });
+    } else if (operation.op === "display_confused") {
+      events.push({ type: "confusion_active", actor: operation.actor });
+    } else if (operation.op === "display_confusion_cured") {
+      events.push({ type: "confusion_cured", actor: operation.actor });
+    } else if (operation.op === "display_confusion_self_damage") {
+      events.push({ type: "confusion_self_hit", actor: operation.actor });
+    } else if (operation.op === "use_move") {
       events.push({ type: "move_selected", actor: operation.actor, moveId: operation.moveId });
       events.push({ type: "move_started", actor: operation.actor, target: operation.target, moveId: operation.moveId });
     } else if (operation.op === "accuracy_check" && !operation.hit) {
