@@ -33,13 +33,13 @@ function phaseOf(currentBattle = battle()) {
   return VALID_PHASES.has(phase) ? phase : null;
 }
 
-function phaseLabel(phase, turn) {
+function phaseLabel(currentBattle, phase, turn) {
   if (phase === COMMAND_PHASE) return `Turn ${turn}`;
   if (phase === RESULT_PHASE) return "Result";
   if (phase === RETURN_PHASE) return "Return";
   if (phase === REPLACEMENT_PHASE) return "Replacement";
   if (phase === "REWARD_GROWTH") return "Rewards";
-  if (phase === "POST_VICTORY") return "Victory";
+  if (phase === "POST_VICTORY") return Number(currentBattle?.decision) === 1 ? "Victory" : "Battle End";
   if (phase === "POST_FAINT") return "Faint";
   if (phase === "ACTION_1") return "Action 1";
   if (phase === "CHECK_1") return "Check 1";
@@ -53,7 +53,7 @@ function phaseMessage(currentBattle, phase) {
   if (phase === COMMAND_PHASE) return "技を選んでください。";
   if (phase === REPLACEMENT_PHASE) return notice || "次のポケモンを選んでください。";
   if (phase === "POST_FAINT") return notice || "ひんし処理中…";
-  if (phase === "POST_VICTORY") return notice || "勝利処理中…";
+  if (phase === "POST_VICTORY") return notice || (Number(currentBattle?.decision) === 1 ? "勝利処理中…" : "戦闘終了処理中…");
   if (phase === "REWARD_GROWTH") return notice || "経験値・報酬を処理しています…";
   if (phase === RESULT_PHASE) return notice || (Number(currentBattle?.decision) === 1 ? "勝利しました。" : "戦闘終了。");
   if (phase === RETURN_PHASE) return "戻っています…";
@@ -82,7 +82,7 @@ export function applySafariBattlePhaseUi() {
   const resultReady = phase === RESULT_PHASE;
 
   const turn = byId("turn");
-  if (turn) turn.textContent = phaseLabel(phase, Number(currentBattle.turn ?? 1));
+  if (turn) turn.textContent = phaseLabel(currentBattle, phase, Number(currentBattle.turn ?? 1));
 
   const message = byId("battle-message");
   if (message && message.dataset.presentationOwner !== "event") {
