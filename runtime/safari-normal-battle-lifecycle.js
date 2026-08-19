@@ -106,6 +106,22 @@ function finalizeCaughtNormalWild(runtime) {
   return completionOperations;
 }
 
+export function commitSafariCapturedWildRewardGrowth(runtime, result = {}) {
+  const state = stateOf(runtime);
+  const battle = state.battle;
+  if (!battle || battle.kind !== "wild" || battle.decision !== 4 || !battle.captured) {
+    throw new Error("captured wild battle is required for reward-growth commit");
+  }
+  if (!battle.capture_reward_growth_committed) {
+    finalizeCaughtNormalWild(runtime);
+    battle.capture_reward_growth_committed = true;
+  }
+  result.operations = [...(battle.last_operations ?? [])];
+  result.presentation = [...(battle.presentation ?? [])];
+  result.persistenceRequested = requestsSave(result.operations);
+  return result;
+}
+
 export function useSafariNormalBattleItem(runtime, { itemId = "POTION", partyIndex = undefined } = {}) {
   const state = stateOf(runtime);
   const battle = state.battle;
@@ -241,14 +257,13 @@ export function attemptSafariCapture(runtime, { captureRandomSeed = browserCaptu
     ...captureEvent,
     destination: battle.capture_destination,
   }];
-  finalizeCaughtNormalWild(runtime);
 
   return {
     runtime,
     result: "caught",
     destination: battle.capture_destination,
-    operations: battle.last_operations,
-    presentation: battle.presentation,
+    operations: [...battle.last_operations],
+    presentation: [...battle.presentation],
     calculation: capture.capture,
     captureRandomSeed: normalizedCaptureSeed,
     randomValues: captureRandomValues,
