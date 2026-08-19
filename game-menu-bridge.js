@@ -190,8 +190,12 @@ function show(tab) {
 
 function close() {
   const menu = byId("game-menu");
+  const wasOpen = Boolean(menu && !menu.hidden);
+  const focused = document.activeElement;
+  if (wasOpen && focused instanceof HTMLElement && menu.contains(focused)) focused.blur();
   if (menu) menu.hidden = true;
   document.body.classList.remove("menu-open");
+  if (wasOpen) window.dispatchEvent(new CustomEvent("safari-game-menu-closed", { detail: { tab: active } }));
 }
 
 new MutationObserver(adoptPanels).observe(document.body, { childList: true, subtree: true });
