@@ -17,4 +17,22 @@ assert.deepEqual(prepared.rounds[0].actions[0].secondaryEffectInputs.map((x) => 
 assert.deepEqual(prepared.rounds[0].actions[0].secondaryEffectInputs.map((x) => x.triggered), [true, false, true, true, false]);
 const vertical = prepareCombatTurnInputCanonical(input);
 assert.equal(vertical.rounds[0].actions[0].secondaryEffectInputs[0].randomRoll, 37);
-console.log(JSON.stringify({ ok: true, rolls: [37,12,72], verticalWired: true }));
+
+const resolvedDamageInput = {
+  secondaryEffectRandomSeed: 1,
+  rounds: [{ actions: [{
+    kind: "move",
+    calculatedDamage: 20,
+    secondaryEffectInputs: [
+      { effectChance: 100, randomRoll: 0, functionCode: "FlinchTarget" },
+      { calcDamage: 0, effectChance: 100, randomRoll: 0, functionCode: "FlinchTarget" },
+    ],
+  }] }],
+};
+const resolvedDamage = materializeSeededSecondaryEffectsCanonical(resolvedDamageInput);
+assert.equal(resolvedDamage.rounds[0].actions[0].secondaryEffectInputs[0].calcDamage, 20);
+assert.equal(resolvedDamage.rounds[0].actions[0].secondaryEffectInputs[0].triggered, true);
+assert.equal(resolvedDamage.rounds[0].actions[0].secondaryEffectInputs[1].calcDamage, 0);
+assert.equal(resolvedDamage.rounds[0].actions[0].secondaryEffectInputs[1].triggered, false);
+
+console.log(JSON.stringify({ ok: true, rolls: [37,12,72], verticalWired: true, resolvedDamageOwner: true }));
