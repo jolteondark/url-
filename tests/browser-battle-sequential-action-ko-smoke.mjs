@@ -189,4 +189,5 @@ function cancelCount(result, action) {
   assert.equal(useMoveCount(resolved, 1), 0);
 }
 
+await import("./battle-paralysis-stop-source-smoke.mjs");
 console.log("browser battle sequential action KO cancellation smoke: ok");
