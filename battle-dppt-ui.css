@@ -1,5 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=DotGothic16&display=swap");
-@import url("./battle-dppt-font.css?v=20260820-0741");
+@import url("./battle-dppt-font.css?v=20260820-0754");
 
 /* Diamond/Pearl/Platinum-inspired battle presentation layer. Visual only. */
 #battle-card.battle-scene{
@@ -16,8 +15,8 @@
 #battle-card .battle-info-panel{border:2px solid #2f3434;border-radius:2px;background:linear-gradient(180deg,#fffef5 0,#f2f1e6 62%,#d8dbd2 100%);box-shadow:2px 2px 0 #7c827f;color:var(--dppt-ink);padding:5px 8px 5px}
 #battle-card .foe-info{left:7px;top:16px;width:min(47%,235px);clip-path:none}
 #battle-card .player-info{right:7px;bottom:10px;width:min(49%,245px);clip-path:none}
-#battle-card .pokemon-name strong{font-size:.82rem;font-weight:900;letter-spacing:.01em;color:#151515}
-#battle-card .pokemon-name span,#battle-card .combatant small{color:#292929;font-size:.58rem;font-weight:850}
+#battle-card .pokemon-name strong{font-size:.82rem;font-weight:400;letter-spacing:0;color:#151515}
+#battle-card .pokemon-name span,#battle-card .combatant small{color:#292929;font-size:.58rem;font-weight:400}
 #battle-card .hp-row{margin-top:3px;gap:4px}.hp-row>span{font-size:.48rem!important}
 #battle-card .hp-track{height:7px;border:1px solid #3e4341;border-radius:1px;padding:1px;background:#232624}
 #battle-card .hp-track span{border-radius:0;background:linear-gradient(180deg,#75e877,#42c250 48%,#279236 49%,#36aa44);transition:width .11s linear,background .11s linear}
@@ -31,7 +30,7 @@
 #battle-card .canonical-battle-sprite{image-rendering:pixelated;filter:drop-shadow(0 5px 2px rgba(50,84,46,.18))}
 #battle-card .combatant.foe .canonical-battle-sprite{right:28px;bottom:8px}#battle-card .combatant.player .canonical-battle-sprite{left:4px;bottom:8px}
 #battle-card .battle-command-panel{min-height:170px;border-top:0;background:#cdd1ce;grid-template-columns:44% 56%}
-#battle-card .battle-message{min-height:104px;border:2px solid #23292c;border-radius:0;padding:11px 13px 14px;background:linear-gradient(180deg,#fffef8,#ecece1);color:#202020;font-size:.86rem;font-weight:750;line-height:1.48;box-shadow:inset 0 0 0 2px #c8d9df}
+#battle-card .battle-message{min-height:104px;border:2px solid #23292c;border-radius:0;padding:11px 13px 14px;background:linear-gradient(180deg,#fffef8,#ecece1);color:#202020;font-size:.86rem;font-weight:400;line-height:1.36;box-shadow:inset 0 0 0 2px #c8d9df}
 #battle-card .battle-message::after{color:#3a403e;font-size:.58rem}
 #battle-card #turn,#battle-card #battle-phase{display:none!important}
 #battle-card .canonical-status-badge{border-radius:1px;min-width:28px;padding:1px 3px;font-size:.48rem}
