@@ -79,7 +79,17 @@ function levelFromThresholds(exp, thresholds, currentLevel) {
   return level;
 }
 
-function learnMove(moves, newMove, decision, maxMoves, operations) {
+function resolvedDecision({ decision, resolver, level, move, moves }) {
+  if (decision != null || typeof resolver !== "function") return decision;
+  const resolved = resolver(Object.freeze({ level, move, moves: Object.freeze([...moves]) }));
+  if (resolved == null) return null;
+  if (resolved.decline === true) return { decline: true };
+  const forgetIndex = Number(resolved.forgetIndex);
+  if (!Number.isInteger(forgetIndex) || forgetIndex < 0 || forgetIndex >= moves.length) return null;
+  return { forgetIndex };
+}
+
+function learnMove(moves, newMove, decision, maxMoves, operations, level, resolver) {
   if (moves.includes(newMove)) {
     operations.push({ op: "skip_known_move", move: newMove });
     return;
@@ -90,10 +100,11 @@ function learnMove(moves, newMove, decision, maxMoves, operations) {
     operations.push({ op: "check_form_on_moveset_change" });
     return;
   }
-  if (decision && Number.isInteger(decision.forgetIndex) && decision.forgetIndex >= 0 && decision.forgetIndex < moves.length) {
-    const forgotten = moves[decision.forgetIndex];
-    moves[decision.forgetIndex] = newMove;
-    operations.push({ op: "replace_move", slot: decision.forgetIndex, forgotten, move: newMove, resetPp: true });
+  const chosen = resolvedDecision({ decision, resolver, level, move: newMove, moves });
+  if (chosen && Number.isInteger(chosen.forgetIndex) && chosen.forgetIndex >= 0 && chosen.forgetIndex < moves.length) {
+    const forgotten = moves[chosen.forgetIndex];
+    moves[chosen.forgetIndex] = newMove;
+    operations.push({ op: "replace_move", slot: chosen.forgetIndex, forgotten, move: newMove, resetPp: true });
     operations.push({ op: "check_form_on_moveset_change" });
     return;
   }
@@ -142,6 +153,7 @@ export function resolveExpLevelMoveFlow(input) {
   pokemon.exp = expFinal;
   const movesByLevel = input.movesByLevel ?? {};
   const decisions = input.moveDecisions ?? {};
+  const resolver = input.moveDecisionResolver;
 
   for (let level = pokemon.level + 1; level <= newLevel; level += 1) {
     operations.push({ op: "exp_bar_to_level", level });
@@ -149,7 +161,7 @@ export function resolveExpLevelMoveFlow(input) {
     operations.push({ op: "change_happiness", reason: "levelup" });
     operations.push({ op: "recalculate_stats" });
     for (const move of movesByLevel[level] ?? []) {
-      learnMove(pokemon.moves, move, decisions[`${level}:${move}`], maxMoves, operations);
+      learnMove(pokemon.moves, move, decisions[`${level}:${move}`], maxMoves, operations, level, resolver);
     }
   }
   pokemon.level = newLevel;
