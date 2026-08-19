@@ -120,3 +120,4 @@ function startedActors(result) {
 }
 
 console.log("Safari Battle presentation contract: owner action order, KO truncation, nonlethal dual action, trainer send-out wait: ok");
+await import("./safari-ko-post-action-acceptance-smoke.mjs");
