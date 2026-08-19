@@ -77,7 +77,7 @@ async function playBattleItemPresentation(runtime, events = []) {
       const pokemon = runtime?.player?.party?.[Number(event.partyIndex ?? 0)];
       const maxHp = Number(pokemon?.max_hp ?? 0);
       if (byId("player-hp") && maxHp > 0) byId("player-hp").textContent = `${event.hpAfter} / ${maxHp}`;
-      if (byId("player-hp-bar") && maxHp > 0) byId("player-hp-bar").style.width = Math.max(0, Math.min(100, Number(event.hpAfter) / maxHp * 100)) + "%";
+      if (byId("player-hp-bar") && maxHp > 0) byId("player-hp-bar").style.width = Math.max(0, Math.min(100, Number(event.hpAfter) / maxHp * 100) + "%";
       await sleep(260);
     } else if (event.type === "move_started") {
       const actor = byId(event.actor + "-combatant");
@@ -90,7 +90,7 @@ async function playBattleItemPresentation(runtime, events = []) {
       const bar = byId(event.target + "-hp-bar");
       const maxHp = Number(event.targetMaxHp ?? 0);
       if (hp && maxHp > 0) hp.textContent = `${event.hpAfter} / ${maxHp}`;
-      if (bar && maxHp > 0) bar.style.width = Math.max(0, Math.min(100, Number(event.hpAfter) / maxHp * 100)) + "%";
+      if (bar && maxHp > 0) bar.style.width = Math.max(0, Math.min(100, Number(event.hpAfter) / maxHp * 100) + "%";
       target?.classList.add("hit");
       await sleep(220);
       target?.classList.remove("hit");
@@ -198,6 +198,14 @@ function close() {
   if (wasOpen) window.dispatchEvent(new CustomEvent("safari-game-menu-closed", { detail: { tab: active } }));
 }
 
+function closeBattleMenuOutsideCommand() {
+  const menu = byId("game-menu");
+  if (!menu || menu.hidden) return;
+  const battle = snapshot()?.variables?.mapless?.battle;
+  if (!battle || battle.phase === "COMMAND") return;
+  close();
+}
+
 new MutationObserver(adoptPanels).observe(document.body, { childList: true, subtree: true });
 adoptPanels();
 
@@ -255,6 +263,7 @@ window.addEventListener("storage", () => {
   if (active === "bag" && !byId("game-menu")?.hidden) renderBag();
 });
 window.addEventListener("safari-runtime-changed", () => {
+  closeBattleMenuOutsideCommand();
   if (active === "bag" && !byId("game-menu")?.hidden) renderBag();
   adoptPanels();
 });
