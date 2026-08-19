@@ -166,6 +166,25 @@ function runtime(battle = {}) {
   assert.equal(rt.variables.mapless.battle.phase, SAFARI_BATTLE_PHASE.COMMAND);
 }
 
+{
+  const rt = runtime();
+  ensureSafariBattleOrchestrator(rt);
+  beginSafariBattleCommand(rt, "move");
+  commitSafariBattleResolution(rt, {
+    decision: 0,
+    turnConsumed: true,
+    operations: [
+      { op: "try_use_move_failed", actor: "player", reason: "paralysis" },
+      { op: "use_move", actor: "foe" },
+    ],
+  }, "move");
+  assert.deepEqual(
+    rt.variables.mapless.battle.phase_trace.map((step) => step.phase),
+    ["COMMAND", "ACTION_1", "CHECK_1", "ACTION_2", "CHECK_2", "COMMAND"],
+    "a status-blocked move still consumes ACTION_1, so the surviving foe response occupies ACTION_2 exactly once",
+  );
+}
+
 for (const commandKind of ["item", "capture", "flee", "switch"]) {
   const rt = runtime();
   ensureSafariBattleOrchestrator(rt);
