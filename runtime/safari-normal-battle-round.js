@@ -45,7 +45,7 @@ function bindPresentationIdentity(event, context) {
   };
 }
 
-function battlePresentation(operations, context = null) {
+export function projectSafariBattleOperationsToPresentation(operations, context = null) {
   const events = [];
   for (const operation of operations ?? []) {
     if (operation.op === "cure_status_request" && operation.status === "SLEEP") {
@@ -80,6 +80,18 @@ function battlePresentation(operations, context = null) {
       });
     } else if (operation.op === "faint" || operation.op === "faint_self") {
       events.push({ type: "faint", target: operation.target });
+    } else if (operation.op === "gain_exp") {
+      events.push({ type: "exp_gain", actor: "player", amount: Number(operation.amount ?? 0) });
+    } else if (operation.op === "level_up") {
+      events.push({ type: "level_up", actor: "player", level: Number(operation.level ?? 0) });
+    } else if (operation.op === "learn_move") {
+      events.push({ type: "move_learned", actor: "player", moveId: operation.move, slot: operation.slot });
+    } else if (operation.op === "replace_move") {
+      events.push({ type: "move_replaced", actor: "player", moveId: operation.move, forgottenMoveId: operation.forgotten, slot: operation.slot });
+    } else if (operation.op === "decline_move") {
+      events.push({ type: "move_declined", actor: "player", moveId: operation.move });
+    } else if (operation.op === "level_evolution") {
+      events.push({ type: "evolution", actor: "player", from: operation.from, to: operation.to });
     } else if (operation.op === "end_of_round" || operation.op === "end_of_round_phase") {
       events.push({ type: "turn_end", turn: operation.battleTurn ?? operation.turn ?? operation.round });
     }
@@ -122,7 +134,7 @@ function projectPlayerReplacement(battle, handoff, continuation = null) {
 function finish(runtime, battle, resolved, operations) {
   const state = stateOf(runtime);
   battle.last_operations = operations;
-  battle.presentation = battlePresentation(operations, resolved.presentationContext ?? null);
+  battle.presentation = projectSafariBattleOperationsToPresentation(operations, resolved.presentationContext ?? null);
   state.last_operations = operations;
   if (Number(battle.decision) !== 0) finalizeNormalBattle(runtime);
   return {
