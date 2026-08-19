@@ -22,6 +22,14 @@ function preserveFaintedHp(before, after) {
   return after;
 }
 
+function preserveAuthoritativeBattleFields(before, after) {
+  const next = { ...after };
+  for (const field of ["ability", "held_item"]) {
+    if (before && Object.prototype.hasOwnProperty.call(before, field)) next[field] = before[field];
+  }
+  return next;
+}
+
 export function commitBattleSystemsExpRuntime({ battleInput = {}, turn = {}, pokemon } = {}) {
   let runtime = pokemon;
   const commits = [];
@@ -44,7 +52,7 @@ export function commitBattleSystemsExpRuntime({ battleInput = {}, turn = {}, pok
       const moves = reflectedMoves(runtime, flow.pokemon.moves);
       const runtimeMasters = action.battleExpInput.runtimeMasters ?? null;
       runtime = runtimeMasters
-        ? resolvePokemonRuntimeMasters({ ...runtime, exp: Number(flow.pokemon.exp), level: Number(flow.pokemon.level), moves }, structuredClone(runtimeMasters))
+        ? preserveAuthoritativeBattleFields(before, resolvePokemonRuntimeMasters({ ...runtime, exp: Number(flow.pokemon.exp), level: Number(flow.pokemon.level), moves }, structuredClone(runtimeMasters)))
         : updatePokemonRuntime(runtime, {
           exp: Number(flow.pokemon.exp),
           level: Number(flow.pokemon.level),
@@ -57,7 +65,7 @@ export function commitBattleSystemsExpRuntime({ battleInput = {}, turn = {}, pok
       if (evolutionMasters && Number(flow.pokemon.level) > beforeLevel) {
         const beforeEvolution = runtime;
         evolution = resolvePokemonLevelEvolution(runtime, evolutionMasters);
-        runtime = preserveFaintedHp(beforeEvolution, evolution.pokemon);
+        runtime = preserveAuthoritativeBattleFields(beforeEvolution, preserveFaintedHp(beforeEvolution, evolution.pokemon));
         evolution = { ...evolution, pokemon: runtime };
       }
       clearSafariBattleMoveLearningDecisions(runtime);
