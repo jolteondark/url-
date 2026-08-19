@@ -11,6 +11,10 @@ const EXTENSION_ITEM_IDS = Object.freeze([
   "SCOPELENS",
 ]);
 
+function hasOwn(object, key) {
+  return Boolean(object) && Object.prototype.hasOwnProperty.call(object, key);
+}
+
 function moveCategory(move) {
   const category = String(move?.category ?? "").toLowerCase();
   if (category === "status") return "Status";
@@ -20,11 +24,13 @@ function moveCategory(move) {
 }
 
 function abilityId(pokemon) {
-  return id(pokemon?.ability_id ?? pokemon?.ability);
+  if (hasOwn(pokemon, "ability")) return id(pokemon.ability);
+  return id(pokemon?.ability_id);
 }
 
 function itemId(pokemon) {
-  return id(pokemon?.item ?? pokemon?.held_item);
+  if (hasOwn(pokemon, "held_item")) return id(pokemon.held_item);
+  return id(pokemon?.item);
 }
 
 export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ user = {}, target = {}, move = {} } = {}) {
