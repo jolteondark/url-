@@ -1,16 +1,43 @@
 /* DPt-inspired typography layer. Visual-only: no battle mechanics. */
+@font-face {
+  font-family: "MaplessPixel12";
+  src: url("https://raw.githubusercontent.com/itouhiro/PixelMplus/master/PixelMplus12-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "MaplessPixel10";
+  src: url("https://raw.githubusercontent.com/itouhiro/PixelMplus/master/PixelMplus10-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
 #battle-card,
 #battle-card button,
 #battle-card input,
 #battle-card select,
 #battle-card .battle-message,
-#battle-card .battle-info-panel,
-#battle-card .pokemon-name,
 #battle-card .move-grid,
 #battle-card .dppt-command-root,
 #battle-card .dppt-battle-bag,
 #battle-card .player-replacement-panel {
-  font-family: "DotGothic16", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  font-family: "MaplessPixel12", "Hiragino Kaku Gothic ProN", "Yu Gothic", monospace;
+  font-synthesis: none;
+}
+
+#battle-card .battle-info-panel,
+#battle-card .pokemon-name,
+#battle-card .pokemon-name strong,
+#battle-card .pokemon-name span,
+#battle-card .hp-row,
+#battle-card #player-hp,
+#battle-card #foe-hp,
+#battle-card .dppt-move-pp,
+#battle-card .dppt-move-meta,
+#battle-card .canonical-status-badge {
+  font-family: "MaplessPixel10", "MaplessPixel12", monospace;
   font-synthesis: none;
 }
 
@@ -19,8 +46,8 @@
 #battle-card .dppt-command-root strong,
 #battle-card .move-grid button strong,
 #battle-card .player-replacement-heading {
-  letter-spacing: -0.035em;
-  line-height: 1.18;
+  letter-spacing: 0;
+  line-height: 1.22;
 }
 
 #battle-card .battle-message {
@@ -37,12 +64,12 @@
 #battle-card .dppt-move-pp,
 #battle-card .mode-pill {
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.045em;
+  letter-spacing: 0;
 }
 
 #battle-card .pokemon-name strong {
   font-weight: 400;
-  font-size: 1.02em;
+  font-size: 1em;
 }
 
 #battle-card .pokemon-name span,
@@ -57,18 +84,17 @@
 #battle-card .move-grid button strong,
 #battle-card .dppt-command-back {
   font-weight: 400;
-  text-shadow: 1px 1px 0 rgba(0,0,0,.35);
+  text-shadow: 1px 1px 0 rgba(0,0,0,.28);
 }
 
 #battle-card[data-dppt-menu="fight"] .move-grid button strong {
-  text-shadow: 1px 1px 0 rgba(255,255,255,.65);
+  text-shadow: 1px 1px 0 rgba(255,255,255,.6);
 }
 
 #battle-card .dppt-command-root button small,
-#battle-card .dppt-battle-bag button small,
-#battle-card .dppt-move-meta {
-  font-family: "DotGothic16", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
-  letter-spacing: -0.02em;
+#battle-card .dppt-battle-bag button small {
+  font-family: "MaplessPixel10", "MaplessPixel12", monospace;
+  letter-spacing: 0;
 }
 
 @media(max-width:540px) and (orientation:portrait) {
