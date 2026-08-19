@@ -12,6 +12,12 @@ import { resolveUseMoveInstructCanonical } from "./battle-core-use-move-instruct
 import { resolveUseMoveDancerCanonical } from "./battle-core-use-move-dancer.js";
 import { materializeSeededAccuracyDamageCanonical } from "./battle-core-seeded-accuracy-damage.js";
 import { materializeSeededSecondaryEffectsCanonical } from "./battle-core-seeded-secondary-effect.js";
+import {
+  applyBattleStatStageChangesCanonical,
+  battleStatStageEffectSucceededCanonical,
+  createBattleStatStageStateCanonical,
+  injectBattleStatStagesIntoActionCanonical,
+} from "./battle-core-stat-stages.js";
 
 function resolveTryUseMoveInputCanonical(action) {
   if (action?.kind !== "move" || !action.useMoveInput?.tryUseMoveInput) return { action, resolution: null };
@@ -84,7 +90,8 @@ function withTransientFlinch(action) {
 
 function resolveRoundActionsCanonical(round) {
   const actions = (Array.isArray(round?.actions) ? round.actions : []).map((action) => structuredClone(action));
-  if (actions.length === 0) return actions;
+  let statStages = createBattleStatStageStateCanonical(round?.statStages);
+  if (actions.length === 0) return { actions, statStages };
   const order = Array.isArray(round?.priorityOrder)
     ? round.priorityOrder.map(Number).filter((index) => Number.isInteger(index) && index >= 0 && index < actions.length)
     : actions.map((_, index) => index);
@@ -96,7 +103,18 @@ function resolveRoundActionsCanonical(round) {
 
   for (const actionIndex of order) {
     if (acted.has(actionIndex)) continue;
-    const resolved = resolveCombatActionCanonical(actions[actionIndex]);
+    const staged = injectBattleStatStagesIntoActionCanonical(actions[actionIndex], statStages);
+    const resolved = resolveCombatActionCanonical(staged);
+    if (battleStatStageEffectSucceededCanonical(resolved)) {
+      const stageResolution = applyBattleStatStageChangesCanonical(
+        statStages,
+        resolved.statStageEffectInput.changes,
+        resolved.battlerIndex,
+        resolved.targetBattlerIndex,
+      );
+      statStages = stageResolution.state;
+      resolved.statStageResolution = stageResolution;
+    }
     actions[actionIndex] = resolved;
     acted.add(actionIndex);
     if (!triggeredDirectFlinch(resolved)) continue;
@@ -105,18 +123,31 @@ function resolveRoundActionsCanonical(round) {
     actions[targetActionIndex] = withTransientFlinch(actions[targetActionIndex]);
   }
   for (let actionIndex = 0; actionIndex < actions.length; actionIndex += 1) {
-    if (!acted.has(actionIndex)) actions[actionIndex] = resolveCombatActionCanonical(actions[actionIndex]);
+    if (acted.has(actionIndex)) continue;
+    const staged = injectBattleStatStagesIntoActionCanonical(actions[actionIndex], statStages);
+    const resolved = resolveCombatActionCanonical(staged);
+    if (battleStatStageEffectSucceededCanonical(resolved)) {
+      const stageResolution = applyBattleStatStageChangesCanonical(
+        statStages,
+        resolved.statStageEffectInput.changes,
+        resolved.battlerIndex,
+        resolved.targetBattlerIndex,
+      );
+      statStages = stageResolution.state;
+      resolved.statStageResolution = stageResolution;
+    }
+    actions[actionIndex] = resolved;
   }
-  return actions;
+  return { actions, statStages };
 }
 
 export function prepareCombatTurnInputCanonical(input = {}) {
   let seeded = input.combatRandomSeed === undefined ? input : materializeSeededAccuracyDamageCanonical(input);
   seeded = seeded.secondaryEffectRandomSeed === undefined ? seeded : materializeSeededSecondaryEffectsCanonical(seeded);
-  const rounds = (Array.isArray(seeded.rounds) ? seeded.rounds : []).map((round) => ({
-    ...round,
-    actions: resolveRoundActionsCanonical(round),
-  }));
+  const rounds = (Array.isArray(seeded.rounds) ? seeded.rounds : []).map((round) => {
+    const resolved = resolveRoundActionsCanonical(round);
+    return { ...round, actions: resolved.actions, statStages: resolved.statStages };
+  });
   return { ...seeded, rounds };
 }
 

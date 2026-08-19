@@ -5,7 +5,8 @@ import { STRUGGLE_MOVE_CANONICAL } from "./battle-core-struggle-command.js";
 import { buildBrowserBattleContinuationHandoff, materializeBattleParty, prepareBrowserPartyAwareJudgeStates } from "./browser-battle-party-judge.js";
 import { resolveCanonicalBattleTypingV108 } from "./canonical-type-effectiveness-v108.js";
 import { safariGeneralPokemonTypesV108 } from "./safari-general-species-type-facts.js";
-import { resolveOrdinaryPokemonSpeedCanonical } from "./battle-core-speed.js";
+import { resolveBattleSpeedCanonical } from "./battle-core-speed.js";
+import { createBattleStatStageStateCanonical, resolveBattleStatStageChangesCanonical } from "./battle-core-stat-stages.js";
 
 function moveId(move) { return typeof move === "string" ? move : move?.id; }
 function requireMoveMaster(moveMasters, id) {
@@ -70,6 +71,7 @@ export function buildBrowserBattleActionInput({ actor, target, move, moveIndex, 
   if (randomRoll !== null && randomRoll !== undefined) accuracyInput.randomRoll = Number(randomRoll);
   const actorAbility = canonicalAbilityId(actor);
   const targetAbility = canonicalAbilityId(target);
+  const statStageChanges = struggle ? [] : resolveBattleStatStageChangesCanonical(move.function_code);
   const action = {
     kind: "move", battlerIndex, targetBattlerIndex,
     actorHpBefore: actor.hp, actorTotalHp: actor.max_hp,
@@ -81,6 +83,13 @@ export function buildBrowserBattleActionInput({ actor, target, move, moveIndex, 
     targetHasShieldDust: targetAbility === "SHIELDDUST",
     moldBreaker: ["MOLDBREAKER", "TERAVOLT", "TURBOBLAZE"].includes(actorAbility),
   };
+  if (statStageChanges.length > 0) {
+    action.statStageEffectInput = {
+      functionCode: move.function_code,
+      moveCategory: move.category,
+      changes: statStageChanges,
+    };
+  }
   if (actor.status === "PARALYSIS") {
     action.useMoveInput = { isStruggle: Boolean(struggle), tryUseMoveInput: { status: "PARALYSIS" } };
   }
@@ -169,8 +178,9 @@ function expFlowOperations(expIntegration) {
     round: Number(commit.roundIndex) + 1,
   })));
 }
-export function resolveBrowserBattleRound({ player, foe, playerParty = null, foeParty = null, playerActivePartyIndex = 0, foeActivePartyIndex = 0, selectedMoveId, foeMoveId, moveMasters, combatRandomSeed = browserCombatSeed(), priorityRandomSeed = browserCombatSeed(), playerRandomRoll = null, foeRandomRoll = null, playerBattleExpInput = null, postBattlePersistenceInput = null, reflectedPartyIndex = 0, playerActionConsumedWithoutMove = false } = {}) {
+export function resolveBrowserBattleRound({ player, foe, playerParty = null, foeParty = null, playerActivePartyIndex = 0, foeActivePartyIndex = 0, selectedMoveId, foeMoveId, moveMasters, combatRandomSeed = browserCombatSeed(), priorityRandomSeed = browserCombatSeed(), playerRandomRoll = null, foeRandomRoll = null, playerBattleExpInput = null, postBattlePersistenceInput = null, reflectedPartyIndex = 0, playerActionConsumedWithoutMove = false, battleStatStages = null } = {}) {
   requireBattleStats(player, "player"); requireBattleStats(foe, "foe");
+  const statStages = createBattleStatStageStateCanonical(battleStatStages);
   const playerPartyState = materializeBattleParty(playerParty, playerActivePartyIndex, player, "player"); const foePartyState = materializeBattleParty(foeParty, foeActivePartyIndex, foe, "foe");
   const playerHasPp = hasPpBearingMove(player); const foeHasPp = hasPpBearingMove(foe);
   const playerResolved = playerActionConsumedWithoutMove ? null : resolveRoundMove({ pokemon: player, selectedMoveId: playerHasPp ? selectedMoveId : STRUGGLE_MOVE_CANONICAL.id, moveMasters, label: "player", autoStruggle: !playerHasPp });
@@ -187,10 +197,10 @@ export function resolveBrowserBattleRound({ player, foe, playerParty = null, foe
     commandEntry(1, false, foeResolved, 0),
   ];
   const priorityEntries = [
-    ...(playerResolved ? [{ actionIndex: 0, battlerIndex: 0, speed: resolveOrdinaryPokemonSpeedCanonical(player), movePriority: playerMove.priority }] : []),
-    { actionIndex: 1, battlerIndex: 1, speed: resolveOrdinaryPokemonSpeedCanonical(foe), movePriority: foeMove.priority },
+    ...(playerResolved ? [{ actionIndex: 0, battlerIndex: 0, speed: resolveBattleSpeedCanonical({ baseSpeed: player.stats.SPEED, speedStage: statStages[0].SPEED }), movePriority: playerMove.priority }] : []),
+    { actionIndex: 1, battlerIndex: 1, speed: resolveBattleSpeedCanonical({ baseSpeed: foe.stats.SPEED, speedStage: statStages[1].SPEED }), movePriority: foeMove.priority },
   ];
-  const round = { attackPhaseInput: { priorityRandomSeed: Number(priorityRandomSeed) & 0x7fffffff, battlers: [{ battlerIndex: 0, choiceKind: playerResolved ? "UseMove" : "None", fainted: player.hp <= 0, choseRageFunction: false }, { battlerIndex: 1, choiceKind: "UseMove", fainted: foe.hp <= 0, choseRageFunction: false }] }, commandEntries, priorityEntries, actions };
+  const round = { statStages, attackPhaseInput: { priorityRandomSeed: Number(priorityRandomSeed) & 0x7fffffff, battlers: [{ battlerIndex: 0, choiceKind: playerResolved ? "UseMove" : "None", fainted: player.hp <= 0, choseRageFunction: false }, { battlerIndex: 1, choiceKind: "UseMove", fainted: foe.hp <= 0, choseRageFunction: false }] }, commandEntries, priorityEntries, actions };
   const battleInput = { useAttackPhaseScheduler: true, useCanonicalAccuracyDamage: true, combatRandomSeed: Number(combatRandomSeed) & 0x7fffffff, rounds: [round] };
   const partyAwareJudgeTransform = (preparedBattleInput) => prepareBrowserPartyAwareJudgeStates(preparedBattleInput, { playerParty: playerPartyState.party, foeParty: foePartyState.party, playerPartyIndex: playerPartyState.activePartyIndex, foePartyIndex: foePartyState.activePartyIndex });
   const playerRuntimeTransform = (preparedBattleInput) => attachDefeatedFoeExpInput(
@@ -204,5 +214,5 @@ export function resolveBrowserBattleRound({ player, foe, playerParty = null, foe
   const resolvedFoe = foeRuntime.pokemon;
   const battleContinuationHandoff = buildBrowserBattleContinuationHandoff({ playerParty: playerPartyState.party, foeParty: foePartyState.party, playerPartyIndex: playerPartyState.activePartyIndex, foePartyIndex: foePartyState.activePartyIndex, playerPokemon: resolvedPlayer, foePokemon: resolvedFoe, decision: rawDecision });
   const decision = Number(battleContinuationHandoff.decision);
-  return { player: resolvedPlayer, foe: resolvedFoe, decision, operations, selection, scheduling, combatRandomSeed: Number(combatRandomSeed) & 0x7fffffff, priorityRandomSeed: Number(priorityRandomSeed) & 0x7fffffff, struggle: { player: Boolean(playerResolved?.struggle), foe: foeResolved.struggle }, playerActionConsumedWithoutMove: Boolean(playerActionConsumedWithoutMove), ppIntegration: { prepared: playerPp.prepared, commits: [...playerPp.commits.map((commit) => ({ ...commit, actor: "player" })), ...foePp.commits.map((commit) => ({ ...commit, actor: "foe" }))] }, expIntegration: { commits: playerExp.commits }, battleContinuationHandoff, battleResultHandoff: { ...playerRuntime.battleResultHandoff, decision, postBattlePersistence }, battleRuntimeIntegration: { start: playerRuntime.start, combatTrace: combat, awaitingNextRound: decision === 0 && Boolean(playerRuntime.turn.awaitingNextRound), playerPpCommits: playerPp.commits.length, foePpCommits: foePp.commits.length, playerExpCommits: playerExp.commits.length, postBattlePersistenceApplied: postBattlePersistence !== null, partyAwareJudge: true } };
+  return { player: resolvedPlayer, foe: resolvedFoe, decision, operations, selection, scheduling, statStages: structuredClone(preparedRound?.statStages ?? statStages), combatRandomSeed: Number(combatRandomSeed) & 0x7fffffff, priorityRandomSeed: Number(priorityRandomSeed) & 0x7fffffff, struggle: { player: Boolean(playerResolved?.struggle), foe: foeResolved.struggle }, playerActionConsumedWithoutMove: Boolean(playerActionConsumedWithoutMove), ppIntegration: { prepared: playerPp.prepared, commits: [...playerPp.commits.map((commit) => ({ ...commit, actor: "player" })), ...foePp.commits.map((commit) => ({ ...commit, actor: "foe" }))] }, expIntegration: { commits: playerExp.commits }, battleContinuationHandoff, battleResultHandoff: { ...playerRuntime.battleResultHandoff, decision, postBattlePersistence }, battleRuntimeIntegration: { start: playerRuntime.start, combatTrace: combat, awaitingNextRound: decision === 0 && Boolean(playerRuntime.turn.awaitingNextRound), playerPpCommits: playerPp.commits.length, foePpCommits: foePp.commits.length, playerExpCommits: playerExp.commits.length, postBattlePersistenceApplied: postBattlePersistence !== null, partyAwareJudge: true } };
 }
