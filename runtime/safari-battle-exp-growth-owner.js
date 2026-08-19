@@ -20,6 +20,11 @@ function explicitMoveDecisions(player) {
   return Object.freeze(structuredClone(decisions));
 }
 
+function browserMoveDecisionResolver() {
+  const resolver = globalThis.__maplessSafariMoveLearningResolver;
+  return typeof resolver === "function" ? resolver : null;
+}
+
 export function resolveSafariBattleExpGrowthInput(player, defeatedFoe, playerSpeciesMaster, defeatedSpeciesMaster, trainerBattle = false) {
   if (!playerSpeciesMaster?.growth_rate) throw new Error(`missing canonical growth rate for ${player?.species ?? "unknown species"}`);
   if (!Number.isFinite(Number(defeatedSpeciesMaster?.base_exp))) throw new Error(`missing canonical base Exp for ${defeatedFoe?.species ?? "unknown species"}`);
@@ -38,5 +43,6 @@ export function resolveSafariBattleExpGrowthInput(player, defeatedFoe, playerSpe
     }),
     movesByLevel: levelMovesByLevel(playerSpeciesMaster),
     moveDecisions: explicitMoveDecisions(player),
+    moveDecisionResolver: browserMoveDecisionResolver(),
   });
 }
