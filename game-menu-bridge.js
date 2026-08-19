@@ -1,4 +1,5 @@
 import { SAFARI_MOVE_PRESENTATION, saveSafariPlayableRun, useSafariBattleItem } from "./runtime/safari-web-playable-integration.js";
+import { SAFARI_BATTLE_PHASE, completeSafariBattlePresentation } from "./runtime/safari-battle-orchestrator.js";
 import { useSafariBagItemOnPartyPokemon } from "./runtime/safari-bag-item-use.js";
 import { formatSafariBattlePresentationEvent } from "./battle-presentation-narration.js";
 
@@ -50,19 +51,8 @@ function potionTargetSelect(runtime) {
 function battleBagCommandAvailable(runtime) {
   const battle = runtime?.variables?.mapless?.battle;
   if (!battle) return true;
-  if (battle.completed || battle.player_replacement_required || battle.origin === "boundary_trial") return false;
-  return !byId("capture")?.disabled;
-}
-
-function setBattleControlsDisabled(disabled) {
-  const moves = byId("moves");
-  if (moves) moves.inert = disabled;
-  for (const id of ["capture", "flee"]) {
-    const button = byId(id);
-    if (!button) continue;
-    button.inert = disabled;
-    button.disabled = disabled;
-  }
+  if (battle.origin === "boundary_trial") return false;
+  return battle.phase === SAFARI_BATTLE_PHASE.COMMAND;
 }
 
 function battlePresentationName(runtime, side) {
@@ -224,9 +214,8 @@ byId("game-menu")?.addEventListener("click", async (event) => {
     const runtime = snapshot();
     const row = use.closest(".bag-slot");
     const partyIndex = Number(row?.querySelector(".bag-target-select")?.value);
-    if (!runtime) return;
+    if (!runtime || !battleBagCommandAvailable(runtime)) return;
     bagUseBusy = true;
-    setBattleControlsDisabled(true);
     renderBag();
     try {
       const battle = runtime.variables?.mapless?.battle;
@@ -236,6 +225,8 @@ byId("game-menu")?.addEventListener("click", async (event) => {
         if (result.turnConsumed) {
           close();
           await playBattleItemPresentation(runtime, result.presentation ?? []);
+          completeSafariBattlePresentation(runtime, result);
+          window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
         }
       } else {
         const result = useSafariBagItemOnPartyPokemon(runtime, { itemId: use.dataset.bagUseItem, partyIndex });
@@ -246,7 +237,6 @@ byId("game-menu")?.addEventListener("click", async (event) => {
       console.error("[Mapless] Bag use failed", error);
     } finally {
       bagUseBusy = false;
-      setBattleControlsDisabled(false);
       window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
       renderBag();
     }
