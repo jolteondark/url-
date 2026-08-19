@@ -185,7 +185,15 @@ export function copyStoredPokemon(state, {
 }
 
 export function moveStoredPokemon(state, options = {}) {
-  const copied = copyStoredPokemon(state, options);
+  const value = stateOf(state);
+  if (options.boxSrc < 0 && options.boxDst >= 0) {
+    const sourcePokemon = getPokemon(value, options.boxSrc, options.indexSrc);
+    const hasOtherAble = value.party.some((pokemon, index) => index !== options.indexSrc && pokemonAble(pokemon));
+    if (pokemonAble(sourcePokemon) && !hasOtherAble) {
+      return { result: false, state: value, operations: [{ op: "move_rejected", reason: "last_able" }] };
+    }
+  }
+  const copied = copyStoredPokemon(value, options);
   if (!copied.result) return copied;
   if (copied.destination.box === options.boxSrc && copied.destination.index === options.indexSrc) {
     return {
