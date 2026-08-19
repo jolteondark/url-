@@ -4,6 +4,7 @@ import { setMoney } from "./bag-economy-mart-flow.js";
 import { maplessCarryMoneyGain } from "./mapless-carry-class-rules.js";
 import { resolveDayBoardPlayableTurn } from "./mapless-day-board-playable-turn.js";
 import { markMaplessRunEnd } from "./mapless-run-end-lifecycle.js";
+import { resolvePokemonLevelEvolution } from "./pokemon-level-evolution-runtime.js";
 import { resolvePokemonRuntimeMasters } from "./pokemon-runtime-masters.js";
 import { SAFARI_MOVE_MASTERS, SAFARI_NATURE_MASTERS, SAFARI_SPECIES_MASTERS } from "./safari-playable-data.js";
 
@@ -14,6 +15,10 @@ function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
   if (!state || typeof state !== "object" || Array.isArray(state)) throw new TypeError("runtime variables.mapless state is required");
   return state;
+}
+
+function requestsSave(operations = []) {
+  return operations.some((operation) => operation?.op === "request_save");
 }
 
 function baseTurnInput(state, index) {
@@ -68,6 +73,9 @@ export function normalBattleExpInput(player, defeatedFoe, trainerBattle = false)
       nature_master: natureMaster,
       move_masters: SAFARI_MOVE_MASTERS,
     },
+    // Essentials applies level-up EXP/move learning during battle resolution, then
+    // checks evolution after the battle. The central REWARD_GROWTH hook owns that tail.
+    deferEvolution: true,
   };
 }
 
@@ -139,12 +147,66 @@ function payTrainerPrize(runtime, battle) {
   return [{ op: "trainer_prize_money", requested, adjusted, applied: gained, carryClass, trainer: battle.trainer?.trainer_full_name ?? null }];
 }
 
+function commitPendingLevelEvolutions(runtime) {
+  const party = Array.isArray(runtime?.player?.party) ? runtime.player.party : [];
+  const operations = [];
+  const presentation = [];
+  const unsupportedMethods = new Set();
+
+  for (let index = 0; index < party.length; index += 1) {
+    const pokemon = party[index];
+    if (!pokemon || pokemon.__battle_level_evolution_pending !== true) continue;
+
+    const candidate = { ...pokemon };
+    delete candidate.__battle_level_evolution_pending;
+    const natureId = candidate.nature_for_stats_id ?? candidate.nature_id ?? "HARDY";
+    const natureMaster = SAFARI_NATURE_MASTERS[natureId];
+    if (!natureMaster) throw new RangeError(`battle evolution nature is outside the Safari projection: ${natureId}`);
+
+    const resolved = resolvePokemonLevelEvolution(candidate, {
+      species_masters: SAFARI_SPECIES_MASTERS,
+      nature_master: natureMaster,
+      move_masters: SAFARI_MOVE_MASTERS,
+    });
+    party[index] = resolved.pokemon;
+    operations.push(...structuredClone(resolved.operations ?? []));
+    for (const method of resolved.unsupportedMethods ?? []) unsupportedMethods.add(method);
+    if (resolved.evolved && resolved.evolution) {
+      presentation.push({
+        type: "evolution",
+        actor: "player",
+        from: resolved.evolution.from,
+        to: resolved.evolution.to,
+      });
+    }
+  }
+
+  if (unsupportedMethods.size > 0) operations.push({ op: "unsupported_evolution_methods", methods: [...unsupportedMethods] });
+  return { operations, presentation, unsupportedMethods: [...unsupportedMethods] };
+}
+
+export function commitSafariNormalLevelEvolutionRewardGrowth(runtime, result = {}) {
+  const state = stateOf(runtime);
+  const battle = state.battle;
+  if (!battle || Number(battle.decision) === 0) return result;
+
+  const pending = commitPendingLevelEvolutions(runtime);
+  if (pending.operations.length === 0 && pending.presentation.length === 0 && pending.unsupportedMethods.length === 0) return result;
+
+  battle.unsupported_evolution_methods = [...pending.unsupportedMethods];
+  battle.last_operations = [...pending.operations, ...(battle.last_operations ?? result.operations ?? [])];
+  battle.presentation = [...pending.presentation, ...(battle.presentation ?? result.presentation ?? [])];
+  state.last_operations = [...battle.last_operations];
+  result.operations = [...battle.last_operations];
+  result.presentation = [...battle.presentation];
+  result.persistenceRequested = requestsSave(result.operations);
+  return result;
+}
+
 function terminalRewardPresentation(battle) {
   if (Number(battle.decision) !== 1) return [];
   const events = [];
-  if (battle.reward?.item) {
-    events.push({ type: "item_reward", item: battle.reward.item, quantity: Number(battle.reward.quantity ?? 1) });
-  }
+  if (battle.reward?.item) events.push({ type: "item_reward", item: battle.reward.item, quantity: Number(battle.reward.quantity ?? 1) });
   const moneyGained = Number(battle.money_gained ?? 0);
   if (moneyGained > 0) events.push({ type: "money_reward", amount: moneyGained });
   return events;
@@ -157,17 +219,13 @@ export function finalizeNormalBattle(runtime) {
 
   const runEnd = markMaplessRunEnd(runtime, battle.decision);
   const operations = [...runEnd.operations];
-  // The direct round owner already commits EXP to the persistent player Pokemon
-  // and records battle.exp_gained. Finalize must only apply the victory reward;
-  // recalculating EXP here awarded ordinary wild victories twice.
   if (battle.decision === 1 && battle.kind === "wild") operations.push(...givePotion(runtime, battle));
   if (battle.decision === 1 && battle.kind === "trainer") operations.push(...givePotion(runtime, battle));
   if (battle.kind === "trainer") operations.push(...payTrainerPrize(runtime, battle));
   operations.push(...completeBoardEvent(state, battle));
   operations.push({ op: "request_save", reason: "battle_result" });
-  // RESULT is the sole completion boundary. This lower compatibility finalizer may
-  // assemble reward/Board/save operations, but it must not publish completion before
-  // commitSafariBattleResolution advances the central orchestrator to RESULT.
+  // RESULT is the sole completion boundary. This compatibility finalizer assembles
+  // rewards/Board/save, while Level evolution remains pending for REWARD_GROWTH.
   battle.return_target = runEnd.marked ? "home" : "day_board";
   battle.last_operations = [...(battle.last_operations ?? []), ...operations];
   battle.presentation = [

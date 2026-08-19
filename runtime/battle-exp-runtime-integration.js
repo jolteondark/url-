@@ -61,12 +61,18 @@ export function commitBattleSystemsExpRuntime({ battleInput = {}, turn = {}, pok
       runtime = preserveFaintedHp(before, runtime);
 
       let evolution = null;
+      let evolutionDeferred = false;
       const evolutionMasters = action.battleExpInput.evolutionMasters ?? null;
       if (evolutionMasters && Number(flow.pokemon.level) > beforeLevel) {
         const beforeEvolution = runtime;
         evolution = resolvePokemonLevelEvolution(runtime, evolutionMasters);
-        runtime = preserveAuthoritativeBattleFields(beforeEvolution, preserveFaintedHp(beforeEvolution, evolution.pokemon));
-        evolution = { ...evolution, pokemon: runtime };
+        if (action.battleExpInput.deferEvolution === true) {
+          evolutionDeferred = true;
+          runtime = { ...runtime, __battle_level_evolution_pending: true };
+        } else {
+          runtime = preserveAuthoritativeBattleFields(beforeEvolution, preserveFaintedHp(beforeEvolution, evolution.pokemon));
+          evolution = { ...evolution, pokemon: runtime };
+        }
       }
       clearSafariBattleMoveLearningDecisions(runtime);
 
@@ -78,9 +84,14 @@ export function commitBattleSystemsExpRuntime({ battleInput = {}, turn = {}, pok
         exp: Number(flow.pokemon.exp),
         level: Number(flow.pokemon.level),
         moves: structuredClone(runtime.moves),
-        evolution: evolution ? structuredClone(evolution.evolution) : null,
+        evolution: evolutionDeferred ? null : (evolution ? structuredClone(evolution.evolution) : null),
+        pendingEvolution: evolutionDeferred ? structuredClone(evolution?.evolution ?? null) : null,
+        evolutionDeferred,
         unsupportedEvolutionMethods: evolution ? [...evolution.unsupportedMethods] : [],
-        operations: [...structuredClone(flow.operations ?? []), ...structuredClone(evolution?.operations ?? [])],
+        operations: [
+          ...structuredClone(flow.operations ?? []),
+          ...(evolutionDeferred ? [] : structuredClone(evolution?.operations ?? [])),
+        ],
       });
     }
   }

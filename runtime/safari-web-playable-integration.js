@@ -6,6 +6,7 @@ import {
   returnSafariToDayBoard as returnSafariNormalToDayBoard,
   useSafariNormalBattleItem,
 } from "./safari-normal-battle-lifecycle.js";
+import { commitSafariNormalLevelEvolutionRewardGrowth } from "./safari-normal-battle-finalize.js";
 import {
   abortSafariBattleCommand,
   abortSafariBattleReturn,
@@ -90,7 +91,9 @@ function beginNormalBattleCommand(runtime, kind) {
 
 function commitNormalBattleCommand(runtime, result, kind) {
   if (!stateOf(runtime).battle || needsFullBattleIntegration(runtime)) return result;
-  return commitSafariBattleResolution(runtime, result, kind);
+  return commitSafariBattleResolution(runtime, result, kind, {
+    rewardGrowthCommit: (current) => commitSafariNormalLevelEvolutionRewardGrowth(runtime, current),
+  });
 }
 
 export function boardCellPresentation(runtime, index) {
@@ -138,7 +141,7 @@ export async function resolveSafariBattleRound(runtime, selectedMoveId) {
     const result = normal
       ? resolveSafariNormalBattleRound(runtime, selectedMoveId)
       : await (await full()).resolveSafariBattleRound(runtime, selectedMoveId);
-    if (normal && stateOf(runtime).battle) commitSafariBattleResolution(runtime, result, "move");
+    if (normal && stateOf(runtime).battle) commitNormalBattleCommand(runtime, result, "move");
     publishRuntimeChanged();
     return result;
   } catch (error) {
@@ -166,7 +169,7 @@ export async function useSafariBattleItem(runtime, options = {}) {
   beginSafariBattleCommand(runtime, "item");
   try {
     const result = useSafariNormalBattleItem(runtime, options);
-    if (stateOf(runtime).battle) commitSafariBattleResolution(runtime, result, "item");
+    if (stateOf(runtime).battle) commitNormalBattleCommand(runtime, result, "item");
     publishRuntimeChanged();
     return result;
   } catch (error) {
@@ -183,9 +186,11 @@ export async function attemptSafariCapture(runtime, options = {}) {
       const result = attemptSafariNormalCapture(runtime, options);
       if (stateOf(runtime).battle) {
         commitSafariBattleResolution(runtime, result, "capture", {
-          rewardGrowthCommit: result?.result === "caught"
-            ? (current) => commitSafariCapturedWildRewardGrowth(runtime, current)
-            : null,
+          rewardGrowthCommit: (current) => {
+            let committed = current;
+            if (result?.result === "caught") committed = commitSafariCapturedWildRewardGrowth(runtime, committed);
+            return commitSafariNormalLevelEvolutionRewardGrowth(runtime, committed);
+          },
         });
       }
       publishRuntimeChanged();
