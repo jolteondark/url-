@@ -111,7 +111,14 @@ function completeBoardEvent(state, battle) {
   state.board_events = turn.state.board_events;
   state.board_revealed = turn.state.board_revealed;
   state.board_consumed = turn.state.board_consumed;
-  return [...turn.operations];
+  state.board_visited = turn.state.board_visited;
+  const operations = [...turn.operations];
+  const index = Number(battle.board_index);
+  if (Number.isInteger(index) && index >= 0 && index < state.board_visited.length) {
+    state.board_visited[index] = true;
+    operations.push({ op: "set_board_visited", index, value: true });
+  }
+  return operations;
 }
 
 function payTrainerPrize(runtime, battle) {
@@ -133,13 +140,15 @@ export function finalizeNormalBattle(runtime) {
   if (!battle || battle.completed || Number(battle.decision) === 0) return [];
 
   const runEnd = markMaplessRunEnd(runtime, battle.decision);
-  const operations = [...runEnd.operations, ...completeBoardEvent(state, battle)];
+  const operations = [...runEnd.operations];
   // The direct round owner already commits EXP to the persistent player Pokemon
   // and records battle.exp_gained. Finalize must only apply the victory reward;
   // recalculating EXP here awarded ordinary wild victories twice.
   if (battle.decision === 1 && battle.kind === "wild") operations.push(...givePotion(runtime, battle));
   if (battle.decision === 1 && battle.kind === "trainer") operations.push(...givePotion(runtime, battle));
   if (battle.kind === "trainer") operations.push(...payTrainerPrize(runtime, battle));
+  operations.push(...completeBoardEvent(state, battle));
+  operations.push({ op: "request_save", reason: "battle_result" });
   battle.completed = true;
   battle.return_target = runEnd.marked ? "home" : "day_board";
   battle.last_operations = [...(battle.last_operations ?? []), ...operations];
