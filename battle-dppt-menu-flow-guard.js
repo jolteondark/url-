@@ -17,9 +17,14 @@ function restoreNormalMenu() {
   const menu = byId("game-menu");
   if (!menu) return;
   delete menu.dataset.battleCommandMenu;
+  const tabs = menu.querySelector(".game-menu-tabs");
+  if (tabs) tabs.hidden = false;
   for (const button of menu.querySelectorAll("[data-menu-tab]")) button.hidden = false;
   const close = byId("game-menu-close");
-  if (close) close.setAttribute("aria-label", "メニューを閉じる");
+  if (close) {
+    close.textContent = "×";
+    close.setAttribute("aria-label", "メニューを閉じる");
+  }
   byId("battle-menu-ball-use")?.remove();
 }
 
@@ -38,6 +43,7 @@ function injectBattleBall(tab) {
   button.textContent = "モンスターボールを使う";
   button.addEventListener("click", () => {
     if (!inBattleCommand() || capture.disabled) return;
+    button.disabled = true;
     closeGameMenu();
     requestAnimationFrame(() => capture.click());
   });
@@ -48,20 +54,24 @@ function lockMenuToBattlePurpose(tab) {
   const menu = byId("game-menu");
   if (!menu || !battle()) return;
   menu.dataset.battleCommandMenu = tab;
-  for (const button of menu.querySelectorAll("[data-menu-tab]")) {
-    button.hidden = button.dataset.menuTab !== tab;
-  }
+  const tabs = menu.querySelector(".game-menu-tabs");
+  if (tabs) tabs.hidden = true;
   for (const pane of menu.querySelectorAll("[data-menu-pane]")) {
     pane.hidden = pane.dataset.menuPane !== tab;
   }
   const title = byId("game-menu-title");
   if (title) title.textContent = tab === "party" ? "ポケモン" : tab === "bag" ? "バッグ" : "メニュー";
   const close = byId("game-menu-close");
-  if (close) close.setAttribute("aria-label", "戦闘へ戻る");
+  if (close) {
+    close.textContent = "もどる";
+    close.setAttribute("aria-label", "戦闘へ戻る");
+  }
   injectBattleBall(tab);
   requestAnimationFrame(() => {
     const first = menu.querySelector(`[data-menu-pane="${tab}"] button:not(:disabled), [data-menu-pane="${tab}"] select:not(:disabled)`);
-    if (first instanceof HTMLElement) first.focus({ preventScroll: true });
+    const fallback = byId("game-menu-close");
+    const target = first instanceof HTMLElement ? first : fallback;
+    if (target instanceof HTMLElement) target.focus({ preventScroll: true });
   });
 }
 
@@ -90,7 +100,11 @@ if (menu && typeof MutationObserver === "function") {
         if (card) card.dataset.dpptMenu = "root";
         const message = byId("battle-message");
         if (message && message.dataset.presentationOwner !== "event") message.textContent = "どうする？";
-        requestAnimationFrame(() => byId("battle-card")?.scrollIntoView?.({ behavior: "smooth", block: "end" }));
+        requestAnimationFrame(() => {
+          byId("battle-card")?.scrollIntoView?.({ behavior: "smooth", block: "end" });
+          const fight = document.querySelector('#dppt-command-root button[data-dppt-command="fight"]:not(:disabled)');
+          if (fight instanceof HTMLElement) fight.focus({ preventScroll: true });
+        });
       }
     }
   }).observe(menu, { attributes: true, attributeFilter: ["hidden"] });
