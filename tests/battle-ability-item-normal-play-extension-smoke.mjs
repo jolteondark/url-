@@ -84,17 +84,15 @@ const pokemon = (ability = "NONE", heldItem = null, extra = {}) => ({
   assert.equal(result.moveSelection.blocked, false, "held_item=null must suppress a stale Assault Vest alias");
 }
 
-// The extension is also a public owner. It must preserve Pokemon Runtime source authority
-// even when consumed directly instead of through the shared dispatcher.
 {
   const result = resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({
     user: { ability: null, ability_id: "PRANKSTER", held_item: null, item: "ASSAULTVEST" },
     target: { ability: null, ability_id: "NONE", held_item: null, item: "ASSAULTVEST" },
     move: { id: "GROWL", type: "NORMAL", category: "Status", power: 0 },
   });
-  assert.equal(result.priorityModifier, 0, "ability=null must suppress a stale Prankster alias");
-  assert.equal(result.moveSelection.blocked, false, "held_item=null must suppress a stale Assault Vest alias");
-  assert.equal(result.damageMultiplierInput.externalDefenseMultiplier, 1, "target held_item=null must suppress stale Assault Vest defense");
+  assert.equal(result.priorityModifier, 0);
+  assert.equal(result.moveSelection.blocked, false);
+  assert.equal(result.damageMultiplierInput.externalDefenseMultiplier, 1);
 }
 
 {
@@ -103,18 +101,105 @@ const pokemon = (ability = "NONE", heldItem = null, extra = {}) => ({
     target: { item: "ASSAULTVEST" },
     move: { id: "GROWL", type: "NORMAL", category: "Status", power: 0 },
   });
-  assert.equal(legacy.priorityModifier, 1, "legacy ability_id remains fallback when ability is absent");
-  assert.equal(legacy.moveSelection.blocked, true, "legacy item remains fallback when held_item is absent");
+  assert.equal(legacy.priorityModifier, 1);
+  assert.equal(legacy.moveSelection.blocked, true);
+}
+
+{
+  const result = resolveBattleAbilityItemHookCanonical({
+    hook: "action_before",
+    user: pokemon("SANDFORCE", "HARDSTONE"),
+    target: pokemon(),
+    move: { id: "ROCKSLIDE", type: "ROCK", category: "Physical", power: 75 },
+    selectedMoveId: "ROCKSLIDE",
+    context: { effectiveWeather: "Sandstorm" },
+  });
+  assert.equal(result.modifiers.damageMultiplierInput.externalPowerMultiplier, 1.56);
+}
+
+{
+  const result = resolveBattleAbilityItemHookCanonical({
+    hook: "action_before",
+    user: pokemon("TINTEDLENS", "EXPERTBELT"),
+    target: pokemon(),
+    move: { id: "SIGNALBEAM", type: "BUG", category: "Special", power: 75 },
+    selectedMoveId: "SIGNALBEAM",
+    context: { typeMod: 0.5 },
+  });
+  assert.equal(result.modifiers.damageMultiplierInput.externalFinalDamageMultiplier, 2);
+}
+
+{
+  const result = resolveBattleAbilityItemHookCanonical({
+    hook: "action_before",
+    user: pokemon("MOLDBREAKER"),
+    target: pokemon("FILTER"),
+    move: { id: "BRICKBREAK", type: "FIGHTING", category: "Physical", power: 75 },
+    selectedMoveId: "BRICKBREAK",
+    context: { typeMod: 2 },
+  });
+  assert.equal(result.modifiers.damageMultiplierInput.externalFinalDamageMultiplier, 1);
+}
+
+{
+  const result = resolveBattleAbilityItemHookCanonical({
+    hook: "action_before",
+    user: pokemon("MOLDBREAKER"),
+    target: pokemon("PRISMARMOR"),
+    move: { id: "BRICKBREAK", type: "FIGHTING", category: "Physical", power: 75 },
+    selectedMoveId: "BRICKBREAK",
+    context: { typeMod: 2 },
+  });
+  assert.equal(result.modifiers.damageMultiplierInput.externalFinalDamageMultiplier, 0.75);
+}
+
+{
+  const result = resolveBattleAbilityItemHookCanonical({
+    hook: "action_before",
+    user: pokemon("SNIPER"),
+    target: pokemon("DRYSKIN"),
+    move: { id: "EMBER", type: "FIRE", category: "Special", power: 40 },
+    selectedMoveId: "EMBER",
+    context: { critical: true, typeMod: 1 },
+  });
+  assert.equal(result.modifiers.damageMultiplierInput.externalFinalDamageMultiplier, 1.875);
+}
+
+{
+  const result = resolveBattleAbilityItemHookCanonical({
+    hook: "action_before",
+    user: pokemon("NONE"),
+    target: pokemon("NONE", "BRIGHTPOWDER"),
+    move: { id: "TACKLE", type: "NORMAL", category: "Physical", power: 40 },
+    selectedMoveId: "TACKLE",
+  });
+  assert.equal(result.modifiers.accuracyModifierInput.externalAccuracyMultiplier, 0.9);
+}
+
+{
+  const consumed = resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({
+    user: { ability: null, ability_id: "SANDFORCE", held_item: null, item: "HARDSTONE" },
+    target: { ability: null, ability_id: "FILTER", held_item: null, item: "BRIGHTPOWDER" },
+    move: { id: "ROCKSLIDE", type: "ROCK", category: "Physical", power: 75 },
+    context: { effectiveWeather: "Sandstorm", typeMod: 2, critical: true },
+  });
+  assert.equal(consumed.damageMultiplierInput.externalPowerMultiplier, 1);
+  assert.equal(consumed.damageMultiplierInput.externalFinalDamageMultiplier, 1);
+  assert.equal(consumed.accuracyModifierInput.externalAccuracyMultiplier, 1);
 }
 
 const coverage = BATTLE_ABILITY_ITEM_SHARED_HOOK_CONTRACT_CANONICAL.implementedCoverage;
-for (const ability of ["PRANKSTER", "SUPERLUCK"]) assert.ok(coverage.abilityIds.includes(ability));
-for (const item of ["ASSAULTVEST", "SCOPELENS", "RAZORCLAW"]) assert.ok(coverage.itemIds.includes(item));
+for (const ability of ["PRANKSTER", "SUPERLUCK", "SANDFORCE", "TINTEDLENS", "FILTER", "PRISMARMOR", "SNIPER"]) assert.ok(coverage.abilityIds.includes(ability));
+for (const item of ["ASSAULTVEST", "SCOPELENS", "RAZORCLAW", "HARDSTONE", "EXPERTBELT", "BRIGHTPOWDER"]) assert.ok(coverage.itemIds.includes(item));
 assert.equal(coverage.abilityCount, new Set(coverage.abilityIds).size);
 assert.equal(coverage.itemCount, new Set(coverage.itemIds).size);
 assert.equal(coverage.classificationCounts.normalPlayExtension.movePriority, 1);
 assert.equal(coverage.classificationCounts.normalPlayExtension.criticalStage, 3);
 assert.equal(coverage.classificationCounts.normalPlayExtension.moveSelectionRestriction, 1);
 assert.equal(coverage.classificationCounts.normalPlayExtension.specialDefenseModifier, 1);
+assert.equal(coverage.classificationCounts.normalPlayExtension.typeBoostHeldItems, 18);
+assert.equal(coverage.classificationCounts.normalPlayExtension.superEffectiveOffenseModifier, 2);
+assert.equal(coverage.classificationCounts.normalPlayExtension.superEffectiveDefenseModifier, 3);
+assert.equal(coverage.classificationCounts.normalPlayExtension.targetAccuracyHeldItems, 2);
 
 console.log("battle ability/item normal-play extension smoke: PASS");
