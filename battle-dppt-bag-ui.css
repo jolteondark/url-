@@ -1,0 +1,152 @@
+/* DPt-inspired battle Bag presentation. Visual only; canonical Bag mechanics stay in game-menu-bridge.js. */
+#game-menu[data-battle-command-menu="bag"]{
+  background:rgba(0,0,0,.72);
+  backdrop-filter:none;
+  -webkit-backdrop-filter:none;
+  padding:max(4px,env(safe-area-inset-top)) max(4px,env(safe-area-inset-right)) max(4px,env(safe-area-inset-bottom)) max(4px,env(safe-area-inset-left));
+}
+#game-menu[data-battle-command-menu="bag"] .game-menu-sheet{
+  width:min(100%,560px);
+  background:linear-gradient(180deg,#dfe2df 0,#b8bfbb 9%,#f4f1dc 9%,#e8e5d2 100%);
+  border:3px solid #323634;
+  border-radius:3px;
+  box-shadow:0 0 0 2px #838a86,0 8px 0 #171918;
+  grid-template-rows:auto minmax(0,1fr);
+}
+#game-menu[data-battle-command-menu="bag"] .game-menu-head{
+  min-height:54px;
+  padding:7px 8px;
+  border-bottom:3px solid #565d59;
+  background:linear-gradient(180deg,#c6cbc8,#9fa8a3);
+}
+#game-menu[data-battle-command-menu="bag"] .game-menu-head>div{display:flex;align-items:center;gap:8px}
+#game-menu[data-battle-command-menu="bag"] .game-menu-head span{display:none}
+#game-menu[data-battle-command-menu="bag"] .game-menu-head strong{
+  font-family:"PixelMplus12","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+  font-size:1.05rem;
+  font-weight:400;
+  color:#171918;
+  letter-spacing:-.035em;
+}
+#game-menu[data-battle-command-menu="bag"] #game-menu-close{
+  width:auto;
+  min-width:82px;
+  height:38px;
+  padding:4px 12px;
+  border:2px solid #353a38;
+  border-radius:3px;
+  background:linear-gradient(180deg,#f8f6eb,#d3d5cf);
+  color:#181a19;
+  font-family:"PixelMplus12","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+  font-size:.86rem;
+  font-weight:400;
+  box-shadow:inset 0 0 0 1px #fff,1px 2px 0 #7e8581;
+}
+#game-menu[data-battle-command-menu="bag"] .game-menu-tabs{display:none!important}
+#game-menu[data-battle-command-menu="bag"] .game-menu-pane{
+  padding:8px 8px max(12px,env(safe-area-inset-bottom));
+  background:linear-gradient(135deg,#e8e4ce 0 25%,#f4f1df 25% 50%,#e7e3cd 50% 75%,#f3efdb 75%);
+  background-size:18px 18px;
+}
+#game-menu[data-battle-command-menu="bag"] .section-heading{display:none}
+#game-menu[data-battle-command-menu="bag"] .bag-money{
+  margin:0 0 7px;
+  padding:6px 9px;
+  border:2px solid #484e4b;
+  border-radius:2px;
+  background:#f7f4e7;
+  color:#1b1d1c;
+  box-shadow:inset 0 0 0 1px #fff;
+  font-family:"PixelMplus10","PixelMplus12",sans-serif;
+}
+#game-menu[data-battle-command-menu="bag"] .bag-money span{font-size:.7rem;color:#363a38}
+#game-menu[data-battle-command-menu="bag"] .bag-money strong{font-size:.82rem;font-weight:400;color:#111}
+#game-menu[data-battle-command-menu="bag"] .bag-grid{display:grid;grid-template-columns:1fr;gap:5px}
+#game-menu[data-battle-command-menu="bag"] .bag-slot{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:4px 8px;
+  min-height:50px;
+  padding:7px 8px;
+  border:2px solid #5d625f;
+  border-radius:2px;
+  background:linear-gradient(180deg,#fffdf1,#e6e4d5);
+  color:#171918;
+  box-shadow:inset 0 0 0 1px #fff,1px 2px 0 #9da39f;
+  font-family:"PixelMplus12","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+}
+#game-menu[data-battle-command-menu="bag"] .bag-slot strong{
+  align-self:center;
+  font-size:.88rem;
+  font-weight:400;
+  letter-spacing:-.035em;
+}
+#game-menu[data-battle-command-menu="bag"] .bag-slot>span{
+  min-width:44px;
+  height:24px;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  color:#202321;
+  font-family:"PixelMplus10","PixelMplus12",sans-serif;
+  font-size:.72rem;
+  font-weight:400;
+}
+#game-menu[data-battle-command-menu="bag"] .bag-target-select{
+  grid-column:1/2;
+  min-height:34px;
+  border:2px solid #5f6461;
+  border-radius:2px;
+  background:#f9f7eb;
+  color:#1c1e1d;
+  font-family:"PixelMplus10","PixelMplus12",sans-serif;
+  font-size:.7rem;
+}
+#game-menu[data-battle-command-menu="bag"] .bag-slot button[data-bag-use-item]{
+  grid-column:2/3;
+  min-width:68px;
+  min-height:34px;
+  border:2px solid #353a38;
+  border-radius:3px;
+  background:linear-gradient(180deg,#f4c866,#d49727);
+  color:#191b1a;
+  font-family:"PixelMplus12",sans-serif;
+  font-size:.78rem;
+  font-weight:400;
+  box-shadow:inset 0 0 0 1px #ffe4a2,1px 2px 0 #7d6536;
+}
+#game-menu[data-battle-command-menu="bag"] .battle-menu-ball-use{
+  display:block;
+  width:100%;
+  min-height:48px;
+  margin:0 0 7px;
+  border:2px solid #343936;
+  border-radius:3px;
+  background:linear-gradient(180deg,#e96b59 0 48%,#f7f4e9 49% 100%);
+  color:#171918;
+  font-family:"PixelMplus12","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+  font-size:.9rem;
+  font-weight:400;
+  letter-spacing:-.03em;
+  box-shadow:inset 0 0 0 1px #fff,1px 2px 0 #7d817f;
+}
+#game-menu[data-battle-command-menu="bag"] .bag-empty{
+  min-height:100px;
+  border:2px solid #717672;
+  border-radius:2px;
+  background:#f7f4e7;
+  color:#333735;
+  font-family:"PixelMplus12",sans-serif;
+}
+#game-menu[data-battle-command-menu="bag"] button:focus-visible,
+#game-menu[data-battle-command-menu="bag"] select:focus-visible{
+  outline:3px solid #e15244;
+  outline-offset:2px;
+}
+@media(max-width:540px) and (orientation:portrait){
+  #game-menu[data-battle-command-menu="bag"]{padding:max(2px,env(safe-area-inset-top)) 0 0}
+  #game-menu[data-battle-command-menu="bag"] .game-menu-sheet{border-radius:0;border-left:0;border-right:0;border-bottom:0}
+  #game-menu[data-battle-command-menu="bag"] .game-menu-pane{padding-left:5px;padding-right:5px}
+  #game-menu[data-battle-command-menu="bag"] .bag-slot strong{font-size:.82rem}
+  #game-menu[data-battle-command-menu="bag"] .battle-menu-ball-use{font-size:.84rem}
+}
