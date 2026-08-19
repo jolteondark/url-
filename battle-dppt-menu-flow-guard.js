@@ -5,8 +5,7 @@ function battle() {
 }
 
 function inBattleCommand() {
-  const current = battle();
-  return Boolean(current && current.phase === "COMMAND" && !current.completed && !current.player_replacement_required);
+  return battle()?.phase === "COMMAND";
 }
 
 function closeGameMenu() {
