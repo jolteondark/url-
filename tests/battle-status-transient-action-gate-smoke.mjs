@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { tryUseMoveCanonical } from "../runtime/battle-core-try-use-move.js";
 import { prepareCombatTurnInputCanonical } from "../runtime/battle-core-combat-turn.js";
 import { resolveGenericTurnVerticalSlice } from "../runtime/battle-core-turn-vertical-slice.js";
+import { resolveBrowserBattleRound } from "../runtime/browser-battle-round-runtime.js";
 
 function preparedBlockedAction(tryUseMoveInput) {
   const prepared = prepareCombatTurnInputCanonical({
@@ -113,5 +114,59 @@ assert.ok(confusionCures.operations.some((op) => op.op === "cure_confusion_reque
 // Paralysis is source-v0.9.108 pbRandom(100) < 25, and shares the same action-cancel contract.
 assertBlockedAction(preparedBlockedAction({ status: "PARALYSIS", paralysisRoll: 24 }), "paralysis");
 assert.equal(tryUseMoveCanonical({ status: "PARALYSIS", paralysisRoll: 25 }).success, true);
+
+const MOVE_MASTERS = {
+  TACKLE: { id: "TACKLE", name: "Tackle", category: "Physical", power: 40, accuracy: 100, total_pp: 35, priority: 0, type: "NORMAL", usable_when_asleep: false, thaws_user: false },
+};
+function pokemon(status, statusCount, speed = 100) {
+  return {
+    species: "EEVEE",
+    level: 50,
+    hp: 100,
+    max_hp: 100,
+    status,
+    status_count: statusCount,
+    types: ["NORMAL"],
+    stats: { ATTACK: 100, DEFENSE: 100, SPECIAL_ATTACK: 100, SPECIAL_DEFENSE: 100, SPEED: speed },
+    moves: [{ id: "TACKLE", pp: 35, ppup: 0 }],
+  };
+}
+function ordinary(player, combatRandomSeed) {
+  const foe = pokemon("NONE", 0, 60);
+  return resolveBrowserBattleRound({
+    player,
+    foe,
+    playerParty: [player],
+    foeParty: [foe],
+    selectedMoveId: "TACKLE",
+    foeMoveId: "TACKLE",
+    moveMasters: MOVE_MASTERS,
+    combatRandomSeed,
+    priorityRandomSeed: 1,
+  });
+}
+
+// Persisted sleep feeds the canonical counter. A blocked turn spends no PP; the wake boundary clears status and then executes.
+const sleepBlocked = ordinary(pokemon("SLEEP", 2), 3);
+assert.equal(sleepBlocked.player.status, "SLEEP");
+assert.equal(sleepBlocked.player.status_count, 1);
+assert.equal(sleepBlocked.player.moves[0].pp, 35);
+assert.equal(sleepBlocked.foe.hp, 100);
+assert.equal(sleepBlocked.operations.filter((op) => op.op === "use_move" && Number(op.action) === 0).length, 0);
+const sleepWake = ordinary(pokemon("SLEEP", 1), 3);
+assert.equal(sleepWake.player.status, "NONE");
+assert.equal(sleepWake.player.status_count, 0);
+assert.equal(sleepWake.player.moves[0].pp, 34, "waking action reaches canonical PP stage exactly once");
+assert.ok(sleepWake.foe.hp < 100);
+
+// Seed 3 gives the move-use sibling a 96 thaw roll, so frozen action blocks; seed 1 gives 9 and thaws before the move.
+const freezeBlocked = ordinary(pokemon("FROZEN", 0), 3);
+assert.equal(freezeBlocked.player.status, "FROZEN");
+assert.equal(freezeBlocked.player.moves[0].pp, 35);
+assert.equal(freezeBlocked.foe.hp, 100);
+const freezeThaw = ordinary(pokemon("FROZEN", 0), 1);
+assert.equal(freezeThaw.player.status, "NONE");
+assert.equal(freezeThaw.player.moves[0].pp, 34);
+assert.ok(freezeThaw.foe.hp < 100);
 
 console.log("battle status/transient action gate smoke: ok");
