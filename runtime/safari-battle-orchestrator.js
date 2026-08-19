@@ -85,6 +85,12 @@ function hasRewardGrowthTail(result) {
   ].includes(operation?.op));
 }
 
+function holdUntilPresentation(battle, phase, reason) {
+  battle.pending_phase_after_presentation = phase;
+  battle.pending_phase_reason = reason;
+  return battle.phase;
+}
+
 export function ensureSafariBattleOrchestrator(runtime) {
   const battle = battleOf(runtime);
   if (!battle.phase) tracePhase(battle, battle.completed ? SAFARI_BATTLE_PHASE.RESULT : SAFARI_BATTLE_PHASE.COMMAND, "initialize");
@@ -94,7 +100,7 @@ export function ensureSafariBattleOrchestrator(runtime) {
 
 export function safariBattleCommandAllowed(runtime) {
   const battle = stateOf(runtime).battle;
-  if (!battle || battle.completed) return false;
+  if (!battle) return false;
   return ensureSafariBattleOrchestrator(runtime) === SAFARI_BATTLE_PHASE.COMMAND;
 }
 
@@ -105,6 +111,8 @@ export function beginSafariBattleCommand(runtime, commandKind = "move") {
     throw new Error(`battle command is unavailable during ${phase}`);
   }
   battle.pending_command_kind = commandKind;
+  battle.pending_phase_after_presentation = null;
+  battle.pending_phase_reason = null;
   tracePhase(battle, SAFARI_BATTLE_PHASE.ACTION_1, `command:${commandKind}`);
   return battle.phase;
 }
@@ -116,6 +124,8 @@ export function abortSafariBattleCommand(runtime, reason = "command failed") {
     return battle.phase;
   }
   battle.pending_command_kind = null;
+  battle.pending_phase_after_presentation = null;
+  battle.pending_phase_reason = null;
   return tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, reason);
 }
 
@@ -149,21 +159,43 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
     tracePhase(battle, SAFARI_BATTLE_PHASE.REPLACEMENT, "player replacement required");
   } else if (foeReplacementApplied && decision === 0) {
     tracePhase(battle, SAFARI_BATTLE_PHASE.REPLACEMENT, "trainer reserve sent out");
-    tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, "replacement completed");
+    holdUntilPresentation(battle, SAFARI_BATTLE_PHASE.COMMAND, "trainer replacement presentation completed");
   } else if (terminalResolution) {
     tracePhase(battle, SAFARI_BATTLE_PHASE.POST_VICTORY, decision === 1 ? "victory" : "terminal result");
     if (hasRewardGrowthTail(result) || decision === 1) {
       tracePhase(battle, SAFARI_BATTLE_PHASE.REWARD_GROWTH, "automatic growth/reward tail");
     }
-    tracePhase(battle, SAFARI_BATTLE_PHASE.RESULT, "battle result ready");
-    battle.completed = true;
-    battle.completed_phase = SAFARI_BATTLE_PHASE.RESULT;
+    holdUntilPresentation(battle, SAFARI_BATTLE_PHASE.RESULT, "battle result presentation completed");
   } else {
-    tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, `round complete:${resolvedCommandKind}`);
+    holdUntilPresentation(battle, SAFARI_BATTLE_PHASE.COMMAND, `round presentation complete:${resolvedCommandKind}`);
   }
 
   battle.pending_command_kind = null;
   result.phase = battle.phase;
+  result.phasePending = battle.pending_phase_after_presentation ?? null;
+  result.phaseTrace = structuredClone(battle.phase_trace ?? []);
+  return result;
+}
+
+export function completeSafariBattlePresentation(runtime, result = {}) {
+  const battle = stateOf(runtime).battle;
+  if (!battle) return result;
+  const pending = battle.pending_phase_after_presentation;
+  if (!pending) {
+    result.phase = ensureSafariBattleOrchestrator(runtime);
+    result.phaseTrace = structuredClone(battle.phase_trace ?? []);
+    return result;
+  }
+  const reason = battle.pending_phase_reason ?? "presentation completed";
+  battle.pending_phase_after_presentation = null;
+  battle.pending_phase_reason = null;
+  tracePhase(battle, pending, reason);
+  if (pending === SAFARI_BATTLE_PHASE.RESULT) {
+    battle.completed = true;
+    battle.completed_phase = SAFARI_BATTLE_PHASE.RESULT;
+  }
+  result.phase = battle.phase;
+  result.phasePending = null;
   result.phaseTrace = structuredClone(battle.phase_trace ?? []);
   return result;
 }
@@ -177,6 +209,8 @@ export function completeSafariBattleReplacement(runtime, result = {}) {
   if (battle.player_replacement_required) {
     throw new Error("replacement owner did not clear player replacement requirement");
   }
+  battle.pending_phase_after_presentation = null;
+  battle.pending_phase_reason = null;
   tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, "player replacement completed");
   result.phase = battle.phase;
   result.phaseTrace = structuredClone(battle.phase_trace ?? []);
