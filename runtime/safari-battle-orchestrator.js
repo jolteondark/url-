@@ -107,6 +107,13 @@ function rejectUnconsumedCommand(battle, result, commandKind) {
   return result;
 }
 
+function commitRewardGrowthCheckpoint(battle, result, rewardGrowthCommit, reason) {
+  tracePhase(battle, SAFARI_BATTLE_PHASE.REWARD_GROWTH, reason);
+  if (typeof rewardGrowthCommit !== "function") return result;
+  const committed = rewardGrowthCommit(result);
+  return committed && committed !== result ? committed : result;
+}
+
 export function ensureSafariBattleOrchestrator(runtime) {
   const battle = battleOf(runtime);
   if (!battle.phase) tracePhase(battle, battle.completed ? SAFARI_BATTLE_PHASE.RESULT : SAFARI_BATTLE_PHASE.COMMAND, "initialize");
@@ -187,18 +194,21 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
     tracePhase(battle, SAFARI_BATTLE_PHASE.REPLACEMENT, "player replacement required");
   } else if (foeReplacementApplied && decision === 0) {
     tracePhase(battle, SAFARI_BATTLE_PHASE.REPLACEMENT, "trainer reserve sent out");
+    // The compatibility round owner can already expose per-KO EXP/level/move operations.
+    // They belong to the central growth checkpoint even though the battle continues with
+    // a reserve, so do not skip REWARD_GROWTH just because RESULT is not terminal yet.
+    if (hasRewardGrowthTail(result)) {
+      result = commitRewardGrowthCheckpoint(battle, result, rewardGrowthCommit, "replacement growth checkpoint");
+    }
     tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, "replacement completed");
   } else if (terminalResolution) {
     tracePhase(battle, SAFARI_BATTLE_PHASE.POST_VICTORY, decision === 1 ? "victory" : "terminal result");
-    tracePhase(
+    result = commitRewardGrowthCheckpoint(
       battle,
-      SAFARI_BATTLE_PHASE.REWARD_GROWTH,
+      result,
+      rewardGrowthCommit,
       hasRewardGrowthTail(result) || decision === 1 ? "automatic growth/reward tail" : "automatic growth/reward checkpoint",
     );
-    if (typeof rewardGrowthCommit === "function") {
-      const committed = rewardGrowthCommit(result);
-      if (committed && committed !== result) result = committed;
-    }
     tracePhase(battle, SAFARI_BATTLE_PHASE.RESULT, "battle result ready");
     battle.completed = true;
     battle.completed_phase = SAFARI_BATTLE_PHASE.RESULT;
