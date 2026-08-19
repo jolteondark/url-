@@ -52,6 +52,7 @@ const EXTENSION_ABILITY_IDS = Object.freeze([
 const EXTENSION_ITEM_IDS = Object.freeze([
   "ASSAULTVEST",
   "BRIGHTPOWDER",
+  "COVERTCLOAK",
   "EXPERTBELT",
   "LAXINCENSE",
   "RAZORCLAW",
@@ -144,6 +145,9 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
     speedInput: Object.freeze({
       abilityMultiplier: weatherSpeedMultiplier,
     }),
+    secondaryEffectInput: Object.freeze({
+      targetHasCovertCloak: targetItem === "COVERTCLOAK",
+    }),
     damageCalculationInput: Object.freeze({
       userUnaware: userAbility === "UNAWARE",
       targetUnaware: targetAbility === "UNAWARE" && !moldBreaker,
@@ -172,5 +176,6 @@ export const BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL = Obje
     criticalDamageModifier: 1,
     targetAccuracyHeldItems: 2,
     typeWeaknessAbilityModifier: 1,
+    secondaryEffectSuppressionHeldItems: 1,
   }),
 });

@@ -107,6 +107,8 @@ function resolveSharedActionBeforeCanonical({ runtimeUser, runtimeTarget, move, 
   const baseDamageMultiplierInput = base?.modifiers?.damageMultiplierInput ?? {};
   const baseAccuracyModifierInput = base?.modifiers?.accuracyModifierInput ?? {};
   const baseSpeedInput = base?.modifiers?.speedInput ?? {};
+  const baseSecondaryEffectInput = base?.modifiers?.secondaryEffectInput ?? {};
+  const covertCloak = Boolean(extension?.secondaryEffectInput?.targetHasCovertCloak);
   return Object.freeze({
     ...base,
     modifiers: Object.freeze({
@@ -143,6 +145,12 @@ function resolveSharedActionBeforeCanonical({ runtimeUser, runtimeTarget, move, 
           baseSpeedInput.abilityMultiplier,
           extension.speedInput.abilityMultiplier,
         ),
+      }),
+      secondaryEffectInput: Object.freeze({
+        ...baseSecondaryEffectInput,
+        targetHasCovertCloak: covertCloak,
+        targetHasShieldDust: Boolean(baseSecondaryEffectInput.targetHasShieldDust) || covertCloak,
+        moldBreaker: covertCloak ? false : baseSecondaryEffectInput.moldBreaker,
       }),
       damageCalculationInput: extension.damageCalculationInput,
     }),
