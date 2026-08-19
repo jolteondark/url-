@@ -123,6 +123,16 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   const battle = battleOf(runtime);
   if (!battle.phase) ensureSafariBattleOrchestrator(runtime);
 
+  // Terminal mechanics owners may be observed more than once by compatibility adapters.
+  // RESULT is already the committed terminal boundary, so replaying the same resolution
+  // must not append another POST_VICTORY/REWARD_GROWTH/RESULT tail.
+  if (battle.phase === SAFARI_BATTLE_PHASE.RESULT && battle.completed) {
+    battle.pending_command_kind = null;
+    result.phase = battle.phase;
+    result.phaseTrace = structuredClone(battle.phase_trace ?? []);
+    return result;
+  }
+
   const decision = Number(result?.decision ?? battle.decision ?? 0);
   const playerReplacementRequired = Boolean(result?.playerReplacementRequired ?? battle.player_replacement_required);
   const foeReplacementApplied = Boolean(result?.foeReplacementApplied);
@@ -152,9 +162,11 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
     tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, "replacement completed");
   } else if (terminalResolution) {
     tracePhase(battle, SAFARI_BATTLE_PHASE.POST_VICTORY, decision === 1 ? "victory" : "terminal result");
-    if (hasRewardGrowthTail(result) || decision === 1) {
-      tracePhase(battle, SAFARI_BATTLE_PHASE.REWARD_GROWTH, "automatic growth/reward tail");
-    }
+    tracePhase(
+      battle,
+      SAFARI_BATTLE_PHASE.REWARD_GROWTH,
+      hasRewardGrowthTail(result) || decision === 1 ? "automatic growth/reward tail" : "automatic growth/reward checkpoint",
+    );
     tracePhase(battle, SAFARI_BATTLE_PHASE.RESULT, "battle result ready");
     battle.completed = true;
     battle.completed_phase = SAFARI_BATTLE_PHASE.RESULT;
