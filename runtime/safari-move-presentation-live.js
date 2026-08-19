@@ -9,6 +9,8 @@ function presentationFor(id) {
     accuracy: master.accuracy,
     priority: master.priority,
     totalPp: master.total_pp,
+    type: master.type ?? null,
+    category: master.category ?? null,
   });
 }
 
