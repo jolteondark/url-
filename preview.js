@@ -87,7 +87,7 @@ async function startPreview(action) {
   }
   try {
     await appPromise;
-    replacementPresentationPromise ??= import("./battle-player-replacement-presentation.js?v=20260818-1440");
+    replacementPresentationPromise ??= import("./battle-player-replacement-presentation.js?v=20260819-1650");
     carryoverPresentationPromise ??= import("./carryover-next-run-presentation.js?v=20260818-1558");
     battleTurnPhasePresentationPromise ??= import("./battle-turn-phase-presentation.js?v=20260819-1650");
     const [, carryoverPresentation] = await Promise.all([
