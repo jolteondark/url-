@@ -84,7 +84,12 @@ document.addEventListener("click", (event) => {
 }, true);
 
 window.addEventListener("safari-game-menu-opened", (event) => {
-  if (!battle()) return;
+  const current = battle();
+  if (!current) return;
+  if (current.phase !== "COMMAND") {
+    closeGameMenu();
+    return;
+  }
   const tab = event.detail?.tab;
   if (tab === "party" || tab === "bag") lockMenuToBattlePurpose(tab);
 });
