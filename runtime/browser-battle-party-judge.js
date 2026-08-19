@@ -44,6 +44,15 @@ function reflectLiveHp(parties, indexes, battlerIndex, hp) {
   if (battlerIndex === 1) parties.foeParty[indexes.foePartyIndex].hp = Number(hp);
 }
 
+function replacementCheckpoint(parties, indexes) {
+  const playerActiveFainted = Number(parties.playerParty[indexes.playerPartyIndex]?.hp ?? 0) <= 0;
+  const foeActiveFainted = Number(parties.foeParty[indexes.foePartyIndex]?.hp ?? 0) <= 0;
+  return {
+    player: playerActiveFainted && !allFaintedCanonical(parties.playerParty),
+    foe: foeActiveFainted && !allFaintedCanonical(parties.foeParty),
+  };
+}
+
 export function prepareBrowserPartyAwareJudgeStates(input = {}, {
   playerParty = [],
   foeParty = [],
@@ -64,7 +73,10 @@ export function prepareBrowserPartyAwareJudgeStates(input = {}, {
       const action = actions[actionIndex];
       if (!action || action.kind !== "move") continue;
       const actor = Number(action.battlerIndex);
-      if (Number.isInteger(actor) && Number(live.hp.get(actor) ?? 0) <= 0) continue;
+      if (Number.isInteger(actor) && Number(live.hp.get(actor) ?? 0) <= 0) {
+        action.cancelledBecauseActorFainted = true;
+        continue;
+      }
       if (!action.moveSkipped && action.accuracyHit) {
         const target = Number(action.targetBattlerIndex);
         if (action.hpBefore !== undefined) {
@@ -100,6 +112,11 @@ export function prepareBrowserPartyAwareJudgeStates(input = {}, {
         foeParty: clone(parties.foeParty),
         drawDecision: Number(action.drawDecision ?? 5),
       };
+      const checkpoint = replacementCheckpoint(parties, indexes);
+      if (checkpoint.player || checkpoint.foe) {
+        action.stopRoundForReplacement = true;
+        action.replacementCheckpoint = checkpoint;
+      }
     }
   }
   return prepared;

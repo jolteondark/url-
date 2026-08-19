@@ -1,4 +1,5 @@
 import { resolveEndOfRoundPhaseCanonical } from "./battle-core-end-of-round.js";
+import { resolveJudgeCanonical } from "./battle-core-judge.js";
 
 function rubyRound(value) {
   const n = Number(value ?? 0);
@@ -24,11 +25,8 @@ export function reduceHpCanonical({ hp, totalHp, amount, fainted = false, regist
   };
 }
 
-export function judgeCanonical({ playerAllFainted = false, foeAllFainted = false, drawDecision = 0 }) {
-  if (playerAllFainted && foeAllFainted) return Number(drawDecision);
-  if (playerAllFainted) return 2;
-  if (foeAllFainted) return 1;
-  return 0;
+export function judgeCanonical(input = {}) {
+  return Number(resolveJudgeCanonical(input).decision);
 }
 
 export function chooseMoveCanonical(source = {}) {
@@ -174,9 +172,15 @@ export function resolveGenericTurnVerticalSlice(input = {}, { allowIncomplete = 
       if (selectedByBattler) order = order.filter((index) => isSelectedAction(actions[index]));
       operations.push({ op: "calculate_priority", round: roundNo, order, resolvedAdapter: true });
     }
-    for (const actionIndex of order) {
+    let stoppedForReplacement = false;
+    for (let orderIndex = 0; orderIndex < order.length; orderIndex += 1) {
+      const actionIndex = order[orderIndex];
       const action = actions[actionIndex];
       if (!action || action.kind !== "move" || !isSelectedAction(action)) continue;
+      if (action.cancelledBecauseActorFainted) {
+        operations.push({ op: "cancel_action", round: roundNo, action: actionIndex, reason: "actor_fainted" });
+        continue;
+      }
       operations.push({ op: "use_move", round: roundNo, action: actionIndex });
       if (action.moveSkipped) continue;
       const hit = Boolean(action.accuracyHit);
@@ -194,8 +198,27 @@ export function resolveGenericTurnVerticalSlice(input = {}, { allowIncomplete = 
       operations.push({ op: "judge", round: roundNo, action: actionIndex, decision: judged });
       if (action.judgeState) decision = judged;
       if (decision > 0) break;
+      if (action.stopRoundForReplacement) {
+        for (let queuedIndex = orderIndex + 1; queuedIndex < order.length; queuedIndex += 1) {
+          const queuedActionIndex = order[queuedIndex];
+          const queuedAction = actions[queuedActionIndex];
+          if (!queuedAction || queuedAction.kind !== "move" || !isSelectedAction(queuedAction)) continue;
+          operations.push({
+            op: "cancel_action",
+            round: roundNo,
+            action: queuedActionIndex,
+            reason: queuedAction.cancelledBecauseActorFainted ? "actor_fainted" : "replacement_checkpoint",
+          });
+        }
+        stoppedForReplacement = true;
+        break;
+      }
     }
     if (decision > 0) break;
+    if (stoppedForReplacement) {
+      turnCount += 1;
+      continue;
+    }
     decision = Number(round.attackDecision ?? decision);
     if (decision > 0) break;
     operations.push({ op: "end_of_round_phase", round: roundNo });
