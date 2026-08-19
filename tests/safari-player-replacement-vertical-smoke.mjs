@@ -103,3 +103,4 @@ assert.match(replacementUiSource, /moves\.inert = true/,
   "normal move commands must be blocked while replacement selection is required");
 
 console.log("Safari active KO -> legal reserve replacement -> next command -> victory + UI wiring: ok");
+await import("./safari-voluntary-switch-command-smoke.mjs");
