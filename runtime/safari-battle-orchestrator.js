@@ -52,6 +52,10 @@ function resolvedOperations(result) {
   return Array.isArray(result?.operations) ? result.operations : [];
 }
 
+function requestsPersistence(result) {
+  return resolvedOperations(result).some((operation) => operation?.op === "request_save");
+}
+
 function actionActors(result) {
   const actors = [];
   for (const operation of resolvedOperations(result)) {
@@ -128,6 +132,7 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   // must not append another POST_VICTORY/REWARD_GROWTH/RESULT tail.
   if (battle.phase === SAFARI_BATTLE_PHASE.RESULT && battle.completed) {
     battle.pending_command_kind = null;
+    if (requestsPersistence(result)) result.persistenceRequested = true;
     result.phase = battle.phase;
     result.phaseTrace = structuredClone(battle.phase_trace ?? []);
     return result;
@@ -175,6 +180,7 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   }
 
   battle.pending_command_kind = null;
+  if (requestsPersistence(result)) result.persistenceRequested = true;
   result.phase = battle.phase;
   result.phaseTrace = structuredClone(battle.phase_trace ?? []);
   return result;
