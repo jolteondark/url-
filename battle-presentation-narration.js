@@ -28,6 +28,22 @@ export function formatSafariBattlePresentationEvent(event = {}, context = {}) {
       const moveName = context.moveName || event.moveId || "わざ";
       return `${actorName}の${moveName}！`;
     }
+    case "action_blocked":
+      if (event.reason === "sleep") return `${actorName}はぐうぐう眠っている…`;
+      if (event.reason === "frozen") return `${actorName}は凍っていて動けない！`;
+      if (event.reason === "paralysis") return `${actorName}は体がしびれて動けない！`;
+      if (event.reason === "flinch") return `${actorName}はひるんで技が出せない！`;
+      return `${actorName}は技を出せない！`;
+    case "status_recovered":
+      if (event.status === "SLEEP") return `${actorName}は目を覚ました！`;
+      if (event.status === "FROZEN") return `${actorName}のこおりが溶けた！`;
+      return null;
+    case "confusion_active":
+      return `${actorName}はこんらんしている！`;
+    case "confusion_cured":
+      return `${actorName}のこんらんが解けた！`;
+    case "confusion_self_hit":
+      return `${actorName}はわけもわからず自分を攻撃した！`;
     case "damage_applied":
       return `${targetName}のHP ${Number(event.hpBefore ?? 0)} → ${Number(event.hpAfter ?? 0)}`;
     case "battle_item":
