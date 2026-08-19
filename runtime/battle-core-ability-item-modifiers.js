@@ -33,6 +33,10 @@ function canonicalId(value) {
   return String(raw ?? "").toUpperCase();
 }
 
+function hasOwn(object, key) {
+  return Boolean(object) && Object.prototype.hasOwnProperty.call(object, key);
+}
+
 function positiveFinite(value, fallback = 1) {
   const number = Number(value ?? fallback);
   if (!Number.isFinite(number) || number < 0) throw new TypeError("battle modifier must be a non-negative finite number");
@@ -66,11 +70,13 @@ function consumeRequest(item, effectKind, extra = {}) {
 }
 
 export function battlePokemonAbilityIdCanonical(pokemon) {
-  return canonicalId(pokemon?.ability ?? pokemon?.ability_id);
+  if (hasOwn(pokemon, "ability")) return canonicalId(pokemon.ability);
+  return canonicalId(pokemon?.ability_id);
 }
 
 export function battlePokemonHeldItemIdCanonical(pokemon) {
-  return canonicalId(pokemon?.item ?? pokemon?.held_item);
+  if (hasOwn(pokemon, "held_item")) return canonicalId(pokemon.held_item);
+  return canonicalId(pokemon?.item);
 }
 
 export function resolveTypeImmunityAbilityEffectCanonical({ user = {}, target = {}, move = {}, moldBreaker = null } = {}) {
