@@ -97,8 +97,8 @@ const player = materialize(source, {
   hp: 15,
   status: "POISON",
   status_count: 2,
-  item: "BERRY",
-  ability_id: "KEEPABILITY",
+  item: "STALEBERRY",
+  ability_id: "STALEABILITY",
   ability_index: 1,
   nature_id: "HARDY",
   iv: zeroStats,
@@ -111,6 +111,8 @@ const player = materialize(source, {
   ],
 });
 player.hp = 15;
+player.ability = "KEEPABILITY";
+player.held_item = "BERRY";
 const opponent = materialize(foe, {
   species: foe.id,
   level: 10,
@@ -165,9 +167,11 @@ assert.deepEqual(after.moves.map((move) => move.id), ["REALPLAYERKO", "REALPLAYE
 assert.equal(after.moves[0].pp, 2, "used move PP must decrement once and never refill during growth/evolution");
 assert.equal(after.moves[3].pp, 6, "untouched move PP must survive growth/evolution");
 assert.equal(after.personal_id, before.personal_id);
-assert.equal(after.ability_id, "KEEPABILITY");
+assert.equal(after.ability, "KEEPABILITY", "authoritative runtime ability must survive growth/evolution");
+assert.equal(after.held_item, "BERRY", "authoritative runtime held_item must survive growth/evolution");
+assert.equal(after.ability_id, "STALEABILITY", "legacy ability alias may remain but must not replace the authoritative field");
 assert.equal(after.ability_index, 1);
-assert.equal(after.item, "BERRY");
+assert.equal(after.item, "STALEBERRY", "legacy item alias may remain but must not replace the authoritative field");
 assert.equal(after.status, "POISON");
 assert.equal(after.status_count, 2);
 assert.equal(after.hp, before.hp + (after.max_hp - before.max_hp), "injured HP must follow max-HP delta rather than full-heal");
@@ -184,5 +188,7 @@ const loaded = web.loadSafariPlayableRun(storage, fresh);
 assert.equal(loaded.found, true);
 assert.deepEqual(loaded.state.player.party[0], after,
   "player-selected real Battle growth/evolution result must survive browser save -> fresh Continue exactly");
+assert.equal(loaded.state.player.party[0].ability, "KEEPABILITY", "fresh Continue must preserve authoritative ability");
+assert.equal(loaded.state.player.party[0].held_item, "BERRY", "fresh Continue must preserve authoritative held item");
 
 console.log("Safari real Battle player move learning -> Level evolution -> save -> fresh Continue: PASS");
