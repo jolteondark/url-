@@ -111,6 +111,15 @@ function learnMove(moves, newMove, decision, maxMoves, operations, level, resolv
   operations.push({ op: "decline_move", move: newMove });
 }
 
+function moveDecisionResolverFor(input) {
+  if (typeof input?.moveDecisionResolver === "function") return input.moveDecisionResolver;
+  if (input?.moveDecisionResolverSource === "safari_browser") {
+    const resolver = globalThis.__maplessSafariMoveLearningResolver;
+    if (typeof resolver === "function") return resolver;
+  }
+  return null;
+}
+
 export function resolveExpLevelMoveFlow(input) {
   const pokemon = {
     exp: asInt(input.pokemon.exp, "pokemon.exp"),
@@ -153,7 +162,7 @@ export function resolveExpLevelMoveFlow(input) {
   pokemon.exp = expFinal;
   const movesByLevel = input.movesByLevel ?? {};
   const decisions = input.moveDecisions ?? {};
-  const resolver = input.moveDecisionResolver;
+  const resolver = moveDecisionResolverFor(input);
 
   for (let level = pokemon.level + 1; level <= newLevel; level += 1) {
     operations.push({ op: "exp_bar_to_level", level });
