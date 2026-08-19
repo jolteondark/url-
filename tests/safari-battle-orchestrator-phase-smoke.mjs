@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   SAFARI_BATTLE_PHASE,
+  abortSafariBattleCommand,
   abortSafariBattleReturn,
   beginSafariBattleCommand,
   beginSafariBattleReturn,
@@ -143,6 +144,9 @@ function deferredExpIntegration() {
   assert.equal(battle.reward_growth_checkpoint?.errorMessage, "reward growth exploded:test");
   assert.equal(rewardGrowthCalls, 1);
   const traceLength = battle.phase_trace.length;
+  assert.equal(abortSafariBattleCommand(rt, "compatibility wrapper caught reward failure"), SAFARI_BATTLE_PHASE.REWARD_GROWTH,
+    "command abort may roll back only speculative ACTION_1 and must not escape a failed central commit");
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.REWARD_GROWTH);
   assert.throws(() => commitSafariBattleResolution(rt, result, "move", {
     rewardGrowthCommit() {
       rewardGrowthCalls += 1;
