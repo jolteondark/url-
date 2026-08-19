@@ -3,6 +3,7 @@ import { resolveBrowserTrainerBattleRound } from "./browser-trainer-battle-round
 import { resolveBrowserPlayerReplacementContinuation } from "./browser-player-replacement-continuation.js";
 import { resolveBrowserOpponentMoveChoiceCanonical } from "./battle-core-browser-opponent-move-choice.js";
 import { createBattleStatStageStateCanonical, resetBattleStatStagesForBattlerCanonical } from "./battle-core-stat-stages.js";
+import { projectSafariStatStagePresentationOperations } from "./safari-stat-stage-presentation.js";
 import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
 import { finalizeNormalBattle, normalBattleExpInput } from "./safari-normal-battle-finalize.js";
 
@@ -67,6 +68,8 @@ function battlePresentation(operations, context = null) {
       events.push({ type: "move_started", actor: operation.actor, target: operation.target, moveId: operation.moveId });
     } else if (operation.op === "accuracy_check" && !operation.hit) {
       events.push({ type: "miss", actor: operation.actor, target: operation.target });
+    } else if (operation.op === "stat_stage_change") {
+      events.push({ type: "stat_stage_change", actor: operation.actor, target: operation.target, stat: operation.stat, requestedDelta: operation.requestedDelta, appliedDelta: operation.appliedDelta, before: operation.before, after: operation.after });
     } else if (operation.op === "reduce_hp" || operation.op === "reduce_self_hp") {
       events.push({ type: "damage_applied", actor: operation.actor, target: operation.target, amount: operation.amount, hpBefore: operation.hpBefore, hpAfter: operation.hpAfter });
     } else if (operation.op === "faint" || operation.op === "faint_self") {
@@ -112,15 +115,16 @@ function projectPlayerReplacement(battle, handoff, continuation = null) {
 
 function finish(runtime, battle, resolved, operations) {
   const state = stateOf(runtime);
-  battle.last_operations = operations;
-  battle.presentation = battlePresentation(operations, resolved.presentationContext ?? null);
-  state.last_operations = operations;
+  const presentationOperations = projectSafariStatStagePresentationOperations(resolved, operations);
+  battle.last_operations = presentationOperations;
+  battle.presentation = battlePresentation(presentationOperations, resolved.presentationContext ?? null);
+  state.last_operations = presentationOperations;
   if (Number(battle.decision) !== 0) finalizeNormalBattle(runtime);
   return {
     ...resolved,
     runtime,
     decision: Number(battle.decision),
-    operations: Number(battle.decision) !== 0 ? battle.last_operations : operations,
+    operations: Number(battle.decision) !== 0 ? battle.last_operations : presentationOperations,
     presentation: battle.presentation,
     playerReplacementRequired: Boolean(battle.player_replacement_required),
     playerReplacementOptions: structuredClone(battle.player_replacement_options ?? []),
