@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { materializeSeededSecondaryEffectsCanonical } from "../runtime/battle-core-seeded-secondary-effect.js";
 import { prepareCombatTurnInputCanonical } from "../runtime/battle-core-combat-turn.js";
+import { applyTriggeredFlinchToLaterActionCanonical } from "../runtime/battle-core-transient-flinch.js";
 
 const input = {
   secondaryEffectRandomSeed: 1,
@@ -35,4 +36,38 @@ assert.equal(resolvedDamage.rounds[0].actions[0].secondaryEffectInputs[0].trigge
 assert.equal(resolvedDamage.rounds[0].actions[0].secondaryEffectInputs[1].calcDamage, 0);
 assert.equal(resolvedDamage.rounds[0].actions[0].secondaryEffectInputs[1].triggered, false);
 
-console.log(JSON.stringify({ ok: true, rolls: [37,12,72], verticalWired: true, resolvedDamageOwner: true }));
+const biteSource = {
+  kind: "move",
+  moveId: "BITE",
+  targetBattlerIndex: 1,
+  hpReductionResolution: { amount: 12 },
+  secondaryEffectInputs: [{ functionCode: "FlinchTarget", effectChance: 30, randomRoll: 4, triggered: true }],
+};
+const slowerTarget = {
+  kind: "move",
+  battlerIndex: 1,
+  moveId: "TACKLE",
+  useMoveInput: { tryUseMoveInput: { status: "NONE" } },
+};
+const flinched = applyTriggeredFlinchToLaterActionCanonical({ sourceAction: biteSource, targetAction: slowerTarget });
+assert.equal(flinched.applied, true);
+assert.equal(flinched.action.useMoveInput.tryUseMoveInput.flinch, true);
+assert.equal(flinched.action.useMoveInput.tryUseMoveInput.status, "NONE");
+assert.equal(flinched.action.transientFlinchResolution.sourceMoveId, "BITE");
+
+const noDamage = applyTriggeredFlinchToLaterActionCanonical({
+  sourceAction: { ...biteSource, hpReductionResolution: { amount: 0 } },
+  targetAction: slowerTarget,
+});
+assert.equal(noDamage.applied, false);
+assert.equal(noDamage.reason, "no_damage");
+assert.equal(noDamage.action.useMoveInput.tryUseMoveInput.flinch, undefined);
+
+const wrongTarget = applyTriggeredFlinchToLaterActionCanonical({
+  sourceAction: biteSource,
+  targetAction: { ...slowerTarget, battlerIndex: 0 },
+});
+assert.equal(wrongTarget.applied, false);
+assert.equal(wrongTarget.reason, "different_target");
+
+console.log(JSON.stringify({ ok: true, rolls: [37,12,72], verticalWired: true, resolvedDamageOwner: true, transientFlinch: true }));
