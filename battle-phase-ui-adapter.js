@@ -72,6 +72,26 @@ function setInteractive(element, enabled) {
   element.disabled = !enabled;
 }
 
+function setOwnerAwarePhaseInteractive(element, enabled) {
+  if (!element) return;
+  const phaseLocked = element.dataset.battlePhaseLocked === "true";
+  if (!enabled) {
+    if (!phaseLocked) {
+      element.dataset.battlePhaseLocked = "true";
+      element.dataset.battleOwnerDisabled = String(Boolean(element.disabled));
+    }
+    element.inert = true;
+    element.disabled = true;
+    return;
+  }
+
+  element.inert = false;
+  if (!phaseLocked) return;
+  element.disabled = element.dataset.battleOwnerDisabled === "true";
+  delete element.dataset.battlePhaseLocked;
+  delete element.dataset.battleOwnerDisabled;
+}
+
 export function applySafariBattlePhaseUi() {
   const currentBattle = battle();
   if (!currentBattle) return;
@@ -119,10 +139,10 @@ export function applySafariBattlePhaseUi() {
   }
 
   for (const button of document.querySelectorAll?.("button[data-bag-use-item]") ?? []) {
-    setInteractive(button, commandAllowed);
+    setOwnerAwarePhaseInteractive(button, commandAllowed);
   }
   for (const button of document.querySelectorAll?.("button[data-player-replacement-party-index]") ?? []) {
-    setInteractive(button, replacementAllowed);
+    setOwnerAwarePhaseInteractive(button, replacementAllowed);
   }
 
   const card = byId("battle-card");
