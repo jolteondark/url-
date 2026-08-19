@@ -14,6 +14,19 @@ function normalizeEvolution(entry) {
   };
 }
 
+function normalizeLevelMove(entry) {
+  if (Array.isArray(entry)) {
+    const [level, move] = entry;
+    return { level: Number(level), move: String(move ?? "") };
+  }
+  if (!entry || typeof entry !== "object") return null;
+  return { level: Number(entry.level), move: String(entry.move ?? entry.id ?? "") };
+}
+
+function moveId(move) {
+  return typeof move === "string" ? move : move?.id;
+}
+
 function levelEvolutionTarget(speciesMaster, level) {
   const unsupportedMethods = new Set();
   let eligible = null;
@@ -67,11 +80,110 @@ function publicCandidate(candidate) {
   return { to: candidate.target, method: candidate.method, parameter: candidate.parameter };
 }
 
+function evolutionMoveIds(speciesMaster, level) {
+  const ids = [];
+  for (const raw of speciesMaster?.level_moves ?? []) {
+    const entry = normalizeLevelMove(raw);
+    if (!entry?.move || !Number.isInteger(entry.level)) continue;
+    if (entry.level !== 0 && entry.level !== Number(level)) continue;
+    if (!ids.includes(entry.move)) ids.push(entry.move);
+  }
+  return ids;
+}
+
+function explicitMoveDecision(moveDecisions, level, move) {
+  if (!moveDecisions || typeof moveDecisions !== "object") return null;
+  return moveDecisions[`${level}:${move}`] ?? moveDecisions[`evolution:${move}`] ?? null;
+}
+
+function resolvedMoveDecision({
+  moveDecisions,
+  moveDecisionResolver,
+  moveDecisionResolverSource,
+  level,
+  move,
+  moves,
+}) {
+  const explicit = explicitMoveDecision(moveDecisions, level, move);
+  if (explicit != null) return explicit;
+  let resolver = moveDecisionResolver;
+  if (!resolver && (moveDecisionResolverSource == null || moveDecisionResolverSource === "safari_browser") && typeof globalThis !== "undefined") {
+    resolver = globalThis.__maplessSafariMoveLearningResolver;
+  }
+  if (typeof resolver !== "function") return null;
+  return resolver({ level, move, moves: moves.map(moveId), reason: "evolution" }) ?? null;
+}
+
+function applyEvolutionMoveLearning(runtime, targetMaster, {
+  move_masters,
+  nature_master,
+  disable_ivs_and_evs,
+  maxMoves,
+  moveDecisions,
+  moveDecisionResolver,
+  moveDecisionResolverSource,
+}) {
+  const moves = (runtime.moves ?? []).map((move) => structuredClone(move));
+  const operations = [];
+  const level = Number(runtime.level);
+  let changed = false;
+
+  for (const move of evolutionMoveIds(targetMaster, level)) {
+    if (moves.some((known) => moveId(known) === move)) {
+      operations.push({ op: "skip_known_move", level, move, reason: "evolution" });
+      continue;
+    }
+    if (moves.length < maxMoves) {
+      moves.push(move);
+      changed = true;
+      operations.push({ op: "learn_move", level, move, slot: moves.length - 1, reason: "evolution", resetPp: true });
+      operations.push({ op: "check_form_on_moveset_change", move, reason: "evolution" });
+      continue;
+    }
+
+    const decision = resolvedMoveDecision({
+      moveDecisions,
+      moveDecisionResolver,
+      moveDecisionResolverSource,
+      level,
+      move,
+      moves,
+    });
+    if (decision?.decline === true) {
+      operations.push({ op: "decline_move", level, move, reason: "evolution" });
+      continue;
+    }
+    const forgetIndex = Number(decision?.forgetIndex);
+    if (!Number.isInteger(forgetIndex) || forgetIndex < 0 || forgetIndex >= moves.length) {
+      operations.push({ op: "decline_move", level, move, reason: "evolution" });
+      continue;
+    }
+    const forgotten = moveId(moves[forgetIndex]);
+    moves[forgetIndex] = move;
+    changed = true;
+    operations.push({ op: "replace_move", level, move, slot: forgetIndex, forgotten, reason: "evolution", resetPp: true });
+    operations.push({ op: "check_form_on_moveset_change", move, reason: "evolution" });
+  }
+
+  if (!changed) return { pokemon: runtime, operations };
+  const rematerialized = preserveAuthoritativeBattleFields(runtime, resolvePokemonRuntimeMasters({ ...runtime, moves }, {
+    species_master: targetMaster,
+    nature_master,
+    move_masters,
+    disable_ivs_and_evs,
+  }));
+  return { pokemon: rematerialized, operations };
+}
+
 export function resolvePokemonLevelEvolution(runtime, {
   species_masters,
   nature_master = null,
   move_masters = {},
   disable_ivs_and_evs = false,
+  maxMoves = 4,
+  moveDecisions = {},
+  moveDecisionResolver = null,
+  moveDecisionResolverSource = null,
 } = {}) {
   if (!species_masters || typeof species_masters !== "object" || Array.isArray(species_masters)) {
     throw new TypeError("species_masters must be an object keyed by species id");
@@ -110,12 +222,22 @@ export function resolvePokemonLevelEvolution(runtime, {
   const before = structuredClone(runtime);
   const nextForm = Number.isInteger(Number(targetMaster.form)) ? Number(targetMaster.form) : 0;
   const speciesChanged = updatePokemonRuntime(runtime, { species: candidate.target, form: nextForm });
-  const recalculated = preserveAuthoritativeBattleFields(before, resolvePokemonRuntimeMasters(speciesChanged, {
+  let recalculated = preserveAuthoritativeBattleFields(before, resolvePokemonRuntimeMasters(speciesChanged, {
     species_master: targetMaster,
     nature_master,
     move_masters,
     disable_ivs_and_evs,
   }));
+  const learned = applyEvolutionMoveLearning(recalculated, targetMaster, {
+    move_masters,
+    nature_master,
+    disable_ivs_and_evs,
+    maxMoves: Math.max(1, Math.trunc(Number(maxMoves) || 4)),
+    moveDecisions,
+    moveDecisionResolver,
+    moveDecisionResolverSource,
+  });
+  recalculated = learned.pokemon;
   const targetCandidate = levelEvolutionTarget(targetMaster, Number(recalculated.level));
   const unsupportedMethods = mergedUnsupportedMethods(candidate.unsupportedMethods, targetCandidate.unsupportedMethods);
 
@@ -136,6 +258,6 @@ export function resolvePokemonLevelEvolution(runtime, {
       newMaxHp: recalculated.max_hp ?? null,
       oldHp: before.hp ?? null,
       newHp: recalculated.hp ?? null,
-    }],
+    }, ...learned.operations],
   };
 }
