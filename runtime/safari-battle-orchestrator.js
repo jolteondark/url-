@@ -42,6 +42,7 @@ function tracePhase(battle, phase, reason) {
     phase,
     turn: Number(battle.turn ?? 0),
     reason: reason ?? null,
+    completed: Boolean(battle.completed),
   });
   battle.phase_trace = trace.slice(-96);
   return phase;
@@ -118,6 +119,16 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   const battle = battleOf(runtime);
   if (!battle.phase) ensureSafariBattleOrchestrator(runtime);
 
+  const decision = Number(result?.decision ?? battle.decision ?? 0);
+  const playerReplacementRequired = Boolean(result?.playerReplacementRequired ?? battle.player_replacement_required);
+  const foeReplacementApplied = Boolean(result?.foeReplacementApplied);
+  const terminalResolution = decision !== 0 || Boolean(battle.completed);
+
+  // Compatibility mechanics owners may still set completed while producing terminal
+  // operations. Hide that legacy detail before any orchestration checkpoint; RESULT is
+  // the only externally visible completion boundary.
+  if (terminalResolution) battle.completed = false;
+
   const actors = actionActors(result);
   tracePhase(battle, SAFARI_BATTLE_PHASE.CHECK_1, "first action resolved");
   if (actors.length >= 2) {
@@ -125,11 +136,7 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
     tracePhase(battle, SAFARI_BATTLE_PHASE.CHECK_2, "second action checked");
   }
 
-  const decision = Number(result?.decision ?? battle.decision ?? 0);
-  const playerReplacementRequired = Boolean(result?.playerReplacementRequired ?? battle.player_replacement_required);
-  const foeReplacementApplied = Boolean(result?.foeReplacementApplied);
-  const fainted = hasFaint(result) || playerReplacementRequired || foeReplacementApplied || decision !== 0;
-
+  const fainted = hasFaint(result) || playerReplacementRequired || foeReplacementApplied || terminalResolution;
   if (fainted) tracePhase(battle, SAFARI_BATTLE_PHASE.POST_FAINT, "faint/terminal checkpoint");
 
   if (playerReplacementRequired) {
@@ -137,12 +144,14 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   } else if (foeReplacementApplied && decision === 0) {
     tracePhase(battle, SAFARI_BATTLE_PHASE.REPLACEMENT, "trainer reserve sent out");
     tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, "replacement completed");
-  } else if (decision !== 0 || battle.completed) {
+  } else if (terminalResolution) {
     tracePhase(battle, SAFARI_BATTLE_PHASE.POST_VICTORY, decision === 1 ? "victory" : "terminal result");
     if (hasRewardGrowthTail(result) || decision === 1) {
       tracePhase(battle, SAFARI_BATTLE_PHASE.REWARD_GROWTH, "automatic growth/reward tail");
     }
     tracePhase(battle, SAFARI_BATTLE_PHASE.RESULT, "battle result ready");
+    battle.completed = true;
+    battle.completed_phase = SAFARI_BATTLE_PHASE.RESULT;
   } else {
     tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, `round complete:${commandKind ?? battle.pending_command_kind ?? "command"}`);
   }
