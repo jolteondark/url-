@@ -17,6 +17,11 @@ function reflectedMoves(runtime, moveIds) {
   return (moveIds ?? []).map((id) => existing.has(id) ? structuredClone(existing.get(id)) : id);
 }
 
+function preserveFaintedHp(before, after) {
+  if (Number(before?.hp) === 0 && Number(after?.hp) !== 0) return updatePokemonRuntime(after, { hp: 0 });
+  return after;
+}
+
 export function commitBattleSystemsExpRuntime({ battleInput = {}, turn = {}, pokemon } = {}) {
   let runtime = pokemon;
   const commits = [];
@@ -30,6 +35,7 @@ export function commitBattleSystemsExpRuntime({ battleInput = {}, turn = {}, pok
     for (const [actionIndex, action] of (Array.isArray(round.actions) ? round.actions : []).entries()) {
       if (!executed.has(`${roundIndex}:${actionIndex}`) || !hasGainExpRequest(action) || !action?.battleExpInput) continue;
       if (runtime?.exp == null || runtime?.level == null) throw new TypeError("pokemon exp and level are required for battle EXP reflection");
+      const before = runtime;
       const beforeLevel = Number(runtime.level);
       const flow = resolveExpLevelMoveFlow({
         ...structuredClone(action.battleExpInput),
@@ -44,12 +50,15 @@ export function commitBattleSystemsExpRuntime({ battleInput = {}, turn = {}, pok
           level: Number(flow.pokemon.level),
           moves,
         });
+      runtime = preserveFaintedHp(before, runtime);
 
       let evolution = null;
       const evolutionMasters = action.battleExpInput.evolutionMasters ?? null;
       if (evolutionMasters && Number(flow.pokemon.level) > beforeLevel) {
+        const beforeEvolution = runtime;
         evolution = resolvePokemonLevelEvolution(runtime, evolutionMasters);
-        runtime = evolution.pokemon;
+        runtime = preserveFaintedHp(beforeEvolution, evolution.pokemon);
+        evolution = { ...evolution, pokemon: runtime };
       }
       clearSafariBattleMoveLearningDecisions(runtime);
 
