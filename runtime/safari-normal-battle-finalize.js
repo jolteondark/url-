@@ -19,8 +19,11 @@ function stateOf(runtime) {
 
 export function setNormalBattleLifecyclePhase(battle, phase) {
   if (!battle || typeof battle !== "object") throw new TypeError("battle state is required");
-  battle.lifecycle_phase = String(phase);
-  return battle.lifecycle_phase;
+  const next = String(phase);
+  battle.lifecycle_phase = next;
+  if (!Array.isArray(battle.lifecycle_history)) battle.lifecycle_history = [];
+  if (battle.lifecycle_history.at(-1) !== next) battle.lifecycle_history.push(next);
+  return next;
 }
 
 export function normalBattleAcceptsCommand(battle) {
