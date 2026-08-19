@@ -14,6 +14,7 @@ export const SAFARI_BATTLE_PHASE = Object.freeze({
 
 const ACTION_MARKERS = new Set([
   "use_move",
+  "try_use_move_failed",
   "continue_status_request",
   "display_flinched",
   "display_confusion_self_damage",
