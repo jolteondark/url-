@@ -14,7 +14,7 @@ function battle() {
 
 function phaseOf(current = battle()) {
   if (!current) return null;
-  return current.phase ?? (current.completed ? "RESULT" : "COMMAND");
+  return current.phase ?? null;
 }
 
 function scrollTo(node, block = "start") {

@@ -109,6 +109,7 @@ const adapterSource = fs.readFileSync(new URL("../battle-phase-ui-adapter.js", i
 const legacySource = fs.readFileSync(new URL("../battle-turn-phase-presentation.js", import.meta.url), "utf8");
 const replacementSource = fs.readFileSync(new URL("../battle-player-replacement-presentation.js", import.meta.url), "utf8");
 const bagSource = fs.readFileSync(new URL("../game-menu-bridge.js", import.meta.url), "utf8");
+const flowPolishSource = fs.readFileSync(new URL("../battle-dppt-flow-polish.js", import.meta.url), "utf8");
 const indexSource = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
 
 for (const phase of [
@@ -135,6 +136,10 @@ assert.doesNotMatch(replacementSource, /previewCommandBusy|battle\.completed|pla
 assert.match(bagSource, /battle\.phase === "COMMAND"/);
 assert.doesNotMatch(bagSource, /battle\.completed|battle\.player_replacement_required|capture"\)\?\.disabled|setBattleControlsDisabled/,
   "Battle Bag must not derive availability from legacy completed/replacement/DOM busy state");
+assert.match(flowPolishSource, /return current\.phase \?\? null/,
+  "DPt flow polish must read the orchestrator phase directly");
+assert.doesNotMatch(flowPolishSource, /current\.completed|previewCommandBusy|player_replacement_required/,
+  "DPt flow polish must not infer a second Battle phase truth");
 assert.doesNotMatch(indexSource, /battle-command-unlock-guard/,
   "shell must not load a second COMMAND unlock owner");
 
