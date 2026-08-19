@@ -207,6 +207,17 @@ export function beginSafariBattleReturn(runtime) {
   return battle.phase;
 }
 
+export function abortSafariBattleReturn(runtime, reason = "return failed") {
+  const state = stateOf(runtime);
+  const battle = state.battle;
+  if (!battle) return null;
+  const phase = ensureSafariBattleOrchestrator(runtime);
+  if (phase !== SAFARI_BATTLE_PHASE.RETURN) return phase;
+  tracePhase(battle, SAFARI_BATTLE_PHASE.RESULT, reason);
+  state.last_battle_phase_trace = structuredClone(battle.phase_trace ?? []);
+  return battle.phase;
+}
+
 export function completeSafariBattleReturn(runtime, result = {}) {
   const state = stateOf(runtime);
   const battle = state.battle;

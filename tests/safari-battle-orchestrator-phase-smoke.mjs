@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import {
   SAFARI_BATTLE_PHASE,
+  abortSafariBattleReturn,
   beginSafariBattleCommand,
+  beginSafariBattleReturn,
   commitSafariBattleResolution,
   completeSafariBattleReplacement,
   ensureSafariBattleOrchestrator,
@@ -69,6 +71,21 @@ function runtime(battle = {}) {
     "replaying an already-committed terminal resolution must not duplicate reward/result phases");
   assert.equal(battle.phase_trace.filter((step) => step.phase === SAFARI_BATTLE_PHASE.REWARD_GROWTH).length, 1);
   assert.equal(battle.phase_trace.filter((step) => step.phase === SAFARI_BATTLE_PHASE.RESULT).length, 1);
+
+  beginSafariBattleReturn(rt);
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.RETURN);
+  assert.equal(battle.completed, true, "RETURN keeps terminal completion committed");
+  abortSafariBattleReturn(rt, "return failed:test");
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.RESULT,
+    "failed RETURN must roll back through the central owner to the retryable RESULT boundary");
+  assert.equal(battle.completed, true);
+  assert.deepEqual(battle.phase_trace.slice(-2).map((step) => step.phase), ["RETURN", "RESULT"]);
+  assert.match(battle.phase_trace.at(-1).reason, /return failed:test/);
+  assert.deepEqual(
+    rt.variables.mapless.last_battle_phase_trace,
+    battle.phase_trace,
+    "RETURN rollback must publish the same owner trace used by Save/Continue diagnostics",
+  );
 }
 
 {

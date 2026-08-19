@@ -7,6 +7,7 @@ import {
 } from "./safari-normal-battle-lifecycle.js";
 import {
   abortSafariBattleCommand,
+  abortSafariBattleReturn,
   beginSafariBattleCommand,
   beginSafariBattleReturn,
   commitSafariBattleResolution,
@@ -204,13 +205,7 @@ export async function returnSafariToDayBoard(runtime) {
       result = await (await full()).returnSafariToDayBoard(runtime);
     }
   } catch (error) {
-    if (normalBattleReturn && stateOf(runtime).battle) {
-      stateOf(runtime).battle.phase = "RESULT";
-      stateOf(runtime).battle.phase_trace = [
-        ...(stateOf(runtime).battle.phase_trace ?? []),
-        { phase: "RESULT", turn: Number(stateOf(runtime).battle.turn ?? 0), reason: `return failed:${error?.message ?? error}` },
-      ].slice(-96);
-    }
+    if (normalBattleReturn) abortSafariBattleReturn(runtime, `return failed:${error?.message ?? error}`);
     throw error;
   }
   if (normalBattleReturn) completeSafariBattleReturn(runtime, result);
