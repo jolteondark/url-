@@ -133,7 +133,9 @@ const bagSource = fs.readFileSync(new URL("../game-menu-bridge.js", import.meta.
 const flowPolishSource = fs.readFileSync(new URL("../battle-dppt-flow-polish.js", import.meta.url), "utf8");
 const menuFlowGuardSource = fs.readFileSync(new URL("../battle-dppt-menu-flow-guard.js", import.meta.url), "utf8");
 const commandMenuSource = fs.readFileSync(new URL("../battle-dppt-command-menu.js", import.meta.url), "utf8");
+const previewSource = fs.readFileSync(new URL("../preview-app.js", import.meta.url), "utf8");
 const indexSource = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
+const previewBattleRenderSource = previewSource.match(/function renderMoves[\s\S]*?function render\(\)/)?.[0] ?? "";
 
 for (const phase of [
   "COMMAND", "ACTION_1", "CHECK_1", "ACTION_2", "CHECK_2", "POST_FAINT",
@@ -173,6 +175,12 @@ assert.match(commandMenuSource, /const commandAllowed = phase === "COMMAND"/,
   "DPt command availability must be owned by the orchestrator COMMAND phase");
 assert.doesNotMatch(commandMenuSource, /\.completed|player_replacement_required|previewCommandBusy/,
   "DPt command menu must not infer phase or command availability from legacy Battle flags");
+assert.match(previewBattleRenderSource, /const commandAllowed = battle\.phase === "COMMAND"/,
+  "preview Battle move rendering must consume the orchestrator COMMAND phase directly");
+assert.doesNotMatch(previewBattleRenderSource, /battle\.completed|\bbusy\b/,
+  "preview Battle rendering must not recreate RESULT/COMMAND or Battle busy truth from legacy flags");
+assert.match(previewBattleRenderSource, /__maplessApplyBattlePhaseUi\?\.\(\)/,
+  "preview Battle rendering must delegate Battle control visibility/availability to the phase UI owner");
 assert.doesNotMatch(indexSource, /battle-command-unlock-guard/,
   "shell must not load a second COMMAND unlock owner");
 
