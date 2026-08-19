@@ -68,8 +68,12 @@ export function resolveBattleLoopCanonical(input = {}) {
     for (const actionIndex of order) {
       const action = actions[actionIndex];
       if (!action || action.kind !== "move" || !isSelected(action)) continue;
+      const confusionSelfHit = action.tryUseMoveResolution?.reason === "confusion_self_hit";
       for (const operation of action.tryUseMoveResolution?.operations ?? []) {
-        operations.push({ ...operation, round: roundNo, action: actionIndex });
+        const op = confusionSelfHit && operation.op === "reduce_hp"
+          ? "reduce_self_hp"
+          : (confusionSelfHit && operation.op === "faint" ? "faint_self" : operation.op);
+        operations.push({ ...operation, op, sourceOp: operation.op, round: roundNo, action: actionIndex });
       }
       if (action.moveSkipped) continue;
       operations.push({ op: "use_move", round: roundNo, action: actionIndex });
