@@ -111,6 +111,7 @@ assert.equal(after.ability_index, 1, "ability slot must survive");
 assert.equal(Object.prototype.hasOwnProperty.call(after, "__battle_move_decisions"), false, "battle-only choices must not leak into persisted Pokemon state");
 assert.notEqual(after.hp, after.max_hp, "level/evolution must not full-heal an injured Pokemon");
 assert.deepEqual(committed.commits[0].evolution, { from: "REALRUNTEST", to: "REALRUNTEST2", method: "Level", parameter: 12 });
+assert.deepEqual(committed.commits[0].unsupportedEvolutionMethods, ["Item"], "unsupported evolution methods on the evolved species must stay explicit in the real-run commit");
 
 const saved = saveRunState({ player: { party: [after] } }, { valueIds: ["player"] });
 const fresh = loadRunState(saved.payload, {}, { valueIds: ["player"] }).state;
