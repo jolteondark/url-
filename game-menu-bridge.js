@@ -198,6 +198,14 @@ function close() {
   if (wasOpen) window.dispatchEvent(new CustomEvent("safari-game-menu-closed", { detail: { tab: active } }));
 }
 
+function closeBattleMenuOutsideCommand() {
+  const menu = byId("game-menu");
+  if (!menu || menu.hidden) return;
+  const battle = snapshot()?.variables?.mapless?.battle;
+  if (!battle || battle.phase === "COMMAND") return;
+  close();
+}
+
 new MutationObserver(adoptPanels).observe(document.body, { childList: true, subtree: true });
 adoptPanels();
 
@@ -255,6 +263,7 @@ window.addEventListener("storage", () => {
   if (active === "bag" && !byId("game-menu")?.hidden) renderBag();
 });
 window.addEventListener("safari-runtime-changed", () => {
+  closeBattleMenuOutsideCommand();
   if (active === "bag" && !byId("game-menu")?.hidden) renderBag();
   adoptPanels();
 });
