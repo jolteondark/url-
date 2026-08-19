@@ -38,6 +38,10 @@ function levelEvolutionTarget(speciesMaster, level) {
   };
 }
 
+function mergedUnsupportedMethods(...groups) {
+  return [...new Set(groups.flatMap((group) => Array.isArray(group) ? group : []))];
+}
+
 export function resolvePokemonLevelEvolution(runtime, {
   species_masters,
   nature_master = null,
@@ -71,12 +75,14 @@ export function resolvePokemonLevelEvolution(runtime, {
     move_masters,
     disable_ivs_and_evs,
   });
+  const targetCandidate = levelEvolutionTarget(targetMaster, Number(recalculated.level));
+  const unsupportedMethods = mergedUnsupportedMethods(candidate.unsupportedMethods, targetCandidate.unsupportedMethods);
 
   return {
     pokemon: recalculated,
     evolved: true,
     evolution: { from: before.species, to: candidate.target, method: candidate.method, parameter: candidate.parameter },
-    unsupportedMethods: candidate.unsupportedMethods,
+    unsupportedMethods,
     operations: [{
       op: "level_evolution",
       from: before.species,
