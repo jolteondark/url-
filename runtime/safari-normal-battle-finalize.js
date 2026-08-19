@@ -4,6 +4,7 @@ import { setMoney } from "./bag-economy-mart-flow.js";
 import { maplessCarryMoneyGain } from "./mapless-carry-class-rules.js";
 import { resolveDayBoardPlayableTurn } from "./mapless-day-board-playable-turn.js";
 import { markMaplessRunEnd } from "./mapless-run-end-lifecycle.js";
+import { resolvePokemonLevelEvolution } from "./pokemon-level-evolution-runtime.js";
 import { resolvePokemonRuntimeMasters } from "./pokemon-runtime-masters.js";
 import { SAFARI_MOVE_MASTERS, SAFARI_NATURE_MASTERS, SAFARI_SPECIES_MASTERS } from "./safari-playable-data.js";
 
@@ -68,6 +69,9 @@ export function normalBattleExpInput(player, defeatedFoe, trainerBattle = false)
       nature_master: natureMaster,
       move_masters: SAFARI_MOVE_MASTERS,
     },
+    // Essentials checks level-up evolution after the battle. Keep EXP and level-up
+    // move learning immediate, but leave species/form recalculation to terminal finalize.
+    deferEvolution: true,
   };
 }
 
@@ -139,6 +143,46 @@ function payTrainerPrize(runtime, battle) {
   return [{ op: "trainer_prize_money", requested, adjusted, applied: gained, carryClass, trainer: battle.trainer?.trainer_full_name ?? null }];
 }
 
+function commitPendingLevelEvolutions(runtime) {
+  const party = Array.isArray(runtime?.player?.party) ? runtime.player.party : [];
+  const operations = [];
+  const presentation = [];
+  const unsupportedMethods = new Set();
+
+  for (let index = 0; index < party.length; index += 1) {
+    const pokemon = party[index];
+    if (!pokemon || pokemon.__battle_level_evolution_pending !== true) continue;
+
+    const candidate = { ...pokemon };
+    delete candidate.__battle_level_evolution_pending;
+    const natureId = candidate.nature_for_stats_id ?? candidate.nature_id ?? "HARDY";
+    const natureMaster = SAFARI_NATURE_MASTERS[natureId];
+    if (!natureMaster) throw new RangeError(`battle evolution nature is outside the Safari projection: ${natureId}`);
+
+    const resolved = resolvePokemonLevelEvolution(candidate, {
+      species_masters: SAFARI_SPECIES_MASTERS,
+      nature_master: natureMaster,
+      move_masters: SAFARI_MOVE_MASTERS,
+    });
+    party[index] = resolved.pokemon;
+    operations.push(...structuredClone(resolved.operations ?? []));
+    for (const method of resolved.unsupportedMethods ?? []) unsupportedMethods.add(method);
+    if (resolved.evolved && resolved.evolution) {
+      presentation.push({
+        type: "evolution",
+        actor: "player",
+        from: resolved.evolution.from,
+        to: resolved.evolution.to,
+      });
+    }
+  }
+
+  if (unsupportedMethods.size > 0) {
+    operations.push({ op: "unsupported_evolution_methods", methods: [...unsupportedMethods] });
+  }
+  return { operations, presentation, unsupportedMethods: [...unsupportedMethods] };
+}
+
 function terminalRewardPresentation(battle) {
   if (Number(battle.decision) !== 1) return [];
   const events = [];
@@ -155,11 +199,12 @@ export function finalizeNormalBattle(runtime) {
   const battle = state.battle;
   if (!battle || battle.completed || Number(battle.decision) === 0) return [];
 
+  const pendingEvolution = commitPendingLevelEvolutions(runtime);
   const runEnd = markMaplessRunEnd(runtime, battle.decision);
-  const operations = [...runEnd.operations];
-  // The direct round owner already commits EXP to the persistent player Pokemon
-  // and records battle.exp_gained. Finalize must only apply the victory reward;
-  // recalculating EXP here awarded ordinary wild victories twice.
+  const operations = [...pendingEvolution.operations, ...runEnd.operations];
+  // The direct round owner already commits EXP and level-up moves to the persistent
+  // player Pokemon. Level evolution is deliberately committed here, after the battle
+  // has a terminal decision, matching Essentials' post-battle evolution timing.
   if (battle.decision === 1 && battle.kind === "wild") operations.push(...givePotion(runtime, battle));
   if (battle.decision === 1 && battle.kind === "trainer") operations.push(...givePotion(runtime, battle));
   if (battle.kind === "trainer") operations.push(...payTrainerPrize(runtime, battle));
@@ -170,8 +215,10 @@ export function finalizeNormalBattle(runtime) {
   // commitSafariBattleResolution advances the central orchestrator to RESULT.
   battle.return_target = runEnd.marked ? "home" : "day_board";
   battle.last_operations = [...(battle.last_operations ?? []), ...operations];
+  battle.unsupported_evolution_methods = [...pendingEvolution.unsupportedMethods];
   battle.presentation = [
     ...(battle.presentation ?? []),
+    ...pendingEvolution.presentation,
     ...terminalRewardPresentation(battle),
     {
       type: "battle_result",
