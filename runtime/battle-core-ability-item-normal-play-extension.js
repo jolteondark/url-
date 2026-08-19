@@ -8,23 +8,55 @@ const WEATHER_SPEED_ABILITIES = Object.freeze({
   SLUSHRUSH: new Set(["Hail", "Snow"]),
 });
 
+const TYPE_BOOST_ITEMS = Object.freeze({
+  NORMAL: "SILKSCARF",
+  FIRE: "CHARCOAL",
+  WATER: "MYSTICWATER",
+  ELECTRIC: "MAGNET",
+  GRASS: "MIRACLESEED",
+  ICE: "NEVERMELTICE",
+  FIGHTING: "BLACKBELT",
+  POISON: "POISONBARB",
+  GROUND: "SOFTSAND",
+  FLYING: "SHARPBEAK",
+  PSYCHIC: "TWISTEDSPOON",
+  BUG: "SILVERPOWDER",
+  ROCK: "HARDSTONE",
+  GHOST: "SPELLTAG",
+  DRAGON: "DRAGONFANG",
+  DARK: "BLACKGLASSES",
+  STEEL: "METALCOAT",
+  FAIRY: "FAIRYFEATHER",
+});
+const SUPER_EFFECTIVE_REDUCTION_ABILITIES = new Set(["FILTER", "SOLIDROCK", "PRISMARMOR"]);
+
 const EXTENSION_ABILITY_IDS = Object.freeze([
   "CHLOROPHYLL",
+  "FILTER",
   "PRANKSTER",
+  "PRISMARMOR",
+  "SANDFORCE",
   "SANDRUSH",
   "SLUSHRUSH",
+  "SNIPER",
+  "SOLIDROCK",
   "SOLARPOWER",
   "SUPERLUCK",
   "SWIFTSWIM",
+  "TINTEDLENS",
   "UNAWARE",
   "VICTORYSTAR",
 ]);
 
 const EXTENSION_ITEM_IDS = Object.freeze([
   "ASSAULTVEST",
+  "BRIGHTPOWDER",
+  "EXPERTBELT",
+  "LAXINCENSE",
   "RAZORCLAW",
   "SCOPELENS",
-]);
+  ...Object.values(TYPE_BOOST_ITEMS),
+].sort());
 
 function hasOwn(object, key) {
   return Boolean(object) && Object.prototype.hasOwnProperty.call(object, key);
@@ -59,18 +91,37 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
   const targetItem = itemId(target);
   const category = moveCategory(move);
   const weather = weatherId(context);
+  const moveType = id(move?.type);
+  const typeMod = Number(context?.typeMod ?? context?.type_mod ?? 1);
+  const critical = Boolean(context?.critical);
 
   const pranksterPriority = userAbility === "PRANKSTER" && category === "Status" ? 1 : 0;
   const criticalStageDelta = (userAbility === "SUPERLUCK" ? 1 : 0)
     + (["SCOPELENS", "RAZORCLAW"].includes(userItem) ? 1 : 0);
   const assaultVestBlocksMove = userItem === "ASSAULTVEST" && category === "Status";
   const assaultVestDefenseMultiplier = targetItem === "ASSAULTVEST" && category === "Special" ? 1.5 : 1;
-  const victoryStarAccuracyMultiplier = userAbility === "VICTORYSTAR" ? 1.1 : 1;
+  let accuracyMultiplier = userAbility === "VICTORYSTAR" ? 1.1 : 1;
+  if (["BRIGHTPOWDER", "LAXINCENSE"].includes(targetItem)) accuracyMultiplier *= 0.9;
   const weatherSpeedMultiplier = WEATHER_SPEED_ABILITIES[userAbility]?.has(weather) ? 2 : 1;
   const solarPowerAttackMultiplier = userAbility === "SOLARPOWER"
     && category === "Special"
     && ["Sun", "HarshSun"].includes(weather) ? 1.5 : 1;
   const moldBreaker = MOLD_BREAKER_ABILITIES.has(userAbility);
+
+  let powerMultiplier = 1;
+  if (weather === "Sandstorm" && userAbility === "SANDFORCE" && ["ROCK", "GROUND", "STEEL"].includes(moveType)) {
+    powerMultiplier *= 1.3;
+  }
+  if (TYPE_BOOST_ITEMS[moveType] === userItem) powerMultiplier *= 1.2;
+
+  let finalDamageMultiplier = 1;
+  if (userAbility === "TINTEDLENS" && typeMod > 0 && typeMod < 1) finalDamageMultiplier *= 2;
+  if (userItem === "EXPERTBELT" && typeMod > 1) finalDamageMultiplier *= 1.2;
+  if (SUPER_EFFECTIVE_REDUCTION_ABILITIES.has(targetAbility) && typeMod > 1 && !moldBreaker) {
+    finalDamageMultiplier *= 0.75;
+  }
+  if (userAbility === "SNIPER" && critical) finalDamageMultiplier *= 1.5;
+  if (targetAbility === "DRYSKIN" && moveType === "FIRE" && !moldBreaker) finalDamageMultiplier *= 1.25;
 
   return Object.freeze({
     priorityModifier: pranksterPriority,
@@ -80,11 +131,13 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
       reason: assaultVestBlocksMove ? "assault_vest_status_move" : null,
     }),
     damageMultiplierInput: Object.freeze({
+      externalPowerMultiplier: powerMultiplier,
       externalAttackMultiplier: solarPowerAttackMultiplier,
       externalDefenseMultiplier: assaultVestDefenseMultiplier,
+      externalFinalDamageMultiplier: finalDamageMultiplier,
     }),
     accuracyModifierInput: Object.freeze({
-      externalAccuracyMultiplier: victoryStarAccuracyMultiplier,
+      externalAccuracyMultiplier: accuracyMultiplier,
     }),
     speedInput: Object.freeze({
       abilityMultiplier: weatherSpeedMultiplier,
@@ -110,5 +163,12 @@ export const BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL = Obje
     weatherSpeedModifier: 4,
     weatherSpecialAttackModifier: 1,
     statStageIgnore: 1,
+    weatherPowerModifier: 1,
+    typeBoostHeldItems: Object.keys(TYPE_BOOST_ITEMS).length,
+    superEffectiveOffenseModifier: 2,
+    superEffectiveDefenseModifier: SUPER_EFFECTIVE_REDUCTION_ABILITIES.size,
+    criticalDamageModifier: 1,
+    targetAccuracyHeldItems: 2,
+    typeWeaknessAbilityModifier: 1,
   }),
 });
