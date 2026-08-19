@@ -89,6 +89,19 @@ function hasRewardGrowthTail(result) {
   ].includes(operation?.op));
 }
 
+function rejectUnconsumedCommand(battle, result, commandKind) {
+  const trace = Array.isArray(battle.phase_trace) ? battle.phase_trace : [];
+  if (battle.phase === SAFARI_BATTLE_PHASE.ACTION_1 && trace.at(-1)?.phase === SAFARI_BATTLE_PHASE.ACTION_1) {
+    trace.pop();
+    battle.phase_trace = trace;
+  }
+  battle.pending_command_kind = null;
+  tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, `command not consumed:${commandKind}`);
+  result.phase = battle.phase;
+  result.phaseTrace = structuredClone(battle.phase_trace ?? []);
+  return result;
+}
+
 export function ensureSafariBattleOrchestrator(runtime) {
   const battle = battleOf(runtime);
   if (!battle.phase) tracePhase(battle, battle.completed ? SAFARI_BATTLE_PHASE.RESULT : SAFARI_BATTLE_PHASE.COMMAND, "initialize");
@@ -138,6 +151,11 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
     return result;
   }
 
+  const resolvedCommandKind = commandKind ?? battle.pending_command_kind ?? "command";
+  if (result?.turnConsumed === false) {
+    return rejectUnconsumedCommand(battle, result, resolvedCommandKind);
+  }
+
   const decision = Number(result?.decision ?? battle.decision ?? 0);
   const playerReplacementRequired = Boolean(result?.playerReplacementRequired ?? battle.player_replacement_required);
   const foeReplacementApplied = Boolean(result?.foeReplacementApplied);
@@ -148,7 +166,6 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   // the only externally visible completion boundary.
   if (terminalResolution) battle.completed = false;
 
-  const resolvedCommandKind = commandKind ?? battle.pending_command_kind ?? "command";
   const actors = actionActors(result);
   const secondActionOccurred = commandConsumesAction(resolvedCommandKind) ? actors.length >= 1 : actors.length >= 2;
   tracePhase(battle, SAFARI_BATTLE_PHASE.CHECK_1, "first action resolved");
