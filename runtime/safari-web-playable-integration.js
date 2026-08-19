@@ -5,6 +5,15 @@ import {
   returnSafariToDayBoard as returnSafariNormalToDayBoard,
   useSafariNormalBattleItem,
 } from "./safari-normal-battle-lifecycle.js";
+import {
+  abortSafariBattleCommand,
+  beginSafariBattleCommand,
+  beginSafariBattleReturn,
+  commitSafariBattleResolution,
+  completeSafariBattleReplacement,
+  completeSafariBattleReturn,
+  ensureSafariBattleOrchestrator,
+} from "./safari-battle-orchestrator.js";
 import { depositSafariPartyPokemon as depositSafariPartyPokemonOwner, withdrawSafariStoragePokemon as withdrawSafariStoragePokemonOwner } from "./safari-party-storage-actions.js";
 import { activateSafariWebCombatCell } from "./safari-web-combat-start.js";
 import {
@@ -71,6 +80,17 @@ function publishRuntimeChanged() {
   globalThis.window?.dispatchEvent?.(new CustomEvent("safari-runtime-changed"));
 }
 
+function beginNormalBattleCommand(runtime, kind) {
+  if (!stateOf(runtime).battle || needsFullBattleIntegration(runtime)) return false;
+  beginSafariBattleCommand(runtime, kind);
+  return true;
+}
+
+function commitNormalBattleCommand(runtime, result, kind) {
+  if (!stateOf(runtime).battle || needsFullBattleIntegration(runtime)) return result;
+  return commitSafariBattleResolution(runtime, result, kind);
+}
+
 export function boardCellPresentation(runtime, index) {
   return fullModule ? fullModule.boardCellPresentation(runtime, index) : startupBoardCellPresentation(runtime, index);
 }
@@ -91,7 +111,9 @@ export async function activateSafariDayBoardCell(runtime, index) {
   const event = state.board_events?.[index];
   if (event?.kind === "wild" || event?.kind === "trainer") {
     try {
-      return await activateSafariWebCombatCell(runtime, index);
+      const result = await activateSafariWebCombatCell(runtime, index);
+      if (stateOf(runtime).battle && !needsFullBattleIntegration(runtime)) ensureSafariBattleOrchestrator(runtime);
+      return result;
     } catch (error) {
       globalThis.__maplessLastError = error;
       throw error;
@@ -103,15 +125,24 @@ export async function activateSafariDayBoardCell(runtime, index) {
 export async function prepareSafariBattleRuntime(runtime = globalThis.__maplessSafariRuntime) {
   if (!runtime?.variables?.mapless?.battle) return false;
   if (needsFullBattleIntegration(runtime)) await full();
+  else ensureSafariBattleOrchestrator(runtime);
   return true;
 }
 
 export async function resolveSafariBattleRound(runtime, selectedMoveId) {
-  const result = needsFullBattleIntegration(runtime)
-    ? await (await full()).resolveSafariBattleRound(runtime, selectedMoveId)
-    : resolveSafariNormalBattleRound(runtime, selectedMoveId);
-  publishRuntimeChanged();
-  return result;
+  const normal = !needsFullBattleIntegration(runtime);
+  if (normal) beginSafariBattleCommand(runtime, "move");
+  try {
+    const result = normal
+      ? resolveSafariNormalBattleRound(runtime, selectedMoveId)
+      : await (await full()).resolveSafariBattleRound(runtime, selectedMoveId);
+    if (normal && stateOf(runtime).battle) commitSafariBattleResolution(runtime, result, "move");
+    publishRuntimeChanged();
+    return result;
+  } catch (error) {
+    if (normal) abortSafariBattleCommand(runtime, `move failed:${error?.message ?? error}`);
+    throw error;
+  }
 }
 
 export async function replaceSafariBattlePlayer(runtime, replacementPartyIndex) {
@@ -122,6 +153,7 @@ export async function replaceSafariBattlePlayer(runtime, replacementPartyIndex) 
     result = await module.replaceSafariBattlePlayer(runtime, replacementPartyIndex);
   } else {
     result = replaceSafariNormalBattlePlayer(runtime, replacementPartyIndex);
+    completeSafariBattleReplacement(runtime, result);
   }
   publishRuntimeChanged();
   return result;
@@ -129,26 +161,59 @@ export async function replaceSafariBattlePlayer(runtime, replacementPartyIndex) 
 
 export async function useSafariBattleItem(runtime, options = {}) {
   if (needsFullBattleIntegration(runtime)) throw new Error("boundary battle item owner is unavailable");
-  const result = useSafariNormalBattleItem(runtime, options);
-  publishRuntimeChanged();
-  return result;
+  beginSafariBattleCommand(runtime, "item");
+  try {
+    const result = useSafariNormalBattleItem(runtime, options);
+    if (stateOf(runtime).battle) commitSafariBattleResolution(runtime, result, "item");
+    publishRuntimeChanged();
+    return result;
+  } catch (error) {
+    abortSafariBattleCommand(runtime, `item failed:${error?.message ?? error}`);
+    throw error;
+  }
 }
 
 export async function attemptSafariCapture(runtime, options = {}) {
   if (needsFullBattleIntegration(runtime)) return (await full()).attemptSafariCapture(runtime, options);
-  if (stateOf(runtime).battle) return attemptSafariNormalCapture(runtime, options);
+  if (stateOf(runtime).battle) {
+    beginSafariBattleCommand(runtime, "capture");
+    try {
+      const result = attemptSafariNormalCapture(runtime, options);
+      if (stateOf(runtime).battle) commitSafariBattleResolution(runtime, result, "capture");
+      publishRuntimeChanged();
+      return result;
+    } catch (error) {
+      abortSafariBattleCommand(runtime, `capture failed:${error?.message ?? error}`);
+      throw error;
+    }
+  }
   return (await full()).attemptSafariCapture(runtime, options);
 }
+
 export async function returnSafariToDayBoard(runtime) {
   const wasBoundary = needsFullBattleIntegration(runtime);
+  const normalBattleReturn = !wasBoundary && Boolean(stateOf(runtime).battle);
+  if (normalBattleReturn) beginSafariBattleReturn(runtime);
   let result;
-  if (wasBoundary) {
-    result = await (await full()).returnSafariToDayBoard(runtime);
-  } else if (stateOf(runtime).battle) {
-    result = await returnSafariNormalToDayBoard(runtime);
-  } else {
-    result = await (await full()).returnSafariToDayBoard(runtime);
+  try {
+    if (wasBoundary) {
+      result = await (await full()).returnSafariToDayBoard(runtime);
+    } else if (stateOf(runtime).battle) {
+      result = await returnSafariNormalToDayBoard(runtime);
+    } else {
+      result = await (await full()).returnSafariToDayBoard(runtime);
+    }
+  } catch (error) {
+    if (normalBattleReturn && stateOf(runtime).battle) {
+      stateOf(runtime).battle.phase = "RESULT";
+      stateOf(runtime).battle.phase_trace = [
+        ...(stateOf(runtime).battle.phase_trace ?? []),
+        { phase: "RESULT", turn: Number(stateOf(runtime).battle.turn ?? 0), reason: `return failed:${error?.message ?? error}` },
+      ].slice(-96);
+    }
+    throw error;
   }
+  if (normalBattleReturn) completeSafariBattleReturn(runtime, result);
   if (wasBoundary && result?.target === "day_board") {
     const requestSave = { op: "request_save", reason: "boundary return committed" };
     result.operations = [...(result.operations ?? []), requestSave];
