@@ -165,7 +165,9 @@ export function finalizeNormalBattle(runtime) {
   if (battle.kind === "trainer") operations.push(...payTrainerPrize(runtime, battle));
   operations.push(...completeBoardEvent(state, battle));
   operations.push({ op: "request_save", reason: "battle_result" });
-  battle.completed = true;
+  // RESULT is the sole completion boundary. This lower compatibility finalizer may
+  // assemble reward/Board/save operations, but it must not publish completion before
+  // commitSafariBattleResolution advances the central orchestrator to RESULT.
   battle.return_target = runEnd.marked ? "home" : "day_board";
   battle.last_operations = [...(battle.last_operations ?? []), ...operations];
   battle.presentation = [
