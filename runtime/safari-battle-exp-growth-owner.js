@@ -38,6 +38,9 @@ export function resolveSafariBattleExpGrowthInput(player, defeatedFoe, playerSpe
     }),
     movesByLevel: levelMovesByLevel(playerSpeciesMaster),
     moveDecisions: explicitMoveDecisions(player),
+    // Normal Safari battle growth is resolved by the existing Battle Systems EXP owner,
+    // but runtime mutation belongs to the central REWARD_GROWTH checkpoint.
+    deferCommit: true,
     // Battle input is structured-cloned by the canonical round owner. Never put
     // a browser callback/function in this payload; Safari correctly throws
     // DataCloneError for functions. Resolve this data-only token only when the
