@@ -87,6 +87,10 @@ export function formatSafariBattlePresentationEvent(event = {}, context = {}) {
     }
     case "evolution":
       return `${event.from || actorName}は${event.to || "新しい姿"}に進化した！`;
+    case "item_reward":
+      return `${event.item || "アイテム"} ×${Number(event.quantity ?? 1)}を手に入れた！`;
+    case "money_reward":
+      return `${Number(event.amount ?? 0)}円を手に入れた！`;
     case "trainer_next":
       return `${event.trainer || "トレーナー"}は${event.species || "次のポケモン"}を繰り出した！`;
     case "capture":
