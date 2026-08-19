@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import "./safari-battle-orchestrator-phase-smoke.mjs";
 import {
   SAFARI_BATTLE_PHASE,
   beginSafariBattleCommand,
