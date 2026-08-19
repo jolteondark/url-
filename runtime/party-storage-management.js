@@ -127,6 +127,10 @@ function sourceRejectionReason(value, box, index, maxPartySize, defaultBoxCapaci
 
 export function deleteStoredPokemon(state, box, index) {
   const value = stateOf(state);
+  const sourceReason = sourceRejectionReason(value, box, index, 6, 30);
+  if (sourceReason) {
+    return { result: false, state: value, operations: [{ op: "delete_rejected", reason: sourceReason }] };
+  }
   if (getPokemon(value, box, index) != null) {
     if (box < 0) {
       const activeIndex = value.active_index;
@@ -137,7 +141,7 @@ export function deleteStoredPokemon(state, box, index) {
       setPokemon(value, box, index, null);
     }
   }
-  return { state: value, operations: [{ op: "delete", box, index }] };
+  return { result: true, state: value, operations: [{ op: "delete", box, index }] };
 }
 
 export function copyStoredPokemon(state, {
