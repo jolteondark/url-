@@ -86,6 +86,18 @@ function hasRewardGrowthTail(result) {
 }
 
 function holdUntilPresentation(battle, phase, reason) {
+  // Node/headless owner regressions have no visual presentation queue to drain.
+  // Complete immediately there so the compatibility contract stays deterministic;
+  // real browser UI keeps the intermediate orchestrator phase until its thin
+  // presentation adapter reports that the owner queue has finished rendering.
+  if (typeof globalThis.document === "undefined") {
+    tracePhase(battle, phase, `${reason}:headless`);
+    if (phase === SAFARI_BATTLE_PHASE.RESULT) {
+      battle.completed = true;
+      battle.completed_phase = SAFARI_BATTLE_PHASE.RESULT;
+    }
+    return battle.phase;
+  }
   battle.pending_phase_after_presentation = phase;
   battle.pending_phase_reason = reason;
   return battle.phase;
