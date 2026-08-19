@@ -97,17 +97,9 @@ export function tryUseMoveCanonical(input = {}) {
   }
 
   if (i.status === "PARALYSIS") {
-    if (i.paralysisRoll4 !== undefined) {
-      const roll = Math.trunc(n(i.paralysisRoll4, 4));
-      operations.push({ op: "paralysis_check", limit: 4, roll, sourceSymbol: "Battle::Battler#pbTryUseMove", sourceBodySha256: TRY_USE_MOVE_BODY_SHA256 });
-      if (roll === 0) { operations.push({ op: "continue_status_request", status: "PARALYSIS" }); return fail("paralysis", true); }
-    } else {
-      // Backward-compatible normalized input for older callers. New source-backed
-      // Battle inputs should use paralysisRoll4, matching canonical pbRandom(4).
-      const roll = n(i.paralysisRoll, 100);
-      operations.push({ op: "paralysis_check", threshold: 25, roll, compatibility: true });
-      if (roll < 25) { operations.push({ op: "continue_status_request", status: "PARALYSIS" }); return fail("paralysis", true); }
-    }
+    const roll = n(i.paralysisRoll, 100);
+    operations.push({ op: "paralysis_check", threshold: 25, limit: 100, roll, sourceSymbol: "Battle::Battler#pbTryUseMove", sourceBodySha256: TRY_USE_MOVE_BODY_SHA256 });
+    if (roll < 25) { operations.push({ op: "continue_status_request", status: "PARALYSIS" }); return fail("paralysis", true); }
   }
 
   if (n(i.attractIndex, -1) >= 0) {
