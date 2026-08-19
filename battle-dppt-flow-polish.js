@@ -22,6 +22,12 @@ function scrollTo(node, block = "start") {
   node.scrollIntoView({ behavior: "smooth", block, inline: "nearest" });
 }
 
+function focusVisible(selector, root = document) {
+  const node = [...root.querySelectorAll(selector)].find((candidate) => !candidate.hidden && !candidate.disabled && candidate.getClientRects().length > 0);
+  if (node instanceof HTMLElement) node.focus({ preventScroll:true });
+  return node ?? null;
+}
+
 function closeOverlayIfBattleAdvanced(phase) {
   const menu = byId("game-menu");
   if (!menu || menu.hidden || phase === "COMMAND" || phase === "REPLACEMENT") return;
@@ -34,6 +40,13 @@ function contextualizeReturn(current) {
   const target = current?.return_target ?? "day_board";
   button.textContent = target === "home" ? "ラン結果へ" : "Day Boardへ戻る";
   button.setAttribute("aria-label", button.textContent);
+}
+
+function focusBoardNextAction() {
+  const board = byId("board-card");
+  if (!board || board.hidden) return;
+  focusVisible(".board-cell:not(:disabled):not(.consumed)", board)
+    ?? focusVisible("#enter-village:not(:disabled)", board);
 }
 
 function syncFlow() {
@@ -53,10 +66,18 @@ function syncFlow() {
     if (card) card.dataset.dpptMenu = "root";
     const message = byId("battle-message");
     if (message && message.dataset.presentationOwner !== "event") message.textContent = "どうする？";
+    requestAnimationFrame(() => focusVisible('[data-dppt-command="fight"]:not(:disabled)', card ?? document));
+  }
+
+  if (battlePresent && phase === "REPLACEMENT" && lastPhase !== "REPLACEMENT") {
+    requestAnimationFrame(() => scrollTo(byId("player-replacement-panel") ?? byId("battle-card")?.querySelector(".battle-command-panel"), "center"));
   }
 
   if (battlePresent && phase === "RESULT" && lastPhase !== "RESULT") {
-    requestAnimationFrame(() => scrollTo(byId("battle-card")?.querySelector(".battle-command-panel"), "end"));
+    requestAnimationFrame(() => {
+      scrollTo(byId("battle-card")?.querySelector(".battle-command-panel"), "end");
+      focusVisible("#return-board:not(:disabled)", byId("battle-card") ?? document);
+    });
   }
 
   const target = current?.return_target ?? null;
@@ -67,6 +88,7 @@ function syncFlow() {
         scrollTo(document.querySelector(".app"), "start");
       } else {
         scrollTo(byId("board-card"), "start");
+        requestAnimationFrame(focusBoardNextAction);
       }
     });
   }
