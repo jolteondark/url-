@@ -62,6 +62,11 @@ function canonicalEvolutionBlocker(runtime) {
   return null;
 }
 
+function publicCandidate(candidate) {
+  if (!candidate?.target) return null;
+  return { to: candidate.target, method: candidate.method, parameter: candidate.parameter };
+}
+
 export function resolvePokemonLevelEvolution(runtime, {
   species_masters,
   nature_master = null,
@@ -74,15 +79,29 @@ export function resolvePokemonLevelEvolution(runtime, {
   const sourceMaster = species_masters[runtime?.species];
   if (!sourceMaster) throw new RangeError(`missing species master for ${runtime?.species ?? "unknown species"}`);
   const candidate = levelEvolutionTarget(sourceMaster, Number(runtime.level));
-  const blocker = canonicalEvolutionBlocker(runtime);
-  if (!candidate.target || blocker) {
+  const levelEvolutionCandidate = publicCandidate(candidate);
+  if (!candidate.target) {
     return {
       pokemon: runtime,
       evolved: false,
       evolution: null,
+      levelEvolutionCandidate: null,
+      evolutionBlockedBy: null,
+      unsupportedMethods: candidate.unsupportedMethods,
+      operations: [],
+    };
+  }
+
+  const blocker = canonicalEvolutionBlocker(runtime);
+  if (blocker) {
+    return {
+      pokemon: runtime,
+      evolved: false,
+      evolution: null,
+      levelEvolutionCandidate,
       evolutionBlockedBy: blocker,
       unsupportedMethods: candidate.unsupportedMethods,
-      operations: blocker ? [{ op: "level_evolution_blocked", blocker }] : [],
+      operations: [{ op: "level_evolution_blocked", blocker }],
     };
   }
 
@@ -104,6 +123,7 @@ export function resolvePokemonLevelEvolution(runtime, {
     pokemon: recalculated,
     evolved: true,
     evolution: { from: before.species, to: candidate.target, method: candidate.method, parameter: candidate.parameter },
+    levelEvolutionCandidate,
     evolutionBlockedBy: null,
     unsupportedMethods,
     operations: [{
