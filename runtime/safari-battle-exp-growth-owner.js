@@ -14,6 +14,12 @@ function levelMovesByLevel(speciesMaster) {
   return Object.freeze(Object.fromEntries(Object.entries(byLevel).map(([level, moves]) => [level, Object.freeze([...moves])])));
 }
 
+function explicitMoveDecisions(player) {
+  const decisions = player?.__battle_move_decisions;
+  if (!decisions || typeof decisions !== "object" || Array.isArray(decisions)) return Object.freeze({});
+  return Object.freeze(structuredClone(decisions));
+}
+
 export function resolveSafariBattleExpGrowthInput(player, defeatedFoe, playerSpeciesMaster, defeatedSpeciesMaster, trainerBattle = false) {
   if (!playerSpeciesMaster?.growth_rate) throw new Error(`missing canonical growth rate for ${player?.species ?? "unknown species"}`);
   if (!Number.isFinite(Number(defeatedSpeciesMaster?.base_exp))) throw new Error(`missing canonical base Exp for ${defeatedFoe?.species ?? "unknown species"}`);
@@ -31,6 +37,6 @@ export function resolveSafariBattleExpGrowthInput(player, defeatedFoe, playerSpe
       scaledExpFormula: false,
     }),
     movesByLevel: levelMovesByLevel(playerSpeciesMaster),
-    moveDecisions: Object.freeze({}),
+    moveDecisions: explicitMoveDecisions(player),
   });
 }
