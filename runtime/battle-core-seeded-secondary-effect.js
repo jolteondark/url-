@@ -40,6 +40,14 @@ function secondaryTargetWithResolvedDamage(targetInput, calculatedDamage) {
   return { ...target, calcDamage: Number(calculatedDamage ?? 0) };
 }
 
+function secondaryTargetWithActionFacts(targetInput, action = {}) {
+  const target = { ...(targetInput ?? {}) };
+  for (const key of ["mechanicsGeneration", "userHasSereneGrace", "targetHasShieldDust", "moldBreaker"]) {
+    if (target[key] === undefined && action[key] !== undefined) target[key] = action[key];
+  }
+  return target;
+}
+
 function materializeAction(action, rng) {
   const prepared = structuredClone(action ?? {});
   if (!Array.isArray(prepared.secondaryEffectInputs)) return prepared;
@@ -49,7 +57,7 @@ function materializeAction(action, rng) {
   }
   const rolls = [];
   prepared.secondaryEffectInputs = prepared.secondaryEffectInputs.map((target, index) => materializeSecondaryTarget(
-    secondaryTargetWithResolvedDamage(target, prepared.calculatedDamage),
+    secondaryTargetWithResolvedDamage(secondaryTargetWithActionFacts(target, prepared), prepared.calculatedDamage),
     rng,
     rolls,
     index,
