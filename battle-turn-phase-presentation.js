@@ -60,6 +60,7 @@ function actionText(action) {
   if (action === "item") return "アイテム処理中";
   if (action === "capture") return "捕獲処理中";
   if (action === "flee") return "逃走処理中";
+  if (action === "automatic") return "自動効果処理中";
   return "行動処理中";
 }
 
@@ -133,9 +134,9 @@ function resolutionSettled() {
   if (!resolving) return false;
   if (!battle) return Boolean(card?.hidden);
   // The owner can commit KO/replacement/result before the corresponding faint,
-  // withdraw/send-out, or result presentation has finished. Keep RESOLVING until
-  // preview/Bag releases its existing busy lock; do not unlock from post-round
-  // state alone.
+  // withdraw/send-out, automatic end-of-round effects, or result presentation
+  // has finished. Keep RESOLVING until preview/Bag releases its existing busy
+  // lock; do not unlock from post-round state alone.
   if (previewCommandBusy()) return false;
   if (battle.completed || battle.player_replacement_required) return true;
   return Number(battle.turn ?? 0) !== Number(submittedTurn ?? 0);
@@ -165,6 +166,7 @@ function presentationActionFor(event) {
   if (event.type === "trainer_next") return "sendout";
   if (event.type === "capture") return "capture";
   if (event.type === "flee") return "flee";
+  if (event.type === "turn_end") return "automatic";
   return presentationAction;
 }
 
