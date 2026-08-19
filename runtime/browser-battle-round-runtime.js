@@ -90,8 +90,17 @@ export function buildBrowserBattleActionInput({ actor, target, move, moveIndex, 
       changes: statStageChanges,
     };
   }
-  if (actor.status === "PARALYSIS") {
-    action.useMoveInput = { isStruggle: Boolean(struggle), tryUseMoveInput: { status: "PARALYSIS" } };
+  const actorStatus = String(actor.status ?? "NONE").toUpperCase();
+  if (["PARALYSIS", "SLEEP", "FROZEN"].includes(actorStatus)) {
+    action.useMoveInput = {
+      isStruggle: Boolean(struggle),
+      tryUseMoveInput: {
+        status: actorStatus,
+        statusCount: Number(actor.status_count ?? 0),
+        moveUsableWhenAsleep: Boolean(move.usable_when_asleep),
+        moveThawsUser: Boolean(move.thaws_user),
+      },
+    };
   }
   if (fixedDamageUserLevel && !typing?.immune) {
     action.fixedDamageInput = {
