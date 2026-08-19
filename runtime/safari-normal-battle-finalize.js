@@ -17,6 +17,10 @@ function stateOf(runtime) {
   return state;
 }
 
+function requestsSave(operations = []) {
+  return operations.some((operation) => operation?.op === "request_save");
+}
+
 function baseTurnInput(state, index) {
   return {
     index,
@@ -69,8 +73,8 @@ export function normalBattleExpInput(player, defeatedFoe, trainerBattle = false)
       nature_master: natureMaster,
       move_masters: SAFARI_MOVE_MASTERS,
     },
-    // Essentials checks level-up evolution after the battle. Keep EXP and level-up
-    // move learning immediate, but leave species/form recalculation to terminal finalize.
+    // Essentials applies level-up EXP/move learning during battle resolution, then
+    // checks evolution after the battle. The central REWARD_GROWTH hook owns that tail.
     deferEvolution: true,
   };
 }
@@ -177,18 +181,32 @@ function commitPendingLevelEvolutions(runtime) {
     }
   }
 
-  if (unsupportedMethods.size > 0) {
-    operations.push({ op: "unsupported_evolution_methods", methods: [...unsupportedMethods] });
-  }
+  if (unsupportedMethods.size > 0) operations.push({ op: "unsupported_evolution_methods", methods: [...unsupportedMethods] });
   return { operations, presentation, unsupportedMethods: [...unsupportedMethods] };
+}
+
+export function commitSafariNormalLevelEvolutionRewardGrowth(runtime, result = {}) {
+  const state = stateOf(runtime);
+  const battle = state.battle;
+  if (!battle || Number(battle.decision) === 0) return result;
+
+  const pending = commitPendingLevelEvolutions(runtime);
+  if (pending.operations.length === 0 && pending.presentation.length === 0 && pending.unsupportedMethods.length === 0) return result;
+
+  battle.unsupported_evolution_methods = [...pending.unsupportedMethods];
+  battle.last_operations = [...pending.operations, ...(battle.last_operations ?? result.operations ?? [])];
+  battle.presentation = [...pending.presentation, ...(battle.presentation ?? result.presentation ?? [])];
+  state.last_operations = [...battle.last_operations];
+  result.operations = [...battle.last_operations];
+  result.presentation = [...battle.presentation];
+  result.persistenceRequested = requestsSave(result.operations);
+  return result;
 }
 
 function terminalRewardPresentation(battle) {
   if (Number(battle.decision) !== 1) return [];
   const events = [];
-  if (battle.reward?.item) {
-    events.push({ type: "item_reward", item: battle.reward.item, quantity: Number(battle.reward.quantity ?? 1) });
-  }
+  if (battle.reward?.item) events.push({ type: "item_reward", item: battle.reward.item, quantity: Number(battle.reward.quantity ?? 1) });
   const moneyGained = Number(battle.money_gained ?? 0);
   if (moneyGained > 0) events.push({ type: "money_reward", amount: moneyGained });
   return events;
@@ -199,26 +217,19 @@ export function finalizeNormalBattle(runtime) {
   const battle = state.battle;
   if (!battle || battle.completed || Number(battle.decision) === 0) return [];
 
-  const pendingEvolution = commitPendingLevelEvolutions(runtime);
   const runEnd = markMaplessRunEnd(runtime, battle.decision);
-  const operations = [...pendingEvolution.operations, ...runEnd.operations];
-  // The direct round owner already commits EXP and level-up moves to the persistent
-  // player Pokemon. Level evolution is deliberately committed here, after the battle
-  // has a terminal decision, matching Essentials' post-battle evolution timing.
+  const operations = [...runEnd.operations];
   if (battle.decision === 1 && battle.kind === "wild") operations.push(...givePotion(runtime, battle));
   if (battle.decision === 1 && battle.kind === "trainer") operations.push(...givePotion(runtime, battle));
   if (battle.kind === "trainer") operations.push(...payTrainerPrize(runtime, battle));
   operations.push(...completeBoardEvent(state, battle));
   operations.push({ op: "request_save", reason: "battle_result" });
-  // RESULT is the sole completion boundary. This lower compatibility finalizer may
-  // assemble reward/Board/save operations, but it must not publish completion before
-  // commitSafariBattleResolution advances the central orchestrator to RESULT.
+  // RESULT is the sole completion boundary. This compatibility finalizer assembles
+  // rewards/Board/save, while Level evolution remains pending for REWARD_GROWTH.
   battle.return_target = runEnd.marked ? "home" : "day_board";
   battle.last_operations = [...(battle.last_operations ?? []), ...operations];
-  battle.unsupported_evolution_methods = [...pendingEvolution.unsupportedMethods];
   battle.presentation = [
     ...(battle.presentation ?? []),
-    ...pendingEvolution.presentation,
     ...terminalRewardPresentation(battle),
     {
       type: "battle_result",
