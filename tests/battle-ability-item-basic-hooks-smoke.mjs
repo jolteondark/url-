@@ -69,6 +69,18 @@ const pokemon = (ability = "NONE", item = null, extra = {}) => ({
   });
   assert.equal(secondary.secondaryEffectInput.userHasSereneGrace, true);
   assert.equal(secondary.secondaryEffectInput.targetHasShieldDust, true);
+  const lifeOrb = resolveAbilityItemActionModifiersCanonical({
+    user: pokemon("NONE", "LIFEORB"), target: pokemon(), move: { type: "NORMAL", category: "Physical", power: 80 },
+  });
+  assert.equal(lifeOrb.damageMultiplierInput.externalFinalDamageMultiplier, 1.3);
+  const fixedDamageLifeOrb = resolveAbilityItemActionModifiersCanonical({
+    user: pokemon("NONE", "LIFEORB"), target: pokemon(), move: { type: "FIGHTING", category: "Physical", power: 0 },
+  });
+  assert.equal(fixedDamageLifeOrb.damageMultiplierInput.externalFinalDamageMultiplier, 1, "Life Orb must not scale power-0 fixed damage");
+  const shadowShield = resolveAbilityItemActionModifiersCanonical({
+    user: pokemon("MOLDBREAKER"), target: pokemon("SHADOWSHIELD"), move: { type: "DARK", category: "Physical", power: 80 },
+  });
+  assert.equal(shadowShield.damageMultiplierInput.externalFinalDamageMultiplier, 0.5, "Mold Breaker must not bypass Shadow Shield");
 }
 
 {
@@ -136,9 +148,13 @@ const pokemon = (ability = "NONE", item = null, extra = {}) => ({
 
 {
   const lifeOrb = resolveActionAfterAbilityItemHookCanonical({
-    user: pokemon("NONE", "LIFEORB", { hp: 100, max_hp: 100 }), target: pokemon(), move: { category: "Physical" }, damageDealt: 40,
+    user: pokemon("NONE", "LIFEORB", { hp: 100, max_hp: 100 }), target: pokemon(), move: { category: "Physical", effect_chance: 0 }, damageDealt: 40,
   });
   assert.equal(lifeOrb.userHpDelta, -10);
+  const sheerForceLifeOrb = resolveActionAfterAbilityItemHookCanonical({
+    user: pokemon("SHEERFORCE", "LIFEORB", { hp: 100, max_hp: 100 }), target: pokemon(), move: { category: "Special", effect_chance: 30 }, damageDealt: 40,
+  });
+  assert.equal(sheerForceLifeOrb.userHpDelta, 0, "Sheer Force-boosted moves must suppress Life Orb recoil");
   const shellBell = resolveActionAfterAbilityItemHookCanonical({
     user: pokemon("NONE", "SHELLBELL", { hp: 50, max_hp: 100 }), target: pokemon(), move: { category: "Special" }, damageDealt: 40,
   });
