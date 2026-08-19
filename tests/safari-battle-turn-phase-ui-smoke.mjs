@@ -274,9 +274,9 @@ const indexSource = fs.readFileSync(new URL("../index.html", import.meta.url), "
 const deferredSource = fs.readFileSync(new URL("../deferred-ui-loader.js", import.meta.url), "utf8");
 assert.match(previewSource, /preview-app\.js\?v=20260818-2318/,
   "public preview must require-load the current preview-app build");
-assert.match(previewSource, /battle-turn-phase-presentation\.js\?v=20260819-0820/);
-assert.match(indexSource, /preview\.js\?v=20260819-0820/);
-assert.match(indexSource, /build 20260819-0820/);
+assert.match(previewSource, /battle-turn-phase-presentation\.js\?v=20260819-1435/);
+assert.match(indexSource, /preview\.js\?v=20260819-1435/);
+assert.match(indexSource, /build 20260819-1435/);
 assert.doesNotMatch(deferredSource, /battle-turn-phase-presentation/);
 
 console.log("Safari Battle UI: owner-ordered action phases, Bag, replacement/result and return share one busy lifecycle: ok");
