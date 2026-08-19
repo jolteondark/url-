@@ -197,6 +197,13 @@ function sync() {
 }
 
 byId("battle-card")?.addEventListener("click", (event) => {
+  const dpptControl = event.target.closest("[data-dppt-command],#dppt-command-back,[data-dppt-bag]");
+  if (dpptControl && phaseOf() !== "COMMAND") {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    return;
+  }
+
   const command = event.target.closest("[data-dppt-command]");
   if (command) {
     const battle = runtimeBattle();
