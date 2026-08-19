@@ -23,7 +23,7 @@ function action(index, tryUseMoveInput = {}) {
 
 function loopFor(firstTry, secondTry = {}) {
   const prepared = prepareCombatTurnInputCanonical({
-    rounds: [{ priorityOrder: [0, 1], actions: [action(0, firstTry), action(1, secondTry)] }],
+    rounds: [{ priorityOrder: [0, 1], actions: [action(0, firstTry), action(1, secondTry)], attackDecision: 1 }],
   });
   return resolveBattleLoopCanonical(prepared).operations;
 }
@@ -89,7 +89,7 @@ for (const [label, input, reasonOp] of [
   const prepared = prepareCombatTurnInputCanonical({
     rounds: [
       { priorityOrder: [0, 1], actions: [action(0, { flinch: true }), action(1)] },
-      { priorityOrder: [0, 1], actions: [action(0), action(1)] },
+      { priorityOrder: [0, 1], actions: [action(0), action(1)], attackDecision: 1 },
     ],
   });
   const operations = resolveBattleLoopCanonical(prepared).operations;
