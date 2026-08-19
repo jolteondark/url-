@@ -42,6 +42,14 @@ function mergedUnsupportedMethods(...groups) {
   return [...new Set(groups.flatMap((group) => Array.isArray(group) ? group : []))];
 }
 
+function preserveAuthoritativeBattleFields(before, after) {
+  const next = { ...after };
+  for (const field of ["ability", "held_item"]) {
+    if (before && Object.prototype.hasOwnProperty.call(before, field)) next[field] = before[field];
+  }
+  return next;
+}
+
 export function resolvePokemonLevelEvolution(runtime, {
   species_masters,
   nature_master = null,
@@ -69,12 +77,12 @@ export function resolvePokemonLevelEvolution(runtime, {
   const before = structuredClone(runtime);
   const nextForm = Number.isInteger(Number(targetMaster.form)) ? Number(targetMaster.form) : 0;
   const speciesChanged = updatePokemonRuntime(runtime, { species: candidate.target, form: nextForm });
-  const recalculated = resolvePokemonRuntimeMasters(speciesChanged, {
+  const recalculated = preserveAuthoritativeBattleFields(before, resolvePokemonRuntimeMasters(speciesChanged, {
     species_master: targetMaster,
     nature_master,
     move_masters,
     disable_ivs_and_evs,
-  });
+  }));
   const targetCandidate = levelEvolutionTarget(targetMaster, Number(recalculated.level));
   const unsupportedMethods = mergedUnsupportedMethods(candidate.unsupportedMethods, targetCandidate.unsupportedMethods);
 
