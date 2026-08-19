@@ -6,9 +6,18 @@ globalThis.CustomEvent = class CustomEvent {
 globalThis.window = { dispatchEvent() { return true; } };
 
 const web = await import("../runtime/safari-web-playable-integration.js");
+const startup = await import("../runtime/safari-web-startup.js");
 const { minimumExpForLevel } = await import("../runtime/pokemon-growth-rate.js");
 const { resolvePokemonRuntimeMasters } = await import("../runtime/pokemon-runtime-masters.js");
+const { setSafariBattleMoveLearningDecision } = await import("../runtime/safari-battle-move-learning-choice.js");
 const { SAFARI_MOVE_MASTERS, SAFARI_SPECIES_MASTERS } = await import("../runtime/safari-playable-data.js");
+
+class MemoryStorage {
+  constructor() { this.map = new Map(); }
+  getItem(key) { return this.map.has(key) ? this.map.get(key) : null; }
+  setItem(key, value) { this.map.set(key, String(value)); }
+  removeItem(key) { this.map.delete(key); }
+}
 
 const zeroStats = { HP: 0, ATTACK: 0, DEFENSE: 0, SPECIAL_ATTACK: 0, SPECIAL_DEFENSE: 0, SPEED: 0 };
 const source = {
@@ -19,9 +28,12 @@ const source = {
   base_exp: 60,
   catch_rate: 255,
   base_stats: { HP: 40, ATTACK: 90, DEFENSE: 70, SPECIAL_ATTACK: 40, SPECIAL_DEFENSE: 70, SPEED: 120 },
-  level_moves: [{ level: 11, move: "DEFERMOVE" }],
+  level_moves: [
+    { level: 11, move: "DEFERMOVE1" },
+    { level: 12, move: "DEFERMOVE2" },
+  ],
   evolutions: [
-    { species: "DEFERGROW2", method: "Level", parameter: 11 },
+    { species: "DEFERGROW2", method: "Level", parameter: 12 },
     { species: "DEFERUNSUPPORTED1", method: "Item", parameter: "MOONSTONE" },
   ],
 };
@@ -59,7 +71,8 @@ Object.assign(SAFARI_SPECIES_MASTERS, {
 Object.assign(SAFARI_MOVE_MASTERS, {
   DEFERKO: { id: "DEFERKO", name: "Deferred KO", category: "Physical", power: 250, accuracy: 100, total_pp: 9, priority: 0, type: "NORMAL", thaws_user: false },
   DEFERWAIT: { id: "DEFERWAIT", name: "Deferred Wait", category: "Status", power: 0, accuracy: 100, total_pp: 20, priority: 0, type: "NORMAL", thaws_user: false },
-  DEFERMOVE: { id: "DEFERMOVE", name: "Deferred Move", category: "Status", power: 0, accuracy: 100, total_pp: 11, priority: 0, type: "NORMAL", thaws_user: false },
+  DEFERMOVE1: { id: "DEFERMOVE1", name: "Deferred Move 1", category: "Status", power: 0, accuracy: 100, total_pp: 11, priority: 0, type: "NORMAL", thaws_user: false },
+  DEFERMOVE2: { id: "DEFERMOVE2", name: "Deferred Move 2", category: "Status", power: 0, accuracy: 100, total_pp: 12, priority: 0, type: "NORMAL", thaws_user: false },
 });
 
 function materialize(speciesMaster, input) {
@@ -109,6 +122,7 @@ const player = materialize(source, {
     { id: "DEFERKO", pp: 4, ppup: 0 },
     { id: "QUICKATTACK", pp: 4, ppup: 0 },
     { id: "BITE", pp: 5, ppup: 0 },
+    { id: "SWIFT", pp: 6, ppup: 0 },
   ],
 });
 player.hp = 12;
@@ -144,13 +158,18 @@ state.battle = {
   prize_money: 0,
 };
 
+setSafariBattleMoveLearningDecision(runtime, { level: 11, moveId: "DEFERMOVE1", forgetIndex: 1 });
+setSafariBattleMoveLearningDecision(runtime, { level: 12, moveId: "DEFERMOVE2", forgetIndex: 2 });
+
 const identity = player.personal_id;
 const firstResult = await web.resolveSafariBattleRound(runtime, "DEFERKO");
 const afterFirst = runtime.player.party[0];
 assert.equal(firstResult.decision, 0, "first trainer foe must hand off to the reserve instead of ending the battle");
+assert.equal(afterFirst.level, 12, "first KO must cross both level boundaries exactly");
+assert.deepEqual(afterFirst.moves.map((move) => move.id), ["DEFERKO", "DEFERMOVE1", "DEFERMOVE2", "SWIFT"],
+  "each crossed level must learn its move through the explicit four-slot replacement owner");
 assert.equal(afterFirst.species, source.id, "Level evolution must not commit between trainer foes");
 assert.equal(afterFirst.__battle_level_evolution_pending, true, "level gain must retain a transient pending-evolution marker until battle end");
-assert.ok(Number(afterFirst.level) >= 11, "first KO must make the Level evolution eligible");
 assert.equal(firstResult.expIntegration.commits[0].evolutionDeferred, true);
 assert.equal(firstResult.expIntegration.commits[0].evolution, null);
 assert.equal(firstResult.expIntegration.commits[0].pendingEvolution?.to, evolved.id);
@@ -176,5 +195,32 @@ assert.equal(afterSecond.status, "POISON");
 assert.equal(afterSecond.status_count, 2);
 assert.equal(afterSecond.hp, hpBeforeTerminal + (afterSecond.max_hp - maxHpBeforeTerminal), "post-battle evolution must preserve injured HP by max-HP delta");
 assert.equal(afterSecond.moves[0].pp, 2, "one move use against each foe must consume exactly two PP across the whole trainer battle");
+assert.equal(afterSecond.moves[1].pp, 11, "newly learned level-11 move must retain its learned PP through evolution");
+assert.equal(afterSecond.moves[2].pp, 12, "newly learned level-12 move must retain its learned PP through evolution");
+assert.equal(afterSecond.moves[3].pp, 6, "untouched move PP must not refill or change through evolution");
 
-console.log("Safari trainer multi-foe Level evolution deferred until terminal battle finalize: PASS");
+const storage = new MemoryStorage();
+const terminalSnapshot = structuredClone(afterSecond);
+const saved = startup.saveSafariPlayableRun(storage, runtime);
+assert.ok(saved.payload, "terminal REWARD_GROWTH state must be serializable by the browser persistence owner");
+assert.equal(startup.hasSafariPlayableRun(storage), true, "saved terminal run must be visible to fresh Continue");
+const freshRuntime = startup.createSafariPlayableRuntime();
+const continued = startup.loadSafariPlayableRun(storage, freshRuntime);
+assert.equal(continued.found, true, "fresh Continue must load the terminal run");
+const continuedPokemon = continued.state.player.party[0];
+assert.deepEqual(continuedPokemon, terminalSnapshot,
+  "fresh Continue must preserve the post-REWARD_GROWTH evolved individual exactly");
+assert.equal("__battle_level_evolution_pending" in continuedPokemon, false, "deferred evolution marker must not leak into the saved individual");
+assert.equal(continuedPokemon.personal_id, identity);
+assert.equal(continuedPokemon.ability, "KEEPAUTHABILITY");
+assert.equal(continuedPokemon.held_item, "KEEPBERRY");
+assert.equal(continuedPokemon.status, "POISON");
+assert.equal(continuedPokemon.status_count, 2);
+assert.deepEqual(continuedPokemon.moves.map(({ id, pp }) => ({ id, pp })), [
+  { id: "DEFERKO", pp: 2 },
+  { id: "DEFERMOVE1", pp: 11 },
+  { id: "DEFERMOVE2", pp: 12 },
+  { id: "SWIFT", pp: 6 },
+]);
+
+console.log("Safari trainer multi-foe EXP -> multi-level moves -> deferred Level evolution -> browser save -> fresh Continue: PASS");
