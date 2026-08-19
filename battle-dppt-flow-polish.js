@@ -36,7 +36,7 @@ function clearBattleFocus() {
 
 function closeOverlayIfBattleAdvanced(phase) {
   const menu = byId("game-menu");
-  if (!menu || menu.hidden || phase === "COMMAND" || phase === "REPLACEMENT") return;
+  if (!menu || menu.hidden || phase === "COMMAND") return;
   byId("game-menu-close")?.click();
 }
 
