@@ -181,8 +181,16 @@ export function resolveGenericTurnVerticalSlice(input = {}, { allowIncomplete = 
         operations.push({ op: "cancel_action", round: roundNo, action: actionIndex, reason: "actor_fainted" });
         continue;
       }
+      if (action.moveSkipped) {
+        operations.push({
+          op: "cancel_action",
+          round: roundNo,
+          action: actionIndex,
+          reason: action.tryUseMoveResolution?.reason ?? "try_use_failed",
+        });
+        continue;
+      }
       operations.push({ op: "use_move", round: roundNo, action: actionIndex });
-      if (action.moveSkipped) continue;
       const hit = Boolean(action.accuracyHit);
       operations.push({ op: "accuracy_check", round: roundNo, action: actionIndex, hit });
       if (hit) {
