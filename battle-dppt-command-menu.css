@@ -3,30 +3,98 @@
 #battle-card[data-dppt-menu="bag"] .move-grid,#battle-card[data-dppt-menu="bag"] .battle-actions{display:none!important}
 #battle-card[data-dppt-menu="locked"] #dppt-command-root,#battle-card[data-dppt-menu="locked"] #dppt-battle-bag,#battle-card[data-dppt-menu="locked"] #dppt-command-back{display:none!important}
 #battle-card[data-dppt-menu="result"] #dppt-command-root,#battle-card[data-dppt-menu="result"] #dppt-battle-bag,#battle-card[data-dppt-menu="result"] #dppt-command-back{display:none!important}
-#battle-card[data-dppt-menu="root"] .dppt-command-root{grid-column:2;grid-row:1/span 2;display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:6px;background:linear-gradient(180deg,#5d6670,#383f47)}
-#battle-card .dppt-command-root button,#battle-card .dppt-battle-bag button,#battle-card .dppt-command-back{border:2px solid #313840;border-radius:6px;background:linear-gradient(180deg,#fdfdf8,#d9ddd5);color:#20252a;box-shadow:inset 0 0 0 2px #eef0e9;min-height:66px;font-weight:900}
+
+/* DPt root composition: message strip, then a distinct lower-screen command surface. */
+#battle-card[data-dppt-menu="root"] .battle-command-panel{
+  display:grid;
+  grid-template-columns:1fr;
+  grid-template-rows:auto minmax(190px,auto);
+  background:#0b0c0d;
+  gap:8px;
+  padding-top:8px;
+  border-top:4px solid #1e2327;
+}
+#battle-card[data-dppt-menu="root"] .battle-message{
+  grid-column:1;
+  grid-row:1;
+  min-height:72px;
+  margin:0;
+  padding:14px 18px;
+  border:4px solid #475158;
+  border-left:4px solid #475158;
+  border-bottom:4px solid #475158;
+  background:linear-gradient(180deg,#fff,#f5f7f8);
+  color:#15191c;
+  box-shadow:inset 0 0 0 3px #bcdbea;
+  font-size:.96rem;
+  font-weight:800;
+}
+#battle-card[data-dppt-menu="root"] .dppt-command-root{
+  position:relative;
+  grid-column:1;
+  grid-row:2;
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  grid-template-rows:minmax(102px,1.25fr) minmax(60px,.75fr);
+  gap:8px;
+  padding:28px 10px 10px;
+  border:4px solid #23282d;
+  background:
+    linear-gradient(180deg,rgba(255,255,255,.55),transparent 12%),
+    repeating-linear-gradient(0deg,#e8e8e8 0 7px,#dadada 7px 9px);
+  box-shadow:inset 0 0 0 4px #fff, inset 0 0 0 8px #aab0b5;
+}
+#battle-card[data-dppt-menu="root"] .dppt-command-root::before{
+  content:"◉ ◉ ◉ ◉ ◉ ◉";
+  position:absolute;
+  top:5px;
+  left:12px;
+  color:#c92935;
+  -webkit-text-stroke:1px #20252a;
+  letter-spacing:1px;
+  font-size:.76rem;
+  line-height:1;
+}
+#battle-card .dppt-command-root button,#battle-card .dppt-battle-bag button,#battle-card .dppt-command-back{
+  border:3px solid #32383e;
+  border-radius:5px;
+  color:#fff;
+  min-height:58px;
+  font-weight:900;
+  text-shadow:0 2px 0 rgba(0,0,0,.45);
+  box-shadow:inset 0 0 0 3px rgba(255,255,255,.45),inset 0 -5px 0 rgba(0,0,0,.12),0 2px 0 #fff;
+}
 #battle-card .dppt-command-root button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
-#battle-card .dppt-command-root button strong{font-size:.92rem;letter-spacing:.02em}
-#battle-card .dppt-command-root button small{font-size:.49rem;color:#6d7479;letter-spacing:.08em}
-#battle-card .dppt-command-root button[data-dppt-command="fight"]{background:linear-gradient(180deg,#ffe1dc,#ef9a8f)}
-#battle-card .dppt-command-root button[data-dppt-command="bag"]{background:linear-gradient(180deg,#fff0bf,#dfc269)}
-#battle-card .dppt-command-root button[data-dppt-command="party"]{background:linear-gradient(180deg,#d7f1d2,#99cc91)}
-#battle-card .dppt-command-root button[data-dppt-command="flee"]{background:linear-gradient(180deg,#dce9f5,#aebfd2)}
+#battle-card .dppt-command-root button strong{font-size:.95rem;letter-spacing:.02em}
+#battle-card .dppt-command-root button small{font-size:.48rem;color:rgba(255,255,255,.82);letter-spacing:.08em}
+#battle-card .dppt-command-root button[data-dppt-command="fight"]{
+  grid-column:1/4;
+  grid-row:1;
+  margin:0 10%;
+  background:linear-gradient(180deg,#d94b52 0,#b92532 48%,#901c27 100%);
+  border-color:#4c3c43;
+  box-shadow:inset 0 0 0 4px #ef7a7e,inset 0 0 0 7px #9a2330,inset 0 -7px 0 rgba(78,8,17,.34),0 2px 0 #fff;
+}
+#battle-card .dppt-command-root button[data-dppt-command="fight"] strong{font-size:1.12rem}
+#battle-card .dppt-command-root button[data-dppt-command="bag"]{grid-column:1;grid-row:2;background:linear-gradient(180deg,#b78b22,#8d6514)}
+#battle-card .dppt-command-root button[data-dppt-command="flee"]{grid-column:2;grid-row:2;background:linear-gradient(180deg,#3091ac,#1f6278)}
+#battle-card .dppt-command-root button[data-dppt-command="party"]{grid-column:3;grid-row:2;background:linear-gradient(180deg,#58a83d,#2c782a)}
+
 #battle-card[data-dppt-menu="fight"] .move-grid{grid-column:2;grid-row:1;display:grid!important}
 #battle-card[data-dppt-menu="fight"] .battle-actions{display:none!important}
-#battle-card[data-dppt-menu="fight"] #dppt-command-back,#battle-card[data-dppt-menu="bag"] #dppt-command-back{display:block;grid-column:2;grid-row:2;margin:2px 6px 6px;min-height:42px}
+#battle-card[data-dppt-menu="fight"] #dppt-command-back,#battle-card[data-dppt-menu="bag"] #dppt-command-back{display:block;grid-column:2;grid-row:2;margin:2px 6px 6px;min-height:42px;background:linear-gradient(180deg,#6d7880,#49525a)}
 #battle-card[data-dppt-menu="bag"] .dppt-battle-bag{grid-column:2;grid-row:1;display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:6px;background:linear-gradient(180deg,#5d6670,#383f47)}
-#battle-card .dppt-battle-bag button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:linear-gradient(180deg,#fff6ca,#dbc36a)}
-#battle-card .dppt-battle-bag button small{font-size:.52rem;color:#6a633f}
+#battle-card .dppt-battle-bag button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:linear-gradient(180deg,#b78b22,#8d6514)}
+#battle-card .dppt-battle-bag button small{font-size:.52rem;color:rgba(255,255,255,.82)}
 #battle-card[data-dppt-menu="result"] .battle-actions{display:grid!important;grid-column:2;grid-row:1/span 2;padding:6px;background:#424950}
 #battle-card[data-dppt-menu="result"] .battle-actions>#capture,#battle-card[data-dppt-menu="result"] .battle-actions>#flee{display:none!important}
-#battle-card[data-dppt-menu="root"] .battle-message,#battle-card[data-dppt-menu="fight"] .battle-message,#battle-card[data-dppt-menu="bag"] .battle-message{grid-column:1;grid-row:1/span 2}
+#battle-card[data-dppt-menu="fight"] .battle-message,#battle-card[data-dppt-menu="bag"] .battle-message{grid-column:1;grid-row:1/span 2}
 
 /* DPt-style move panel: flat colored type plate + explicit PP counter. */
-#battle-card[data-dppt-menu="fight"] .move-grid button{position:relative;overflow:hidden;padding:7px 8px 6px 10px;border:2px solid #2d3439;border-radius:5px;box-shadow:inset 0 0 0 2px rgba(255,255,255,.48);background:linear-gradient(180deg,#f6f7f2,#d3d8d2);color:#1f2428}
+#battle-card[data-dppt-menu="fight"] .move-grid button{position:relative;overflow:hidden;padding:7px 8px 6px 10px;border:2px solid #2d3439;border-radius:5px;box-shadow:inset 0 0 0 2px rgba(255,255,255,.48);background:linear-gradient(180deg,#f6f7f2,#d3d8d2);color:#1f2428;text-shadow:none}
 #battle-card[data-dppt-menu="fight"] .move-grid button::after{content:"";position:absolute;inset:3px;border:1px solid rgba(40,45,48,.16);border-radius:3px;pointer-events:none}
 #battle-card[data-dppt-menu="fight"] .move-grid button strong{position:relative;z-index:1;font-size:.84rem;font-weight:900;text-shadow:0 1px rgba(255,255,255,.7)}
-#battle-card .dppt-move-meta{position:relative;z-index:1;display:flex!important;align-items:center;justify-content:space-between;width:100%;gap:5px;margin-top:5px!important;color:#252a2d!important;font-size:.53rem!important;font-weight:900!important}
+#battle-card .dppt-move-meta{position:relative;z-index:1;display:flex!important;align-items:center;justify-content:space-between;width:100%;gap:5px;margin-top:5px!important;color:#252a2d!important;font-size:.53rem!important;font-weight:900!important;text-shadow:none!important}
 #battle-card .dppt-move-type{display:inline-flex;align-items:center;justify-content:center;min-width:44px;padding:2px 5px;border:1px solid rgba(30,35,38,.48);border-radius:3px;background:#9da3a5;color:#fff;text-shadow:0 1px rgba(0,0,0,.45);line-height:1.2}
 #battle-card .dppt-move-pp{margin-left:auto;color:#343a3e;font-variant-numeric:tabular-nums;white-space:nowrap}
 #battle-card .move-grid button[data-dppt-type="NORMAL"] .dppt-move-type{background:#9d9a8d}
@@ -50,4 +118,15 @@
 #battle-card[data-dppt-menu="fight"] .move-grid button:focus-visible,#battle-card[data-dppt-menu="fight"] .move-grid button:active:not(:disabled){outline:0;background:linear-gradient(180deg,#fff8cf,#e7d17c);box-shadow:inset 0 0 0 3px #fff7c2,0 0 0 2px #40474c;transform:none}
 #battle-card[data-dppt-menu="fight"] .move-grid button:focus-visible::before,#battle-card[data-dppt-menu="fight"] .move-grid button:active::before{opacity:1;color:#24292d}
 
-@media(max-width:540px) and (orientation:portrait){#battle-card[data-dppt-menu="root"] .dppt-command-root,#battle-card[data-dppt-menu="bag"] .dppt-battle-bag{padding:4px;gap:4px}#battle-card .dppt-command-root button,#battle-card .dppt-battle-bag button{min-height:62px}#battle-card .dppt-command-root button strong{font-size:.84rem}#battle-card[data-dppt-menu="fight"] .move-grid button{min-height:62px;padding:6px 6px 5px 8px}#battle-card[data-dppt-menu="fight"] .move-grid button strong{font-size:.76rem}#battle-card .dppt-move-meta{font-size:.48rem!important}#battle-card .dppt-move-type{min-width:39px;padding:2px 3px}}
+@media(max-width:540px) and (orientation:portrait){
+  #battle-card[data-dppt-menu="root"] .battle-command-panel{grid-template-rows:auto minmax(176px,auto);gap:6px;padding-top:6px}
+  #battle-card[data-dppt-menu="root"] .battle-message{min-height:66px;padding:12px 14px;font-size:.9rem}
+  #battle-card[data-dppt-menu="root"] .dppt-command-root{grid-template-rows:96px 56px;padding:25px 7px 7px;gap:6px}
+  #battle-card .dppt-command-root button[data-dppt-command="fight"]{margin:0 7%}
+  #battle-card .dppt-command-root button strong{font-size:.84rem}
+  #battle-card .dppt-command-root button[data-dppt-command="fight"] strong{font-size:1rem}
+  #battle-card[data-dppt-menu="fight"] .move-grid button{min-height:62px;padding:6px 6px 5px 8px}
+  #battle-card[data-dppt-menu="fight"] .move-grid button strong{font-size:.76rem}
+  #battle-card .dppt-move-meta{font-size:.48rem!important}
+  #battle-card .dppt-move-type{min-width:39px;padding:2px 3px}
+}
