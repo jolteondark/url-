@@ -161,6 +161,10 @@ export function copyStoredPokemon(state, {
   }
   const pokemon = getPokemon(value, boxSrc, indexSrc);
   if (pokemon == null) throw new TypeError("Trying to copy nil to storage");
+  const sameLocation = boxDst === boxSrc && destinationIndex === indexSrc;
+  if (boxDst >= 0 && !sameLocation && getPokemon(value, boxDst, destinationIndex) != null) {
+    return { result: false, state: value, operations: [{ op: "copy_rejected", reason: "destination_occupied" }] };
+  }
   if (boxDst < 0) {
     if (value.party.length >= partyLimit) {
       return { result: false, state: value, operations: [{ op: "copy_rejected", reason: "party_full" }] };
