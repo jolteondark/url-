@@ -3,6 +3,7 @@ import { replaceSafariBattlePlayer } from "./runtime/safari-web-playable-integra
 const REPLACEMENT_PHASE = "REPLACEMENT";
 const byId = (id) => document.getElementById(id);
 let selecting = false;
+let replacementWasActive = false;
 
 function battleState() {
   return globalThis.__maplessSafariRuntime?.variables?.mapless?.battle ?? null;
@@ -10,6 +11,30 @@ function battleState() {
 
 function replacementActive(battle = battleState()) {
   return battle?.phase === REPLACEMENT_PHASE;
+}
+
+function closeGameMenu() {
+  const menu = byId("game-menu");
+  if (menu && !menu.hidden) byId("game-menu-close")?.click();
+}
+
+function focusFirstReplacement() {
+  const first = byId("player-replacement-panel")?.querySelector("button[data-player-replacement-party-index]:not(:disabled)");
+  if (!(first instanceof HTMLElement)) return;
+  first.focus({ preventScroll:true });
+}
+
+function restoreBattleRoot() {
+  const card = byId("battle-card");
+  const battle = battleState();
+  if (!card || card.hidden || battle?.phase !== "COMMAND") return;
+  card.dataset.dpptMenu = "root";
+  const message = byId("battle-message");
+  if (message && message.dataset.presentationOwner !== "event") message.textContent = "どうする？";
+  requestAnimationFrame(() => {
+    card.querySelector('[data-dppt-command="fight"]:not(:disabled)')?.focus?.({ preventScroll:true });
+    card.scrollIntoView?.({ behavior:"smooth", block:"end", inline:"nearest" });
+  });
 }
 
 function clearReplacementUi() {
@@ -26,7 +51,7 @@ function replacementButton(option) {
   button.disabled = selecting || !replacementActive();
 
   const name = document.createElement("strong");
-  name.textContent = pokemon.species ?? `Party ${Number(option.partyIndex) + 1}`;
+  name.textContent = pokemon.nickname ?? pokemon.species ?? `Party ${Number(option.partyIndex) + 1}`;
   const meta = document.createElement("small");
   meta.textContent = `Lv.${Number(pokemon.level ?? 0)} / HP ${Number(pokemon.hp ?? 0)} / ${Number(pokemon.max_hp ?? 0)}`;
   button.append(name, meta);
@@ -35,11 +60,16 @@ function replacementButton(option) {
 
 function syncReplacementUi() {
   const battle = battleState();
-  if (!replacementActive(battle)) {
+  const active = replacementActive(battle);
+  if (!active) {
     clearReplacementUi();
+    if (replacementWasActive) queueMicrotask(restoreBattleRoot);
+    replacementWasActive = false;
     return;
   }
 
+  replacementWasActive = true;
+  closeGameMenu();
   const options = Array.isArray(battle.player_replacement_options)
     ? battle.player_replacement_options
     : [];
@@ -48,6 +78,7 @@ function syncReplacementUi() {
   if (!card || !moves) return;
 
   card.dataset.playerReplacementRequired = "true";
+  card.dataset.dpptMenu = "locked";
 
   let panel = byId("player-replacement-panel");
   if (!panel) {
@@ -66,6 +97,10 @@ function syncReplacementUi() {
   grid.replaceChildren(...options.map(replacementButton));
   panel.replaceChildren(heading, grid);
   globalThis.__maplessApplyBattlePhaseUi?.();
+  requestAnimationFrame(() => {
+    panel.scrollIntoView?.({ behavior:"smooth", block:"center", inline:"nearest" });
+    focusFirstReplacement();
+  });
 }
 
 async function chooseReplacement(button) {
