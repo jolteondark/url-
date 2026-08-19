@@ -46,7 +46,6 @@ export function commitSafariNormalExpRewardGrowth(runtime, result = {}) {
 
   const committed = commitDeferredBattleSystemsExpRuntime({ deferredCommits: deferred, pokemon });
   party[recipientPartyIndex] = structuredClone(committed.pokemon);
-  if (Number(battle.player_party_index ?? 0) === recipientPartyIndex) runtime.player.pokemon = structuredClone(committed.pokemon);
 
   const gained = committed.commits.reduce((sum, commit) => sum + Number(commit.expGained ?? 0), 0);
   if (battle.kind === "trainer" && Number(battle.decision) === 0) {
