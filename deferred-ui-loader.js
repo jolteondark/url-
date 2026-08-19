@@ -26,7 +26,11 @@ function loadModule(path) {
 async function loadBoardPresentation() {
   loadStyle("./game-presentation.css");
   loadStyle("./event-presentation.css");
-  return loadModule("./game-presentation.js");
+  loadStyle("./board-event-result-flow.css?v=20260819-2252");
+  return Promise.all([
+    loadModule("./game-presentation.js"),
+    loadModule("./board-event-result-flow.js?v=20260819-2252"),
+  ]);
 }
 
 async function loadBattleUi() {
