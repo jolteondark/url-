@@ -2,6 +2,7 @@ import { resolveExpLevelMoveFlow } from "./battle-exp-level-move-flow.js";
 import { resolvePokemonRuntimeMasters } from "./pokemon-runtime-masters.js";
 import { updatePokemonRuntime } from "./pokemon-runtime.js";
 import { resolvePokemonLevelEvolution } from "./pokemon-level-evolution-runtime.js";
+import { clearSafariBattleMoveLearningDecisions } from "./safari-battle-move-learning-choice.js";
 
 function hasGainExpRequest(action) {
   return (action?.postHitResolution?.operations ?? []).some((entry) => entry.op === "gain_exp_request");
@@ -50,6 +51,7 @@ export function commitBattleSystemsExpRuntime({ battleInput = {}, turn = {}, pok
         evolution = resolvePokemonLevelEvolution(runtime, evolutionMasters);
         runtime = evolution.pokemon;
       }
+      clearSafariBattleMoveLearningDecisions(runtime);
 
       commits.push({
         roundIndex,
