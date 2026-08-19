@@ -1,12 +1,31 @@
+import {
+  SAFARI_BATTLE_PHASE,
+  completeSafariBattlePresentation,
+} from "./runtime/safari-battle-orchestrator.js";
+
 const byId = (id) => document.getElementById(id);
-let resolving = false;
-let returning = false;
-let submittedTurn = null;
 let presentationAction = null;
 let syncFrame = 0;
+let completingPresentation = false;
+
+const LOCKED_PHASES = new Set([
+  SAFARI_BATTLE_PHASE.ACTION_1,
+  SAFARI_BATTLE_PHASE.CHECK_1,
+  SAFARI_BATTLE_PHASE.ACTION_2,
+  SAFARI_BATTLE_PHASE.CHECK_2,
+  SAFARI_BATTLE_PHASE.POST_FAINT,
+  SAFARI_BATTLE_PHASE.REPLACEMENT,
+  SAFARI_BATTLE_PHASE.POST_VICTORY,
+  SAFARI_BATTLE_PHASE.REWARD_GROWTH,
+  SAFARI_BATTLE_PHASE.RETURN,
+]);
+
+function runtimeState() {
+  return globalThis.__maplessSafariRuntime ?? null;
+}
 
 function battleState() {
-  return globalThis.__maplessSafariRuntime?.variables?.mapless?.battle ?? null;
+  return runtimeState()?.variables?.mapless?.battle ?? null;
 }
 
 function ensurePhaseNode() {
@@ -23,34 +42,8 @@ function ensurePhaseNode() {
   return phase;
 }
 
-function setCommandLock(locked) {
-  const battle = battleState();
-  const replacementRequired = Boolean(battle?.player_replacement_required && !battle?.completed);
-  const terminal = Boolean(battle?.completed);
-  const shouldLock = locked || replacementRequired || terminal;
-  const moves = byId("moves");
-  const capture = byId("capture");
-  const flee = byId("flee");
-  const returnBoard = byId("return-board");
-  if (moves) moves.inert = shouldLock;
-  if (capture) {
-    capture.inert = shouldLock;
-    capture.disabled = shouldLock;
-  }
-  if (flee) {
-    flee.inert = shouldLock;
-    flee.disabled = shouldLock;
-  }
-  if (returnBoard) {
-    returnBoard.inert = Boolean(locked || returning);
-    returnBoard.disabled = Boolean(locked || returning);
-  }
-  const panel = byId("battle-card")?.querySelector(".battle-command-panel");
-  if (panel) panel.dataset.turnPhaseLocked = shouldLock || returning ? "true" : "false";
-}
-
-function previewCommandBusy() {
-  return Boolean(byId("capture")?.disabled);
+function legacyPreviewBusy() {
+  return Boolean(byId("save-run")?.disabled);
 }
 
 function actionText(action) {
@@ -64,94 +57,121 @@ function actionText(action) {
   return "行動処理中";
 }
 
-function phaseFor(battle) {
-  if (!battle) return null;
-  if (returning) return { key: "resolving", text: "戻っています…" };
-  if (battle.completed && !(resolving || previewCommandBusy())) return { key: "result", text: "結果" };
-  if (battle.player_replacement_required && !(resolving || previewCommandBusy())) return { key: "replacement", text: "交代選択" };
-  if (resolving || previewCommandBusy()) return { key: "resolving", text: actionText(presentationAction) };
-  return { key: "command", text: "コマンド選択" };
+function phasePresentation(phase) {
+  if (phase === SAFARI_BATTLE_PHASE.COMMAND) return { key: "command", text: "コマンド選択" };
+  if (phase === SAFARI_BATTLE_PHASE.REPLACEMENT) return { key: "replacement", text: "交代選択" };
+  if (phase === SAFARI_BATTLE_PHASE.RESULT) return { key: "result", text: "結果" };
+  if (phase === SAFARI_BATTLE_PHASE.RETURN) return { key: "return", text: "戻っています…" };
+  if (phase === SAFARI_BATTLE_PHASE.POST_FAINT) return { key: "post-faint", text: "ひんし処理中" };
+  if (phase === SAFARI_BATTLE_PHASE.POST_VICTORY) return { key: "post-victory", text: "勝敗確定中" };
+  if (phase === SAFARI_BATTLE_PHASE.REWARD_GROWTH) return { key: "reward-growth", text: "成長・報酬処理中" };
+  return { key: "resolving", text: actionText(presentationAction) };
 }
 
-function updateBattleMessage(key) {
+function setOrchestratorLock(element, locked) {
+  if (!element) return;
+  if (locked) {
+    if (element.dataset.orchestratorLocked !== "true") {
+      element.dataset.orchestratorWasDisabled = element.disabled ? "true" : "false";
+      element.dataset.orchestratorLocked = "true";
+    }
+    element.inert = true;
+    element.disabled = true;
+    return;
+  }
+  if (element.dataset.orchestratorLocked === "true") {
+    const wasDisabled = element.dataset.orchestratorWasDisabled === "true";
+    element.inert = false;
+    element.disabled = wasDisabled;
+    delete element.dataset.orchestratorLocked;
+    delete element.dataset.orchestratorWasDisabled;
+  }
+}
+
+function setCommandLock(phase) {
+  const commandAllowed = phase === SAFARI_BATTLE_PHASE.COMMAND;
+  const returnAllowed = phase === SAFARI_BATTLE_PHASE.RESULT;
+  const moves = byId("moves");
+  if (moves) moves.inert = !commandAllowed;
+  setOrchestratorLock(byId("capture"), !commandAllowed);
+  setOrchestratorLock(byId("flee"), !commandAllowed);
+  setOrchestratorLock(byId("return-board"), !returnAllowed);
+  const panel = byId("battle-card")?.querySelector(".battle-command-panel");
+  if (panel) panel.dataset.turnPhaseLocked = commandAllowed ? "false" : "true";
+}
+
+function updateBattleMessage(phase, key) {
   const message = byId("battle-message");
-  if (!message || key === "result") return;
-  if (key === "resolving" && message.dataset.presentationOwner === "event") return;
-  if (key !== "resolving") delete message.dataset.presentationOwner;
-  const text = key === "resolving"
-    ? returning ? "Day Boardへ戻っています…" : "ターンを処理しています…"
-    : key === "replacement"
+  if (!message || phase === SAFARI_BATTLE_PHASE.RESULT) return;
+  if (LOCKED_PHASES.has(phase) && message.dataset.presentationOwner === "event") return;
+  if (!LOCKED_PHASES.has(phase)) delete message.dataset.presentationOwner;
+  const text = phase === SAFARI_BATTLE_PHASE.COMMAND
+    ? "技を選んでください。"
+    : phase === SAFARI_BATTLE_PHASE.REPLACEMENT
       ? "次のポケモンを選んでください。"
-      : "技を選んでください。";
+      : phase === SAFARI_BATTLE_PHASE.RETURN
+        ? "Day Boardへ戻っています…"
+        : key === "reward-growth"
+          ? "戦闘後の成長・報酬を処理しています…"
+          : "ターンを処理しています…";
   if (message.textContent !== text) message.textContent = text;
-}
-
-function paintPhaseOnly(key, text) {
-  const phase = ensurePhaseNode();
-  const card = byId("battle-card");
-  if (!phase || !card) return;
-  phase.hidden = false;
-  if (phase.textContent !== text) phase.textContent = text;
-  phase.dataset.phase = key;
-  card.dataset.turnPhase = key;
-  if (key === "resolving" && presentationAction) card.dataset.turnAction = presentationAction;
-  else delete card.dataset.turnAction;
-  updateBattleMessage(key);
 }
 
 function renderPhase() {
   const battle = battleState();
   const card = byId("battle-card");
   if (!card) return;
-  const phase = ensurePhaseNode();
+  const node = ensurePhaseNode();
   if (!battle) {
-    if ((resolving || returning) && !card.hidden) {
-      paintPhaseOnly("resolving", returning ? "戻っています…" : actionText(presentationAction));
-      setCommandLock(true);
-      return;
-    }
-    resolving = false;
-    returning = false;
-    submittedTurn = null;
     presentationAction = null;
-    if (phase) phase.hidden = true;
+    if (node) node.hidden = true;
     delete card.dataset.turnPhase;
     delete card.dataset.turnAction;
-    setCommandLock(false);
     return;
   }
-
-  const current = phaseFor(battle);
-  if (!current) return;
-  paintPhaseOnly(current.key, current.text);
-  setCommandLock(current.key === "resolving");
+  const phase = battle.phase ?? SAFARI_BATTLE_PHASE.COMMAND;
+  const view = phasePresentation(phase);
+  if (node) {
+    node.hidden = false;
+    node.textContent = view.text;
+    node.dataset.phase = phase;
+  }
+  card.dataset.turnPhase = phase;
+  if (LOCKED_PHASES.has(phase) && presentationAction) card.dataset.turnAction = presentationAction;
+  else delete card.dataset.turnAction;
+  setCommandLock(phase);
+  updateBattleMessage(phase, view.key);
 }
 
-function resolutionSettled() {
+function publishRuntimeChanged() {
+  if (typeof globalThis.CustomEvent !== "function") return;
+  globalThis.window?.dispatchEvent?.(new CustomEvent("safari-runtime-changed"));
+}
+
+function completePendingPresentation(reason) {
+  const runtime = runtimeState();
   const battle = battleState();
-  const card = byId("battle-card");
-  if (returning) return !battle && Boolean(card?.hidden);
-  if (!resolving) return false;
-  if (!battle) return Boolean(card?.hidden);
-  // The owner can commit KO/replacement/result before the corresponding faint,
-  // withdraw/send-out, automatic end-of-round effects, or result presentation
-  // has finished. Keep RESOLVING until preview/Bag releases its existing busy
-  // lock; do not unlock from post-round state alone.
-  if (previewCommandBusy()) return false;
-  if (battle.completed || battle.player_replacement_required) return true;
-  return Number(battle.turn ?? 0) !== Number(submittedTurn ?? 0);
+  if (!runtime || !battle?.pending_phase_after_presentation || completingPresentation) return false;
+  completingPresentation = true;
+  try {
+    completeSafariBattlePresentation(runtime, { reason });
+    presentationAction = null;
+    publishRuntimeChanged();
+    return true;
+  } finally {
+    completingPresentation = false;
+  }
+}
+
+function settleLegacyPreviewIfReady() {
+  const battle = battleState();
+  if (!battle?.pending_phase_after_presentation) return;
+  if (!legacyPreviewBusy()) completePendingPresentation("legacy preview presentation drained");
 }
 
 function syncPhase() {
   syncFrame = 0;
-  if (resolutionSettled()) {
-    resolving = false;
-    returning = false;
-    submittedTurn = null;
-    presentationAction = null;
-  }
   renderPhase();
-  if (resolving || returning) syncFrame = requestAnimationFrame(syncPhase);
 }
 
 function scheduleSync() {
@@ -176,42 +196,14 @@ battleCard?.addEventListener("click", (event) => {
   const returnCommand = event.target.closest("#return-board");
   const command = event.target.closest("#moves button[data-move-id],#capture,#flee");
   if ((!command && !returnCommand) || !battle) return;
-
-  if (returnCommand) {
-    if (!battle.completed) return;
-    if (returning || resolving) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      return;
-    }
-    returning = true;
-    submittedTurn = null;
-    presentationAction = null;
-    paintPhaseOnly("resolving", "戻っています…");
-    queueMicrotask(() => {
-      setCommandLock(true);
-      scheduleSync();
-    });
-    return;
-  }
-
-  if (battle.completed) return;
-  if (resolving || returning || battle.player_replacement_required) {
+  const phase = battle.phase ?? SAFARI_BATTLE_PHASE.COMMAND;
+  const allowed = returnCommand
+    ? phase === SAFARI_BATTLE_PHASE.RESULT
+    : phase === SAFARI_BATTLE_PHASE.COMMAND;
+  if (!allowed) {
     event.preventDefault();
     event.stopImmediatePropagation();
-    return;
   }
-
-  const message = byId("battle-message");
-  if (message) delete message.dataset.presentationOwner;
-  resolving = true;
-  submittedTurn = Number(battle.turn ?? 1);
-  presentationAction = null;
-  paintPhaseOnly("resolving", "行動処理中");
-  queueMicrotask(() => {
-    setCommandLock(true);
-    scheduleSync();
-  });
 }, true);
 
 if (battleCard && typeof MutationObserver === "function") {
@@ -219,14 +211,25 @@ if (battleCard && typeof MutationObserver === "function") {
   observer.observe(battleCard, { attributes: true, childList: true, subtree: true });
 }
 
+const saveRun = byId("save-run");
+if (saveRun && typeof MutationObserver === "function") {
+  const compatibilityObserver = new MutationObserver(() => {
+    settleLegacyPreviewIfReady();
+    scheduleSync();
+  });
+  compatibilityObserver.observe(saveRun, { attributes: true, attributeFilter: ["disabled"] });
+}
+
 window.addEventListener("safari-battle-presentation-event", (event) => {
   if (!battleState()) return;
-  const nextAction = presentationActionFor(event.detail?.event);
+  const presentationEvent = event.detail?.event;
+  const nextAction = presentationActionFor(presentationEvent);
   if (nextAction) presentationAction = nextAction;
-  if (resolving || previewCommandBusy()) {
-    resolving = true;
-    paintPhaseOnly("resolving", actionText(presentationAction));
-    setCommandLock(true);
+  // game-menu Battle Bag does not toggle preview's global busy flag. Its owner
+  // presentation ends at turn_end (or battle_result on a terminal foe response),
+  // so use that owner event only as the compatibility completion signal.
+  if (!legacyPreviewBusy() && ["turn_end", "battle_result"].includes(presentationEvent?.type)) {
+    completePendingPresentation(`owner presentation:${presentationEvent.type}`);
   }
   scheduleSync();
 }, { passive: true });
