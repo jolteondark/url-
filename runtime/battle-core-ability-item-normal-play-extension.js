@@ -28,7 +28,8 @@ const TYPE_BOOST_ITEMS = Object.freeze({
   STEEL: "METALCOAT",
   FAIRY: "FAIRYFEATHER",
 });
-const SUPER_EFFECTIVE_REDUCTION_ABILITIES = new Set(["FILTER", "SOLIDROCK", "PRISMARMOR"]);
+const MOLD_BREAKER_SUPER_EFFECTIVE_REDUCTION_ABILITIES = new Set(["FILTER", "SOLIDROCK"]);
+const UNBYPASSABLE_SUPER_EFFECTIVE_REDUCTION_ABILITIES = new Set(["PRISMARMOR"]);
 
 const EXTENSION_ABILITY_IDS = Object.freeze([
   "CHLOROPHYLL",
@@ -117,9 +118,10 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
   let finalDamageMultiplier = 1;
   if (userAbility === "TINTEDLENS" && typeMod > 0 && typeMod < 1) finalDamageMultiplier *= 2;
   if (userItem === "EXPERTBELT" && typeMod > 1) finalDamageMultiplier *= 1.2;
-  if (SUPER_EFFECTIVE_REDUCTION_ABILITIES.has(targetAbility) && typeMod > 1 && !moldBreaker) {
-    finalDamageMultiplier *= 0.75;
-  }
+  if (typeMod > 1 && (
+    (MOLD_BREAKER_SUPER_EFFECTIVE_REDUCTION_ABILITIES.has(targetAbility) && !moldBreaker)
+    || UNBYPASSABLE_SUPER_EFFECTIVE_REDUCTION_ABILITIES.has(targetAbility)
+  )) finalDamageMultiplier *= 0.75;
   if (userAbility === "SNIPER" && critical) finalDamageMultiplier *= 1.5;
   if (targetAbility === "DRYSKIN" && moveType === "FIRE" && !moldBreaker) finalDamageMultiplier *= 1.25;
 
@@ -166,7 +168,7 @@ export const BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL = Obje
     weatherPowerModifier: 1,
     typeBoostHeldItems: Object.keys(TYPE_BOOST_ITEMS).length,
     superEffectiveOffenseModifier: 2,
-    superEffectiveDefenseModifier: SUPER_EFFECTIVE_REDUCTION_ABILITIES.size,
+    superEffectiveDefenseModifier: MOLD_BREAKER_SUPER_EFFECTIVE_REDUCTION_ABILITIES.size + UNBYPASSABLE_SUPER_EFFECTIVE_REDUCTION_ABILITIES.size,
     criticalDamageModifier: 1,
     targetAccuracyHeldItems: 2,
     typeWeaknessAbilityModifier: 1,
