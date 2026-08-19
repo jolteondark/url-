@@ -61,6 +61,7 @@ export function applySafariBattlePhaseUi() {
 
   const moves = byId("moves");
   if (moves) {
+    moves.inert = !commandAllowed;
     for (const button of moves.querySelectorAll("button[data-move-id]")) {
       const ppText = button.querySelector("small")?.textContent ?? "";
       const ppMatch = ppText.match(/PP\s+(\d+)/);
@@ -72,6 +73,7 @@ export function applySafariBattlePhaseUi() {
   const capture = byId("capture");
   if (capture) {
     capture.hidden = currentBattle.kind !== "wild" || resultReady;
+    capture.inert = !commandAllowed;
     capture.disabled = !commandAllowed;
   }
 
@@ -79,6 +81,7 @@ export function applySafariBattlePhaseUi() {
   if (flee) {
     const canFlee = currentBattle.kind === "wild" && currentBattle.origin !== "village_bounty" && !resultReady;
     flee.hidden = resultReady;
+    flee.inert = !commandAllowed || !canFlee;
     flee.disabled = !commandAllowed || !canFlee;
     flee.textContent = canFlee ? "にげる" : "にげられない";
   }
@@ -86,6 +89,7 @@ export function applySafariBattlePhaseUi() {
   const returnButton = byId("return-board");
   if (returnButton) {
     returnButton.hidden = !resultReady;
+    returnButton.inert = phase !== RESULT_PHASE;
     returnButton.disabled = phase !== RESULT_PHASE;
   }
 
@@ -93,6 +97,8 @@ export function applySafariBattlePhaseUi() {
   if (card) {
     card.dataset.battlePhase = phase ?? "";
     card.setAttribute("aria-busy", String(!commandAllowed && phase !== RESULT_PHASE));
+    const panel = card.querySelector(".battle-command-panel");
+    if (panel) panel.dataset.turnPhaseLocked = commandAllowed ? "false" : "true";
   }
 }
 
@@ -115,7 +121,7 @@ const observer = new MutationObserver((mutations) => {
   if (mutations.some((mutation) => mutation.target?.closest?.("#battle-card") || mutation.target?.id === "battle-card")) scheduleApply();
 });
 
-observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ["hidden", "disabled"] });
+observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ["hidden", "disabled", "inert"] });
 scheduleApply();
 
 globalThis.__maplessApplyBattlePhaseUi = applySafariBattlePhaseUi;
