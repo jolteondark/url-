@@ -1,5 +1,9 @@
 import { SAFARI_MOVE_PRESENTATION } from "./safari-move-presentation-live.js";
-import { replaceSafariNormalBattlePlayer, resolveSafariNormalBattleRound } from "./safari-normal-battle-round.js";
+import { resolveSafariNormalBattleRound } from "./safari-normal-battle-round.js";
+import {
+  commitSafariNormalPlayerReplacement,
+  prepareSafariNormalPlayerReplacement,
+} from "./safari-central-player-replacement.js";
 import { commitBrowserTrainerFoeReplacement } from "./browser-trainer-battle-round-runtime.js";
 import { resetBattleStatStagesForBattlerCanonical } from "./battle-core-stat-stages.js";
 import {
@@ -207,10 +211,13 @@ export async function replaceSafariBattlePlayer(runtime, replacementPartyIndex) 
     if (typeof module.replaceSafariBattlePlayer !== "function") throw new Error("boundary player replacement owner is unavailable");
     result = await module.replaceSafariBattlePlayer(runtime, replacementPartyIndex);
   } else {
-    result = replaceSafariNormalBattlePlayer(runtime, replacementPartyIndex);
-    result = completeSafariBattleReplacement(runtime, result, {
-      rewardGrowthCommit: (current) => commitSafariNormalExpRewardGrowth(runtime, current),
-    });
+    result = prepareSafariNormalPlayerReplacement(runtime, replacementPartyIndex);
+    if (result.result === "replacement_selected") {
+      result = completeSafariBattleReplacement(runtime, result, {
+        replacementCommit: (current) => commitSafariNormalPlayerReplacement(runtime, current),
+        rewardGrowthCommit: (current) => commitSafariNormalExpRewardGrowth(runtime, current),
+      });
+    }
   }
   publishRuntimeChanged();
   return result;
