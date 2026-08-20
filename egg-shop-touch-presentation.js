@@ -49,16 +49,12 @@ async function restoreBoardAvailability() {
   }
   const village = byId("enter-village");
   if (village) village.disabled = currentState.location !== "day_board" || Boolean(currentState.battle) || Boolean(currentState.shop);
-  const save = byId("save-run");
-  if (save) save.disabled = false;
 }
 
 function lockBoard() {
   for (const button of byId("board")?.querySelectorAll("button[data-board-index]") ?? []) button.disabled = true;
   const village = byId("enter-village");
   if (village) village.disabled = true;
-  const save = byId("save-run");
-  if (save) save.disabled = true;
 }
 
 function resultMessage(result) {
