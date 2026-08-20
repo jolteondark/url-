@@ -83,15 +83,6 @@ function lockMenuToBattlePurpose(tab) {
   });
 }
 
-// DPt flow: バッグ from the root should open the Bag itself, not another intermediate submenu.
-document.addEventListener("click", (event) => {
-  const bagCommand = event.target?.closest?.('[data-dppt-command="bag"]');
-  if (!bagCommand || !inBattleCommand()) return;
-  event.preventDefault();
-  event.stopImmediatePropagation();
-  byId("menu-bag")?.click();
-}, true);
-
 window.addEventListener("safari-game-menu-opened", (event) => {
   const current = battle();
   if (!current) return;
