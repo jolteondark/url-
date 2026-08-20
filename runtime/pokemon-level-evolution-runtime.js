@@ -105,7 +105,12 @@ function canonicalEvolutionAbility(runtime, speciesMaster) {
 function applyCanonicalEvolutionAbility(runtime, speciesMaster) {
   const ability = canonicalEvolutionAbility(runtime, speciesMaster);
   if (ability === undefined) return runtime;
-  return { ...runtime, ability, ability_id: ability };
+  let abilityIndex = Number(runtime?.ability_index);
+  if (!Number.isInteger(abilityIndex) || abilityIndex < 0) {
+    const personalId = Number(runtime?.personal_id);
+    abilityIndex = Number.isInteger(personalId) ? (personalId & 1) : 0;
+  }
+  return { ...runtime, ability, ability_id: ability, ability_index: abilityIndex };
 }
 
 function applyCanonicalEvolutionGender(runtime, speciesMaster) {
