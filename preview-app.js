@@ -45,6 +45,10 @@ function mapless() {
   return runtime.variables.mapless;
 }
 
+function battleCommandAllowed() {
+  return mapless().battle?.phase === "COMMAND";
+}
+
 function activeBattlePlayer(battle = mapless().battle) {
   const index = Number(battle?.player_party_index ?? 0);
   return runtime.player.party[index] ?? runtime.player.party[0];
@@ -520,9 +524,7 @@ byId("shop-cancel").addEventListener("click", async () => {
 
 byId("moves").addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-move-id]");
-  if (!button || busy) return;
-  busy = true;
-  render();
+  if (!button || !battleCommandAllowed()) return;
   try {
     const result = await resolveSafariBattleRound(runtime, button.dataset.moveId);
     await playPresentation(result.presentation);
@@ -530,15 +532,12 @@ byId("moves").addEventListener("click", async (event) => {
   } catch (error) {
     note("Battle error: " + (error?.message ?? error));
   } finally {
-    busy = false;
     render();
   }
 });
 
 byId("capture").addEventListener("click", async () => {
-  if (busy) return;
-  busy = true;
-  render();
+  if (!battleCommandAllowed()) return;
   try {
     const result = await attemptSafariCapture(runtime);
     await playPresentation(result.presentation);
@@ -548,18 +547,16 @@ byId("capture").addEventListener("click", async () => {
   } catch (error) {
     note("Capture error: " + (error?.message ?? error));
   } finally {
-    busy = false;
     render();
   }
 });
 
 byId("flee").addEventListener("click", async () => {
-  if (busy) return;
-  busy = true;
-  render();
+  if (!battleCommandAllowed()) return;
   let escaped = false;
   try {
     const { attemptSafariFlee } = await fleeModule();
+    if (!battleCommandAllowed()) return;
     const result = attemptSafariFlee(runtime);
     await playPresentation(result.presentation ?? []);
     escaped = result.escaped;
@@ -568,7 +565,6 @@ byId("flee").addEventListener("click", async () => {
   } catch (error) {
     note("Flee error: " + (error?.message ?? error));
   } finally {
-    busy = false;
     render();
   }
   if (escaped) byId("board-card").scrollIntoView({ behavior: "smooth", block: "start" });

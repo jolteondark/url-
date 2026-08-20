@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   SAFARI_BATTLE_PHASE,
   beginSafariBattleCommand,
@@ -129,6 +130,35 @@ function phaseCount(battle, phase) {
     "terminal RESULT must not create a COMMAND-resume presentation checkpoint");
   assert.equal(completeSafariBattlePresentation(state), SAFARI_BATTLE_PHASE.RESULT,
     "terminal presentation acknowledgement must never skip explicit RESULT -> RETURN");
+}
+
+{
+  const source = readFileSync(new URL("../preview-app.js", import.meta.url), "utf8");
+  const block = (start, end) => {
+    const startIndex = source.indexOf(start);
+    const endIndex = source.indexOf(end, startIndex + start.length);
+    assert.notEqual(startIndex, -1, `missing ${start} handler`);
+    assert.notEqual(endIndex, -1, `missing ${end} boundary`);
+    return source.slice(startIndex, endIndex);
+  };
+
+  const moveHandler = block('byId("moves").addEventListener', 'byId("capture").addEventListener');
+  const captureHandler = block('byId("capture").addEventListener', 'byId("flee").addEventListener');
+  const fleeHandler = block('byId("flee").addEventListener', 'byId("return-board").addEventListener');
+
+  for (const [name, handler] of [["move", moveHandler], ["capture", captureHandler], ["flee", fleeHandler]]) {
+    assert.doesNotMatch(handler, /\bbusy\b/,
+      `${name} preview handler must not use the broad preview busy flag as Battle command truth`);
+    assert.match(handler, /battleCommandAllowed\(\)/,
+      `${name} preview handler must derive readiness from central COMMAND phase`);
+  }
+  assert.equal((fleeHandler.match(/battleCommandAllowed\(\)/g) ?? []).length, 2,
+    "lazy flee import must re-check central COMMAND immediately before invoking the command owner");
+
+  const readinessOwner = source.match(/function battleCommandAllowed\(\) \{[\s\S]*?\n\}/)?.[0] ?? "";
+  assert.match(readinessOwner, /battle\?\.phase === "COMMAND"/);
+  assert.doesNotMatch(readinessOwner, /busy|completed|Replacement/,
+    "root preview Battle readiness must have no second truth beside COMMAND");
 }
 
 await import("./safari-battle-dppt-presentation-ack-owners-smoke.mjs");
