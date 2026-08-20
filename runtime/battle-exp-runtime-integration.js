@@ -82,15 +82,19 @@ export function commitBattleSystemsExpRuntime({ battleInput = {}, turn = {}, pok
       const evolutionMasters = action.battleExpInput.evolutionMasters ?? null;
       if (evolutionMasters && Number(flow.pokemon.level) > beforeLevel) {
         const beforeEvolution = runtime;
+        const deferEvolution = action.battleExpInput.deferEvolution === true;
         evolution = resolvePokemonLevelEvolution(runtime, {
           ...evolutionMasters,
           maxMoves: action.battleExpInput.maxMoves ?? 4,
-          moveDecisions: action.battleExpInput.moveDecisions ?? {},
-          moveDecisionResolver: action.battleExpInput.moveDecisionResolver ?? null,
-          moveDecisionResolverSource: action.battleExpInput.moveDecisionResolverSource ?? null,
+          // Deferred evolution is eligibility-only here. Do not consume explicit
+          // choices or invoke the live browser resolver until terminal
+          // REWARD_GROWTH actually executes the evolution.
+          moveDecisions: deferEvolution ? {} : (action.battleExpInput.moveDecisions ?? {}),
+          moveDecisionResolver: deferEvolution ? null : (action.battleExpInput.moveDecisionResolver ?? null),
+          moveDecisionResolverSource: deferEvolution ? "deferred_probe" : (action.battleExpInput.moveDecisionResolverSource ?? null),
         });
         const hasEligibleLevelEvolution = Boolean(evolution?.levelEvolutionCandidate);
-        if (action.battleExpInput.deferEvolution === true && hasEligibleLevelEvolution) {
+        if (deferEvolution && hasEligibleLevelEvolution) {
           evolutionDeferred = true;
           runtime = { ...runtime, __battle_level_evolution_pending: true };
         } else if (hasEligibleLevelEvolution) {
