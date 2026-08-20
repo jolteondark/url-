@@ -291,7 +291,7 @@ export function ensureSafariBattleOrchestrator(runtime) {
 
 export function safariBattleCommandAllowed(runtime) {
   const battle = stateOf(runtime).battle;
-  if (!battle || battle.completed) return false;
+  if (!battle) return false;
   return ensureSafariBattleOrchestrator(runtime) === SAFARI_BATTLE_PHASE.COMMAND;
 }
 
