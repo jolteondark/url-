@@ -30,6 +30,16 @@ const mixedDrops = Object.freeze([
 
 {
   const result = resolveBattleStatDropReactionCanonical({
+    source: pokemon("MOLDBREAKER"),
+    target: pokemon("CLEARBODY"),
+    changes: attackDrop,
+  });
+  assert.deepEqual(result.appliedChanges, attackDrop);
+  assert.equal(result.moldBreaker, true);
+}
+
+{
+  const result = resolveBattleStatDropReactionCanonical({
     source: pokemon("PRESSURE"),
     target: pokemon("HYPERCUTTER"),
     changes: mixedDrops,
@@ -40,7 +50,7 @@ const mixedDrops = Object.freeze([
 
 {
   const result = resolveBattleStatDropReactionCanonical({
-    source: pokemon("PRESSURE"),
+    source: pokemon("MOLDBREAKER"),
     target: pokemon(null, "CLEARAMULET"),
     changes: mixedDrops,
   });
@@ -55,7 +65,10 @@ const mixedDrops = Object.freeze([
     changes: mixedDrops,
   });
   assert.deepEqual(result.appliedChanges, mixedDrops);
-  assert.deepEqual(result.reactionChanges, [{ subject: "target", stat: "ATTACK", delta: 2 }]);
+  assert.deepEqual(result.reactionChanges, [
+    { subject: "target", stat: "ATTACK", delta: 2 },
+    { subject: "target", stat: "ATTACK", delta: 2 },
+  ]);
 }
 
 {
@@ -64,7 +77,19 @@ const mixedDrops = Object.freeze([
     target: pokemon("COMPETITIVE"),
     changes: mixedDrops,
   });
-  assert.deepEqual(result.reactionChanges, [{ subject: "target", stat: "SPECIAL_ATTACK", delta: 2 }]);
+  assert.deepEqual(result.reactionChanges, [
+    { subject: "target", stat: "SPECIAL_ATTACK", delta: 2 },
+    { subject: "target", stat: "SPECIAL_ATTACK", delta: 2 },
+  ]);
+}
+
+{
+  const result = resolveBattleStatDropReactionCanonical({
+    source: pokemon("PRESSURE"),
+    target: pokemon("DEFIANT"),
+    changes: [{ subject: "target", stat: "SPEED", delta: -2 }],
+  });
+  assert.deepEqual(result.reactionChanges, [{ subject: "target", stat: "ATTACK", delta: 2 }]);
 }
 
 {
@@ -81,14 +106,24 @@ const mixedDrops = Object.freeze([
 }
 
 {
+  const result = resolveBattleStatDropReactionCanonical({
+    source: pokemon("MOLDBREAKER"),
+    target: pokemon("MIRRORARMOR"),
+    changes: attackDrop,
+  });
+  assert.deepEqual(result.appliedChanges, attackDrop);
+  assert.deepEqual(result.reactionChanges, []);
+}
+
+{
   const selfDrop = resolveBattleStatDropReactionCanonical({
     source: pokemon("DEFIANT"),
     target: pokemon("DEFIANT"),
-    changes: [{ subject: "target", stat: "ATTACK", delta: -1 }],
+    changes: attackDrop,
     causedByOpponent: false,
   });
   assert.deepEqual(selfDrop.reactionChanges, []);
-  assert.deepEqual(selfDrop.appliedChanges, [{ subject: "target", stat: "ATTACK", delta: -1 }]);
+  assert.deepEqual(selfDrop.appliedChanges, attackDrop);
 }
 
 {
@@ -120,6 +155,7 @@ const mixedDrops = Object.freeze([
   assert.deepEqual(intimidate.changes, [{ subject: "target", stat: "ATTACK", delta: 2 }]);
 }
 
+assert.ok(BATTLE_STAT_DROP_REACTION_COVERAGE_CANONICAL.abilityIds.includes("BIGPECKS"));
 assert.ok(BATTLE_STAT_DROP_REACTION_COVERAGE_CANONICAL.abilityIds.includes("DEFIANT"));
 assert.ok(BATTLE_STAT_DROP_REACTION_COVERAGE_CANONICAL.abilityIds.includes("MIRRORARMOR"));
 assert.ok(BATTLE_STAT_DROP_REACTION_COVERAGE_CANONICAL.itemIds.includes("CLEARAMULET"));
