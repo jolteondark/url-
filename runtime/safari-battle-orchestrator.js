@@ -168,8 +168,15 @@ function returnCheckpointKey(battle) {
 }
 
 export function ensureSafariBattleOrchestrator(runtime) {
+  const state = stateOf(runtime);
   const battle = battleOf(runtime);
-  if (!battle.phase) tracePhase(battle, battle.completed ? SAFARI_BATTLE_PHASE.RESULT : SAFARI_BATTLE_PHASE.COMMAND, "initialize");
+  if (!battle.phase) {
+    if (!battle.completed) {
+      state.pending_battle_return_checkpoint = null;
+      state.battle_return_checkpoint = null;
+    }
+    tracePhase(battle, battle.completed ? SAFARI_BATTLE_PHASE.RESULT : SAFARI_BATTLE_PHASE.COMMAND, "initialize");
+  }
   if (!Array.isArray(battle.phase_trace)) battle.phase_trace = [];
   return battle.phase;
 }
