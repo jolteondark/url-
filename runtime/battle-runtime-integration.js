@@ -45,6 +45,30 @@ export function reflectBattleCoreTryUseMoveHpToPokemonRuntime(runtime, preparedB
   return updatePokemonRuntime(runtime, { hp: Number(matches.at(-1).hpAfter) });
 }
 
+export function reflectBattleCoreAbilityItemActionAfterHpToPokemonRuntime(runtime, preparedBattleInput, battlerIndex) {
+  const rounds = Array.isArray(preparedBattleInput?.rounds) ? preparedBattleInput.rounds : [];
+  const index = Number(battlerIndex);
+  let hp = Number(runtime?.hp ?? 0);
+  const maxHp = Math.max(0, Number(runtime?.max_hp ?? runtime?.maxHp ?? hp));
+  let changed = false;
+  for (const round of rounds) {
+    const actions = Array.isArray(round?.actions) ? round.actions : [];
+    const order = Array.isArray(round?.priorityOrder)
+      ? round.priorityOrder.map(Number).filter((actionIndex) => Number.isInteger(actionIndex) && actionIndex >= 0 && actionIndex < actions.length)
+      : actions.map((_, actionIndex) => actionIndex);
+    for (const actionIndex of order) {
+      const action = actions[actionIndex];
+      if (Number(action?.targetBattlerIndex) !== index) continue;
+      const effect = action?.abilityItemActionAfter?.typeImmunityAfterEffect;
+      const hpDelta = Number(effect?.hpDelta ?? 0);
+      if (effect?.triggered !== true || hpDelta <= 0 || hp <= 0) continue;
+      hp = Math.min(maxHp, hp + hpDelta);
+      changed = true;
+    }
+  }
+  return changed ? updatePokemonRuntime(runtime, { hp }) : updatePokemonRuntime(runtime, {});
+}
+
 export function reflectBattleCoreTryUseMoveStatusToPokemonRuntime(runtime, preparedBattleInput, actionIndex) {
   const rounds = Array.isArray(preparedBattleInput?.rounds) ? preparedBattleInput.rounds : [];
   let reflected = updatePokemonRuntime(runtime, {});
@@ -98,10 +122,12 @@ export function commitBattleRuntimePokemonRound({
       reflectedBattlerIndex,
       reflectedActionIndex,
     );
-    pokemonAfter = reflectBattleCoreTryUseMoveHpToPokemonRuntime(hpReflected, battleInput, reflectedTryUseMoveActionIndex);
+    const tryUseHpReflected = reflectBattleCoreTryUseMoveHpToPokemonRuntime(hpReflected, battleInput, reflectedTryUseMoveActionIndex);
+    pokemonAfter = reflectBattleCoreAbilityItemActionAfterHpToPokemonRuntime(tryUseHpReflected, battleInput, reflectedBattlerIndex);
   } else {
     const hpReflected = reflectBattleCoreHpToPokemonRuntime(ppCommitted.pokemon, turn, reflectedActionIndex);
-    pokemonAfter = reflectBattleCoreTryUseMoveHpToPokemonRuntime(hpReflected, battleInput, reflectedTryUseMoveActionIndex);
+    const tryUseHpReflected = reflectBattleCoreTryUseMoveHpToPokemonRuntime(hpReflected, battleInput, reflectedTryUseMoveActionIndex);
+    pokemonAfter = reflectBattleCoreAbilityItemActionAfterHpToPokemonRuntime(tryUseHpReflected, battleInput, reflectedActionIndex);
   }
   const tryUseStatus = reflectBattleCoreTryUseMoveStatusToPokemonRuntime(pokemonAfter, battleInput, reflectedTryUseMoveActionIndex);
   return { pokemon: tryUseStatus.pokemon, ppCommitted, tryUseStatusChanged: tryUseStatus.changed };
