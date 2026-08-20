@@ -9,6 +9,9 @@ const CONTACT_STATUS_CHANCE_BY_ABILITY = Object.freeze({
   FLAMEBODY: Object.freeze({ status: "BURN", chance: 30 }),
   POISONPOINT: Object.freeze({ status: "POISON", chance: 30 }),
 });
+const OFFENSIVE_CONTACT_STATUS_CHANCE_BY_ABILITY = Object.freeze({
+  POISONTOUCH: Object.freeze({ status: "POISON", chance: 30 }),
+});
 const CONTACT_STAT_STAGE_BY_ABILITY = Object.freeze({
   TANGLINGHAIR: Object.freeze({ stat: "SPEED", delta: -1 }),
   GOOEY: Object.freeze({ stat: "SPEED", delta: -1 }),
@@ -51,6 +54,18 @@ function contactStatusChanceRequestCanonical(targetAbility) {
     status: fact.status,
     chance: fact.chance,
     source: targetAbility,
+    sourceKind: "ability",
+  });
+}
+
+function offensiveContactStatusChanceRequestCanonical(userAbility) {
+  const fact = OFFENSIVE_CONTACT_STATUS_CHANCE_BY_ABILITY[userAbility];
+  if (!fact) return null;
+  return Object.freeze({
+    subject: "target",
+    status: fact.status,
+    chance: fact.chance,
+    source: userAbility,
     sourceKind: "ability",
   });
 }
@@ -109,6 +124,7 @@ export function resolveContactReactiveAbilityItemHookCanonical({
   }
 
   const statusChanceRequest = eligible ? contactStatusChanceRequestCanonical(targetAbility) : null;
+  const offensiveStatusChanceRequest = eligible ? offensiveContactStatusChanceRequestCanonical(userAbility) : null;
   const statChanges = eligible ? contactStatChangesCanonical(targetAbility) : Object.freeze([]);
   const rawHpDelta = effects.reduce((sum, effect) => sum + Number(effect.hpDelta ?? 0), 0);
   const reflectedDamage = Math.min(userHp, Math.max(0, -rawHpDelta));
@@ -123,10 +139,14 @@ export function resolveContactReactiveAbilityItemHookCanonical({
     targetItem,
     protectedFromContactEffects,
     magicGuard,
-    triggered: effects.some((effect) => effect.hpDelta < 0) || statusChanceRequest !== null || statChanges.length > 0,
+    triggered: effects.some((effect) => effect.hpDelta < 0)
+      || statusChanceRequest !== null
+      || offensiveStatusChanceRequest !== null
+      || statChanges.length > 0,
     userHpDelta,
     effects: Object.freeze(effects),
     statusChanceRequest,
+    offensiveStatusChanceRequest,
     statChanges,
   });
 }
@@ -134,6 +154,7 @@ export function resolveContactReactiveAbilityItemHookCanonical({
 const ABILITY_IDS = Object.freeze([
   ...CONTACT_REACTIVE_ABILITIES,
   ...Object.keys(CONTACT_STATUS_CHANCE_BY_ABILITY),
+  ...Object.keys(OFFENSIVE_CONTACT_STATUS_CHANCE_BY_ABILITY),
   ...Object.keys(CONTACT_STAT_STAGE_BY_ABILITY),
   ...CONTACT_SUPPRESSING_ABILITIES,
 ].sort());
@@ -150,6 +171,7 @@ export const BATTLE_CONTACT_REACTIVE_COVERAGE_CANONICAL = Object.freeze({
   classificationCounts: Object.freeze({
     contactReactiveAbilities: CONTACT_REACTIVE_ABILITIES.size,
     contactStatusChanceAbilities: Object.keys(CONTACT_STATUS_CHANCE_BY_ABILITY).length,
+    offensiveContactStatusChanceAbilities: Object.keys(OFFENSIVE_CONTACT_STATUS_CHANCE_BY_ABILITY).length,
     contactStatStageAbilities: Object.keys(CONTACT_STAT_STAGE_BY_ABILITY).length,
     contactSuppressingAbilities: CONTACT_SUPPRESSING_ABILITIES.size,
     contactReactiveHeldItems: CONTACT_REACTIVE_ITEMS.size,
