@@ -30,6 +30,7 @@ function runtime(abilityIndex) {
     held_item: "KEPTITEM",
     status: "POISON",
     status_count: 2,
+    ready_to_evolve: true,
   };
 }
 
@@ -66,6 +67,7 @@ assert.equal(natural.personal_id, 5);
 assert.equal(natural.held_item, "KEPTITEM");
 assert.equal(natural.status, "POISON");
 assert.equal(natural.moves[0].pp, 12, "evolution ability resolution must not restore move PP");
+assert.equal(natural.ready_to_evolve, false, "successful evolution must clear the persistent ready-to-evolve flag");
 
 const missingHidden = resolvePokemonLevelEvolution(runtime(2), {
   species_masters: speciesMasters,
@@ -74,5 +76,6 @@ const missingHidden = resolvePokemonLevelEvolution(runtime(2), {
 assert.equal(missingHidden.ability_index, 2, "canonical hidden-ability fallback must preserve the stored ability index");
 assert.equal(missingHidden.ability, "TARGET1", "missing hidden ability must fall back to personal-ID natural slot");
 assert.equal(missingHidden.ability_id, "TARGET1");
+assert.equal(missingHidden.ready_to_evolve, false, "ready-to-evolve must stay cleared through ability fallback rematerialization");
 
 console.log("pokemon-level-evolution ability-index cache smoke: PASS");
