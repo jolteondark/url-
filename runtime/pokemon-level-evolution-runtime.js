@@ -70,13 +70,6 @@ function preserveAuthoritativeBattleFields(before, after) {
   return next;
 }
 
-function preserveFaintedHp(before, after) {
-  if (Number(before?.hp) === 0 && Number(after?.hp) !== 0) {
-    return preserveAuthoritativeBattleFields(after, updatePokemonRuntime(after, { hp: 0 }));
-  }
-  return after;
-}
-
 function hasAbilityMasterData(speciesMaster) {
   return Array.isArray(speciesMaster?.abilities) || Array.isArray(speciesMaster?.hidden_abilities);
 }
@@ -261,12 +254,12 @@ function applyEvolutionMoveLearning(runtime, targetMaster, {
   }
 
   if (!changed) return { pokemon: runtime, operations };
-  const rematerialized = preserveFaintedHp(runtime, preserveAuthoritativeBattleFields(runtime, resolvePokemonRuntimeMasters({ ...runtime, moves }, {
+  const rematerialized = preserveAuthoritativeBattleFields(runtime, resolvePokemonRuntimeMasters({ ...runtime, moves }, {
     species_master: targetMaster,
     nature_master,
     move_masters,
     disable_ivs_and_evs,
-  })));
+  }));
   return { pokemon: rematerialized, operations };
 }
 
@@ -318,12 +311,12 @@ export function resolvePokemonLevelEvolution(runtime, {
   const nextForm = canonicalEvolutionForm(runtime, targetMaster);
   const nextLevel = canonicalEvolutionLevel(runtime, targetMaster);
   const speciesChanged = updatePokemonRuntime(runtime, { species: candidate.target, form: nextForm, forced_form: null, level: nextLevel, ready_to_evolve: false });
-  let recalculated = preserveFaintedHp(before, preserveAuthoritativeBattleFields(before, resolvePokemonRuntimeMasters(speciesChanged, {
+  let recalculated = preserveAuthoritativeBattleFields(before, resolvePokemonRuntimeMasters(speciesChanged, {
     species_master: targetMaster,
     nature_master,
     move_masters,
     disable_ivs_and_evs,
-  })));
+  }));
   recalculated = applyCanonicalEvolutionAbility(recalculated, targetMaster);
   recalculated = applyCanonicalEvolutionGender(recalculated, targetMaster);
   const learned = applyEvolutionMoveLearning(recalculated, targetMaster, {

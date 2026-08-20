@@ -56,7 +56,12 @@ const result = resolvePokemonLevelEvolution(runtime, {
 assert.equal(result.evolved, true);
 assert.equal(result.pokemon.species, "EVOLVED");
 assert.ok(result.pokemon.max_hp > runtime.max_hp, "fixture must exercise a positive max-HP delta");
-assert.equal(result.pokemon.hp, 0, "generic evolution owner must not revive a fainted Pokemon during stat recalculation or evolution move rematerialization");
+const canonicalHp = Math.max(runtime.hp + (result.pokemon.max_hp - runtime.max_hp), 1);
+assert.equal(
+  result.pokemon.hp,
+  canonicalHp,
+  "Essentials calc_stats revives HP 0 only when max HP rises, using exactly the positive max-HP delta with a minimum of 1",
+);
 assert.deepEqual(result.pokemon.moves.map((move) => move.id), ["TACKLE", "EVOMOVE", "LEVELMOVE"]);
 assert.equal(result.pokemon.moves[0].pp, 7, "existing PP must survive evolution move learning");
 assert.equal(result.pokemon.personal_id, 424242);
@@ -65,4 +70,4 @@ assert.equal(result.pokemon.held_item, "KEEPITEM");
 assert.equal(result.pokemon.status, "POISON");
 assert.equal(result.pokemon.status_count, 2);
 
-console.log("generic Level evolution fainted HP continuity: PASS");
+console.log("generic Level evolution canonical fainted HP recalculation: PASS");
