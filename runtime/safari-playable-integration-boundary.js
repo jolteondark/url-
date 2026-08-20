@@ -270,6 +270,36 @@ function resolveBoundaryRound(runtime, selectedMoveId) {
   };
 }
 
+function commitBoundaryPlayerReplacement(runtime, prepared) {
+  const state = stateOf(runtime);
+  const battle = state.battle;
+  const continuation = prepared?.playerReplacementContinuation;
+  if (continuation?.result !== "continued_with_replacement") {
+    throw new Error(`boundary player replacement owner did not continue: ${continuation?.result ?? "missing"}`);
+  }
+
+  const handoff = continuation.battleContinuationHandoff;
+  runtime.player.party = clone(handoff.playerParty);
+  battle.player_party_index = Number(handoff.playerActivePartyIndex);
+  battle.player_party_order = clone(continuation.partyOrder ?? battle.player_party_order ?? null);
+  battle.player_replacement_required = false;
+  battle.player_replacement_handoff = null;
+  const operations = (continuation.operations ?? []).map((operation) => ({ ...clone(operation), battleTurn: battle.turn }));
+  battle.last_operations = [...(battle.last_operations ?? []), ...operations];
+  state.last_operations = operations;
+
+  return {
+    ...prepared,
+    result: "continued_with_replacement",
+    operations,
+    playerReplacementRequired: false,
+    playerReplacementApplied: true,
+    activePlayer: clone(continuation.activePlayer),
+    playerActivePartyIndex: battle.player_party_index,
+    playerPartyOrder: clone(battle.player_party_order),
+  };
+}
+
 export function resolveSafariBoundaryPlayerReplacement(runtime, replacementPartyIndex = null) {
   const state = stateOf(runtime);
   const battle = state.battle;
@@ -304,27 +334,25 @@ export function resolveSafariBoundaryPlayerReplacement(runtime, replacementParty
     };
   }
 
-  runtime.player.party = clone(continuation.battleContinuationHandoff.playerParty);
-  battle.player_party_index = Number(continuation.battleContinuationHandoff.playerActivePartyIndex);
-  battle.player_party_order = clone(continuation.partyOrder ?? battle.player_party_order ?? null);
-  battle.player_replacement_required = false;
-  battle.player_replacement_handoff = null;
   const operations = (continuation.operations ?? []).map((operation) => ({ ...clone(operation), battleTurn: battle.turn }));
-  battle.last_operations = [...(battle.last_operations ?? []), ...operations];
-  state.last_operations = operations;
-  const result = {
+  const prepared = {
     runtime,
-    result: "continued_with_replacement",
+    result: "replacement_selected",
     decision: 0,
     operations,
     playerReplacementContinuation: continuation,
-    playerReplacementRequired: false,
+    playerReplacementRequired: true,
+    playerReplacementApplied: false,
     activePlayer: clone(continuation.activePlayer),
-    playerActivePartyIndex: battle.player_party_index,
-    playerPartyOrder: clone(battle.player_party_order),
+    playerActivePartyIndex: Number(continuation.battleContinuationHandoff.playerActivePartyIndex),
+    playerPartyOrder: clone(continuation.partyOrder ?? battle.player_party_order ?? null),
   };
-  if (battle.phase === SAFARI_BATTLE_PHASE.REPLACEMENT) return completeSafariBattleReplacement(runtime, result);
-  return result;
+  if (battle.phase === SAFARI_BATTLE_PHASE.REPLACEMENT) {
+    return completeSafariBattleReplacement(runtime, prepared, {
+      replacementCommit: (current) => commitBoundaryPlayerReplacement(runtime, current),
+    });
+  }
+  return prepared;
 }
 
 export function resolveSafariBattleRound(runtime, selectedMoveId) {
