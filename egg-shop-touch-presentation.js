@@ -168,8 +168,6 @@ byId("egg-shop-cancel")?.addEventListener("click", async () => {
   byId("board-card")?.scrollIntoView({ behavior:"smooth", block:"start" });
 });
 
-const board = byId("board");
-if (board) new MutationObserver(scheduleSync).observe(board, { subtree:true, childList:true, attributes:true, attributeFilter:["disabled"] });
 const notice = byId("notice");
 if (notice) new MutationObserver(scheduleSync).observe(notice, { subtree:true, childList:true, characterData:true });
 window.addEventListener("safari-runtime-changed", scheduleSync, { passive:true });
