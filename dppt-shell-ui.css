@@ -1,0 +1,156 @@
+/* DPt-inspired title/HUD/run controls. Visual only; runtime mechanics unchanged. */
+.game-header,
+.hud,
+.run-controls,
+.debug-drawer,
+#board-event-result-strip{
+  font-family:"MaplessPixel12","Hiragino Kaku Gothic ProN","Yu Gothic",monospace;
+  font-synthesis:none;
+}
+
+body{
+  background:linear-gradient(180deg,#d9e4e9 0,#aebcc5 14%,#7f929f 14.5%,#293946 15%,#14232e 100%);
+}
+body::before{
+  background:repeating-linear-gradient(0deg,rgba(255,255,255,.025) 0 1px,transparent 1px 3px);
+}
+
+.game-header{
+  margin:0 0 5px;
+  padding:7px 9px 8px;
+  border:3px solid #39444a;
+  border-radius:3px;
+  background:linear-gradient(180deg,#e8ece9 0,#cbd3d3 42%,#aeb8bc 43%,#8f9ba1 100%);
+  box-shadow:inset 0 0 0 2px #f9fbf7,0 2px 0 rgba(0,0,0,.35);
+  color:#202527;
+}
+.brand-lockup{gap:6px}
+.eyebrow{
+  color:#486b85;
+  font-family:"MaplessPixel10",monospace;
+  font-size:.65rem;
+  font-weight:400;
+  letter-spacing:.04em;
+}
+h1{
+  color:#202426;
+  font-size:1.18rem;
+  font-weight:400;
+  letter-spacing:0;
+  text-shadow:1px 1px 0 #f7faf6;
+}
+.run-chip{
+  gap:5px;
+  border:2px solid #47535a;
+  border-radius:3px;
+  padding:5px 8px;
+  background:linear-gradient(180deg,#fffef2,#d9ddd5);
+  box-shadow:inset 0 0 0 2px #f8f8ef;
+}
+.run-chip span{
+  color:#526068;
+  font-family:"MaplessPixel10",monospace;
+  font-size:.62rem;
+  font-weight:400;
+  letter-spacing:0;
+}
+.run-chip strong{color:#1d2224;font-size:.96rem;font-weight:400}
+
+.hud{gap:4px;margin-bottom:6px}
+.hud>div,
+.hud .hud-button{
+  min-height:48px;
+  padding:6px 4px 5px;
+  border:2px solid #47545c!important;
+  border-radius:3px!important;
+  background:linear-gradient(180deg,#f8f7e9,#d4d9d2)!important;
+  box-shadow:inset 0 0 0 2px #fffef7!important;
+  color:#202426!important;
+}
+.hud span{
+  color:#53616a!important;
+  font-family:"MaplessPixel10",monospace;
+  font-size:.58rem;
+  font-weight:400;
+  letter-spacing:0;
+}
+.hud strong{
+  margin-top:1px;
+  color:#202426!important;
+  font-family:"MaplessPixel10",monospace;
+  font-size:.82rem;
+  font-weight:400;
+}
+.hud .hud-button:focus-visible{outline:3px solid #6da2c7;outline-offset:1px}
+
+.run-controls{
+  left:max(6px,env(safe-area-inset-left));
+  right:max(6px,env(safe-area-inset-right));
+  bottom:max(6px,env(safe-area-inset-bottom));
+  gap:4px;
+  width:min(calc(100% - 12px),748px);
+  padding:5px;
+  border:3px solid #343d42;
+  border-radius:4px;
+  background:linear-gradient(180deg,#bbc4c7,#8f9a9f);
+  box-shadow:inset 0 0 0 2px #e8edeb,0 3px 8px rgba(0,0,0,.35);
+}
+.run-controls button{
+  min-height:46px!important;
+  border:2px solid #4b5559!important;
+  border-radius:3px!important;
+  padding:7px 8px!important;
+  background:linear-gradient(180deg,#fffef2,#d5d8ce)!important;
+  color:#232728!important;
+  box-shadow:inset 0 0 0 2px #f9f7ed!important;
+  font-weight:400!important;
+  text-shadow:none!important;
+}
+.run-controls #save-run{
+  background:linear-gradient(180deg,#91b9d5,#6090b4)!important;
+  color:#fff!important;
+  text-shadow:1px 1px 0 #36546a!important;
+}
+.run-controls button:focus-visible{outline:3px solid #8fc6ec;outline-offset:1px}
+
+.debug-drawer{
+  margin-top:8px;
+  border:2px solid #465158;
+  border-radius:3px;
+  background:#d6dcd8;
+  color:#222;
+}
+.debug-drawer summary{
+  padding:7px 9px;
+  font-family:"MaplessPixel10",monospace;
+  font-size:.65rem;
+  color:#4f5a60;
+}
+.debug-drawer .runtime-source,.debug-drawer .log{font-family:"MaplessPixel10",monospace;font-size:.62rem}
+
+#board-event-result-strip{
+  border:3px solid #3f494e!important;
+  border-radius:3px!important;
+  background:linear-gradient(180deg,#fffef3,#e1e5dc)!important;
+  color:#22282a!important;
+  box-shadow:inset 0 0 0 2px #f7faf2,0 2px 0 rgba(0,0,0,.18)!important;
+}
+#board-event-result-strip small{
+  color:#566269!important;
+  font-family:"MaplessPixel10",monospace!important;
+  font-size:.6rem!important;
+  font-weight:400!important;
+  letter-spacing:0!important;
+}
+#board-event-result-strip strong{
+  font-family:"MaplessPixel12",monospace!important;
+  font-size:.86rem!important;
+  font-weight:400!important;
+  line-height:1.3!important;
+}
+
+@media(max-width:540px){
+  .game-header{padding:6px 7px}.eyebrow{font-size:.58rem}h1{font-size:1.05rem}
+  .hud{grid-template-columns:repeat(4,minmax(0,1fr));gap:3px}.hud>div,.hud .hud-button{min-height:44px;padding:5px 2px 4px}.hud span{font-size:.52rem}.hud strong{font-size:.72rem}
+  .run-controls{grid-template-columns:.85fr .85fr 1.15fr}.run-controls button{min-height:48px!important;font-size:.78rem}
+}
