@@ -35,7 +35,7 @@ async function loadBoardPresentation() {
 
 async function loadBattleUi() {
   loadStyle("./battle-core-safety.css");
-  await loadModule("./canonical-battle-sprite-bridge.js?v=20260820-1103");
+  await loadModule("./canonical-battle-sprite-bridge.js?v=20260820-1110");
 }
 
 async function loadShopUi() {
@@ -74,9 +74,6 @@ function scheduleSceneBundleSync() {
 document.addEventListener("click", (event) => {
   const start = event.target.closest("#new-run,#continue-run");
   if (start) {
-    // Sprite modules are comparatively expensive on iPhone Safari. Start them
-    // while the player is still on the Day Board so the first battle does not
-    // spend its opening frames with an empty battler slot.
     queueMicrotask(() => {
       loadBoardPresentation();
       loadBattleUi();
