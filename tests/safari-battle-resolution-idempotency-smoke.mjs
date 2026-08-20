@@ -54,6 +54,27 @@ function phaseCount(battle, phase) {
   const battle = state.variables.mapless.battle;
   ensureSafariBattleOrchestrator(state);
   beginSafariBattleCommand(state, "move");
+  battle.completed = true;
+  const resolution = {
+    decision: 0,
+    operations: [{ op: "use_move", actor: "player", target: "foe" }],
+  };
+  assert.throws(
+    () => commitSafariBattleResolution(state, resolution, "move"),
+    /pre-RESULT battle completion is not accepted/,
+    "completed must never act as a second terminal truth before RESULT",
+  );
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.ACTION_1);
+  assert.equal(phaseCount(battle, SAFARI_BATTLE_PHASE.POST_VICTORY), 0);
+  assert.equal(phaseCount(battle, SAFARI_BATTLE_PHASE.RESULT), 0);
+  assert.equal(battle.resolution_checkpoint ?? null, null);
+}
+
+{
+  const state = runtime();
+  const battle = state.variables.mapless.battle;
+  ensureSafariBattleOrchestrator(state);
+  beginSafariBattleCommand(state, "move");
   let replacementCommits = 0;
   const resolution = {
     decision: 0,

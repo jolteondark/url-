@@ -339,11 +339,12 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   if (foeReplacementApplied && !foeReplacementRequired) {
     throw new Error("pre-applied foe replacement is not accepted; commit it through central REPLACEMENT");
   }
+  if (battle.completed) {
+    throw new Error("pre-RESULT battle completion is not accepted; RESULT is the only completion boundary");
+  }
 
   const resolutionCheckpoint = beginResolutionCheckpoint(battle, resolvedCommandKind);
-  const terminalResolution = decision !== 0 || Boolean(battle.completed);
-
-  if (terminalResolution) battle.completed = false;
+  const terminalResolution = decision !== 0;
 
   const actors = actionActors(result);
   const secondActionOccurred = commandConsumesAction(resolvedCommandKind) ? actors.length >= 1 : actors.length >= 2;
