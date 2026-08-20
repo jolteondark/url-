@@ -335,7 +335,11 @@ async function playPresentation(events) {
       if (message) await sleep(300);
     }
   }
-  completeSafariBattlePresentation(runtime);
+  const phaseBeforeAck = mapless().battle?.phase ?? null;
+  const phaseAfterAck = completeSafariBattlePresentation(runtime);
+  if (phaseAfterAck !== phaseBeforeAck) {
+    window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
+  }
 }
 
 function snapshotBoardCombatState(index) {
