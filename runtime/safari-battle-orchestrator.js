@@ -331,12 +331,16 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
 
   const replayed = replayCommittedResolution(battle, result, resolvedCommandKind);
   if (replayed) return replayed;
-  const resolutionCheckpoint = beginResolutionCheckpoint(battle, resolvedCommandKind);
 
   const decision = Number(result?.decision ?? battle.decision ?? 0);
   const playerReplacementRequired = Boolean(result?.playerReplacementRequired ?? battle.player_replacement_required);
   const foeReplacementRequired = Boolean(result?.foeReplacementRequired);
   const foeReplacementApplied = Boolean(result?.foeReplacementApplied);
+  if (foeReplacementApplied && !foeReplacementRequired) {
+    throw new Error("pre-applied foe replacement is not accepted; commit it through central REPLACEMENT");
+  }
+
+  const resolutionCheckpoint = beginResolutionCheckpoint(battle, resolvedCommandKind);
   const terminalResolution = decision !== 0 || Boolean(battle.completed);
 
   if (terminalResolution) battle.completed = false;
@@ -349,7 +353,7 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
     tracePhase(battle, SAFARI_BATTLE_PHASE.CHECK_2, "second action checked");
   }
 
-  const fainted = hasFaint(result) || playerReplacementRequired || foeReplacementRequired || foeReplacementApplied || terminalResolution;
+  const fainted = hasFaint(result) || playerReplacementRequired || foeReplacementRequired || terminalResolution;
   if (fainted) tracePhase(battle, SAFARI_BATTLE_PHASE.POST_FAINT, "faint/terminal checkpoint");
 
   if (terminalResolution) {
@@ -377,12 +381,6 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
     }
   } else if (foeReplacementRequired && decision === 0) {
     result = commitReplacementCheckpoint(battle, result, replacementCommit, "trainer reserve replacement", "foe");
-    if (hasRewardGrowthTail(result)) {
-      result = commitRewardGrowthCheckpoint(battle, result, rewardGrowthCommit, "replacement growth checkpoint");
-    }
-    tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, "replacement completed");
-  } else if (foeReplacementApplied && decision === 0) {
-    tracePhase(battle, SAFARI_BATTLE_PHASE.REPLACEMENT, "trainer reserve sent out");
     if (hasRewardGrowthTail(result)) {
       result = commitRewardGrowthCheckpoint(battle, result, rewardGrowthCommit, "replacement growth checkpoint");
     }
