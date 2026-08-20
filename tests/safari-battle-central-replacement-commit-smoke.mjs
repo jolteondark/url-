@@ -1,3 +1,4 @@
+import "./safari-boundary-battle-end-to-end-smoke.mjs";
 import assert from "node:assert/strict";
 import {
   SAFARI_BATTLE_PHASE,
