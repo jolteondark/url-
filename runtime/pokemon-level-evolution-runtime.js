@@ -53,6 +53,7 @@ function levelEvolutionTarget(speciesMaster, runtime) {
     "DefenseGreater",
     "Silcoon",
     "Cascoon",
+    "Ninjask",
   ]);
   let eligible = null;
   for (const raw of speciesMaster?.evolutions ?? []) {
@@ -64,7 +65,7 @@ function levelEvolutionTarget(speciesMaster, runtime) {
     }
     const requiredLevel = Number(evolution.parameter);
     if (!Number.isInteger(requiredLevel) || requiredLevel < 1) continue;
-    let conditionMatches = evolution.method === "Level";
+    let conditionMatches = evolution.method === "Level" || evolution.method === "Ninjask";
     if (evolution.method === "LevelMale") conditionMatches = gender === 0;
     else if (evolution.method === "LevelFemale") conditionMatches = gender === 1;
     else if (evolution.method === "AttackGreater") conditionMatches = Number.isFinite(attack) && Number.isFinite(defense) && attack > defense;
