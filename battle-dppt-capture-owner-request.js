@@ -23,10 +23,12 @@ function activePlayer(currentRuntime, currentBattle) {
 }
 
 function presentationName(currentRuntime, currentBattle, side, event = {}) {
-  if (side === "player") {
-    return event.actorSpecies || event.targetSpecies || activePlayer(currentRuntime, currentBattle)?.species || "味方のポケモン";
-  }
-  return event.actorSpecies || event.targetSpecies || currentBattle?.foe?.species || "相手のポケモン";
+  const ownerSnapshot = side === event.actor
+    ? event.actorSpecies
+    : side === event.target ? event.targetSpecies : null;
+  if (ownerSnapshot) return ownerSnapshot;
+  if (side === "player") return activePlayer(currentRuntime, currentBattle)?.species || "味方のポケモン";
+  return currentBattle?.foe?.species || "相手のポケモン";
 }
 
 function presentationMessage(currentRuntime, currentBattle, event) {
