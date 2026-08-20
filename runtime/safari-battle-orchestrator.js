@@ -369,7 +369,11 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   const decision = Number(result?.decision ?? battle.decision ?? 0);
   const playerReplacementRequired = Boolean(result?.playerReplacementRequired ?? battle.player_replacement_required);
   const foeReplacementRequired = Boolean(result?.foeReplacementRequired);
+  const playerReplacementApplied = Boolean(result?.playerReplacementApplied);
   const foeReplacementApplied = Boolean(result?.foeReplacementApplied);
+  if (playerReplacementApplied && !playerReplacementRequired) {
+    throw new Error("pre-applied player replacement is not accepted; commit it through central REPLACEMENT");
+  }
   if (foeReplacementApplied && !foeReplacementRequired) {
     throw new Error("pre-applied foe replacement is not accepted; commit it through central REPLACEMENT");
   }

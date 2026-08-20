@@ -70,6 +70,31 @@ function phaseCount(battle, phase) {
   const battle = state.variables.mapless.battle;
   ensureSafariBattleOrchestrator(state);
   beginSafariBattleCommand(state, "move");
+  const resolution = {
+    decision: 0,
+    playerReplacementApplied: true,
+    operations: [
+      { op: "use_move", actor: "foe", target: "player" },
+      { op: "faint", actor: "foe", target: "player" },
+      { op: "send_out", actor: "player" },
+    ],
+  };
+  assert.throws(
+    () => commitSafariBattleResolution(state, resolution, "move"),
+    /pre-applied player replacement is not accepted/,
+    "the orchestrator must reject compatibility results that mutate the player reserve before REPLACEMENT",
+  );
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.ACTION_1);
+  assert.equal(phaseCount(battle, SAFARI_BATTLE_PHASE.REPLACEMENT), 0);
+  assert.equal(battle.replacement_checkpoint ?? null, null);
+  assert.equal(battle.resolution_checkpoint ?? null, null);
+}
+
+{
+  const state = runtime();
+  const battle = state.variables.mapless.battle;
+  ensureSafariBattleOrchestrator(state);
+  beginSafariBattleCommand(state, "move");
   battle.completed = true;
   const resolution = {
     decision: 0,
