@@ -20,6 +20,7 @@ import {
   setSafariPartyLead,
   startSafariVillageBounty,
 } from "./runtime/safari-web-playable-integration.js";
+import { completeSafariBattlePresentation } from "./runtime/safari-battle-orchestrator.js";
 import {
   ensureSafariGeneralCombatData,
   ensureSafariGeneralData,
@@ -235,6 +236,7 @@ function renderBattle() {
   const card = byId("battle-card");
   card.hidden = !battle;
   if (!battle) return;
+  battle.presentation_ack_required = true;
   const player = activeBattlePlayer(battle);
   const foe = battle.foe;
   byId("battle-title").textContent = battle.origin === "village_bounty"
@@ -329,6 +331,7 @@ async function playPresentation(events) {
       if (message) await sleep(300);
     }
   }
+  completeSafariBattlePresentation(runtime);
 }
 
 function snapshotBoardCombatState(index) {

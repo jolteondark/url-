@@ -1,0 +1,134 @@
+import assert from "node:assert/strict";
+import {
+  SAFARI_BATTLE_PHASE,
+  beginSafariBattleCommand,
+  commitSafariBattleResolution,
+  completeSafariBattlePresentation,
+  ensureSafariBattleOrchestrator,
+  safariBattleCommandAllowed,
+} from "../runtime/safari-battle-orchestrator.js";
+
+function runtime() {
+  return {
+    variables: {
+      mapless: {
+        battle: {
+          turn: 1,
+          decision: 0,
+          completed: false,
+          presentation_ack_required: true,
+        },
+      },
+    },
+  };
+}
+
+function phaseCount(battle, phase) {
+  return (battle.phase_trace ?? []).filter((entry) => entry.phase === phase).length;
+}
+
+{
+  const state = runtime();
+  const battle = state.variables.mapless.battle;
+  ensureSafariBattleOrchestrator(state);
+  beginSafariBattleCommand(state, "move");
+  const result = commitSafariBattleResolution(state, {
+    decision: 0,
+    operations: [
+      { op: "use_move", actor: "player", target: "foe" },
+      { op: "use_move", actor: "foe", target: "player" },
+    ],
+  }, "move");
+
+  assert.equal(result.phase, SAFARI_BATTLE_PHASE.CHECK_2);
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.CHECK_2,
+    "resolved nonterminal move must stay non-COMMAND while presentation is pending");
+  assert.equal(safariBattleCommandAllowed(state), false,
+    "COMMAND must stay unavailable until presentation completion is acknowledged");
+  assert.equal(battle.presentation_checkpoint?.committed, false);
+
+  const commandCountBeforeAck = phaseCount(battle, SAFARI_BATTLE_PHASE.COMMAND);
+  assert.equal(completeSafariBattlePresentation(state), SAFARI_BATTLE_PHASE.COMMAND);
+  assert.equal(safariBattleCommandAllowed(state), true);
+  assert.equal(battle.presentation_checkpoint?.committed, true);
+  assert.equal(phaseCount(battle, SAFARI_BATTLE_PHASE.COMMAND), commandCountBeforeAck + 1,
+    "presentation acknowledgement must publish COMMAND exactly once");
+
+  completeSafariBattlePresentation(state);
+  assert.equal(phaseCount(battle, SAFARI_BATTLE_PHASE.COMMAND), commandCountBeforeAck + 1,
+    "presentation acknowledgement replay must not publish a second COMMAND");
+}
+
+{
+  const state = runtime();
+  const battle = state.variables.mapless.battle;
+  ensureSafariBattleOrchestrator(state);
+  beginSafariBattleCommand(state, "item");
+  commitSafariBattleResolution(state, {
+    decision: 0,
+    operations: [{ op: "use_move", actor: "foe", target: "player" }],
+  }, "item");
+
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.CHECK_2,
+    "consumed Bag command must keep COMMAND closed through the foe response presentation");
+  const checks = battle.phase_trace.filter((entry) => entry.phase === SAFARI_BATTLE_PHASE.CHECK_1 || entry.phase === SAFARI_BATTLE_PHASE.CHECK_2);
+  assert.deepEqual(checks.map((entry) => entry.actor), ["player", "foe"]);
+  completeSafariBattlePresentation(state);
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.COMMAND);
+}
+
+{
+  const state = runtime();
+  const battle = state.variables.mapless.battle;
+  ensureSafariBattleOrchestrator(state);
+  beginSafariBattleCommand(state, "move");
+  let replacementCommits = 0;
+  commitSafariBattleResolution(state, {
+    decision: 0,
+    foeReplacementRequired: true,
+    operations: [
+      { op: "use_move", actor: "player", target: "foe" },
+      { op: "faint", actor: "player", target: "foe" },
+    ],
+  }, "move", {
+    replacementCommit: (current) => {
+      replacementCommits += 1;
+      return {
+        ...current,
+        foeReplacementRequired: true,
+        foeReplacementApplied: true,
+        operations: [...current.operations, { op: "send_out", actor: "foe" }],
+      };
+    },
+  });
+
+  assert.equal(replacementCommits, 1);
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.REPLACEMENT,
+    "trainer reserve must remain at the central replacement/presentation boundary before COMMAND");
+  assert.equal(safariBattleCommandAllowed(state), false);
+  completeSafariBattlePresentation(state);
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.COMMAND);
+}
+
+{
+  const state = runtime();
+  const battle = state.variables.mapless.battle;
+  ensureSafariBattleOrchestrator(state);
+  beginSafariBattleCommand(state, "move");
+  commitSafariBattleResolution(state, {
+    decision: 1,
+    operations: [
+      { op: "use_move", actor: "player", target: "foe" },
+      { op: "faint", actor: "player", target: "foe" },
+    ],
+  }, "move");
+
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.RESULT);
+  assert.equal(battle.completed, true);
+  assert.equal(battle.presentation_checkpoint ?? null, null,
+    "terminal RESULT must not create a COMMAND-resume presentation checkpoint");
+  assert.equal(completeSafariBattlePresentation(state), SAFARI_BATTLE_PHASE.RESULT,
+    "terminal presentation acknowledgement must never skip explicit RESULT -> RETURN");
+}
+
+console.log("Safari Battle presentation acknowledgement smoke passed");
