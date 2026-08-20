@@ -190,6 +190,8 @@ assert.match(commandMenuSource, /const commandAllowed = phase === "COMMAND"/,
   "DPt command availability must be owned by the orchestrator COMMAND phase");
 assert.doesNotMatch(commandMenuSource, /\.completed|player_replacement_required|previewCommandBusy/,
   "DPt command menu must not infer phase or command availability from legacy Battle flags");
+assert.doesNotMatch(commandMenuSource, /byId\(["']capture["']\)\?\.click\(\)|byId\(["']flee["']\)\?\.click\(\)/,
+  "DPt command menu must not relay capture/flee through legacy hidden controls owned by direct command adapters");
 assert.match(previewBattleRenderSource, /const commandAllowed = battle\.phase === "COMMAND"/,
   "preview Battle move rendering must consume the orchestrator COMMAND phase directly");
 assert.doesNotMatch(previewBattleRenderSource, /battle\.completed|\bbusy\b/,
