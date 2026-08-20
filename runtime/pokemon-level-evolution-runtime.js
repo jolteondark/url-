@@ -1,5 +1,6 @@
 import { resolvePokemonRuntimeMasters } from "./pokemon-runtime-masters.js";
 import { updatePokemonRuntime } from "./pokemon-runtime.js";
+import { levelFromExp } from "./pokemon-growth-rate.js";
 
 function normalizeEvolution(entry) {
   if (Array.isArray(entry)) {
@@ -116,6 +117,13 @@ function applyCanonicalEvolutionGender(runtime, speciesMaster) {
   if (ratio === "ALWAYSFEMALE") return { ...runtime, gender: 1 };
   if (ratio === "GENDERLESS") return { ...runtime, gender: 2 };
   return runtime;
+}
+
+function canonicalEvolutionLevel(runtime, speciesMaster) {
+  const growthRate = speciesMaster?.growth_rate ?? speciesMaster?.growthRate;
+  const exp = Number(runtime?.exp);
+  if (!growthRate || !Number.isInteger(exp) || exp < 0) return Number(runtime?.level);
+  return levelFromExp(growthRate, exp);
 }
 
 function canonicalEvolutionBlocker(runtime) {
@@ -278,7 +286,8 @@ export function resolvePokemonLevelEvolution(runtime, {
   if (!targetMaster) throw new RangeError(`missing evolution target species master for ${candidate.target}`);
   const before = structuredClone(runtime);
   const nextForm = Number.isInteger(Number(targetMaster.form)) ? Number(targetMaster.form) : 0;
-  const speciesChanged = updatePokemonRuntime(runtime, { species: candidate.target, form: nextForm, forced_form: null });
+  const nextLevel = canonicalEvolutionLevel(runtime, targetMaster);
+  const speciesChanged = updatePokemonRuntime(runtime, { species: candidate.target, form: nextForm, forced_form: null, level: nextLevel });
   let recalculated = preserveFaintedHp(before, preserveAuthoritativeBattleFields(before, resolvePokemonRuntimeMasters(speciesChanged, {
     species_master: targetMaster,
     nature_master,
