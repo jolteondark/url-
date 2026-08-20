@@ -180,7 +180,7 @@ function sync() {
   } else {
     card.dataset.dpptMenu = "locked";
     const active = document.activeElement;
-    if (active instanceof HTMLElement && card.contains(active) && (active.getClientRects().length === 0 || active.hasAttribute("disabled"))) active.blur();
+    if (active instanceof HTMLElement && card.contains(active)) active.blur();
   }
 
   const commandAllowed = phase === "COMMAND";
