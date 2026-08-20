@@ -5,7 +5,15 @@ function enabled(n){return visible(n)&&!n.disabled}
 function first(root,sel){return root?[...root.querySelectorAll(sel)].find(enabled)??null:null}
 function runtime(){return globalThis.__maplessSafariRuntime?.variables?.mapless??null}
 function stopScroll(){window.scrollTo({top:window.scrollY,left:window.scrollX,behavior:"auto"})}
+function clearResolvingBattleFocus(){
+ const s=runtime();
+ const battle=byId("battle-card");
+ const active=document.activeElement;
+ if(!s?.battle||!visible(battle)||!(active instanceof HTMLElement)||!battle.contains(active))return;
+ if(!["COMMAND","REPLACEMENT","RESULT"].includes(s.battle.phase))active.blur();
+}
 function settle(){
+ clearResolvingBattleFocus();
  const token=++epoch;
  requestAnimationFrame(()=>requestAnimationFrame(()=>{
   if(token!==epoch)return;
