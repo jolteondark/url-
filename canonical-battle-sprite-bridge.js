@@ -18,14 +18,17 @@ function ensureStyle() {
   style.id = "canonical-battle-sprite-style";
   style.textContent = `
     .canonical-battle-sprite{position:absolute;z-index:3;display:block;object-fit:contain;pointer-events:none;filter:drop-shadow(0 12px 10px rgba(0,0,0,.28));image-rendering:pixelated;opacity:1}
-    .canonical-battle-front-fallback{position:absolute;z-index:3;display:block;pointer-events:none;right:34px;bottom:26px;filter:drop-shadow(0 8px 7px rgba(0,0,0,.24));opacity:.98}
+    .canonical-battle-atlas-fallback{position:absolute;z-index:3;display:block;pointer-events:none;filter:drop-shadow(0 8px 7px rgba(0,0,0,.24));opacity:.98;image-rendering:pixelated}
     .combatant.foe .canonical-battle-sprite{width:168px;height:168px;right:16px;bottom:8px}
     .combatant.player .canonical-battle-sprite{width:184px;height:184px;left:6px;bottom:10px}
+    .combatant.foe .canonical-battle-atlas-fallback{right:34px;bottom:26px}
+    .combatant.player .canonical-battle-atlas-fallback{left:42px;bottom:34px;transform:scale(1.14);transform-origin:center bottom}
     .combatant[data-sprite-loading="true"] .text-mon{display:block!important;opacity:.12}
     @media(max-width:520px){
       .combatant.foe .canonical-battle-sprite{width:148px;height:148px;right:8px;bottom:9px}
       .combatant.player .canonical-battle-sprite{width:160px;height:160px;left:0;bottom:10px}
-      .canonical-battle-front-fallback{right:26px;bottom:26px}
+      .combatant.foe .canonical-battle-atlas-fallback{right:26px;bottom:26px}
+      .combatant.player .canonical-battle-atlas-fallback{left:30px;bottom:31px;transform:scale(1.08)}
     }
   `;
   document.head.append(style);
@@ -89,29 +92,38 @@ function imageForAsset(asset) {
   image.loading = "eager";
   image.fetchPriority = "high";
   image.dataset.assetKey = `${asset.side}:${asset.species}:${asset.form}:${asset.sha256 ?? asset.src}`;
+  image.dataset.spriteSpecies = asset.species;
   return image;
 }
 
-function ensureFrontFallback(combatant, species, symbol) {
-  if (!combatant.classList.contains("foe")) return false;
-  let fallback = combatant.querySelector(".canonical-battle-front-fallback");
+function imageMatchesSpecies(image, species) {
+  return Boolean(
+    image
+    && image.complete
+    && image.naturalWidth > 0
+    && (image.dataset.spriteSpecies === species || image.dataset.assetKey?.includes(`:${species}:`))
+  );
+}
+
+function ensureAtlasFallback(combatant, species, symbol) {
+  let fallback = combatant.querySelector(".canonical-battle-atlas-fallback");
   if (!fallback) {
     fallback = document.createElement("span");
-    fallback.className = "canonical-battle-front-fallback";
+    fallback.className = "canonical-battle-atlas-fallback";
     fallback.setAttribute("aria-hidden", "true");
     combatant.append(fallback);
   }
   const ok = applySafariDay1Front96Sprite(fallback, species, { size: 96 });
   setHidden(fallback, !ok);
   if (ok) {
-    fallback.style.imageRendering = "pixelated";
+    fallback.dataset.spriteSpecies = species;
     setHidden(symbol, true);
   }
   return ok;
 }
 
-function clearFrontFallback(combatant) {
-  setHidden(combatant.querySelector(".canonical-battle-front-fallback"), true);
+function clearAtlasFallback(combatant) {
+  setHidden(combatant.querySelector(".canonical-battle-atlas-fallback"), true);
 }
 
 function commitLoadedImage(combatant, candidate, symbol, legacy, key) {
@@ -125,30 +137,30 @@ function commitLoadedImage(combatant, candidate, symbol, legacy, key) {
   setHidden(candidate, false);
   setHidden(legacy, true);
   setHidden(symbol, true);
-  clearFrontFallback(combatant);
+  clearAtlasFallback(combatant);
 }
 
 function showBestFallback(combatant, species, image, symbol, legacy) {
-  const hasImage = Boolean(image?.complete && image.naturalWidth > 0);
-  setHidden(image, !hasImage);
+  const hasCurrentSpeciesImage = imageMatchesSpecies(image, species);
+  setHidden(image, !hasCurrentSpeciesImage);
   setHidden(legacy, true);
-  if (hasImage) {
-    clearFrontFallback(combatant);
+  if (hasCurrentSpeciesImage) {
+    clearAtlasFallback(combatant);
     setHidden(symbol, true);
     return;
   }
-  if (!ensureFrontFallback(combatant, species, symbol)) setHidden(symbol, false);
+  if (!ensureAtlasFallback(combatant, species, symbol)) setHidden(symbol, false);
 }
 
 function beginAssetLoad(combatant, currentImage, asset, species, symbol, legacy) {
   const key = `${asset.side}:${asset.species}:${asset.form}:${asset.sha256 ?? asset.src}`;
-  if (currentImage?.dataset.assetKey === key && currentImage.complete && currentImage.naturalWidth > 0) {
+  if (currentImage?.dataset.assetKey === key && imageMatchesSpecies(currentImage, species)) {
     delete combatant.dataset.pendingSpriteKey;
     delete combatant.dataset.spriteLoading;
     setHidden(currentImage, false);
     setHidden(legacy, true);
     setHidden(symbol, true);
-    clearFrontFallback(combatant);
+    clearAtlasFallback(combatant);
     return;
   }
   if (combatant.dataset.pendingSpriteKey === key) return;
@@ -195,10 +207,12 @@ function renderSide({ side, battlerIndex, nameId, combatantId }) {
 }
 
 function hasVisibleSprite(combatant) {
+  const side = combatant?.classList.contains("player") ? "player" : "foe";
+  const species = ownerIdentity(side)?.species;
   const image = combatant?.querySelector(".canonical-battle-sprite");
-  if (image && !image.hidden && image.complete && image.naturalWidth > 0) return true;
-  const fallback = combatant?.querySelector(".canonical-battle-front-fallback");
-  return Boolean(fallback && !fallback.hidden && fallback.style.backgroundImage);
+  if (species && imageMatchesSpecies(image, species) && !image.hidden) return true;
+  const fallback = combatant?.querySelector(".canonical-battle-atlas-fallback");
+  return Boolean(fallback && !fallback.hidden && fallback.dataset.spriteSpecies === species && fallback.style.backgroundImage);
 }
 
 function render() {
