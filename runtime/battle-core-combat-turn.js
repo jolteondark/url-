@@ -12,6 +12,7 @@ import { resolveUseMoveInstructCanonical } from "./battle-core-use-move-instruct
 import { resolveUseMoveDancerCanonical } from "./battle-core-use-move-dancer.js";
 import { materializeSeededAccuracyDamageCanonical } from "./battle-core-seeded-accuracy-damage.js";
 import { materializeSeededSecondaryEffectsCanonical } from "./battle-core-seeded-secondary-effect.js";
+import { resolveBattleAbilityItemHookCanonical } from "./battle-ability-item-hook-dispatch.js";
 import {
   applyBattleStatStageChangesCanonical,
   battleStatStageEffectSucceededCanonical,
@@ -65,6 +66,48 @@ function resolveCombatActionCanonical(action) {
   return resolveUseMoveDancerCanonical(instructed);
 }
 
+export function applyBattleAbilityItemActionAfterCanonical(action, inputStatStages = null) {
+  const statStages = createBattleStatStageStateCanonical(inputStatStages);
+  const prepared = structuredClone(action);
+  if (
+    prepared?.kind !== "move" ||
+    prepared.moveSkipped === true ||
+    prepared.lastMoveFailed === true ||
+    !prepared.abilityItemTypeImmunityResolution
+  ) {
+    return { action: prepared, statStages };
+  }
+
+  const actionAfter = resolveBattleAbilityItemHookCanonical({
+    hook: "action_after",
+    user: {},
+    target: {
+      hp: Number(prepared.hpBefore ?? 0),
+      max_hp: Number(prepared.totalHp ?? 0),
+    },
+    move: {
+      id: prepared.moveId ?? null,
+      category: prepared.moveCategory ?? null,
+    },
+    damageDealt: Number(prepared.hpReductionResolution?.amount ?? 0),
+    context: {
+      typeImmunityResolution: structuredClone(prepared.abilityItemTypeImmunityResolution),
+    },
+  });
+  prepared.abilityItemActionAfter = actionAfter;
+
+  const changes = actionAfter?.typeImmunityAfterEffect?.statChanges ?? [];
+  if (!Array.isArray(changes) || changes.length === 0) return { action: prepared, statStages };
+  const stageResolution = applyBattleStatStageChangesCanonical(
+    statStages,
+    changes,
+    prepared.battlerIndex,
+    prepared.targetBattlerIndex,
+  );
+  prepared.abilityItemActionAfterStatStageResolution = stageResolution;
+  return { action: prepared, statStages: stageResolution.state };
+}
+
 function triggeredDirectFlinch(action) {
   if (Number(action?.hpReductionResolution?.amount ?? 0) <= 0) return false;
   if (Number(action?.hpAfter ?? 0) <= 0) return false;
@@ -88,6 +131,23 @@ function withTransientFlinch(action) {
   };
 }
 
+function applyResolvedActionStagesCanonical(resolvedAction, inputStatStages) {
+  let statStages = inputStatStages;
+  const resolved = resolvedAction;
+  if (battleStatStageEffectSucceededCanonical(resolved)) {
+    const stageResolution = applyBattleStatStageChangesCanonical(
+      statStages,
+      resolved.statStageEffectInput.changes,
+      resolved.battlerIndex,
+      resolved.targetBattlerIndex,
+    );
+    statStages = stageResolution.state;
+    resolved.statStageResolution = stageResolution;
+  }
+  const actionAfter = applyBattleAbilityItemActionAfterCanonical(resolved, statStages);
+  return { action: actionAfter.action, statStages: actionAfter.statStages };
+}
+
 function resolveRoundActionsCanonical(round) {
   const actions = (Array.isArray(round?.actions) ? round.actions : []).map((action) => structuredClone(action));
   let statStages = createBattleStatStageStateCanonical(round?.statStages);
@@ -104,39 +164,21 @@ function resolveRoundActionsCanonical(round) {
   for (const actionIndex of order) {
     if (acted.has(actionIndex)) continue;
     const staged = injectBattleStatStagesIntoActionCanonical(actions[actionIndex], statStages);
-    const resolved = resolveCombatActionCanonical(staged);
-    if (battleStatStageEffectSucceededCanonical(resolved)) {
-      const stageResolution = applyBattleStatStageChangesCanonical(
-        statStages,
-        resolved.statStageEffectInput.changes,
-        resolved.battlerIndex,
-        resolved.targetBattlerIndex,
-      );
-      statStages = stageResolution.state;
-      resolved.statStageResolution = stageResolution;
-    }
-    actions[actionIndex] = resolved;
+    const resolved = applyResolvedActionStagesCanonical(resolveCombatActionCanonical(staged), statStages);
+    statStages = resolved.statStages;
+    actions[actionIndex] = resolved.action;
     acted.add(actionIndex);
-    if (!triggeredDirectFlinch(resolved)) continue;
-    const targetActionIndex = battlerActionIndex.get(Number(resolved.targetBattlerIndex));
+    if (!triggeredDirectFlinch(resolved.action)) continue;
+    const targetActionIndex = battlerActionIndex.get(Number(resolved.action.targetBattlerIndex));
     if (targetActionIndex === undefined || acted.has(targetActionIndex)) continue;
     actions[targetActionIndex] = withTransientFlinch(actions[targetActionIndex]);
   }
   for (let actionIndex = 0; actionIndex < actions.length; actionIndex += 1) {
     if (acted.has(actionIndex)) continue;
     const staged = injectBattleStatStagesIntoActionCanonical(actions[actionIndex], statStages);
-    const resolved = resolveCombatActionCanonical(staged);
-    if (battleStatStageEffectSucceededCanonical(resolved)) {
-      const stageResolution = applyBattleStatStageChangesCanonical(
-        statStages,
-        resolved.statStageEffectInput.changes,
-        resolved.battlerIndex,
-        resolved.targetBattlerIndex,
-      );
-      statStages = stageResolution.state;
-      resolved.statStageResolution = stageResolution;
-    }
-    actions[actionIndex] = resolved;
+    const resolved = applyResolvedActionStagesCanonical(resolveCombatActionCanonical(staged), statStages);
+    statStages = resolved.statStages;
+    actions[actionIndex] = resolved.action;
   }
   return { actions, statStages };
 }
