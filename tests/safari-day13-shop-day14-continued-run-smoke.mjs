@@ -145,7 +145,7 @@ await advanceOrdinaryDay(runtime, 14);
 assert.deepEqual(partyIdentity(runtime), originalIdentity, "DAY 14 transition must retain Party identity");
 assert.deepEqual(runtime.bag, bagAfterShop, "DAY 14 transition must retain the DAY 13 shop transaction");
 assert.deepEqual(state.board_events.map((entry) => entry?.kind),
-  ["trainer", "tavern", "normal_event", "buried_item", "next_day", "wild", "shop", "type_event"],
+  ["next_day", "wild", "normal_event", "egg_shop", "treasure", "shop", "trainer", "type_event"],
   "DAY 14 must be the next deterministic canonical weighted Board");
 assert.equal(state.board_events.some((entry) => entry?.kind === "normal_event"), true,
   "continued run must reach a DAY 14 Board containing a real canonical normal-event slot");
