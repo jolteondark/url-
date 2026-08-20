@@ -359,13 +359,17 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
     battle.completed = true;
     battle.completed_phase = SAFARI_BATTLE_PHASE.RESULT;
   } else if (playerReplacementRequired) {
+    if (foeReplacementRequired) {
+      result = commitReplacementCheckpoint(battle, result, replacementCommit, "trainer reserve replacement");
+    } else {
+      tracePhase(battle, SAFARI_BATTLE_PHASE.REPLACEMENT, "player replacement required");
+    }
     if (hasDeferredGrowth(result)) {
       battle.pending_reward_growth = {
         expIntegration: structuredClone(result.expIntegration),
         recipientPartyIndex: Number(battle.player_party_index ?? 0),
       };
     }
-    tracePhase(battle, SAFARI_BATTLE_PHASE.REPLACEMENT, "player replacement required");
   } else if (foeReplacementRequired && decision === 0) {
     result = commitReplacementCheckpoint(battle, result, replacementCommit, "trainer reserve replacement");
     if (hasRewardGrowthTail(result)) {
