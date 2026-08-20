@@ -317,6 +317,24 @@ export function resolvePokemonLevelEvolution(runtime, {
     move_masters,
     disable_ivs_and_evs,
   }));
+  if (Number(before.hp) === 0) {
+    // EvolutionScene#pbEvolutionSuccess mirrors Pokemon#species=, then explicitly
+    // writes hp=0 for a previously fainted Pokemon before running calc_stats a
+    // second time. The hp= setter also heals status. With unchanged max HP on
+    // that second calculation, Essentials clamps the final HP to 1.
+    const faintReset = preserveAuthoritativeBattleFields(before, updatePokemonRuntime(recalculated, {
+      hp: 0,
+      status: null,
+      status_count: 0,
+      ready_to_evolve: false,
+    }));
+    recalculated = preserveAuthoritativeBattleFields(before, resolvePokemonRuntimeMasters(faintReset, {
+      species_master: targetMaster,
+      nature_master,
+      move_masters,
+      disable_ivs_and_evs,
+    }));
+  }
   recalculated = applyCanonicalEvolutionAbility(recalculated, targetMaster);
   recalculated = applyCanonicalEvolutionGender(recalculated, targetMaster);
   const learned = applyEvolutionMoveLearning(recalculated, targetMaster, {
