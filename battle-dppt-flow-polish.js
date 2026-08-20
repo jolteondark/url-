@@ -126,14 +126,7 @@ function schedule() {
 window.addEventListener("safari-runtime-changed", schedule, { passive:true });
 window.addEventListener("safari-preview-start", schedule, { passive:true });
 window.addEventListener("safari-game-menu-opened", schedule, { passive:true });
+window.addEventListener("safari-game-menu-closed", schedule, { passive:true });
 window.addEventListener("mapless-dppt-menu-changed", schedule, { passive:true });
 window.addEventListener("pageshow", schedule, { passive:true });
-if (typeof MutationObserver === "function") {
-  new MutationObserver(schedule).observe(document.documentElement, {
-    subtree:true,
-    childList:true,
-    attributes:true,
-    attributeFilter:["hidden","disabled","data-dppt-menu"],
-  });
-}
 schedule();
