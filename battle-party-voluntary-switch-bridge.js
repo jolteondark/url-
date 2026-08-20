@@ -22,9 +22,7 @@ function selectableBattle(current = battle()) {
   return Boolean(
     current
     && current.phase === "COMMAND"
-    && !current.completed
     && current.origin !== "boundary_trial"
-    && !current.player_replacement_required
   );
 }
 
