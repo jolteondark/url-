@@ -71,7 +71,7 @@ function preserveAuthoritativeBattleFields(before, after) {
 
 function preserveFaintedHp(before, after) {
   if (Number(before?.hp) === 0 && Number(after?.hp) !== 0) {
-    return updatePokemonRuntime(after, { hp: 0 });
+    return preserveAuthoritativeBattleFields(after, updatePokemonRuntime(after, { hp: 0 }));
   }
   return after;
 }
