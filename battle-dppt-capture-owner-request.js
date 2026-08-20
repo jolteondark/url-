@@ -3,11 +3,11 @@ import {
   attemptSafariCapture,
   saveSafariPlayableRun,
 } from "./runtime/safari-web-playable-integration.js";
+import { completeSafariBattlePresentation } from "./runtime/safari-battle-orchestrator.js";
 import { formatSafariBattlePresentationEvent } from "./battle-presentation-narration.js";
 
 const byId = (id) => document.getElementById(id);
 const sleep = (milliseconds) => new Promise((resolve) => window.setTimeout(resolve, milliseconds));
-let captureBusy = false;
 
 function runtime() {
   return globalThis.__maplessSafariRuntime ?? null;
@@ -114,29 +114,24 @@ function restoreCommandRootIfReady() {
 }
 
 async function runCaptureRequest(sourceButton) {
-  if (captureBusy) return;
   const currentRuntime = runtime();
   const currentBattle = currentRuntime?.variables?.mapless?.battle;
   if (!currentRuntime || currentBattle?.phase !== "COMMAND" || currentBattle.kind !== "wild") return;
 
-  captureBusy = true;
   const card = byId("battle-card");
   if (sourceButton instanceof HTMLElement) sourceButton.blur();
-  if (card) {
-    card.dataset.dpptMenu = "locked";
-    card.setAttribute("aria-busy", "true");
-  }
+  if (card) card.dataset.dpptMenu = "locked";
 
   try {
     const result = await attemptSafariCapture(currentRuntime);
     globalThis.__maplessLastCaptureResult = result;
     await playPresentation(currentRuntime, result.presentation ?? []);
+    completeSafariBattlePresentation(currentRuntime);
     saveIfRequested(currentRuntime, result);
   } catch (error) {
     globalThis.__maplessLastError = error;
     console.error("[Mapless] DPt capture request failed", error);
   } finally {
-    captureBusy = false;
     window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
     restoreCommandRootIfReady();
   }
@@ -152,13 +147,7 @@ window.addEventListener("safari-battle-capture-requested", (event) => {
 
 byId("battle-card")?.addEventListener("click", (event) => {
   const button = event.target.closest('[data-dppt-bag="ball"]');
-  if (!button) {
-    if (!captureBusy) return;
-    if (!event.target.closest("button")) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    return;
-  }
+  if (!button) return;
 
   event.preventDefault();
   event.stopImmediatePropagation();
