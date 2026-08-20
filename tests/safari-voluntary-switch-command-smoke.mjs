@@ -92,3 +92,4 @@ assert.match(deferredSource, /battle-party-voluntary-switch-bridge\.js\?v=/,
   "the deferred Party menu bundle must load the Battle voluntary-switch bridge");
 
 console.log("Safari voluntary switch -> ACTION_1 -> one foe ACTION_2 / rejected switch -> COMMAND + Party UI wiring: PASS");
+await import("./safari-voluntary-switch-ko-return-vertical-smoke.mjs");
