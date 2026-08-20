@@ -36,7 +36,7 @@ function battleOf(runtime) {
   return battle;
 }
 
-function tracePhase(battle, phase, reason) {
+function tracePhase(battle, phase, reason, details = null) {
   battle.phase = phase;
   const trace = Array.isArray(battle.phase_trace) ? battle.phase_trace : [];
   trace.push({
@@ -44,6 +44,7 @@ function tracePhase(battle, phase, reason) {
     turn: Number(battle.turn ?? 0),
     reason: reason ?? null,
     completed: Boolean(battle.completed),
+    ...(details && typeof details === "object" ? details : {}),
   });
   battle.phase_trace = trace.slice(-96);
   return phase;
@@ -69,6 +70,20 @@ function actionActors(result) {
 
 function commandConsumesAction(commandKind) {
   return ["item", "capture", "flee", "switch"].includes(String(commandKind ?? ""));
+}
+
+function materializeActionOrder(battle, result, commandKind) {
+  const actors = actionActors(result);
+  const trace = Array.isArray(battle.phase_trace) ? battle.phase_trace : [];
+  const actionOne = trace.at(-1);
+  if (actionOne?.phase === SAFARI_BATTLE_PHASE.ACTION_1) {
+    const firstActor = commandConsumesAction(commandKind) ? "player" : (actors[0] ?? null);
+    actionOne.actor = firstActor;
+    actionOne.reason = firstActor
+      ? `first action:${firstActor}`
+      : `command:${commandKind}`;
+  }
+  return actors;
 }
 
 function hasFaint(result) {
@@ -346,11 +361,13 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   const resolutionCheckpoint = beginResolutionCheckpoint(battle, resolvedCommandKind);
   const terminalResolution = decision !== 0;
 
-  const actors = actionActors(result);
-  const secondActionOccurred = commandConsumesAction(resolvedCommandKind) ? actors.length >= 1 : actors.length >= 2;
+  const actors = materializeActionOrder(battle, result, resolvedCommandKind);
+  const consumedAction = commandConsumesAction(resolvedCommandKind);
+  const secondActionActor = consumedAction ? (actors[0] ?? null) : (actors[1] ?? null);
+  const secondActionOccurred = secondActionActor != null;
   tracePhase(battle, SAFARI_BATTLE_PHASE.CHECK_1, "first action resolved");
   if (secondActionOccurred) {
-    tracePhase(battle, SAFARI_BATTLE_PHASE.ACTION_2, "second action resolved");
+    tracePhase(battle, SAFARI_BATTLE_PHASE.ACTION_2, `second action:${secondActionActor}`, { actor: secondActionActor });
     tracePhase(battle, SAFARI_BATTLE_PHASE.CHECK_2, "second action checked");
   }
 
