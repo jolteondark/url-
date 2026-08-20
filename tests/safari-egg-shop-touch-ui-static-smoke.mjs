@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+await import("./safari-normal-event-touch-ui-smoke.mjs");
 
 const runtimeSource = await readFile(new URL("../runtime/safari-egg-shop-interaction.js", import.meta.url), "utf8");
 const bridgeSource = await readFile(new URL("../egg-shop-touch-presentation.js", import.meta.url), "utf8");

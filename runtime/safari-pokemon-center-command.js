@@ -13,6 +13,7 @@ import { interactiveSafariTravelingCook } from "./safari-traveling-cook-interact
 import { interactiveSafariFloodedRiver } from "./safari-flooded-river-interaction.js";
 import { interactiveSafariBuriedItem } from "./safari-buried-item-interaction.js";
 import { interactiveSafariEggShop } from "./safari-egg-shop-interaction.js";
+import { openSafariNormalEventTouch, supportsSafariNormalEventTouch } from "./safari-normal-event-touch-handoff.js";
 import { activateSafariDayBoardCell as activateSafariDayBoardCellBase } from "./safari-playable-integration-wounded.js";
 
 function moveId(move) {
@@ -40,6 +41,9 @@ export function activateSafariDayBoardCell(runtime, index) {
   const state = runtime?.variables?.mapless;
   const event = state?.board_events?.[index];
   if (event?.kind === "normal_event") {
+    if (typeof globalThis.document !== "undefined" && supportsSafariNormalEventTouch(event.normal_event_id)) {
+      return openSafariNormalEventTouch(runtime, index);
+    }
     if (event.normal_event_id === "street_performer") return interactiveSafariStreetPerformer(runtime, index);
     if (event.normal_event_id === "mushroom_field") return interactiveSafariMushroomField(runtime, index);
     if (event.normal_event_id === "hot_spring") return interactiveSafariHotSpring(runtime, index);
