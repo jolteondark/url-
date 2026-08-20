@@ -9,6 +9,13 @@ const CONTACT_STATUS_CHANCE_BY_ABILITY = Object.freeze({
   FLAMEBODY: Object.freeze({ status: "BURN", chance: 30 }),
   POISONPOINT: Object.freeze({ status: "POISON", chance: 30 }),
 });
+const MULTI_STATUS_CONTACT_ABILITIES = Object.freeze({
+  EFFECTSPORE: Object.freeze({
+    chance: 30,
+    statuses: Object.freeze(["SLEEP", "PARALYSIS", "POISON"]),
+    selection: "canonical_effect_spore",
+  }),
+});
 const OFFENSIVE_CONTACT_STATUS_CHANCE_BY_ABILITY = Object.freeze({
   POISONTOUCH: Object.freeze({ status: "POISON", chance: 30 }),
 });
@@ -19,6 +26,15 @@ const CONTACT_STAT_STAGE_BY_ABILITY = Object.freeze({
 const CONTACT_SUPPRESSING_ABILITIES = new Set(["LONGREACH"]);
 const CONTACT_REACTIVE_ITEMS = new Set(["ROCKYHELMET"]);
 const CONTACT_SUPPRESSING_ITEMS = new Set(["PROTECTIVEPADS"]);
+
+function canonicalId(value) {
+  const raw = typeof value === "string" ? value : value?.id;
+  return String(raw ?? "").toUpperCase();
+}
+
+function pokemonTypesCanonical(pokemon) {
+  return (Array.isArray(pokemon?.types) ? pokemon.types : []).map(canonicalId).filter(Boolean);
+}
 
 function maxHpCanonical(pokemon) {
   return Math.max(0, Math.trunc(Number(pokemon?.max_hp ?? pokemon?.maxHp ?? 0)));
@@ -53,6 +69,23 @@ function contactStatusChanceRequestCanonical(targetAbility) {
     subject: "user",
     status: fact.status,
     chance: fact.chance,
+    source: targetAbility,
+    sourceKind: "ability",
+  });
+}
+
+function effectSporeStatusChanceRequestCanonical({ user, userAbility, userItem, targetAbility }) {
+  const fact = MULTI_STATUS_CONTACT_ABILITIES[targetAbility];
+  if (!fact) return null;
+  const powderImmune = pokemonTypesCanonical(user).includes("GRASS")
+    || userAbility === "OVERCOAT"
+    || userItem === "SAFETYGOGGLES";
+  if (powderImmune) return null;
+  return Object.freeze({
+    subject: "user",
+    chance: fact.chance,
+    statuses: fact.statuses,
+    selection: fact.selection,
     source: targetAbility,
     sourceKind: "ability",
   });
@@ -124,6 +157,9 @@ export function resolveContactReactiveAbilityItemHookCanonical({
   }
 
   const statusChanceRequest = eligible ? contactStatusChanceRequestCanonical(targetAbility) : null;
+  const effectSporeStatusChanceRequest = eligible
+    ? effectSporeStatusChanceRequestCanonical({ user, userAbility, userItem, targetAbility })
+    : null;
   const offensiveStatusChanceRequest = eligible ? offensiveContactStatusChanceRequestCanonical(userAbility) : null;
   const statChanges = eligible ? contactStatChangesCanonical(targetAbility) : Object.freeze([]);
   const rawHpDelta = effects.reduce((sum, effect) => sum + Number(effect.hpDelta ?? 0), 0);
@@ -141,11 +177,13 @@ export function resolveContactReactiveAbilityItemHookCanonical({
     magicGuard,
     triggered: effects.some((effect) => effect.hpDelta < 0)
       || statusChanceRequest !== null
+      || effectSporeStatusChanceRequest !== null
       || offensiveStatusChanceRequest !== null
       || statChanges.length > 0,
     userHpDelta,
     effects: Object.freeze(effects),
     statusChanceRequest,
+    effectSporeStatusChanceRequest,
     offensiveStatusChanceRequest,
     statChanges,
   });
@@ -154,6 +192,7 @@ export function resolveContactReactiveAbilityItemHookCanonical({
 const ABILITY_IDS = Object.freeze([
   ...CONTACT_REACTIVE_ABILITIES,
   ...Object.keys(CONTACT_STATUS_CHANCE_BY_ABILITY),
+  ...Object.keys(MULTI_STATUS_CONTACT_ABILITIES),
   ...Object.keys(OFFENSIVE_CONTACT_STATUS_CHANCE_BY_ABILITY),
   ...Object.keys(CONTACT_STAT_STAGE_BY_ABILITY),
   ...CONTACT_SUPPRESSING_ABILITIES,
@@ -171,6 +210,7 @@ export const BATTLE_CONTACT_REACTIVE_COVERAGE_CANONICAL = Object.freeze({
   classificationCounts: Object.freeze({
     contactReactiveAbilities: CONTACT_REACTIVE_ABILITIES.size,
     contactStatusChanceAbilities: Object.keys(CONTACT_STATUS_CHANCE_BY_ABILITY).length,
+    multiStatusContactAbilities: Object.keys(MULTI_STATUS_CONTACT_ABILITIES).length,
     offensiveContactStatusChanceAbilities: Object.keys(OFFENSIVE_CONTACT_STATUS_CHANCE_BY_ABILITY).length,
     contactStatStageAbilities: Object.keys(CONTACT_STAT_STAGE_BY_ABILITY).length,
     contactSuppressingAbilities: CONTACT_SUPPRESSING_ABILITIES.size,
