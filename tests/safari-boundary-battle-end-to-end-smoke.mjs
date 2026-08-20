@@ -1,4 +1,5 @@
 import "./safari-boundary-player-replacement-smoke.mjs";
+import "./safari-boundary-player-ko-return-vertical-smoke.mjs";
 import assert from "node:assert/strict";
 import { createSafariPlayableRuntime, resolveSafariBattleRound, returnSafariToDayBoard } from "../runtime/safari-playable-integration.js";
 import { startSafariBoundaryTrialBattle } from "../runtime/safari-boundary-trial-start.js";
