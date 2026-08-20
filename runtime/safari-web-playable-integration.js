@@ -96,11 +96,57 @@ function commitNormalRewardGrowth(runtime, current) {
   return committed;
 }
 
-function commitNormalBattleCommand(runtime, result, kind) {
+function commitNormalBattleCommand(runtime, result, kind, { replacementCommit = null } = {}) {
   if (!stateOf(runtime).battle || needsFullBattleIntegration(runtime)) return result;
   return commitSafariBattleResolution(runtime, result, kind, {
+    replacementCommit,
     rewardGrowthCommit: (current) => commitNormalRewardGrowth(runtime, current),
   });
+}
+
+function snapshotNormalTrainerReplacement(runtime) {
+  const state = stateOf(runtime);
+  const battle = state.battle;
+  if (!battle || battle.kind !== "trainer") return null;
+  return {
+    trainerPartyOrder: structuredClone(battle.trainer_party_order ?? null),
+    statStages: structuredClone(battle.stat_stages ?? null),
+    notice: state.notice,
+  };
+}
+
+function stageNormalTrainerReplacementCommit(runtime, result, before) {
+  if (!before || !result?.foeReplacementApplied || Number(result?.decision ?? 0) !== 0) return null;
+  const state = stateOf(runtime);
+  const battle = state.battle;
+  const handoff = result?.battleContinuationHandoff;
+  if (!battle || battle.kind !== "trainer" || !handoff?.foeReplacementRequired || !Array.isArray(handoff?.foeParty)) return null;
+
+  const committed = {
+    foe: structuredClone(battle.foe),
+    trainerParty: structuredClone(battle.trainer_party),
+    trainerPartyIndex: Number(battle.trainer_party_index ?? 0),
+    trainerPartyOrder: structuredClone(battle.trainer_party_order ?? null),
+    statStages: structuredClone(battle.stat_stages ?? null),
+    notice: state.notice,
+  };
+  const activeIndex = Number(handoff.foeActivePartyIndex ?? 0);
+  battle.trainer_party = structuredClone(handoff.foeParty);
+  battle.trainer_party_index = activeIndex;
+  battle.trainer_party_order = structuredClone(before.trainerPartyOrder);
+  battle.foe = structuredClone(battle.trainer_party[activeIndex] ?? battle.foe);
+  battle.stat_stages = structuredClone(result.statStages ?? before.statStages);
+  state.notice = before.notice;
+
+  return (current) => {
+    battle.trainer_party = structuredClone(committed.trainerParty);
+    battle.trainer_party_index = committed.trainerPartyIndex;
+    battle.trainer_party_order = structuredClone(committed.trainerPartyOrder);
+    battle.foe = structuredClone(committed.foe);
+    battle.stat_stages = structuredClone(committed.statStages);
+    state.notice = committed.notice;
+    return current;
+  };
 }
 
 export function boardCellPresentation(runtime, index) {
@@ -143,12 +189,16 @@ export async function prepareSafariBattleRuntime(runtime = globalThis.__maplessS
 
 export async function resolveSafariBattleRound(runtime, selectedMoveId) {
   const normal = !needsFullBattleIntegration(runtime);
+  const replacementBefore = normal ? snapshotNormalTrainerReplacement(runtime) : null;
   if (normal) beginSafariBattleCommand(runtime, "move");
   try {
     const result = normal
       ? resolveSafariNormalBattleRound(runtime, selectedMoveId)
       : await (await full()).resolveSafariBattleRound(runtime, selectedMoveId);
-    if (normal && stateOf(runtime).battle) commitNormalBattleCommand(runtime, result, "move");
+    if (normal && stateOf(runtime).battle) {
+      const replacementCommit = stageNormalTrainerReplacementCommit(runtime, result, replacementBefore);
+      commitNormalBattleCommand(runtime, result, "move", { replacementCommit });
+    }
     publishRuntimeChanged();
     return result;
   } catch (error) {
