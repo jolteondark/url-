@@ -19,6 +19,11 @@ import {
   BATTLE_STATUS_CURE_BERRY_COVERAGE_CANONICAL,
   resolveStatusCureBerryHookCanonical,
 } from "./battle-core-status-cure-berry-extension.js";
+import {
+  BATTLE_AIR_BALLOON_COVERAGE_CANONICAL,
+  resolveAirBalloonActionAfterCanonical,
+  resolveAirBalloonActionBeforeCanonical,
+} from "./battle-core-air-balloon-extension.js";
 
 export const BATTLE_ABILITY_ITEM_HOOK_POINTS_CANONICAL = Object.freeze([
   "switch_in",
@@ -55,6 +60,7 @@ function combinedCoverageCanonical() {
     ...(BATTLE_ABILITY_ITEM_ENTRY_EXTENSION_COVERAGE_CANONICAL.itemIds ?? []),
     ...(BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL.itemIds ?? []),
     ...(BATTLE_STATUS_CURE_BERRY_COVERAGE_CANONICAL.itemIds ?? []),
+    ...(BATTLE_AIR_BALLOON_COVERAGE_CANONICAL.itemIds ?? []),
   ])].sort());
   return Object.freeze({
     abilityIds,
@@ -66,6 +72,7 @@ function combinedCoverageCanonical() {
       entryExtension: BATTLE_ABILITY_ITEM_ENTRY_EXTENSION_COVERAGE_CANONICAL.classificationCounts,
       normalPlayExtension: BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL.classificationCounts,
       statusCureBerryExtension: BATTLE_STATUS_CURE_BERRY_COVERAGE_CANONICAL.classificationCounts,
+      airBalloonExtension: BATTLE_AIR_BALLOON_COVERAGE_CANONICAL.classificationCounts,
     }),
   });
 }
@@ -110,15 +117,26 @@ function resolveSharedActionBeforeCanonical({ runtimeUser, runtimeTarget, move, 
     move,
     context,
   });
+  const airBalloon = resolveAirBalloonActionBeforeCanonical({
+    target: runtimeTarget,
+    move,
+    context,
+  });
   const baseDamageMultiplierInput = base?.modifiers?.damageMultiplierInput ?? {};
   const baseAccuracyModifierInput = base?.modifiers?.accuracyModifierInput ?? {};
   const baseSpeedInput = base?.modifiers?.speedInput ?? {};
   const baseSecondaryEffectInput = base?.modifiers?.secondaryEffectInput ?? {};
   const covertCloak = Boolean(extension?.secondaryEffectInput?.targetHasCovertCloak);
+  const typeImmunity = Boolean(base?.modifiers?.typeImmunity) || airBalloon.immune;
+  const typeImmunityResolution = base?.modifiers?.typeImmunity
+    ? base.modifiers.typeImmunityResolution
+    : (airBalloon.typeImmunityResolution ?? base?.modifiers?.typeImmunityResolution ?? null);
   return Object.freeze({
     ...base,
     modifiers: Object.freeze({
       ...base.modifiers,
+      typeImmunity,
+      typeImmunityResolution,
       damageMultiplierInput: Object.freeze({
         ...baseDamageMultiplierInput,
         externalPowerMultiplier: multiplyFinite(
@@ -160,13 +178,14 @@ function resolveSharedActionBeforeCanonical({ runtimeUser, runtimeTarget, move, 
       }),
       damageCalculationInput: extension.damageCalculationInput,
     }),
+    airBalloon,
     priorityModifier: extension.priorityModifier,
     criticalStageDelta: extension.criticalStageDelta,
     moveSelection: extension.moveSelection,
   });
 }
 
-function resolveSharedActionAfterCanonical({ runtimeUser, runtimeTarget, move, damageDealt }) {
+function resolveSharedActionAfterCanonical({ runtimeUser, runtimeTarget, move, damageDealt, context }) {
   const base = resolveActionAfterAbilityItemHookCanonical({
     user: runtimeUser,
     target: runtimeTarget,
@@ -177,6 +196,12 @@ function resolveSharedActionAfterCanonical({ runtimeUser, runtimeTarget, move, d
     ...base,
     userStatusBerry: resolveStatusCureBerryHookCanonical(runtimeUser),
     targetStatusBerry: resolveStatusCureBerryHookCanonical(runtimeTarget),
+    targetAirBalloon: resolveAirBalloonActionAfterCanonical({
+      target: runtimeTarget,
+      move,
+      damageDealt,
+      context,
+    }),
   });
 }
 
@@ -214,6 +239,7 @@ export function resolveBattleAbilityItemHookCanonical({
       runtimeTarget,
       move,
       damageDealt,
+      context,
     });
   }
   if (phase === "turn_end") {
