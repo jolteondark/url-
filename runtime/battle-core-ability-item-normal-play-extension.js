@@ -30,14 +30,20 @@ const TYPE_BOOST_ITEMS = Object.freeze({
 });
 const MOLD_BREAKER_SUPER_EFFECTIVE_REDUCTION_ABILITIES = new Set(["FILTER", "SOLIDROCK"]);
 const UNBYPASSABLE_SUPER_EFFECTIVE_REDUCTION_ABILITIES = new Set(["PRISMARMOR"]);
+const FULL_HP_DAMAGE_REDUCTION_ABILITIES = Object.freeze({
+  MULTISCALE: Object.freeze({ bypassedByMoldBreaker: true }),
+  SHADOWSHIELD: Object.freeze({ bypassedByMoldBreaker: false }),
+});
 
 const EXTENSION_ABILITY_IDS = Object.freeze([
   "CHLOROPHYLL",
   "FILTER",
+  "MULTISCALE",
   "PRANKSTER",
   "PRISMARMOR",
   "SANDFORCE",
   "SANDRUSH",
+  "SHADOWSHIELD",
   "SLUSHRUSH",
   "SNIPER",
   "SOLIDROCK",
@@ -55,8 +61,10 @@ const EXTENSION_ITEM_IDS = Object.freeze([
   "COVERTCLOAK",
   "EXPERTBELT",
   "LAXINCENSE",
+  "MUSCLEBAND",
   "RAZORCLAW",
   "SCOPELENS",
+  "WISEGLASSES",
   ...Object.values(TYPE_BOOST_ITEMS),
 ].sort());
 
@@ -84,6 +92,12 @@ function itemId(pokemon) {
 
 function weatherId(context) {
   return String(context?.effectiveWeather ?? context?.weather ?? "");
+}
+
+function pokemonAtFullHp(pokemon) {
+  const hp = Number(pokemon?.hp ?? 0);
+  const maxHp = Number(pokemon?.max_hp ?? pokemon?.maxHp ?? 0);
+  return Number.isFinite(hp) && Number.isFinite(maxHp) && maxHp > 0 && hp === maxHp;
 }
 
 export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ user = {}, target = {}, move = {}, context = {} } = {}) {
@@ -115,6 +129,8 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
     powerMultiplier *= 1.3;
   }
   if (TYPE_BOOST_ITEMS[moveType] === userItem) powerMultiplier *= 1.2;
+  if (userItem === "MUSCLEBAND" && category === "Physical") powerMultiplier *= 1.1;
+  if (userItem === "WISEGLASSES" && category === "Special") powerMultiplier *= 1.1;
 
   let finalDamageMultiplier = 1;
   if (userAbility === "TINTEDLENS" && typeMod > 0 && typeMod < 1) finalDamageMultiplier *= 2;
@@ -125,6 +141,12 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
   )) finalDamageMultiplier *= 0.75;
   if (userAbility === "SNIPER" && critical) finalDamageMultiplier *= 1.5;
   if (targetAbility === "DRYSKIN" && moveType === "FIRE" && !moldBreaker) finalDamageMultiplier *= 1.25;
+  const fullHpReduction = FULL_HP_DAMAGE_REDUCTION_ABILITIES[targetAbility];
+  if (pokemonAtFullHp(target)
+    && fullHpReduction
+    && !(fullHpReduction.bypassedByMoldBreaker && moldBreaker)) {
+    finalDamageMultiplier *= 0.5;
+  }
 
   return Object.freeze({
     priorityModifier: pranksterPriority,
@@ -171,8 +193,10 @@ export const BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL = Obje
     statStageIgnore: 1,
     weatherPowerModifier: 1,
     typeBoostHeldItems: Object.keys(TYPE_BOOST_ITEMS).length,
+    categoryBoostHeldItems: 2,
     superEffectiveOffenseModifier: 2,
     superEffectiveDefenseModifier: MOLD_BREAKER_SUPER_EFFECTIVE_REDUCTION_ABILITIES.size + UNBYPASSABLE_SUPER_EFFECTIVE_REDUCTION_ABILITIES.size,
+    fullHpDamageReductionAbilities: Object.keys(FULL_HP_DAMAGE_REDUCTION_ABILITIES).length,
     criticalDamageModifier: 1,
     targetAccuracyHeldItems: 2,
     typeWeaknessAbilityModifier: 1,
