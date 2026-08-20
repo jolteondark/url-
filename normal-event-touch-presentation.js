@@ -16,6 +16,19 @@ function activeNormalEvent() {
   return active?.runtime === runtime() ? active : null;
 }
 function closeNormalEventUi() { globalThis.__maplessNormalEventUi = null; }
+function enabledVisible(node) { return Boolean(node && !node.disabled && !node.hidden && node.getClientRects().length > 0); }
+function focusFirstEventAction(card) {
+  const target = [...card.querySelectorAll("button[data-normal-event-action]")].find(enabledVisible) ?? null;
+  if (target) target.focus({ preventScroll:true });
+}
+function focusBoardAction() {
+  const boardCard = byId("board-card");
+  if (!boardCard || boardCard.hidden) return;
+  const target = [...byId("board")?.querySelectorAll("button[data-board-index]") ?? []].find((button) => enabledVisible(button) && !button.classList.contains("consumed"))
+    ?? (enabledVisible(byId("enter-village")) ? byId("enter-village") : null);
+  boardCard.scrollIntoView({ behavior:"smooth", block:"start" });
+  requestAnimationFrame(() => { if (enabledVisible(target)) target.focus({ preventScroll:true }); });
+}
 
 function loadOwner(eventId) {
   if (!ownerModules.has(eventId)) {
@@ -127,7 +140,10 @@ async function sync() {
   const openKey = `${active.eventId}:${active.boardIndex}`;
   if (openKey !== lastOpenKey) {
     lastOpenKey = openKey;
-    requestAnimationFrame(() => card.scrollIntoView({ behavior:"smooth", block:"start" }));
+    requestAnimationFrame(() => {
+      card.scrollIntoView({ behavior:"smooth", block:"start" });
+      requestAnimationFrame(() => focusFirstEventAction(card));
+    });
   }
 }
 
@@ -151,6 +167,7 @@ document.addEventListener("click", async (event) => {
   const active = activeNormalEvent();
   if (!current || !active) return;
   resolving = true;
+  button.blur();
   await sync();
   try {
     const result = await resolveAction(current, active, button.dataset.normalEventAction);
@@ -170,7 +187,7 @@ document.addEventListener("click", async (event) => {
     resolving = false;
     updateHud();
     await sync();
-    if (!activeNormalEvent()) byId("board-card")?.scrollIntoView({ behavior:"smooth", block:"start" });
+    if (!activeNormalEvent()) focusBoardAction();
   }
 });
 
