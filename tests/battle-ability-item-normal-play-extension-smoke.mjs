@@ -188,8 +188,73 @@ const pokemon = (ability = "NONE", heldItem = null, extra = {}) => ({
   assert.equal(consumed.accuracyModifierInput.externalAccuracyMultiplier, 1);
 }
 
+{
+  const defeatistPhysical = resolveBattleAbilityItemHookCanonical({
+    hook: "action_before",
+    user: pokemon("DEFEATIST", null, { hp: 50, max_hp: 100 }),
+    target: pokemon(),
+    move: { id: "ROCKSLIDE", type: "ROCK", category: "Physical", power: 75 },
+    selectedMoveId: "ROCKSLIDE",
+  });
+  assert.equal(defeatistPhysical.modifiers.damageMultiplierInput.externalAttackMultiplier, 0.5);
+  const defeatistAboveHalf = resolveBattleAbilityItemHookCanonical({
+    hook: "action_before",
+    user: pokemon("DEFEATIST", null, { hp: 51, max_hp: 100 }),
+    target: pokemon(),
+    move: { id: "ROCKSLIDE", type: "ROCK", category: "Physical", power: 75 },
+    selectedMoveId: "ROCKSLIDE",
+  });
+  assert.equal(defeatistAboveHalf.modifiers.damageMultiplierInput.externalAttackMultiplier, 1);
+}
+
+{
+  const toxicBoost = resolveBattleAbilityItemHookCanonical({
+    hook: "action_before",
+    user: pokemon("TOXICBOOST", null, { status: "POISON" }),
+    target: pokemon(),
+    move: { id: "SLASH", type: "NORMAL", category: "Physical", power: 70 },
+    selectedMoveId: "SLASH",
+  });
+  assert.equal(toxicBoost.modifiers.damageMultiplierInput.externalPowerMultiplier, 1.5);
+  const flareBoost = resolveBattleAbilityItemHookCanonical({
+    hook: "action_before",
+    user: pokemon("FLAREBOOST", null, { status: "BURN" }),
+    target: pokemon(),
+    move: { id: "SHADOWBALL", type: "GHOST", category: "Special", power: 80 },
+    selectedMoveId: "SHADOWBALL",
+  });
+  assert.equal(flareBoost.modifiers.damageMultiplierInput.externalPowerMultiplier, 1.5);
+}
+
+for (const [ability, type, expected] of [
+  ["STEELWORKER", "STEEL", 1.5],
+  ["DRAGONSMAW", "DRAGON", 1.5],
+  ["ROCKYPAYLOAD", "ROCK", 1.5],
+  ["TRANSISTOR", "ELECTRIC", 1.3],
+]) {
+  const result = resolveBattleAbilityItemHookCanonical({
+    hook: "action_before",
+    user: pokemon(ability),
+    target: pokemon(),
+    move: { id: "TESTMOVE", type, category: "Special", power: 80 },
+    selectedMoveId: "TESTMOVE",
+  });
+  assert.equal(result.modifiers.damageMultiplierInput.externalPowerMultiplier, expected, ability);
+  const wrongType = resolveBattleAbilityItemHookCanonical({
+    hook: "action_before",
+    user: pokemon(ability),
+    target: pokemon(),
+    move: { id: "TESTMOVE", type: "NORMAL", category: "Special", power: 80 },
+    selectedMoveId: "TESTMOVE",
+  });
+  assert.equal(wrongType.modifiers.damageMultiplierInput.externalPowerMultiplier, 1, `${ability} wrong type`);
+}
+
 const coverage = BATTLE_ABILITY_ITEM_SHARED_HOOK_CONTRACT_CANONICAL.implementedCoverage;
-for (const ability of ["PRANKSTER", "SUPERLUCK", "SANDFORCE", "TINTEDLENS", "FILTER", "PRISMARMOR", "SNIPER"]) assert.ok(coverage.abilityIds.includes(ability));
+for (const ability of [
+  "PRANKSTER", "SUPERLUCK", "SANDFORCE", "TINTEDLENS", "FILTER", "PRISMARMOR", "SNIPER",
+  "DEFEATIST", "TOXICBOOST", "FLAREBOOST", "STEELWORKER", "DRAGONSMAW", "ROCKYPAYLOAD", "TRANSISTOR",
+]) assert.ok(coverage.abilityIds.includes(ability));
 for (const item of ["ASSAULTVEST", "SCOPELENS", "RAZORCLAW", "HARDSTONE", "EXPERTBELT", "BRIGHTPOWDER"]) assert.ok(coverage.itemIds.includes(item));
 assert.equal(coverage.abilityCount, new Set(coverage.abilityIds).size);
 assert.equal(coverage.itemCount, new Set(coverage.itemIds).size);
@@ -201,5 +266,8 @@ assert.equal(coverage.classificationCounts.normalPlayExtension.typeBoostHeldItem
 assert.equal(coverage.classificationCounts.normalPlayExtension.superEffectiveOffenseModifier, 2);
 assert.equal(coverage.classificationCounts.normalPlayExtension.superEffectiveDefenseModifier, 3);
 assert.equal(coverage.classificationCounts.normalPlayExtension.targetAccuracyHeldItems, 2);
+assert.equal(coverage.classificationCounts.normalPlayExtension.lowHpAttackPenaltyAbilities, 1);
+assert.equal(coverage.classificationCounts.normalPlayExtension.statusPowerBoostAbilities, 2);
+assert.equal(coverage.classificationCounts.normalPlayExtension.typePowerBoostAbilities, 4);
 
 console.log("battle ability/item normal-play extension smoke: PASS");
