@@ -66,6 +66,36 @@ function resolveCombatActionCanonical(action) {
   return resolveUseMoveDancerCanonical(instructed);
 }
 
+function actionAfterSourcePokemonCanonical(prepared, side) {
+  const modifiers = prepared?.abilityItemActionBefore?.modifiers ?? {};
+  if (side === "user") {
+    return {
+      ability: modifiers.userAbility ?? "NONE",
+      held_item: modifiers.userItem ?? null,
+      hp: Number(prepared.actorHpBefore ?? 0),
+      max_hp: Number(prepared.actorTotalHp ?? 0),
+      status: prepared?.hpFunctionInput?.actorStatus ?? "NONE",
+    };
+  }
+  return {
+    ability: modifiers.targetAbility ?? prepared?.abilityItemTypeImmunityResolution?.targetAbility ?? "NONE",
+    held_item: modifiers.targetItem ?? null,
+    hp: Number(prepared.hpAfter ?? prepared.hpBefore ?? 0),
+    max_hp: Number(prepared.totalHp ?? 0),
+    status: "NONE",
+  };
+}
+
+function actionAfterMoveCanonical(prepared) {
+  const secondary = Array.isArray(prepared?.secondaryEffectInputs) ? prepared.secondaryEffectInputs : [];
+  const effectChance = secondary.reduce((maximum, effect) => Math.max(maximum, Number(effect?.effectChance ?? effect?.chance ?? 0)), 0);
+  return {
+    id: prepared.moveId ?? null,
+    category: prepared.moveCategory ?? null,
+    effect_chance: effectChance,
+  };
+}
+
 export function applyBattleAbilityItemActionAfterCanonical(action, inputStatStages = null) {
   const statStages = createBattleStatStageStateCanonical(inputStatStages);
   const prepared = structuredClone(action);
@@ -73,25 +103,19 @@ export function applyBattleAbilityItemActionAfterCanonical(action, inputStatStag
     prepared?.kind !== "move" ||
     prepared.moveSkipped === true ||
     prepared.lastMoveFailed === true ||
-    !prepared.abilityItemTypeImmunityResolution
+    !prepared.abilityItemActionBefore
   ) {
     return { action: prepared, statStages };
   }
 
   const actionAfter = resolveBattleAbilityItemHookCanonical({
     hook: "action_after",
-    user: {},
-    target: {
-      hp: Number(prepared.hpBefore ?? 0),
-      max_hp: Number(prepared.totalHp ?? 0),
-    },
-    move: {
-      id: prepared.moveId ?? null,
-      category: prepared.moveCategory ?? null,
-    },
+    user: actionAfterSourcePokemonCanonical(prepared, "user"),
+    target: actionAfterSourcePokemonCanonical(prepared, "target"),
+    move: actionAfterMoveCanonical(prepared),
     damageDealt: Number(prepared.hpReductionResolution?.amount ?? 0),
     context: {
-      typeImmunityResolution: structuredClone(prepared.abilityItemTypeImmunityResolution),
+      typeImmunityResolution: structuredClone(prepared.abilityItemTypeImmunityResolution ?? null),
     },
   });
   prepared.abilityItemActionAfter = actionAfter;
