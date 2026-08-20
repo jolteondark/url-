@@ -301,7 +301,7 @@ export function resolvePokemonLevelEvolution(runtime, {
   const before = structuredClone(runtime);
   const nextForm = canonicalEvolutionForm(runtime, targetMaster);
   const nextLevel = canonicalEvolutionLevel(runtime, targetMaster);
-  const speciesChanged = updatePokemonRuntime(runtime, { species: candidate.target, form: nextForm, forced_form: null, level: nextLevel });
+  const speciesChanged = updatePokemonRuntime(runtime, { species: candidate.target, form: nextForm, forced_form: null, level: nextLevel, ready_to_evolve: false });
   let recalculated = preserveFaintedHp(before, preserveAuthoritativeBattleFields(before, resolvePokemonRuntimeMasters(speciesChanged, {
     species_master: targetMaster,
     nature_master,
