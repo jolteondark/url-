@@ -1,4 +1,7 @@
-import { resolveBattleStatDropReactionCanonical } from "./battle-core-stat-drop-reaction.js";
+import {
+  BATTLE_STAT_DROP_REACTION_COVERAGE_CANONICAL,
+  resolveBattleStatDropReactionCanonical,
+} from "./battle-core-stat-drop-reaction.js";
 
 const INTIMIDATE_EXISTING_EFFECT_IMMUNITIES = new Set([
   "INNERFOCUS",
@@ -119,12 +122,22 @@ export function resolveIntimidateEntryReactionCanonical({ source = {}, target = 
   });
 }
 
+const ENTRY_ABILITY_IDS = Object.freeze([...new Set([
+  ...BATTLE_STAT_DROP_REACTION_COVERAGE_CANONICAL.abilityIds,
+  ...INTIMIDATE_REACTIVE_ABILITIES,
+])].sort());
+const ENTRY_ITEM_IDS = Object.freeze([...new Set([
+  ...BATTLE_STAT_DROP_REACTION_COVERAGE_CANONICAL.itemIds,
+  ...INTIMIDATE_REACTIVE_ITEMS,
+])].sort());
+
 export const BATTLE_ABILITY_ITEM_ENTRY_EXTENSION_COVERAGE_CANONICAL = Object.freeze({
-  abilityIds: Object.freeze([...INTIMIDATE_REACTIVE_ABILITIES].sort()),
-  itemIds: Object.freeze([...INTIMIDATE_REACTIVE_ITEMS].sort()),
-  abilityCount: INTIMIDATE_REACTIVE_ABILITIES.size,
-  itemCount: INTIMIDATE_REACTIVE_ITEMS.size,
+  abilityIds: ENTRY_ABILITY_IDS,
+  itemIds: ENTRY_ITEM_IDS,
+  abilityCount: ENTRY_ABILITY_IDS.length,
+  itemCount: ENTRY_ITEM_IDS.length,
   classificationCounts: Object.freeze({
+    sharedStatDropReaction: BATTLE_STAT_DROP_REACTION_COVERAGE_CANONICAL.classificationCounts,
     intimidateReactiveAbilities: INTIMIDATE_REACTIVE_ABILITIES.size,
     intimidateReactiveItems: INTIMIDATE_REACTIVE_ITEMS.size,
   }),
