@@ -35,12 +35,50 @@ function contact(targetAbility, overrides = {}) {
     source: "STATIC",
     sourceKind: "ability",
   });
+  assert.equal(result.offensiveStatusChanceRequest, null);
   assert.deepEqual(result.statChanges, []);
 }
 
 {
   assert.equal(contact("FLAMEBODY").statusChanceRequest.status, "BURN");
   assert.equal(contact("POISONPOINT").statusChanceRequest.status, "POISON");
+}
+
+{
+  const poisonTouch = contact("NONE", { user: { ability: "POISONTOUCH" } });
+  assert.equal(poisonTouch.statusChanceRequest, null);
+  assert.deepEqual(poisonTouch.offensiveStatusChanceRequest, {
+    subject: "target",
+    status: "POISON",
+    chance: 30,
+    source: "POISONTOUCH",
+    sourceKind: "ability",
+  });
+  assert.equal(poisonTouch.triggered, true);
+}
+
+{
+  const poisonTouchMiss = contact("NONE", {
+    user: { ability: "POISONTOUCH" },
+    context: { hit: false },
+  });
+  assert.equal(poisonTouchMiss.offensiveStatusChanceRequest, null);
+
+  const poisonTouchNoContact = contact("NONE", {
+    user: { ability: "POISONTOUCH" },
+    context: { contact: false },
+  });
+  assert.equal(poisonTouchNoContact.offensiveStatusChanceRequest, null);
+}
+
+{
+  const poisonTouchLongReach = contact("NONE", { user: { ability: "POISONTOUCH" } });
+  assert.equal(poisonTouchLongReach.offensiveStatusChanceRequest.status, "POISON", "Poison Touch is the attacker's own contact effect and must not be suppressed by its own ability source");
+
+  const poisonTouchPads = contact("NONE", {
+    user: { ability: "POISONTOUCH", heldItem: "PROTECTIVEPADS" },
+  });
+  assert.equal(poisonTouchPads.offensiveStatusChanceRequest, null, "Protective Pads suppress contact effects caused by making contact");
 }
 
 {
@@ -99,18 +137,21 @@ function contact(targetAbility, overrides = {}) {
 {
   const shared = resolveBattleAbilityItemHookCanonical({
     hook: "action_after",
-    user: pokemon(),
+    user: pokemon({ ability: "POISONTOUCH" }),
     target: pokemon({ ability: "STATIC" }),
     move: { id: "TACKLE", contact: true },
     damageDealt: 20,
     context: { hit: true, contact: true },
   });
   assert.equal(shared.contactReactive.statusChanceRequest.status, "PARALYSIS");
+  assert.equal(shared.contactReactive.offensiveStatusChanceRequest.status, "POISON");
 }
 
 assert.equal(BATTLE_CONTACT_REACTIVE_COVERAGE_CANONICAL.classificationCounts.contactStatusChanceAbilities, 3);
+assert.equal(BATTLE_CONTACT_REACTIVE_COVERAGE_CANONICAL.classificationCounts.offensiveContactStatusChanceAbilities, 1);
 assert.equal(BATTLE_CONTACT_REACTIVE_COVERAGE_CANONICAL.classificationCounts.contactStatStageAbilities, 2);
 assert.ok(BATTLE_CONTACT_REACTIVE_COVERAGE_CANONICAL.abilityIds.includes("STATIC"));
 assert.ok(BATTLE_CONTACT_REACTIVE_COVERAGE_CANONICAL.abilityIds.includes("GOOEY"));
+assert.ok(BATTLE_CONTACT_REACTIVE_COVERAGE_CANONICAL.abilityIds.includes("POISONTOUCH"));
 
 console.log("battle contact status/stat-stage reactions smoke: PASS");
