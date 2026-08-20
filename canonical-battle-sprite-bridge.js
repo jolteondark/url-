@@ -2,7 +2,7 @@ import { shouldFreezeCanonicalBattleSprite } from "./battle-sprite-phase-gate.js
 import { resolveInlineCanonicalBattleSprite } from "./runtime/safari-canonical-battle-sprite-inline.js";
 import { resolveSafariCanonicalBugBattleSprite } from "./runtime/safari-canonical-battle-sprite-bug.js";
 import { resolveSafariCanonicalFileBattleSprite } from "./runtime/safari-canonical-battle-sprite-assets.js";
-import { applySafariDay1Front96Sprite } from "./runtime/safari-day1-front-96-atlas.js";
+import { applySafariDay1Front96Sprite } from "./runtime/safari-day1-front-96-atlas.js?v=20260820-1200";
 import { applySafariSpeciesFormFrontSprite } from "./runtime/safari-species-form-front-atlas.js";
 
 let scheduled = false;
@@ -86,9 +86,6 @@ function ensureFrontFallback(combatant, species, form, symbol) {
     combatant.append(fallback);
   }
 
-  // Prefer the 96px canonical Day-1 atlas whenever this species has been
-  // migrated. This is downsampled directly from source-v0.9.108 Front PNGs and
-  // avoids the visibly poor 16px-atlas enlargement used by the last-resort path.
   if (applySafariDay1Front96Sprite(fallback, species, { size: 96 })) {
     fallback.style.imageRendering = "pixelated";
     setHidden(fallback, false);
