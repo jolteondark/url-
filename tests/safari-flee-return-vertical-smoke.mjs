@@ -67,3 +67,4 @@ assert.doesNotMatch(fleeBridgeSource, /byId\(\"flee\"\)\?\.click/,
   "DPt RUN must not relay through the legacy hidden flee button");
 
 console.log("Safari RUN -> canonical flee -> terminal Battle -> Day Board return + DPt owner wiring: PASS");
+await import("./safari-flee-fail-response-vertical-smoke.mjs");
