@@ -131,4 +131,5 @@ function phaseCount(battle, phase) {
     "terminal presentation acknowledgement must never skip explicit RESULT -> RETURN");
 }
 
+await import("./safari-battle-dppt-presentation-ack-owners-smoke.mjs");
 console.log("Safari Battle presentation acknowledgement smoke passed");
