@@ -520,27 +520,23 @@ byId("shop-cancel").addEventListener("click", async () => {
 
 byId("moves").addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-move-id]");
-  if (!button || busy) return;
-  busy = true;
-  render();
+  if (!button) return;
   try {
     const result = await resolveSafariBattleRound(runtime, button.dataset.moveId);
+    render();
     await playPresentation(result.presentation);
     autoSaveIfRequested(result, "Battle result auto-save");
   } catch (error) {
     note("Battle error: " + (error?.message ?? error));
   } finally {
-    busy = false;
     render();
   }
 });
 
 byId("capture").addEventListener("click", async () => {
-  if (busy) return;
-  busy = true;
-  render();
   try {
     const result = await attemptSafariCapture(runtime);
+    render();
     await playPresentation(result.presentation);
     if (result.result === "caught") note("捕獲先: " + result.destination);
     else note("Capture: " + result.result);
@@ -548,19 +544,16 @@ byId("capture").addEventListener("click", async () => {
   } catch (error) {
     note("Capture error: " + (error?.message ?? error));
   } finally {
-    busy = false;
     render();
   }
 });
 
 byId("flee").addEventListener("click", async () => {
-  if (busy) return;
-  busy = true;
-  render();
   let escaped = false;
   try {
     const { attemptSafariFlee } = await fleeModule();
     const result = attemptSafariFlee(runtime);
+    render();
     await playPresentation(result.presentation ?? []);
     escaped = result.escaped;
     note(result.escaped ? "Battle: escaped" : "Battle: escape blocked");
@@ -568,7 +561,6 @@ byId("flee").addEventListener("click", async () => {
   } catch (error) {
     note("Flee error: " + (error?.message ?? error));
   } finally {
-    busy = false;
     render();
   }
   if (escaped) byId("board-card").scrollIntoView({ behavior: "smooth", block: "start" });
