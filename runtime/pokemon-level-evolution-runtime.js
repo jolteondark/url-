@@ -38,20 +38,41 @@ function levelEvolutionTarget(speciesMaster, runtime) {
   const unsupportedMethods = new Set();
   const level = Number(runtime?.level);
   const gender = Number(runtime?.gender);
+  const attack = Number(runtime?.stats?.ATTACK ?? runtime?.attack);
+  const defense = Number(runtime?.stats?.DEFENSE ?? runtime?.defense);
+  const personalId = Number(runtime?.personal_id);
+  const personalityBucket = Number.isInteger(personalId)
+    ? (((personalId >>> 0) >>> 16) & 0xFFFF) % 10
+    : Number.NaN;
+  const supportedMethods = new Set([
+    "Level",
+    "LevelMale",
+    "LevelFemale",
+    "AttackGreater",
+    "AtkDefEqual",
+    "DefenseGreater",
+    "Silcoon",
+    "Cascoon",
+  ]);
   let eligible = null;
   for (const raw of speciesMaster?.evolutions ?? []) {
     const evolution = normalizeEvolution(raw);
     if (!evolution?.species || !evolution.method || evolution.prevolution) continue;
-    if (!["Level", "LevelMale", "LevelFemale"].includes(evolution.method)) {
+    if (!supportedMethods.has(evolution.method)) {
       unsupportedMethods.add(evolution.method);
       continue;
     }
     const requiredLevel = Number(evolution.parameter);
     if (!Number.isInteger(requiredLevel) || requiredLevel < 1) continue;
-    const genderMatches = evolution.method === "Level"
-      || (evolution.method === "LevelMale" && gender === 0)
-      || (evolution.method === "LevelFemale" && gender === 1);
-    if (!eligible && genderMatches && level >= requiredLevel) {
+    let conditionMatches = evolution.method === "Level";
+    if (evolution.method === "LevelMale") conditionMatches = gender === 0;
+    else if (evolution.method === "LevelFemale") conditionMatches = gender === 1;
+    else if (evolution.method === "AttackGreater") conditionMatches = Number.isFinite(attack) && Number.isFinite(defense) && attack > defense;
+    else if (evolution.method === "AtkDefEqual") conditionMatches = Number.isFinite(attack) && Number.isFinite(defense) && attack === defense;
+    else if (evolution.method === "DefenseGreater") conditionMatches = Number.isFinite(attack) && Number.isFinite(defense) && attack < defense;
+    else if (evolution.method === "Silcoon") conditionMatches = Number.isFinite(personalityBucket) && personalityBucket < 5;
+    else if (evolution.method === "Cascoon") conditionMatches = Number.isFinite(personalityBucket) && personalityBucket >= 5;
+    if (!eligible && conditionMatches && level >= requiredLevel) {
       eligible = { target: evolution.species, method: evolution.method, parameter: requiredLevel };
     }
   }
