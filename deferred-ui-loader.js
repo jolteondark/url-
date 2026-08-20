@@ -1,6 +1,7 @@
 const loadedStyles = new Set();
 const loadedModules = new Map();
 let sceneBundleSyncScheduled = false;
+let gameMenuOpenPending = false;
 
 function loadStyle(href) {
   if (loadedStyles.has(href)) return;
@@ -71,6 +72,26 @@ function scheduleSceneBundleSync() {
   });
 }
 
+function setBattleMenuOpenPending(pending) {
+  gameMenuOpenPending = pending;
+  const card = document.getElementById("battle-card");
+  if (!card) return;
+  if (pending) {
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement && card.contains(focused)) focused.blur();
+    card.setAttribute("aria-busy", "true");
+  } else {
+    card.removeAttribute("aria-busy");
+  }
+}
+
+document.addEventListener("click", (event) => {
+  if (!gameMenuOpenPending) return;
+  if (!event.target.closest("#battle-card button")) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+}, true);
+
 document.addEventListener("click", (event) => {
   const start = event.target.closest("#new-run,#continue-run");
   if (start) {
@@ -94,9 +115,14 @@ document.addEventListener("click", (event) => {
 
 window.addEventListener("safari-game-menu-open-requested", async (event) => {
   const tab = event.detail?.tab;
-  if (!new Set(["party", "bag", "box"]).has(tab)) return;
-  await loadMenuUi();
-  window.dispatchEvent(new CustomEvent("safari-game-menu-open-ready", { detail: { tab } }));
+  if (!new Set(["party", "bag", "box"]).has(tab) || gameMenuOpenPending) return;
+  setBattleMenuOpenPending(true);
+  try {
+    await loadMenuUi();
+    window.dispatchEvent(new CustomEvent("safari-game-menu-open-ready", { detail: { tab } }));
+  } finally {
+    setBattleMenuOpenPending(false);
+  }
 });
 window.addEventListener("pageshow", scheduleSceneBundleSync, { passive: true });
 window.addEventListener("safari-runtime-changed", scheduleSceneBundleSync, { passive: true });
