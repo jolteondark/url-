@@ -73,10 +73,10 @@ export function openSafariTreasureTouch(runtime,index){
 export function resolveSafariTreasureChest(runtime,index,action){
   const state=stateOf(runtime);const event=prepareSafariTreasureChestV108(state.board_events?.[index],{day:Math.max(1,Math.trunc(Number(state.day)||1)),index});state.board_events[index]=event;state.board_revealed[index]=true;state.board_visited[index]=true;
   if(state.board_consumed?.[index])return {runtime,result:"already_consumed",completed:true,operations:[]};
-  if(action==="leave"){state.notice="宝箱を開けずに立ち去りました。";return {runtime,result:"declined",completed:false,operations:[]};}
+  if(action==="leave"){state.notice="宝箱を開けずに立ち去りました。";return {runtime,result:"declined",completed:true,consumed:false,operations:[]};}
   if(action!=="open")throw new RangeError("treasure action must be open or leave");
   const reward=safariTreasureRewardV108(event,state.day);
-  if(!grant(runtime,reward)){state.notice="バッグに空きがなく、宝箱の中身を受け取れませんでした。";return {runtime,result:"no_room",completed:false,reward,operations:[]};}
+  if(!grant(runtime,reward)){state.notice="バッグに空きがなく、宝箱の中身を受け取れませんでした。";return {runtime,result:"no_room",completed:true,consumed:false,reward,operations:[]};}
   state.board_consumed[index]=true;state.notice=`${reward.tierName}を開けました。`;state.last_operations=[{op:"treasure_reward",tier:reward.tier,money:reward.money,items:reward.items.map(x=>({...x}))},{op:"request_save",reason:"treasure_opened"}];
-  return {runtime,result:"granted",completed:true,reward,persistenceRequested:true,notice:state.notice,operations:state.last_operations};
+  return {runtime,result:"granted",completed:true,consumed:true,reward,persistenceRequested:true,notice:state.notice,operations:state.last_operations};
 }
