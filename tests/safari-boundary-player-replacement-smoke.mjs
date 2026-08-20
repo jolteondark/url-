@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createSafariPlayableRuntime, resolveSafariBoundaryPlayerReplacement } from "../runtime/safari-playable-integration.js";
 import { startSafariBoundaryTrialBattle } from "../runtime/safari-boundary-trial-start.js";
+import { SAFARI_BATTLE_PHASE } from "../runtime/safari-battle-orchestrator.js";
 
 const runtime = createSafariPlayableRuntime();
 if (runtime.player.party.length < 2) {
@@ -46,6 +47,7 @@ state.battle.player_replacement_handoff = {
   playerReplacementRequired: true,
   foeReplacementRequired: false,
 };
+state.battle.phase = SAFARI_BATTLE_PHASE.REPLACEMENT;
 
 const pending = resolveSafariBoundaryPlayerReplacement(runtime);
 assert.equal(pending.result, "replacement_selection_required");
@@ -53,15 +55,26 @@ assert.equal(pending.playerReplacementRequired, true);
 assert.equal(pending.playerReplacementContinuation.replacementOptions[0].canSwitchIn, false);
 assert.equal(pending.playerReplacementContinuation.replacementOptions[1].canSwitchIn, true);
 assert.equal(state.battle.player_party_index, 0, "Battle must not auto-select a reserve for the player");
+assert.equal(runtime.player.party[0].active, true,
+  "replacement selection must not mutate Party state before the central REPLACEMENT commit");
+assert.equal(state.battle.replacement_checkpoint ?? null, null,
+  "probing replacement choices must not create a committed replacement checkpoint");
 
 const continued = resolveSafariBoundaryPlayerReplacement(runtime, 1);
 assert.equal(continued.result, "continued_with_replacement");
 assert.equal(continued.playerReplacementRequired, false);
+assert.equal(continued.playerReplacementApplied, true);
 assert.equal(state.battle.player_party_index, 1);
 assert.equal(runtime.player.party[1].active, true);
 assert.equal(runtime.player.party[0].active, false);
 assert.equal(state.battle.player_replacement_required, false);
 assert.equal(state.battle.player_replacement_handoff, null);
-assert.ok(continued.operations.some((operation) => operation.op === "send_out"));
+assert.equal(state.battle.replacement_checkpoint?.side, "player");
+assert.equal(state.battle.replacement_checkpoint?.committed, true,
+  "boundary forced replacement must commit through the central REPLACEMENT checkpoint");
+assert.equal(state.battle.phase, SAFARI_BATTLE_PHASE.COMMAND,
+  "successful central replacement must return the boundary Battle to COMMAND");
+assert.equal(continued.operations.filter((operation) => operation.op === "send_out").length, 1,
+  "existing switch owner must emit exactly one send_out operation");
 
 console.log("Safari boundary player replacement smoke: ok");
