@@ -6,6 +6,7 @@ import {
 const ENTRY_TERRAIN = Object.freeze({
   ELECTRICSURGE: "Electric",
   GRASSYSURGE: "Grassy",
+  HADRONENGINE: "Electric",
   MISTYSURGE: "Misty",
   PSYCHICSURGE: "Psychic",
 });
