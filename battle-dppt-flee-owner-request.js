@@ -2,12 +2,12 @@ import {
   SAFARI_MOVE_PRESENTATION,
   saveSafariPlayableRun,
 } from "./runtime/safari-web-playable-integration.js";
+import { completeSafariBattlePresentation } from "./runtime/safari-battle-orchestrator.js";
 import { attemptSafariFlee } from "./runtime/safari-flee-command.js?v=20260818-1335";
 import { formatSafariBattlePresentationEvent } from "./battle-presentation-narration.js";
 
 const byId = (id) => document.getElementById(id);
 const sleep = (milliseconds) => new Promise((resolve) => window.setTimeout(resolve, milliseconds));
-let fleeBusy = false;
 
 function runtime() {
   return globalThis.__maplessSafariRuntime ?? null;
@@ -114,31 +114,25 @@ function restoreCommandRootIfReady() {
 }
 
 async function runFleeRequest(sourceButton) {
-  if (fleeBusy) return;
   const currentRuntime = runtime();
   const currentBattle = currentRuntime?.variables?.mapless?.battle;
   if (!currentRuntime || currentBattle?.phase !== "COMMAND") return;
   if (currentBattle.kind !== "wild" || currentBattle.origin === "village_bounty") return;
 
-  fleeBusy = true;
   const card = byId("battle-card");
   if (sourceButton instanceof HTMLElement) sourceButton.blur();
-  if (card) {
-    card.dataset.dpptMenu = "locked";
-    card.setAttribute("aria-busy", "true");
-  }
+  if (card) card.dataset.dpptMenu = "locked";
 
   try {
     const result = attemptSafariFlee(currentRuntime);
     globalThis.__maplessLastFleeResult = result;
     await playPresentation(currentRuntime, result.presentation ?? []);
+    completeSafariBattlePresentation(currentRuntime);
     saveIfRequested(currentRuntime, result);
   } catch (error) {
     globalThis.__maplessLastError = error;
     console.error("[Mapless] DPt flee request failed", error);
   } finally {
-    fleeBusy = false;
-    if (card) card.removeAttribute("aria-busy");
     window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
     restoreCommandRootIfReady();
   }
@@ -154,12 +148,7 @@ window.addEventListener("safari-battle-flee-requested", (event) => {
 
 byId("battle-card")?.addEventListener("click", (event) => {
   const button = event.target.closest('[data-dppt-command="flee"]');
-  if (!button) {
-    if (!fleeBusy || !event.target.closest("button")) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    return;
-  }
+  if (!button) return;
 
   event.preventDefault();
   event.stopImmediatePropagation();

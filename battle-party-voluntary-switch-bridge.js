@@ -2,12 +2,12 @@ import {
   SAFARI_MOVE_PRESENTATION,
   saveSafariPlayableRun,
 } from "./runtime/safari-web-playable-integration.js";
+import { completeSafariBattlePresentation } from "./runtime/safari-battle-orchestrator.js";
 import { switchSafariNormalBattlePlayer } from "./runtime/safari-normal-battle-voluntary-switch.js";
 import { formatSafariBattlePresentationEvent } from "./battle-presentation-narration.js";
 
 const byId = (id) => document.getElementById(id);
 const sleep = (milliseconds) => new Promise((resolve) => window.setTimeout(resolve, milliseconds));
-let selecting = false;
 let syncQueued = false;
 
 function runtime() {
@@ -46,8 +46,8 @@ function makeSwitchButton(index, pokemon, disabled = false) {
   button.type = "button";
   button.className = "party-lead-button";
   button.dataset.battleSwitchPartyIndex = String(index);
-  button.textContent = selecting ? "交代中…" : statusText(pokemon);
-  button.disabled = disabled || selecting || Number(pokemon?.hp ?? 0) <= 0;
+  button.textContent = statusText(pokemon);
+  button.disabled = disabled || Number(pokemon?.hp ?? 0) <= 0;
   return button;
 }
 
@@ -68,7 +68,7 @@ function syncControls() {
   slots.forEach((slot, index) => {
     const row = slot.querySelector(".party-lead-row");
     if (!row) return;
-    const marker = `${activeIndex}:${selecting ? 1 : 0}:${Number(partyPokemon(index)?.hp ?? 0)}`;
+    const marker = `${activeIndex}:${Number(partyPokemon(index)?.hp ?? 0)}`;
     if (row.dataset.battleSwitchState === marker) return;
     row.dataset.battleSwitchState = marker;
     row.replaceChildren(index === activeIndex
@@ -155,27 +155,22 @@ function restoreCommandRootIfReady() {
 }
 
 async function chooseSwitch(button) {
-  if (selecting || !selectableBattle()) return;
+  if (!selectableBattle()) return;
   const partyIndex = Number(button.dataset.battleSwitchPartyIndex);
   const pokemon = partyPokemon(partyIndex);
   if (!Number.isInteger(partyIndex) || !pokemon || Number(pokemon.hp ?? 0) <= 0) return;
 
-  selecting = true;
   if (button instanceof HTMLElement) {
     button.blur();
     button.disabled = true;
-    button.setAttribute("aria-busy", "true");
   }
   syncControls();
   const card = byId("battle-card");
-  if (card) {
-    card.dataset.dpptMenu = "locked";
-    card.setAttribute("aria-busy", "true");
-  }
+  if (card) card.dataset.dpptMenu = "locked";
 
   try {
     const currentRuntime = runtime();
-    const result = switchSafariNormalBattlePlayer(runtime(), partyIndex);
+    const result = switchSafariNormalBattlePlayer(currentRuntime, partyIndex);
     globalThis.__maplessLastBattleSwitchResult = result;
     if (result?.turnConsumed) {
       window.dispatchEvent(new CustomEvent("safari-game-menu-close-requested", { detail: { source: "battle-voluntary-switch" } }));
@@ -187,14 +182,13 @@ async function chooseSwitch(button) {
         await sleep(220);
       }
       await playPresentation(currentRuntime, result.presentation ?? []);
+      completeSafariBattlePresentation(currentRuntime);
       saveIfRequested(currentRuntime, result);
     }
   } catch (error) {
     globalThis.__maplessLastError = error;
     console.error("[Mapless] voluntary Battle switch failed", error);
   } finally {
-    selecting = false;
-    if (card) card.removeAttribute("aria-busy");
     window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
     restoreCommandRootIfReady();
     queueSync();
