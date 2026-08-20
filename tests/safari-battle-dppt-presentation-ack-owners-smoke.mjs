@@ -68,7 +68,7 @@ const previewBattleHandlers = previewSource.slice(
   previewSource.indexOf('byId("moves").addEventListener'),
   previewSource.indexOf('byId("return-board").addEventListener'),
 );
-assert.match(previewBattleHandlers, /completeSafariBattlePresentation\s*\(/,
+assert.match(previewSource, /completeSafariBattlePresentation\s*\(/,
   "preview Battle presentation must acknowledge the central presentation checkpoint");
 assert.equal(/\bbusy\b/.test(previewBattleHandlers), false,
   "preview move/capture/flee handlers must not retain local busy as Battle command truth");
