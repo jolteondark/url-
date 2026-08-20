@@ -13,6 +13,7 @@ import { interactiveSafariTravelingCook } from "./safari-traveling-cook-interact
 import { interactiveSafariFloodedRiver } from "./safari-flooded-river-interaction.js";
 import { interactiveSafariBuriedItem } from "./safari-buried-item-interaction.js";
 import { interactiveSafariEggShop } from "./safari-egg-shop-interaction.js";
+import { openSafariTreasureTouch } from "./safari-treasure-chest-interaction.js";
 import { openSafariNormalEventTouch, supportsSafariNormalEventTouch } from "./safari-normal-event-touch-handoff.js";
 import { activateSafariDayBoardCell as activateSafariDayBoardCellBase } from "./safari-playable-integration-wounded.js";
 
@@ -51,6 +52,7 @@ export function activateSafariDayBoardCell(runtime, index) {
     if (event.normal_event_id === "traveling_cook") return interactiveSafariTravelingCook(runtime, index);
     if (event.normal_event_id === "flooded_river") return interactiveSafariFloodedRiver(runtime, index);
   }
+  if (event?.kind === "treasure" && typeof globalThis.document !== "undefined") return openSafariTreasureTouch(runtime, index);
   if (event?.kind === "buried_item") return interactiveSafariBuriedItem(runtime, index);
   if (event?.kind === "egg_shop") return interactiveSafariEggShop(runtime, index);
   if (!event || event.kind !== "center") return activateSafariDayBoardCellBase(runtime, index);
