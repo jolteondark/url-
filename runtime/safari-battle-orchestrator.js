@@ -105,6 +105,7 @@ function rollbackSpeculativeAction(battle) {
 function rejectUnconsumedCommand(battle, result, commandKind) {
   rollbackSpeculativeAction(battle);
   battle.pending_command_kind = null;
+  battle.pending_command_sequence = null;
   tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, `command not consumed:${commandKind}`);
   result.phase = battle.phase;
   result.phaseTrace = structuredClone(battle.phase_trace ?? []);
@@ -159,6 +160,38 @@ function commitRewardGrowthCheckpoint(battle, result, rewardGrowthCommit, reason
   }
 }
 
+function resolutionCheckpointSequence(battle) {
+  return Number(battle.pending_command_sequence ?? battle.command_sequence ?? 0);
+}
+
+function incompleteResolutionError(checkpoint) {
+  if (!checkpoint || checkpoint.committed !== false) return null;
+  return new Error(`battle resolution checkpoint is incomplete and cannot be replayed: ${checkpoint.sequence ?? "unknown"}`);
+}
+
+function replayCommittedResolution(battle, result, commandKind) {
+  const checkpoint = battle.resolution_checkpoint;
+  const sequence = resolutionCheckpointSequence(battle);
+  if (!checkpoint || checkpoint.sequence !== sequence || checkpoint.commandKind !== commandKind) return null;
+  if (checkpoint.committed !== true) throw incompleteResolutionError(checkpoint);
+  battle.pending_command_kind = null;
+  battle.pending_command_sequence = null;
+  if (requestsPersistence(result)) result.persistenceRequested = true;
+  result.phase = battle.phase;
+  result.phaseTrace = structuredClone(battle.phase_trace ?? []);
+  return result;
+}
+
+function beginResolutionCheckpoint(battle, commandKind) {
+  const checkpoint = {
+    sequence: resolutionCheckpointSequence(battle),
+    commandKind,
+    committed: false,
+  };
+  battle.resolution_checkpoint = checkpoint;
+  return checkpoint;
+}
+
 function returnCheckpointKey(battle) {
   return [
     Number(battle.turn ?? 0),
@@ -174,6 +207,7 @@ export function ensureSafariBattleOrchestrator(runtime) {
     if (!battle.completed) {
       state.pending_battle_return_checkpoint = null;
       state.battle_return_checkpoint = null;
+      battle.resolution_checkpoint = null;
     }
     tracePhase(battle, battle.completed ? SAFARI_BATTLE_PHASE.RESULT : SAFARI_BATTLE_PHASE.COMMAND, "initialize");
   }
@@ -193,6 +227,8 @@ export function beginSafariBattleCommand(runtime, commandKind = "move") {
   if (phase !== SAFARI_BATTLE_PHASE.COMMAND) {
     throw new Error(`battle command is unavailable during ${phase}`);
   }
+  battle.command_sequence = Number(battle.command_sequence ?? 0) + 1;
+  battle.pending_command_sequence = battle.command_sequence;
   battle.pending_command_kind = commandKind;
   tracePhase(battle, SAFARI_BATTLE_PHASE.ACTION_1, `command:${commandKind}`);
   return battle.phase;
@@ -204,6 +240,7 @@ export function abortSafariBattleCommand(runtime, reason = "command failed") {
   if (battle.phase !== SAFARI_BATTLE_PHASE.ACTION_1) return battle.phase;
   rollbackSpeculativeAction(battle);
   battle.pending_command_kind = null;
+  battle.pending_command_sequence = null;
   return tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, reason);
 }
 
@@ -216,6 +253,7 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
 
   if (battle.phase === SAFARI_BATTLE_PHASE.RESULT && battle.completed) {
     battle.pending_command_kind = null;
+    battle.pending_command_sequence = null;
     if (requestsPersistence(result)) result.persistenceRequested = true;
     result.phase = battle.phase;
     result.phaseTrace = structuredClone(battle.phase_trace ?? []);
@@ -226,6 +264,10 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   if (result?.turnConsumed === false) {
     return rejectUnconsumedCommand(battle, result, resolvedCommandKind);
   }
+
+  const replayed = replayCommittedResolution(battle, result, resolvedCommandKind);
+  if (replayed) return replayed;
+  const resolutionCheckpoint = beginResolutionCheckpoint(battle, resolvedCommandKind);
 
   const decision = Number(result?.decision ?? battle.decision ?? 0);
   const playerReplacementRequired = Boolean(result?.playerReplacementRequired ?? battle.player_replacement_required);
@@ -277,7 +319,10 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
     tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, `round complete:${resolvedCommandKind}`);
   }
 
+  resolutionCheckpoint.committed = true;
+  resolutionCheckpoint.phase = battle.phase;
   battle.pending_command_kind = null;
+  battle.pending_command_sequence = null;
   if (requestsPersistence(result)) result.persistenceRequested = true;
   result.phase = battle.phase;
   result.phaseTrace = structuredClone(battle.phase_trace ?? []);
