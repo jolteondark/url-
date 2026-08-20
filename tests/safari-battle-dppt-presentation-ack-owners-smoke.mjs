@@ -63,4 +63,14 @@ for (const [name, relativePath, legacyGate] of ownerFiles) {
     `${name} readiness must be derived from central COMMAND phase`);
 }
 
+const previewSource = fs.readFileSync(new URL("../preview-app.js", import.meta.url), "utf8");
+const previewBattleHandlers = previewSource.slice(
+  previewSource.indexOf('byId("moves").addEventListener'),
+  previewSource.indexOf('byId("return-board").addEventListener'),
+);
+assert.match(previewBattleHandlers, /completeSafariBattlePresentation\s*\(/,
+  "preview Battle presentation must acknowledge the central presentation checkpoint");
+assert.equal(/\bbusy\b/.test(previewBattleHandlers), false,
+  "preview move/capture/flee handlers must not retain local busy as Battle command truth");
+
 console.log("Safari DPt Battle presentation acknowledgement owner smoke passed");
