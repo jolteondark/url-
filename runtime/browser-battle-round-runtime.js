@@ -8,6 +8,7 @@ import { safariGeneralPokemonTypesV108 } from "./safari-general-species-type-fac
 import { resolveBattleSpeedCanonical } from "./battle-core-speed.js";
 import { createBattleStatStageStateCanonical, resolveBattleStatStageChangesCanonical } from "./battle-core-stat-stages.js";
 import { buildRestStatusInputCanonical, isCanonicalFixedDamageFunction, resolveCanonicalFixedDamage } from "./battle-core-hp-function-effects.js";
+import { resolveBattleAbilityItemHookCanonical } from "./battle-ability-item-hook-dispatch.js";
 
 function moveId(move) { return typeof move === "string" ? move : move?.id; }
 function requireMoveMaster(moveMasters, id) {
@@ -68,10 +69,24 @@ export function buildBrowserBattleActionInput({ actor, target, move, moveIndex, 
   const typing = !struggle && damagingMove && move.type && actorTypes && targetTypes
     ? resolveCanonicalBattleTypingV108(move.type, actorTypes, targetTypes)
     : null;
-  const accuracyInput = { baseAccuracy: move.accuracy };
+  const actionBefore = resolveBattleAbilityItemHookCanonical({
+    hook: "action_before",
+    user: actor,
+    target,
+    move,
+    selectedMoveId: move.id,
+    context: { typeMod: typing?.multiplier ?? 1 },
+  });
+  const hookModifiers = actionBefore.modifiers ?? {};
+  const abilityItemImmune = !struggle && damagingMove && Boolean(hookModifiers.typeImmunity);
+  const targetImmune = Boolean(typing?.immune || abilityItemImmune);
+  const accuracyInput = {
+    baseAccuracy: move.accuracy,
+    ...(hookModifiers.accuracyModifierInput ? { accuracyModifierInput: structuredClone(hookModifiers.accuracyModifierInput) } : {}),
+  };
   if (randomRoll !== null && randomRoll !== undefined) accuracyInput.randomRoll = Number(randomRoll);
   const actorAbility = canonicalAbilityId(actor);
-  const targetAbility = canonicalAbilityId(target);
+  const secondaryEffectInput = hookModifiers.secondaryEffectInput ?? {};
   const statStageChanges = struggle ? [] : resolveBattleStatStageChangesCanonical(move.function_code);
   const action = {
     kind: "move", battlerIndex, targetBattlerIndex,
@@ -79,18 +94,20 @@ export function buildBrowserBattleActionInput({ actor, target, move, moveIndex, 
     moveIndex, moveId: move.id, functionCode: move.function_code, moveCategory: move.category, accuracyInput,
     hpBefore: target.hp, totalHp: target.max_hp,
     mechanicsGeneration: 9,
-    userHasSereneGrace: actorAbility === "SERENEGRACE",
-    userHasSheerForce: actorAbility === "SHEERFORCE",
-    targetHasShieldDust: targetAbility === "SHIELDDUST",
-    moldBreaker: ["MOLDBREAKER", "TERAVOLT", "TURBOBLAZE"].includes(actorAbility),
+    abilityItemActionBefore: actionBefore,
+    userHasSereneGrace: Boolean(secondaryEffectInput.userHasSereneGrace),
+    userHasSheerForce: Boolean(secondaryEffectInput.userHasSheerForce),
+    targetHasShieldDust: Boolean(secondaryEffectInput.targetHasShieldDust),
+    moldBreaker: Boolean(secondaryEffectInput.moldBreaker),
     hpFunctionInput: {
       functionCode: move.function_code,
       actorStatus: actor.status ?? "NONE",
       actorAbility,
-      targetAffected: typing?.immune !== true,
+      targetAffected: !targetImmune,
       struggle: Boolean(struggle),
     },
   };
+  if (abilityItemImmune) action.abilityItemTypeImmunityResolution = structuredClone(hookModifiers.typeImmunityResolution ?? null);
   if (statStageChanges.length > 0) {
     action.statStageEffectInput = {
       functionCode: move.function_code,
@@ -116,13 +133,14 @@ export function buildBrowserBattleActionInput({ actor, target, move, moveIndex, 
     actorLevel: actor.level,
     targetHp: target.hp,
   });
-  if (fixedDamage !== null && !typing?.immune) {
+  if (fixedDamage !== null && !targetImmune) {
     action.fixedDamageInput = {
       damage: fixedDamage,
       functionCode: move.function_code,
       source: "canonical HP function owner",
     };
-  } else if (damagingMove && !typing?.immune) {
+  } else if (damagingMove && !targetImmune) {
+    const damageCalculationInput = hookModifiers.damageCalculationInput ?? {};
     action.damageInput = {
       level: actor.level,
       baseDamage: move.power,
@@ -130,7 +148,11 @@ export function buildBrowserBattleActionInput({ actor, target, move, moveIndex, 
       defense: target.stats[special ? "SPECIAL_DEFENSE" : "DEFENSE"],
       attackStageIndex: 6,
       defenseStageIndex: 6,
+      userUnaware: Boolean(damageCalculationInput.userUnaware),
+      targetUnaware: Boolean(damageCalculationInput.targetUnaware),
+      moldBreaker: Boolean(secondaryEffectInput.moldBreaker),
       damageMultiplierInput: {
+        ...(hookModifiers.damageMultiplierInput ?? {}),
         type: move.type ?? null,
         physicalMove: move.category === "Physical",
         specialMove: special,
@@ -140,7 +162,7 @@ export function buildBrowserBattleActionInput({ actor, target, move, moveIndex, 
     };
   }
   if (typing) action.typeEffectivenessResolution = typing;
-  if (typing?.immune && damagingMove) {
+  if (targetImmune && damagingMove) {
     action.hitLoopInput = {
       targetIndexes: [targetBattlerIndex],
       moveTargetCount: 1,
@@ -166,6 +188,24 @@ export function buildBrowserBattleActionInput({ actor, target, move, moveIndex, 
   }
   return action;
 }
+
+export function buildBrowserBattlePriorityEntry({ action, pokemon, move, statStages, actionIndex, battlerIndex }) {
+  const speedInput = action?.abilityItemActionBefore?.modifiers?.speedInput ?? {};
+  const speedStage = Number(statStages?.[Number(battlerIndex)]?.SPEED ?? 0);
+  return {
+    actionIndex: Number(actionIndex),
+    battlerIndex: Number(battlerIndex),
+    speed: resolveBattleSpeedCanonical({
+      baseSpeed: pokemon.stats.SPEED,
+      speedStage,
+      status: pokemon.status ?? "NONE",
+      mechanicsGeneration: 9,
+      ...speedInput,
+    }),
+    movePriority: Number(move?.priority ?? 0) + Number(action?.abilityItemActionBefore?.priorityModifier ?? 0),
+  };
+}
+
 function annotateRuntimeOperation(operation, preparedRound) {
   if (!Number.isInteger(operation?.action)) return operation;
   const actionIndex = Number(operation.action); const action = preparedRound.actions[actionIndex]; const actor = actionIndex === 0 ? "player" : "foe"; const target = actionIndex === 0 ? "foe" : "player";
@@ -228,8 +268,8 @@ export function resolveBrowserBattleRound({ player, foe, playerParty = null, foe
     commandEntry(1, false, foeResolved, 0),
   ];
   const priorityEntries = [
-    ...(playerResolved ? [{ actionIndex: 0, battlerIndex: 0, speed: resolveBattleSpeedCanonical({ baseSpeed: player.stats.SPEED, speedStage: statStages[0].SPEED }), movePriority: playerMove.priority }] : []),
-    { actionIndex: 1, battlerIndex: 1, speed: resolveBattleSpeedCanonical({ baseSpeed: foe.stats.SPEED, speedStage: statStages[1].SPEED }), movePriority: foeMove.priority },
+    ...(playerResolved ? [buildBrowserBattlePriorityEntry({ action: actions[0], pokemon: player, move: playerMove, statStages, actionIndex: 0, battlerIndex: 0 })] : []),
+    buildBrowserBattlePriorityEntry({ action: actions[1], pokemon: foe, move: foeMove, statStages, actionIndex: 1, battlerIndex: 1 }),
   ];
   const round = { statStages, attackPhaseInput: { priorityRandomSeed: Number(priorityRandomSeed) & 0x7fffffff, battlers: [{ battlerIndex: 0, choiceKind: playerResolved ? "UseMove" : "None", fainted: player.hp <= 0, choseRageFunction: false }, { battlerIndex: 1, choiceKind: "UseMove", fainted: foe.hp <= 0, choseRageFunction: false }] }, commandEntries, priorityEntries, actions };
   const battleInput = { useAttackPhaseScheduler: true, useCanonicalAccuracyDamage: true, combatRandomSeed: Number(combatRandomSeed) & 0x7fffffff, rounds: [round] };
