@@ -22,6 +22,15 @@ function actionAfterConsumeRequests(action, reflectedBattlerIndex) {
   return requests;
 }
 
+function survivalConsumeRequests(action, reflectedBattlerIndex) {
+  const survival = action?.abilityItemSurvival;
+  if (!survival?.triggered || !survival.consumeRequest) return [];
+  if (reflectedBattlerIndex === null || reflectedBattlerIndex === undefined) return [];
+  return Number(action?.targetBattlerIndex) === Number(reflectedBattlerIndex)
+    ? [survival.consumeRequest]
+    : [];
+}
+
 function commitConsumeRequest(runtime, request, { roundIndex, actionIndex, source }) {
   if (!request || canonicalItemId(runtime?.item) !== canonicalItemId(request?.item)) return { runtime, commit: null };
   const item = runtime.item ?? null;
@@ -90,6 +99,16 @@ export function commitBattleSystemsHeldItemRuntime({ battleInput = {}, turn = {}
           roundIndex,
           actionIndex,
           source: "shared_action_after",
+        });
+        runtime = committed.runtime;
+        if (committed.commit) commits.push(committed.commit);
+      }
+
+      for (const request of survivalConsumeRequests(action, reflectedBattlerIndex)) {
+        const committed = commitConsumeRequest(runtime, request, {
+          roundIndex,
+          actionIndex,
+          source: "shared_survival",
         });
         runtime = committed.runtime;
         if (committed.commit) commits.push(committed.commit);
