@@ -116,3 +116,5 @@ assert.equal(potionQuantity(), potionBefore - 1,
   "Battle completion/return must not consume the item a second time");
 
 console.log("Safari Bag item -> foe KO -> forced replacement -> victory -> Day Board return: PASS");
+await import("./safari-capture-fail-ko-return-vertical-smoke.mjs");
+await import("./safari-flee-return-vertical-smoke.mjs");
