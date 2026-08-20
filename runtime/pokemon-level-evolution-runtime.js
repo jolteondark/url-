@@ -69,6 +69,13 @@ function preserveAuthoritativeBattleFields(before, after) {
   return next;
 }
 
+function preserveFaintedHp(before, after) {
+  if (Number(before?.hp) === 0 && Number(after?.hp) !== 0) {
+    return updatePokemonRuntime(after, { hp: 0 });
+  }
+  return after;
+}
+
 function canonicalEvolutionBlocker(runtime) {
   const stepsToHatch = Number(runtime?.steps_to_hatch ?? 0);
   if (Number.isInteger(stepsToHatch) && stepsToHatch > 0) return "EGG";
@@ -174,12 +181,12 @@ function applyEvolutionMoveLearning(runtime, targetMaster, {
   }
 
   if (!changed) return { pokemon: runtime, operations };
-  const rematerialized = preserveAuthoritativeBattleFields(runtime, resolvePokemonRuntimeMasters({ ...runtime, moves }, {
+  const rematerialized = preserveFaintedHp(runtime, preserveAuthoritativeBattleFields(runtime, resolvePokemonRuntimeMasters({ ...runtime, moves }, {
     species_master: targetMaster,
     nature_master,
     move_masters,
     disable_ivs_and_evs,
-  }));
+  })));
   return { pokemon: rematerialized, operations };
 }
 
@@ -230,12 +237,12 @@ export function resolvePokemonLevelEvolution(runtime, {
   const before = structuredClone(runtime);
   const nextForm = Number.isInteger(Number(targetMaster.form)) ? Number(targetMaster.form) : 0;
   const speciesChanged = updatePokemonRuntime(runtime, { species: candidate.target, form: nextForm });
-  let recalculated = preserveAuthoritativeBattleFields(before, resolvePokemonRuntimeMasters(speciesChanged, {
+  let recalculated = preserveFaintedHp(before, preserveAuthoritativeBattleFields(before, resolvePokemonRuntimeMasters(speciesChanged, {
     species_master: targetMaster,
     nature_master,
     move_masters,
     disable_ivs_and_evs,
-  }));
+  })));
   const learned = applyEvolutionMoveLearning(recalculated, targetMaster, {
     move_masters,
     nature_master,
