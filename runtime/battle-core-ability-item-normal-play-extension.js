@@ -8,6 +8,10 @@ const WEATHER_SPEED_ABILITIES = Object.freeze({
   SANDRUSH: new Set(["Sandstorm"]),
   SLUSHRUSH: new Set(["Hail", "Snow"]),
 });
+const WEATHER_EVASION_ABILITIES = Object.freeze({
+  SANDVEIL: new Set(["Sandstorm"]),
+  SNOWCLOAK: new Set(["Hail", "Snow"]),
+});
 
 const TYPE_BOOST_ITEMS = Object.freeze({
   NORMAL: "SILKSCARF",
@@ -57,9 +61,11 @@ const EXTENSION_ABILITY_IDS = Object.freeze([
   "ROCKYPAYLOAD",
   "SANDFORCE",
   "SANDRUSH",
+  "SANDVEIL",
   "SHADOWSHIELD",
   "SLUSHRUSH",
   "SNIPER",
+  "SNOWCLOAK",
   "SOLARPOWER",
   "SOLIDROCK",
   "STEELWORKER",
@@ -154,6 +160,7 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
   const assaultVestDefenseMultiplier = targetItem === "ASSAULTVEST" && category === "Special" ? 1.5 : 1;
   let accuracyMultiplier = userAbility === "VICTORYSTAR" ? 1.1 : 1;
   if (["BRIGHTPOWDER", "LAXINCENSE"].includes(targetItem)) accuracyMultiplier *= 0.9;
+  if (WEATHER_EVASION_ABILITIES[targetAbility]?.has(weather) && !moldBreaker) accuracyMultiplier *= 0.8;
   const weatherSpeedMultiplier = WEATHER_SPEED_ABILITIES[userAbility]?.has(weather) ? 2 : 1;
   const solarPowerAttackMultiplier = userAbility === "SOLARPOWER"
     && category === "Special"
@@ -240,6 +247,7 @@ export const BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL = Obje
     moveSelectionRestriction: 1 + PRIORITY_BLOCK_ABILITIES.size,
     specialDefenseModifier: 1,
     accuracyModifier: 1,
+    weatherEvasionAbilities: Object.keys(WEATHER_EVASION_ABILITIES).length,
     weatherSpeedModifier: 4,
     weatherSpecialAttackModifier: 1,
     statStageIgnore: 1,
