@@ -103,7 +103,9 @@ export async function interactiveSafariEggShop(runtime, index) {
   const visit = commitEggShopVisit(runtime, index);
   if (visit.result !== "completed") return visit;
   const presentation = safariEggShopPresentation(runtime);
-  state.egg_shop_ui = { board_index:index, opened_day:Number(state.day) };
+  if (typeof globalThis.document !== "undefined") {
+    globalThis.__maplessEggShopUi = { runtime, boardIndex:index, openedDay:Number(state.day) };
+  }
   state.notice = "本日の卵です。タイプを選んでください。中身のポケモンは孵化するまで分かりません。";
   return {
     ...visit,
