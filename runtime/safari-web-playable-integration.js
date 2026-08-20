@@ -1,5 +1,7 @@
 import { SAFARI_MOVE_PRESENTATION } from "./safari-move-presentation-live.js";
 import { replaceSafariNormalBattlePlayer, resolveSafariNormalBattleRound } from "./safari-normal-battle-round.js";
+import { commitBrowserTrainerFoeReplacement } from "./browser-trainer-battle-round-runtime.js";
+import { resetBattleStatStagesForBattlerCanonical } from "./battle-core-stat-stages.js";
 import {
   attemptSafariCapture as attemptSafariNormalCapture,
   commitSafariCapturedWildRewardGrowth,
@@ -96,9 +98,50 @@ function commitNormalRewardGrowth(runtime, current) {
   return committed;
 }
 
+function commitNormalTrainerReplacement(runtime, current) {
+  if (!current?.foeReplacementRequired || !current?.trainerReplacementCommitInput) return current;
+  const committed = commitBrowserTrainerFoeReplacement(current);
+  const state = stateOf(runtime);
+  const battle = state.battle;
+  if (!battle || battle.kind !== "trainer") throw new Error("active trainer battle is required for replacement commit");
+  const next = committed.nextRoundState ?? {};
+
+  if (Array.isArray(next.foeParty)) battle.trainer_party = structuredClone(next.foeParty);
+  battle.trainer_party_index = Number(next.foeActivePartyIndex ?? battle.trainer_party_index ?? 0);
+  battle.trainer_party_order = structuredClone(next.partyOrder ?? battle.trainer_party_order ?? null);
+  battle.foe = structuredClone(committed.foe);
+  battle.decision = Number(next.decision ?? committed.decision ?? 0);
+  battle.stat_stages = resetBattleStatStagesForBattlerCanonical(battle.stat_stages, 1);
+
+  const battleTurn = Math.max(1, Number(battle.turn ?? 1) - 1);
+  const switchOperations = (committed.foeReplacementOperations ?? []).map((operation) => ({
+    ...structuredClone(operation),
+    battleTurn,
+  }));
+  battle.last_operations = [...(battle.last_operations ?? current.operations ?? []), ...switchOperations];
+  state.last_operations = structuredClone(battle.last_operations);
+
+  const trainerName = battle.trainer?.trainer_full_name ?? "トレーナー";
+  const trainerNext = {
+    type: "trainer_next",
+    actor: "foe",
+    trainer: trainerName,
+    species: battle.foe?.species ?? null,
+    partyIndex: battle.trainer_party_index,
+  };
+  battle.presentation = [...(battle.presentation ?? current.presentation ?? []), trainerNext];
+  state.notice = `${trainerName}は${battle.foe?.species ?? "次のポケモン"}を繰り出した！`;
+
+  committed.operations = structuredClone(battle.last_operations);
+  committed.presentation = structuredClone(battle.presentation);
+  committed.foeReplacementRequired = false;
+  return committed;
+}
+
 function commitNormalBattleCommand(runtime, result, kind) {
   if (!stateOf(runtime).battle || needsFullBattleIntegration(runtime)) return result;
   return commitSafariBattleResolution(runtime, result, kind, {
+    replacementCommit: (current) => commitNormalTrainerReplacement(runtime, current),
     rewardGrowthCommit: (current) => commitNormalRewardGrowth(runtime, current),
   });
 }
@@ -145,10 +188,10 @@ export async function resolveSafariBattleRound(runtime, selectedMoveId) {
   const normal = !needsFullBattleIntegration(runtime);
   if (normal) beginSafariBattleCommand(runtime, "move");
   try {
-    const result = normal
+    let result = normal
       ? resolveSafariNormalBattleRound(runtime, selectedMoveId)
       : await (await full()).resolveSafariBattleRound(runtime, selectedMoveId);
-    if (normal && stateOf(runtime).battle) commitNormalBattleCommand(runtime, result, "move");
+    if (normal && stateOf(runtime).battle) result = commitNormalBattleCommand(runtime, result, "move");
     publishRuntimeChanged();
     return result;
   } catch (error) {
