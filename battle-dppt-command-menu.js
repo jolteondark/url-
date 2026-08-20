@@ -212,11 +212,9 @@ byId("battle-card")?.addEventListener("click", (event) => {
     if (kind === "fight") return setMenu("fight");
     if (kind === "bag") return setMenu("bag");
     if (kind === "party") return byId("menu-party")?.click();
-    if (kind === "flee") return byId("flee")?.click();
   }
   if (event.target.closest("#dppt-command-back")) return setMenu("root");
   const bag = event.target.closest("[data-dppt-bag]");
-  if (bag?.dataset.dpptBag === "ball") return byId("capture")?.click();
   if (bag?.dataset.dpptBag === "items") return byId("menu-bag")?.click();
   if (event.target.closest("#moves button[data-move-id]")) {
     queueMicrotask(() => {
