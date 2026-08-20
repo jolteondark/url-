@@ -94,26 +94,9 @@ window.addEventListener("safari-game-menu-opened", (event) => {
   lockMenuToBattlePurpose(tab);
 });
 
-const menu = byId("game-menu");
-if (menu && typeof MutationObserver === "function") {
-  new MutationObserver(() => {
-    if (menu.hidden) {
-      restoreNormalMenu();
-      if (battle()?.phase === "COMMAND") {
-        const card = byId("battle-card");
-        if (card) card.dataset.dpptMenu = "root";
-        const message = byId("battle-message");
-        if (message && message.dataset.presentationOwner !== "event") message.textContent = "どうする？";
-        requestAnimationFrame(() => {
-          byId("battle-card")?.scrollIntoView?.({ behavior: "smooth", block: "end" });
-          const fight = document.querySelector('#dppt-command-root button[data-dppt-command="fight"]:not(:disabled)');
-          if (fight instanceof HTMLElement) fight.focus({ preventScroll: true });
-        });
-      }
-    }
-  }).observe(menu, { attributes: true, attributeFilter: ["hidden"] });
-}
+window.addEventListener("safari-game-menu-closed", restoreNormalMenu);
 
+const menu = byId("game-menu");
 const bagPane = byId("menu-bag-pane");
 if (bagPane && typeof MutationObserver === "function") {
   let reinjectQueued = false;
