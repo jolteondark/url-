@@ -95,24 +95,6 @@ function saveIfRequested(currentRuntime, result) {
   saveSafariPlayableRun(window.localStorage, currentRuntime);
 }
 
-function restoreCommandRootIfReady() {
-  const currentBattle = battle();
-  const card = byId("battle-card");
-  if (!card || card.hidden || currentBattle?.phase !== "COMMAND") return;
-  card.dataset.dpptMenu = "root";
-  const message = byId("battle-message");
-  if (message) {
-    delete message.dataset.presentationOwner;
-    message.textContent = "どうする？";
-  }
-  requestAnimationFrame(() => {
-    const fight = card.querySelector('#dppt-command-root button[data-dppt-command="fight"]');
-    if (fight && !fight.disabled && !fight.hidden && fight.getClientRects().length > 0) {
-      fight.focus({ preventScroll: true });
-    }
-  });
-}
-
 async function runCaptureRequest(sourceButton) {
   const currentRuntime = runtime();
   const currentBattle = currentRuntime?.variables?.mapless?.battle;
@@ -133,7 +115,6 @@ async function runCaptureRequest(sourceButton) {
     console.error("[Mapless] DPt capture request failed", error);
   } finally {
     window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
-    restoreCommandRootIfReady();
   }
 }
 
