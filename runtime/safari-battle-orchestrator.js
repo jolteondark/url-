@@ -173,7 +173,14 @@ function incompleteReplacementError(battle) {
   return new Error(`replacement checkpoint is incomplete and cannot be replayed: ${checkpoint.key ?? "unknown"}`);
 }
 
-function commitReplacementCheckpoint(battle, result, replacementCommit, reason) {
+function replacementCommitApplied(committed, side) {
+  if (side === "player") {
+    return committed?.playerReplacementApplied === true && committed?.playerReplacementRequired === false;
+  }
+  return committed?.foeReplacementApplied === true;
+}
+
+function commitReplacementCheckpoint(battle, result, replacementCommit, reason, side = "foe") {
   const key = replacementCheckpointKey(battle, reason);
   const existing = battle.replacement_checkpoint;
   if (existing?.key === key) {
@@ -186,20 +193,21 @@ function commitReplacementCheckpoint(battle, result, replacementCommit, reason) 
     key,
     sequence: Number(battle.pending_command_sequence ?? battle.command_sequence ?? 0),
     reason: reason ?? null,
+    side,
     committed: false,
   };
   battle.replacement_checkpoint = checkpoint;
 
   if (typeof replacementCommit !== "function") {
     checkpoint.errorName = "Error";
-    checkpoint.errorMessage = "trainer replacement commit owner is required";
+    checkpoint.errorMessage = `${side} replacement commit owner is required`;
     throw new Error(checkpoint.errorMessage);
   }
 
   try {
     const committed = replacementCommit(result);
-    if (!committed?.foeReplacementApplied) {
-      throw new Error("trainer replacement owner did not apply replacement");
+    if (!replacementCommitApplied(committed, side)) {
+      throw new Error(`${side} replacement owner did not apply replacement`);
     }
     checkpoint.committed = true;
     return committed && committed !== result ? committed : result;
@@ -344,9 +352,6 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   const fainted = hasFaint(result) || playerReplacementRequired || foeReplacementRequired || foeReplacementApplied || terminalResolution;
   if (fainted) tracePhase(battle, SAFARI_BATTLE_PHASE.POST_FAINT, "faint/terminal checkpoint");
 
-  // A terminal decision is authoritative even if a compatibility result still carries
-  // a stale replacement-required flag from the active battler faint. All-fainted
-  // loss/run-end must advance POST_FAINT -> POST_VICTORY rather than opening REPLACEMENT.
   if (terminalResolution) {
     tracePhase(battle, SAFARI_BATTLE_PHASE.POST_VICTORY, decision === 1 ? "victory" : "terminal result");
     result = commitRewardGrowthCheckpoint(
@@ -360,7 +365,7 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
     battle.completed_phase = SAFARI_BATTLE_PHASE.RESULT;
   } else if (playerReplacementRequired) {
     if (foeReplacementRequired) {
-      result = commitReplacementCheckpoint(battle, result, replacementCommit, "trainer reserve replacement");
+      result = commitReplacementCheckpoint(battle, result, replacementCommit, "trainer reserve replacement", "foe");
     } else {
       tracePhase(battle, SAFARI_BATTLE_PHASE.REPLACEMENT, "player replacement required");
     }
@@ -371,14 +376,12 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
       };
     }
   } else if (foeReplacementRequired && decision === 0) {
-    result = commitReplacementCheckpoint(battle, result, replacementCommit, "trainer reserve replacement");
+    result = commitReplacementCheckpoint(battle, result, replacementCommit, "trainer reserve replacement", "foe");
     if (hasRewardGrowthTail(result)) {
       result = commitRewardGrowthCheckpoint(battle, result, rewardGrowthCommit, "replacement growth checkpoint");
     }
     tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, "replacement completed");
   } else if (foeReplacementApplied && decision === 0) {
-    // Compatibility path for callers that still commit canonical replacement before
-    // entering the orchestrator. New normal trainer Battles use replacementCommit.
     tracePhase(battle, SAFARI_BATTLE_PHASE.REPLACEMENT, "trainer reserve sent out");
     if (hasRewardGrowthTail(result)) {
       result = commitRewardGrowthCheckpoint(battle, result, rewardGrowthCommit, "replacement growth checkpoint");
@@ -398,15 +401,23 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   return result;
 }
 
-export function completeSafariBattleReplacement(runtime, result = {}, { rewardGrowthCommit = null } = {}) {
+export function completeSafariBattleReplacement(runtime, result = {}, {
+  rewardGrowthCommit = null,
+  replacementCommit = null,
+} = {}) {
   const battle = battleOf(runtime);
   const incompleteGrowth = incompleteRewardGrowthError(battle);
   if (incompleteGrowth) throw incompleteGrowth;
+  const incompleteReplacement = incompleteReplacementError(battle);
+  if (incompleteReplacement) throw incompleteReplacement;
   const phase = ensureSafariBattleOrchestrator(runtime);
   if (phase !== SAFARI_BATTLE_PHASE.REPLACEMENT) {
     throw new Error(`battle replacement is unavailable during ${phase}`);
   }
   if (battle.player_replacement_required) {
+    result = commitReplacementCheckpoint(battle, result, replacementCommit, "player replacement", "player");
+  }
+  if (battle.player_replacement_required || result?.playerReplacementRequired === true) {
     throw new Error("replacement owner did not clear player replacement requirement");
   }
   const pendingGrowth = battle.pending_reward_growth ?? null;

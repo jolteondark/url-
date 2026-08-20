@@ -5,6 +5,7 @@ import {
   abortSafariBattleCommand,
   beginSafariBattleCommand,
   commitSafariBattleResolution,
+  completeSafariBattleReplacement,
   ensureSafariBattleOrchestrator,
 } from "../runtime/safari-battle-orchestrator.js";
 
@@ -168,4 +169,91 @@ function reserveKoResult() {
   assert.equal(battle.phase_trace.length, traceLength);
 }
 
-console.log("safari central trainer replacement commit smoke: PASS");
+{
+  const rt = runtime();
+  const battle = rt.variables.mapless.battle;
+  battle.player_replacement_required = true;
+  battle.player_party_index = 0;
+  ensureSafariBattleOrchestrator(rt);
+  beginSafariBattleCommand(rt, "move");
+  commitSafariBattleResolution(rt, {
+    decision: 0,
+    playerReplacementRequired: true,
+    operations: [
+      { op: "use_move", actor: "foe" },
+      { op: "faint", target: "player" },
+    ],
+  }, "move");
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.REPLACEMENT);
+  let playerCommits = 0;
+  const completed = completeSafariBattleReplacement(rt, {
+    result: "replacement_selected",
+    playerReplacementRequired: true,
+    playerReplacementApplied: false,
+    operations: [{ op: "send_out", actor: "player" }],
+  }, {
+    replacementCommit(current) {
+      playerCommits += 1;
+      assert.equal(battle.phase, SAFARI_BATTLE_PHASE.REPLACEMENT,
+        "forced player switch must mutate Party state only inside the central REPLACEMENT checkpoint");
+      battle.player_replacement_required = false;
+      return {
+        ...current,
+        result: "replaced",
+        playerReplacementRequired: false,
+        playerReplacementApplied: true,
+      };
+    },
+  });
+  assert.equal(playerCommits, 1);
+  assert.equal(completed.result, "replaced");
+  assert.equal(completed.playerReplacementApplied, true);
+  assert.equal(battle.replacement_checkpoint?.side, "player");
+  assert.equal(battle.replacement_checkpoint?.committed, true);
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.COMMAND);
+  assert.deepEqual(
+    battle.phase_trace.slice(-2).map((step) => step.phase),
+    ["REPLACEMENT", "COMMAND"],
+    "player replacement mutation must be the REPLACEMENT checkpoint immediately before the next COMMAND",
+  );
+}
+
+{
+  const rt = runtime();
+  const battle = rt.variables.mapless.battle;
+  battle.player_replacement_required = true;
+  ensureSafariBattleOrchestrator(rt);
+  beginSafariBattleCommand(rt, "move");
+  commitSafariBattleResolution(rt, {
+    decision: 0,
+    playerReplacementRequired: true,
+    operations: [{ op: "faint", target: "player" }],
+  }, "move");
+  let attempts = 0;
+  assert.throws(() => completeSafariBattleReplacement(rt, {
+    result: "replacement_selected",
+    playerReplacementRequired: true,
+  }, {
+    replacementCommit() {
+      attempts += 1;
+      throw new Error("player replacement exploded:test");
+    },
+  }), /player replacement exploded:test/);
+  assert.equal(attempts, 1);
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.REPLACEMENT);
+  assert.equal(battle.replacement_checkpoint?.side, "player");
+  assert.equal(battle.replacement_checkpoint?.committed, false);
+  assert.throws(() => completeSafariBattleReplacement(rt, {
+    result: "replacement_selected",
+    playerReplacementRequired: true,
+  }, {
+    replacementCommit() {
+      attempts += 1;
+      return { playerReplacementRequired: false, playerReplacementApplied: true };
+    },
+  }), /replacement checkpoint is incomplete and cannot be replayed/);
+  assert.equal(attempts, 1,
+    "partially failed player replacement must fail closed instead of mutating Party twice");
+}
+
+console.log("safari central trainer/player replacement commit smoke: PASS");
