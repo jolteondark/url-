@@ -45,6 +45,24 @@ export function reflectBattleCoreTryUseMoveHpToPokemonRuntime(runtime, preparedB
   return updatePokemonRuntime(runtime, { hp: Number(matches.at(-1).hpAfter) });
 }
 
+function actionAfterHpDeltaForBattler(action, battlerIndex) {
+  const after = action?.abilityItemActionAfter;
+  if (!after) return 0;
+  const index = Number(battlerIndex);
+  let delta = 0;
+  if (Number(action?.battlerIndex) === index) {
+    delta += Number(after.userHpDelta ?? 0);
+    delta += Number(after?.contactReactive?.userHpDelta ?? 0);
+  }
+  if (Number(action?.targetBattlerIndex) === index) {
+    const immunity = after?.typeImmunityAfterEffect;
+    if (immunity?.triggered === true) delta += Number(immunity.hpDelta ?? 0);
+    const berry = after?.targetBerry;
+    if (berry?.triggered === true) delta += Number(berry.heal ?? 0);
+  }
+  return Number.isFinite(delta) ? Math.trunc(delta) : 0;
+}
+
 export function reflectBattleCoreAbilityItemActionAfterHpToPokemonRuntime(runtime, preparedBattleInput, battlerIndex) {
   const rounds = Array.isArray(preparedBattleInput?.rounds) ? preparedBattleInput.rounds : [];
   const index = Number(battlerIndex);
@@ -57,12 +75,10 @@ export function reflectBattleCoreAbilityItemActionAfterHpToPokemonRuntime(runtim
       ? round.priorityOrder.map(Number).filter((actionIndex) => Number.isInteger(actionIndex) && actionIndex >= 0 && actionIndex < actions.length)
       : actions.map((_, actionIndex) => actionIndex);
     for (const actionIndex of order) {
-      const action = actions[actionIndex];
-      if (Number(action?.targetBattlerIndex) !== index) continue;
-      const effect = action?.abilityItemActionAfter?.typeImmunityAfterEffect;
-      const hpDelta = Number(effect?.hpDelta ?? 0);
-      if (effect?.triggered !== true || hpDelta <= 0 || hp <= 0) continue;
-      hp = Math.min(maxHp, hp + hpDelta);
+      const delta = actionAfterHpDeltaForBattler(actions[actionIndex], index);
+      if (delta === 0) continue;
+      if (hp <= 0 && delta > 0) continue;
+      hp = Math.min(maxHp, Math.max(0, hp + delta));
       changed = true;
     }
   }
@@ -211,7 +227,7 @@ export function resolveBattleRuntimeIntegration({ pokemon, sendOuts = [], battle
   const reflected = commitBattleRuntimePokemonRound({ battleInput: preparedBattleInput, turn, pokemon, ppActionIndexes, reflectedActionIndex, reflectedTryUseMoveActionIndex, reflectedBattlerIndex });
   const ppCommitted = reflected.ppCommitted;
   const statusCommitted = commitBattleSystemsStatusRuntime({ battleInput: preparedBattleInput, turn, pokemon: reflected.pokemon, reflectedBattlerIndex });
-  const heldItemCommitted = commitBattleSystemsHeldItemRuntime({ battleInput: preparedBattleInput, turn, pokemon: statusCommitted.pokemon });
+  const heldItemCommitted = commitBattleSystemsHeldItemRuntime({ battleInput: preparedBattleInput, turn, pokemon: statusCommitted.pokemon, reflectedBattlerIndex });
   const expCommitted = commitBattleSystemsExpRuntime({ battleInput: preparedBattleInput, turn, pokemon: heldItemCommitted.pokemon });
   const reflectedPokemon = expCommitted.pokemon; const decision = Number(turn.decision);
   const postBattlePersistence = resolveBattleEndPersistenceIntegration({ decision, persistenceInput: postBattlePersistenceInput, reflectedPokemon, reflectedPartyIndex, reflectMoves: ppCommitted.commits.length > 0 || expCommitted.commits.length > 0, reflectExpLevel: expCommitted.commits.length > 0, reflectStatus: statusCommitted.commits.length > 0 || reflected.tryUseStatusChanged, reflectItem: heldItemCommitted.commits.length > 0 });
