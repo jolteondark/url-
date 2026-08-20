@@ -16,6 +16,10 @@ import {
   resolveEntryWeatherAbilityItemHookCanonical,
 } from "./battle-core-entry-weather-extension.js";
 import {
+  BATTLE_ENTRY_TERRAIN_COVERAGE_CANONICAL,
+  resolveEntryTerrainAbilityItemHookCanonical,
+} from "./battle-core-entry-terrain-extension.js";
+import {
   BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL,
   resolveNormalPlayActionBeforeAbilityItemExtensionCanonical,
 } from "./battle-core-ability-item-normal-play-extension.js";
@@ -70,6 +74,7 @@ function combinedCoverageCanonical() {
     ...(BATTLE_ABILITY_ITEM_IMPLEMENTED_COVERAGE_CANONICAL.abilityIds ?? []),
     ...(BATTLE_ABILITY_ITEM_ENTRY_EXTENSION_COVERAGE_CANONICAL.abilityIds ?? []),
     ...(BATTLE_ENTRY_WEATHER_COVERAGE_CANONICAL.abilityIds ?? []),
+    ...(BATTLE_ENTRY_TERRAIN_COVERAGE_CANONICAL.abilityIds ?? []),
     ...(BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL.abilityIds ?? []),
     ...(BATTLE_CONTACT_REACTIVE_COVERAGE_CANONICAL.abilityIds ?? []),
     ...(BATTLE_TYPE_IMMUNITY_AFTER_EFFECT_COVERAGE_CANONICAL.abilityIds ?? []),
@@ -78,6 +83,7 @@ function combinedCoverageCanonical() {
     ...(BATTLE_ABILITY_ITEM_IMPLEMENTED_COVERAGE_CANONICAL.itemIds ?? []),
     ...(BATTLE_ABILITY_ITEM_ENTRY_EXTENSION_COVERAGE_CANONICAL.itemIds ?? []),
     ...(BATTLE_ENTRY_WEATHER_COVERAGE_CANONICAL.itemIds ?? []),
+    ...(BATTLE_ENTRY_TERRAIN_COVERAGE_CANONICAL.itemIds ?? []),
     ...(BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL.itemIds ?? []),
     ...(BATTLE_STATUS_CURE_BERRY_COVERAGE_CANONICAL.itemIds ?? []),
     ...(BATTLE_AIR_BALLOON_COVERAGE_CANONICAL.itemIds ?? []),
@@ -93,6 +99,7 @@ function combinedCoverageCanonical() {
       ...BATTLE_ABILITY_ITEM_IMPLEMENTED_COVERAGE_CANONICAL.classificationCounts,
       entryExtension: BATTLE_ABILITY_ITEM_ENTRY_EXTENSION_COVERAGE_CANONICAL.classificationCounts,
       entryWeatherExtension: BATTLE_ENTRY_WEATHER_COVERAGE_CANONICAL.classificationCounts,
+      entryTerrainExtension: BATTLE_ENTRY_TERRAIN_COVERAGE_CANONICAL.classificationCounts,
       normalPlayExtension: BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL.classificationCounts,
       statusCureBerryExtension: BATTLE_STATUS_CURE_BERRY_COVERAGE_CANONICAL.classificationCounts,
       airBalloonExtension: BATTLE_AIR_BALLOON_COVERAGE_CANONICAL.classificationCounts,
@@ -113,8 +120,9 @@ function resolveSharedSwitchInCanonical({ runtimeUser, runtimeTarget, context })
   const base = resolveSwitchInAbilityItemHookCanonical({ user: runtimeUser, target: runtimeTarget });
   const reaction = resolveIntimidateEntryReactionCanonical({ source: runtimeUser, target: runtimeTarget });
   const entryWeather = resolveEntryWeatherAbilityItemHookCanonical({ user: runtimeUser, context });
+  const entryTerrain = resolveEntryTerrainAbilityItemHookCanonical({ user: runtimeUser, context });
   if (!reaction.applies) {
-    return Object.freeze({ ...base, entryReaction: reaction, entryWeather, consumeRequest: null });
+    return Object.freeze({ ...base, entryReaction: reaction, entryWeather, entryTerrain, consumeRequest: null });
   }
   const baseChanges = reaction.replaceBaseChanges ? [] : [...(base.entry?.changes ?? [])];
   const changes = Object.freeze([...baseChanges, ...(reaction.changes ?? [])]);
@@ -129,6 +137,7 @@ function resolveSharedSwitchInCanonical({ runtimeUser, runtimeTarget, context })
     entry,
     entryReaction: reaction,
     entryWeather,
+    entryTerrain,
     consumeRequest: reaction.consumeRequest,
   });
 }
@@ -307,7 +316,7 @@ export const BATTLE_ABILITY_ITEM_SHARED_HOOK_CONTRACT_CANONICAL = Object.freeze(
     heldItem: "pokemon.held_item (authoritative when present, including null; pokemon.item is legacy-only fallback)",
   }),
   mutationOwnership: Object.freeze({
-    switchIn: "battle stat-stage/weather owners; consume request goes to held-item lifecycle owner",
+    switchIn: "battle stat-stage/weather/terrain owners; consume request goes to held-item lifecycle owner",
     actionBefore: "command/action owner",
     actionAfter: "Pokemon HP/status + held-item lifecycle owners",
     turnEnd: "battle runtime reflection owners",
