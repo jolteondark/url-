@@ -12,6 +12,10 @@ import {
   resolveIntimidateEntryReactionCanonical,
 } from "./battle-core-ability-item-entry-extension.js";
 import {
+  BATTLE_ENTRY_WEATHER_COVERAGE_CANONICAL,
+  resolveEntryWeatherAbilityItemHookCanonical,
+} from "./battle-core-entry-weather-extension.js";
+import {
   BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL,
   resolveNormalPlayActionBeforeAbilityItemExtensionCanonical,
 } from "./battle-core-ability-item-normal-play-extension.js";
@@ -61,12 +65,14 @@ function combinedCoverageCanonical() {
   const abilityIds = Object.freeze([...new Set([
     ...(BATTLE_ABILITY_ITEM_IMPLEMENTED_COVERAGE_CANONICAL.abilityIds ?? []),
     ...(BATTLE_ABILITY_ITEM_ENTRY_EXTENSION_COVERAGE_CANONICAL.abilityIds ?? []),
+    ...(BATTLE_ENTRY_WEATHER_COVERAGE_CANONICAL.abilityIds ?? []),
     ...(BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL.abilityIds ?? []),
     ...(BATTLE_CONTACT_REACTIVE_COVERAGE_CANONICAL.abilityIds ?? []),
   ])].sort());
   const itemIds = Object.freeze([...new Set([
     ...(BATTLE_ABILITY_ITEM_IMPLEMENTED_COVERAGE_CANONICAL.itemIds ?? []),
     ...(BATTLE_ABILITY_ITEM_ENTRY_EXTENSION_COVERAGE_CANONICAL.itemIds ?? []),
+    ...(BATTLE_ENTRY_WEATHER_COVERAGE_CANONICAL.itemIds ?? []),
     ...(BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL.itemIds ?? []),
     ...(BATTLE_STATUS_CURE_BERRY_COVERAGE_CANONICAL.itemIds ?? []),
     ...(BATTLE_AIR_BALLOON_COVERAGE_CANONICAL.itemIds ?? []),
@@ -81,6 +87,7 @@ function combinedCoverageCanonical() {
     classificationCounts: Object.freeze({
       ...BATTLE_ABILITY_ITEM_IMPLEMENTED_COVERAGE_CANONICAL.classificationCounts,
       entryExtension: BATTLE_ABILITY_ITEM_ENTRY_EXTENSION_COVERAGE_CANONICAL.classificationCounts,
+      entryWeatherExtension: BATTLE_ENTRY_WEATHER_COVERAGE_CANONICAL.classificationCounts,
       normalPlayExtension: BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL.classificationCounts,
       statusCureBerryExtension: BATTLE_STATUS_CURE_BERRY_COVERAGE_CANONICAL.classificationCounts,
       airBalloonExtension: BATTLE_AIR_BALLOON_COVERAGE_CANONICAL.classificationCounts,
@@ -96,10 +103,13 @@ function multiplyFinite(...values) {
   return values.reduce((product, value) => product * Number(value ?? 1), 1);
 }
 
-function resolveSharedSwitchInCanonical({ runtimeUser, runtimeTarget }) {
+function resolveSharedSwitchInCanonical({ runtimeUser, runtimeTarget, context }) {
   const base = resolveSwitchInAbilityItemHookCanonical({ user: runtimeUser, target: runtimeTarget });
   const reaction = resolveIntimidateEntryReactionCanonical({ source: runtimeUser, target: runtimeTarget });
-  if (!reaction.applies) return Object.freeze({ ...base, entryReaction: reaction, consumeRequest: null });
+  const entryWeather = resolveEntryWeatherAbilityItemHookCanonical({ user: runtimeUser, context });
+  if (!reaction.applies) {
+    return Object.freeze({ ...base, entryReaction: reaction, entryWeather, consumeRequest: null });
+  }
   const baseChanges = reaction.replaceBaseChanges ? [] : [...(base.entry?.changes ?? [])];
   const changes = Object.freeze([...baseChanges, ...(reaction.changes ?? [])]);
   const entry = Object.freeze({
@@ -112,6 +122,7 @@ function resolveSharedSwitchInCanonical({ runtimeUser, runtimeTarget }) {
     ...base,
     entry,
     entryReaction: reaction,
+    entryWeather,
     consumeRequest: reaction.consumeRequest,
   });
 }
@@ -246,7 +257,7 @@ export function resolveBattleAbilityItemHookCanonical({
   const runtimeUser = pokemonRuntimeSourceCanonical(user);
   const runtimeTarget = pokemonRuntimeSourceCanonical(target);
   if (phase === "switch_in") {
-    return resolveSharedSwitchInCanonical({ runtimeUser, runtimeTarget });
+    return resolveSharedSwitchInCanonical({ runtimeUser, runtimeTarget, context });
   }
   if (phase === "action_before") {
     return resolveSharedActionBeforeCanonical({
@@ -286,7 +297,7 @@ export const BATTLE_ABILITY_ITEM_SHARED_HOOK_CONTRACT_CANONICAL = Object.freeze(
     heldItem: "pokemon.held_item (authoritative when present, including null; pokemon.item is legacy-only fallback)",
   }),
   mutationOwnership: Object.freeze({
-    switchIn: "battle stat-stage owner; consume request goes to held-item lifecycle owner",
+    switchIn: "battle stat-stage/weather owners; consume request goes to held-item lifecycle owner",
     actionBefore: "command/action owner",
     actionAfter: "Pokemon HP/status + held-item lifecycle owners",
     turnEnd: "battle runtime reflection owners",
