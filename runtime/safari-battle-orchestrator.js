@@ -245,7 +245,21 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   const fainted = hasFaint(result) || playerReplacementRequired || foeReplacementApplied || terminalResolution;
   if (fainted) tracePhase(battle, SAFARI_BATTLE_PHASE.POST_FAINT, "faint/terminal checkpoint");
 
-  if (playerReplacementRequired) {
+  // A terminal decision is authoritative even if a compatibility result still carries
+  // a stale replacement-required flag from the active battler faint. All-fainted
+  // loss/run-end must advance POST_FAINT -> POST_VICTORY rather than opening REPLACEMENT.
+  if (terminalResolution) {
+    tracePhase(battle, SAFARI_BATTLE_PHASE.POST_VICTORY, decision === 1 ? "victory" : "terminal result");
+    result = commitRewardGrowthCheckpoint(
+      battle,
+      result,
+      rewardGrowthCommit,
+      hasRewardGrowthTail(result) || decision === 1 ? "automatic growth/reward tail" : "automatic growth/reward checkpoint",
+    );
+    tracePhase(battle, SAFARI_BATTLE_PHASE.RESULT, "battle result ready");
+    battle.completed = true;
+    battle.completed_phase = SAFARI_BATTLE_PHASE.RESULT;
+  } else if (playerReplacementRequired) {
     if (hasDeferredGrowth(result)) {
       battle.pending_reward_growth = {
         expIntegration: structuredClone(result.expIntegration),
@@ -259,17 +273,6 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
       result = commitRewardGrowthCheckpoint(battle, result, rewardGrowthCommit, "replacement growth checkpoint");
     }
     tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, "replacement completed");
-  } else if (terminalResolution) {
-    tracePhase(battle, SAFARI_BATTLE_PHASE.POST_VICTORY, decision === 1 ? "victory" : "terminal result");
-    result = commitRewardGrowthCheckpoint(
-      battle,
-      result,
-      rewardGrowthCommit,
-      hasRewardGrowthTail(result) || decision === 1 ? "automatic growth/reward tail" : "automatic growth/reward checkpoint",
-    );
-    tracePhase(battle, SAFARI_BATTLE_PHASE.RESULT, "battle result ready");
-    battle.completed = true;
-    battle.completed_phase = SAFARI_BATTLE_PHASE.RESULT;
   } else {
     tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, `round complete:${resolvedCommandKind}`);
   }
