@@ -2,6 +2,7 @@ import { shouldFreezeCanonicalBattleSprite } from "./battle-sprite-phase-gate.js
 import { resolveInlineCanonicalBattleSprite } from "./runtime/safari-canonical-battle-sprite-inline.js";
 import { resolveSafariCanonicalBugBattleSprite } from "./runtime/safari-canonical-battle-sprite-bug.js";
 import { resolveSafariCanonicalFileBattleSprite } from "./runtime/safari-canonical-battle-sprite-assets.js";
+import { applySafariSpeciesFormFrontSprite } from "./runtime/safari-species-form-front-atlas.js";
 
 let scheduled = false;
 const pendingLoads = new Map();
@@ -16,12 +17,14 @@ function ensureStyle() {
   style.id = "canonical-battle-sprite-style";
   style.textContent = `
     .canonical-battle-sprite{position:absolute;z-index:3;display:block;object-fit:contain;pointer-events:none;filter:drop-shadow(0 12px 10px rgba(0,0,0,.28));image-rendering:pixelated;opacity:1}
+    .canonical-battle-front-fallback{position:absolute;z-index:3;display:block;pointer-events:none;right:34px;bottom:26px;filter:drop-shadow(0 8px 7px rgba(0,0,0,.24));opacity:.96}
     .combatant.foe .canonical-battle-sprite{width:168px;height:168px;right:16px;bottom:8px}
     .combatant.player .canonical-battle-sprite{width:184px;height:184px;left:6px;bottom:10px}
-    .combatant[data-sprite-loading="true"] .text-mon{display:block!important;opacity:.28}
+    .combatant[data-sprite-loading="true"] .text-mon{display:block!important;opacity:.18}
     @media(max-width:520px){
       .combatant.foe .canonical-battle-sprite{width:148px;height:148px;right:8px;bottom:9px}
       .combatant.player .canonical-battle-sprite{width:160px;height:160px;left:0;bottom:10px}
+      .canonical-battle-front-fallback{right:26px;bottom:26px}
     }
   `;
   document.head.append(style);
@@ -72,6 +75,30 @@ function imageForAsset(asset) {
   return image;
 }
 
+function ensureFrontFallback(combatant, species, form, symbol) {
+  if (!combatant.classList.contains("foe")) return false;
+  let fallback = combatant.querySelector(".canonical-battle-front-fallback");
+  if (!fallback) {
+    fallback = document.createElement("span");
+    fallback.className = "canonical-battle-front-fallback";
+    fallback.setAttribute("aria-hidden", "true");
+    combatant.append(fallback);
+  }
+  const ok = applySafariSpeciesFormFrontSprite(fallback, species, { form, family: "front", size: 96 });
+  if (ok) {
+    fallback.style.imageRendering = "auto";
+    setHidden(fallback, false);
+    setHidden(symbol, true);
+    return true;
+  }
+  setHidden(fallback, true);
+  return false;
+}
+
+function clearFrontFallback(combatant) {
+  setHidden(combatant.querySelector(".canonical-battle-front-fallback"), true);
+}
+
 function commitLoadedImage(combatant, currentImage, candidate, fallback, legacy, key) {
   if (!combatant.isConnected || combatant.dataset.pendingSpriteKey !== key) return;
   const displayed = combatant.querySelector(".canonical-battle-sprite");
@@ -82,10 +109,11 @@ function commitLoadedImage(combatant, currentImage, candidate, fallback, legacy,
   setHidden(candidate, false);
   setHidden(legacy, true);
   setHidden(fallback, true);
+  clearFrontFallback(combatant);
   pendingLoads.delete(combatant.id);
 }
 
-function beginAssetLoad(combatant, currentImage, asset, fallback, legacy) {
+function beginAssetLoad(combatant, currentImage, asset, species, form, fallback, legacy) {
   const key = `${asset.side}:${asset.species}:${asset.form}:${asset.sha256}`;
   if (currentImage?.dataset.assetKey === key && currentImage.complete && currentImage.naturalWidth > 0) {
     delete combatant.dataset.pendingSpriteKey;
@@ -93,6 +121,7 @@ function beginAssetLoad(combatant, currentImage, asset, fallback, legacy) {
     setHidden(currentImage, false);
     setHidden(legacy, true);
     setHidden(fallback, true);
+    clearFrontFallback(combatant);
     return;
   }
   if (combatant.dataset.pendingSpriteKey === key) return;
@@ -102,7 +131,12 @@ function beginAssetLoad(combatant, currentImage, asset, fallback, legacy) {
   const hasUsableCurrent = Boolean(currentImage?.complete && currentImage.naturalWidth > 0);
   setHidden(currentImage, !hasUsableCurrent);
   setHidden(legacy, true);
-  setHidden(fallback, hasUsableCurrent);
+  if (hasUsableCurrent) {
+    setHidden(fallback, true);
+    clearFrontFallback(combatant);
+  } else if (!ensureFrontFallback(combatant, species, form, fallback)) {
+    setHidden(fallback, false);
+  }
 
   const candidate = imageForAsset(asset);
   pendingLoads.set(combatant.id, candidate);
@@ -117,8 +151,8 @@ function beginAssetLoad(combatant, currentImage, asset, fallback, legacy) {
     const displayed = combatant.querySelector(".canonical-battle-sprite");
     const hasDisplayed = Boolean(displayed?.complete && displayed.naturalWidth > 0);
     setHidden(displayed, !hasDisplayed);
+    if (!hasDisplayed && ensureFrontFallback(combatant, species, form, fallback)) return;
     setHidden(fallback, hasDisplayed);
-    schedule();
   }, { once: true });
   candidate.src = asset.src;
   if (candidate.complete && candidate.naturalWidth > 0) {
@@ -137,8 +171,7 @@ function renderSide({ side, battlerIndex, nameId, combatantId }) {
   const image = combatant.querySelector(".canonical-battle-sprite");
   const fallback = combatant.querySelector(".text-mon");
   const legacy = combatant.querySelector(".battle-sprite-image");
-  const atlas = combatant.querySelector(".atlas-battle-sprite");
-  if (atlas) atlas.remove();
+  combatant.querySelector(".atlas-battle-sprite")?.remove();
 
   if (!asset) {
     delete combatant.dataset.pendingSpriteKey;
@@ -146,11 +179,11 @@ function renderSide({ side, battlerIndex, nameId, combatantId }) {
     pendingLoads.delete(combatant.id);
     setHidden(image, true);
     setHidden(legacy, true);
-    setHidden(fallback, false);
+    if (!ensureFrontFallback(combatant, species, form, fallback)) setHidden(fallback, false);
     return;
   }
 
-  beginAssetLoad(combatant, image, asset, fallback, legacy);
+  beginAssetLoad(combatant, image, asset, species, form, fallback, legacy);
 }
 
 function battleCard() {
@@ -190,3 +223,4 @@ installPhaseResync();
 window.addEventListener("pageshow", schedule, { passive: true });
 window.addEventListener("safari-runtime-changed", schedule, { passive: true });
 window.addEventListener("safari-preview-start", schedule, { passive: true });
+window.addEventListener("safari-species-form-front-atlas-state", schedule, { passive: true });
