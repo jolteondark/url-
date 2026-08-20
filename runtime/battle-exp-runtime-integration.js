@@ -32,6 +32,32 @@ function preserveAuthoritativeBattleFields(before, after) {
   return next;
 }
 
+function applyCanonicalLevelUpHappiness(runtime, levelUpCount, battleExpInput = {}) {
+  if (!Number.isInteger(levelUpCount) || levelUpCount <= 0 || battleExpInput.activeBattler === false) return runtime;
+  const current = Number(runtime?.happiness);
+  if (!Number.isInteger(current)) return runtime;
+
+  const context = battleExpInput.happinessContext ?? {};
+  const currentMapId = Number(context.currentMapId);
+  const sameObtainMap = Number.isInteger(currentMapId) && Number(runtime?.obtain_map) === currentMapId;
+  const luxuryBall = String(runtime?.poke_ball ?? "").toUpperCase() === "LUXURYBALL";
+  const heldItem = Object.prototype.hasOwnProperty.call(runtime ?? {}, "held_item") ? runtime.held_item : runtime?.item;
+  const sootheBell = String(heldItem ?? "").toUpperCase() === "SOOTHEBELL";
+  const softCap = context.applyHappinessSoftCap === true;
+
+  let happiness = Math.max(0, Math.min(255, current));
+  for (let i = 0; i < levelUpCount; i += 1) {
+    const happinessRange = Math.min(2, Math.floor(happiness / 100));
+    let gain = [5, 4, 3][happinessRange];
+    if (sameObtainMap) gain += 1;
+    if (luxuryBall) gain += 1;
+    if (sootheBell) gain = Math.floor(gain * 1.5);
+    if (softCap) gain = happiness >= 179 ? 0 : Math.max(0, Math.min(gain, 179 - happiness));
+    happiness = Math.max(0, Math.min(255, happiness + gain));
+  }
+  return preserveAuthoritativeBattleFields(runtime, updatePokemonRuntime(runtime, { happiness }));
+}
+
 function deferredDescriptor(roundIndex, actionIndex, battleExpInput) {
   const input = structuredClone(battleExpInput);
   input.deferCommit = false;
@@ -78,6 +104,8 @@ export function commitBattleSystemsExpRuntime({ battleInput = {}, turn = {}, pok
           moves,
         });
       runtime = preserveFaintedHp(before, runtime);
+      const levelUpCount = (flow.operations ?? []).filter((entry) => entry?.op === "change_happiness" && entry?.reason === "levelup").length;
+      runtime = applyCanonicalLevelUpHappiness(runtime, levelUpCount, action.battleExpInput);
 
       let evolution = null;
       let evolutionDeferred = false;
