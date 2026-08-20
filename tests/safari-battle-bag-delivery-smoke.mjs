@@ -5,10 +5,11 @@ const index = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const loader = await readFile(new URL("../deferred-ui-loader.js", import.meta.url), "utf8");
 const menu = await readFile(new URL("../game-menu-bridge.js", import.meta.url), "utf8");
 const narration = await readFile(new URL("../battle-presentation-narration.js", import.meta.url), "utf8");
+const fleeAdapter = await readFile(new URL("../battle-dppt-flee-owner-request.js", import.meta.url), "utf8");
 
-assert.match(index, /deferred-ui-loader\.js\?v=20260819-0317/,
+assert.match(index, /deferred-ui-loader\.js\?v=20260820-0834/,
   "the public shell must request the refreshed deferred UI loader");
-assert.match(loader, /game-menu-bridge\.js\?v=20260819-0317/,
+assert.match(loader, /game-menu-bridge\.js\?v=20260820-0834/,
   "the refreshed loader must request the Battle Bag command-locking menu module by a new URL");
 assert.doesNotMatch(loader, /loadModule\("\.\/game-menu-bridge\.js"\)/,
   "the menu bridge must not fall back to the stale unversioned delivery URL");
@@ -35,4 +36,23 @@ assert.match(narration, /case "battle_item":/,
 assert.doesNotMatch(menu, /battle-menu-presentation\.js/,
   "the deleted stale Battle menu presentation import must not return");
 
-console.log("Safari Battle Bag delivery smoke passed");
+const fleeAdapterIndex = index.indexOf("battle-dppt-flee-owner-request.js?v=20260820-1034");
+const commandMenuIndex = index.indexOf("battle-dppt-command-menu.js?v=20260820-0934");
+assert.ok(fleeAdapterIndex >= 0 && commandMenuIndex > fleeAdapterIndex,
+  "the direct flee adapter must capture the DPt Run input before the legacy command-menu relay can observe it");
+assert.match(fleeAdapter, /attemptSafariFlee\(currentRuntime\)/,
+  "DPt Run must delegate exactly once to the existing flee mechanics owner");
+assert.match(fleeAdapter, /if \(fleeBusy\) return;/,
+  "DPt Run must synchronously reject duplicate submissions while the owner/presentation is resolving");
+assert.match(fleeAdapter, /event\.preventDefault\(\);\s*event\.stopImmediatePropagation\(\);\s*requestFlee\(button\);/s,
+  "DPt Run must consume the visible control directly instead of replaying a hidden control");
+assert.doesNotMatch(fleeAdapter, /\.click\(\)/,
+  "the direct flee adapter must not use synthetic click replay");
+assert.match(fleeAdapter, /currentBattle\?\.phase !== "COMMAND"/,
+  "DPt Run availability must consume the central COMMAND phase rather than infer a second busy truth");
+assert.match(fleeAdapter, /restoreCommandRootIfReady\(\)/,
+  "a nonterminal failed Run must automatically restore the unique COMMAND root after owner presentation completes");
+assert.match(index, /canonical browser integration \/ v0\.9\.108 · build 20260820-1034/,
+  "the shell build label must expose the direct-flee delivery refresh");
+
+console.log("Safari Battle Bag and direct DPt flee delivery smoke passed");
