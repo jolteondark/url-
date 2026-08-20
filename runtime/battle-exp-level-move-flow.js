@@ -79,9 +79,9 @@ function levelFromThresholds(exp, thresholds, currentLevel) {
   return level;
 }
 
-function resolvedDecision({ decision, resolver, level, move, moves }) {
+function resolvedDecision({ decision, resolver, level, move, moves, occurrence }) {
   if (decision != null || typeof resolver !== "function") return decision;
-  const resolved = resolver(Object.freeze({ level, move, moves: Object.freeze([...moves]) }));
+  const resolved = resolver(Object.freeze({ level, move, occurrence, moves: Object.freeze([...moves]) }));
   if (resolved == null) return null;
   if (resolved.decline === true) return { decline: true };
   const forgetIndex = Number(resolved.forgetIndex);
@@ -89,7 +89,7 @@ function resolvedDecision({ decision, resolver, level, move, moves }) {
   return { forgetIndex };
 }
 
-function learnMove(moves, newMove, decision, maxMoves, operations, level, resolver) {
+function learnMove(moves, newMove, decision, maxMoves, operations, level, resolver, occurrence) {
   if (moves.includes(newMove)) {
     operations.push({ op: "skip_known_move", move: newMove });
     return;
@@ -100,7 +100,7 @@ function learnMove(moves, newMove, decision, maxMoves, operations, level, resolv
     operations.push({ op: "check_form_on_moveset_change" });
     return;
   }
-  const chosen = resolvedDecision({ decision, resolver, level, move: newMove, moves });
+  const chosen = resolvedDecision({ decision, resolver, level, move: newMove, moves, occurrence });
   if (chosen && Number.isInteger(chosen.forgetIndex) && chosen.forgetIndex >= 0 && chosen.forgetIndex < moves.length) {
     const forgotten = moves[chosen.forgetIndex];
     moves[chosen.forgetIndex] = newMove;
@@ -169,8 +169,16 @@ export function resolveExpLevelMoveFlow(input) {
     operations.push({ op: "level_up", level });
     operations.push({ op: "change_happiness", reason: "levelup" });
     operations.push({ op: "recalculate_stats" });
+    const moveOccurrences = new Map();
     for (const move of movesByLevel[level] ?? []) {
-      learnMove(pokemon.moves, move, decisions[`${level}:${move}`], maxMoves, operations, level, resolver);
+      const occurrence = (moveOccurrences.get(move) ?? 0) + 1;
+      moveOccurrences.set(move, occurrence);
+      const occurrenceKey = `${level}:${move}:${occurrence}`;
+      const legacyKey = `${level}:${move}`;
+      const decision = Object.prototype.hasOwnProperty.call(decisions, occurrenceKey)
+        ? decisions[occurrenceKey]
+        : decisions[legacyKey];
+      learnMove(pokemon.moves, move, decision, maxMoves, operations, level, resolver, occurrence);
     }
   }
   pokemon.level = newLevel;
