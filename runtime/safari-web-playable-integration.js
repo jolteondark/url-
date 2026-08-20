@@ -1,9 +1,6 @@
 import { SAFARI_MOVE_PRESENTATION } from "./safari-move-presentation-live.js";
-import { resolveSafariNormalBattleRound } from "./safari-normal-battle-round.js";
-import {
-  commitSafariNormalPlayerReplacement,
-  prepareSafariNormalPlayerReplacement,
-} from "./safari-central-player-replacement.js";
+import { replaceSafariNormalBattlePlayer, resolveSafariNormalBattleRound } from "./safari-normal-battle-round.js";
+import { prepareSafariNormalPlayerReplacement } from "./safari-central-player-replacement.js";
 import { commitBrowserTrainerFoeReplacement } from "./browser-trainer-battle-round-runtime.js";
 import { resetBattleStatStagesForBattlerCanonical } from "./battle-core-stat-stages.js";
 import {
@@ -214,7 +211,7 @@ export async function replaceSafariBattlePlayer(runtime, replacementPartyIndex) 
     result = prepareSafariNormalPlayerReplacement(runtime, replacementPartyIndex);
     if (result.result === "replacement_selected") {
       result = completeSafariBattleReplacement(runtime, result, {
-        replacementCommit: (current) => commitSafariNormalPlayerReplacement(runtime, current),
+        replacementCommit: () => replaceSafariNormalBattlePlayer(runtime, replacementPartyIndex),
         rewardGrowthCommit: (current) => commitSafariNormalExpRewardGrowth(runtime, current),
       });
     }
