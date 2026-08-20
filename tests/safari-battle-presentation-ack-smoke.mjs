@@ -208,6 +208,12 @@ function phaseCount(battle, phase) {
   assert.match(readinessOwner, /battle\?\.phase === "COMMAND"/);
   assert.doesNotMatch(readinessOwner, /busy|completed|Replacement/,
     "root preview Battle readiness must have no second truth beside COMMAND");
+
+  const presentationOwner = source.match(/async function playPresentation\(events\) \{[\s\S]*?\n\}/)?.[0] ?? "";
+  assert.match(presentationOwner, /completeSafariBattlePresentation\(runtime\)/,
+    "root preview presentation owner must acknowledge the central checkpoint");
+  assert.match(presentationOwner, /phaseAfterAck !== phaseBeforeAck[\s\S]*safari-runtime-changed/,
+    "a phase-changing presentation acknowledgement must publish runtime change so DPt command UI can leave locked state");
 }
 
 {
