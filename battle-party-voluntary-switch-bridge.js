@@ -177,7 +177,7 @@ async function chooseSwitch(button) {
 
   try {
     const currentRuntime = runtime();
-    const result = switchSafariNormalBattlePlayer(currentRuntime, partyIndex);
+    const result = switchSafariNormalBattlePlayer(runtime(), partyIndex);
     globalThis.__maplessLastBattleSwitchResult = result;
     if (result?.turnConsumed) {
       window.dispatchEvent(new CustomEvent("safari-game-menu-close-requested", { detail: { source: "battle-voluntary-switch" } }));
