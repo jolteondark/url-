@@ -142,6 +142,14 @@ async function runCaptureRequest(sourceButton) {
   }
 }
 
+function requestCapture(sourceButton) {
+  void runCaptureRequest(sourceButton);
+}
+
+window.addEventListener("safari-battle-capture-requested", (event) => {
+  requestCapture(event.detail?.sourceButton ?? null);
+});
+
 byId("battle-card")?.addEventListener("click", (event) => {
   const button = event.target.closest('[data-dppt-bag="ball"]');
   if (!button) {
@@ -154,5 +162,5 @@ byId("battle-card")?.addEventListener("click", (event) => {
 
   event.preventDefault();
   event.stopImmediatePropagation();
-  void runCaptureRequest(button);
+  requestCapture(button);
 }, true);

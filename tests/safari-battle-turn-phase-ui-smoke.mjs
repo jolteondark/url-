@@ -133,6 +133,7 @@ const bagSource = fs.readFileSync(new URL("../game-menu-bridge.js", import.meta.
 const flowPolishSource = fs.readFileSync(new URL("../battle-dppt-flow-polish.js", import.meta.url), "utf8");
 const menuFlowGuardSource = fs.readFileSync(new URL("../battle-dppt-menu-flow-guard.js", import.meta.url), "utf8");
 const commandMenuSource = fs.readFileSync(new URL("../battle-dppt-command-menu.js", import.meta.url), "utf8");
+const captureOwnerSource = fs.readFileSync(new URL("../battle-dppt-capture-owner-request.js", import.meta.url), "utf8");
 const previewSource = fs.readFileSync(new URL("../preview-app.js", import.meta.url), "utf8");
 const indexSource = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const previewBattleRenderSource = previewSource.match(/function renderMoves[\s\S]*?function render\(\)/)?.[0] ?? "";
@@ -175,6 +176,14 @@ assert.match(menuFlowGuardSource, /return battle\(\)\?\.phase === "COMMAND"/,
   "DPt menu flow guard must use COMMAND as the sole Battle command truth");
 assert.doesNotMatch(menuFlowGuardSource, /\.completed|player_replacement_required|previewCommandBusy/,
   "DPt menu flow guard must not infer command availability from legacy Battle flags");
+assert.match(menuFlowGuardSource, /safari-battle-capture-requested/,
+  "Battle Bag Ball must request the same direct capture owner as the DPt root Ball");
+assert.doesNotMatch(menuFlowGuardSource, /capture\.click\(|getElementById\(["']capture["']\)/,
+  "Battle Bag Ball must not relay capture through the legacy hidden capture control");
+assert.match(captureOwnerSource, /safari-battle-capture-requested/,
+  "capture presentation adapter must expose one shared direct request entrypoint");
+assert.match(captureOwnerSource, /attemptSafariCapture\(currentRuntime\)/,
+  "the shared capture request entrypoint must delegate mechanics to the existing capture owner");
 assert.match(commandMenuSource, /return battle\.phase \?\? null/,
   "DPt command menu must read the orchestrator phase directly");
 assert.match(commandMenuSource, /const commandAllowed = phase === "COMMAND"/,

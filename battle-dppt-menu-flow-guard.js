@@ -12,6 +12,10 @@ function closeGameMenu() {
   window.dispatchEvent(new CustomEvent("safari-game-menu-close-requested", { detail: { source: "battle-dppt-menu-flow" } }));
 }
 
+function requestBattleCapture(sourceButton) {
+  window.dispatchEvent(new CustomEvent("safari-battle-capture-requested", { detail: { sourceButton } }));
+}
+
 function restoreNormalMenu() {
   const menu = byId("game-menu");
   if (!menu) return;
@@ -34,8 +38,7 @@ function injectBattleBall(tab) {
   }
   const current = battle();
   const pane = byId("menu-bag-pane");
-  const capture = byId("capture");
-  if (!current || current.phase !== "COMMAND" || current.kind !== "wild" || !pane || !capture) {
+  if (!current || current.phase !== "COMMAND" || current.kind !== "wild" || !pane) {
     byId("battle-menu-ball-use")?.remove();
     return;
   }
@@ -50,7 +53,7 @@ function injectBattleBall(tab) {
     if (!inBattleCommand()) return;
     button.disabled = true;
     closeGameMenu();
-    requestAnimationFrame(() => capture.click());
+    requestBattleCapture(button);
   });
   pane.prepend(button);
 }
