@@ -233,7 +233,4 @@ window.addEventListener("safari-preview-start", () => requestAnimationFrame(sync
 window.addEventListener("safari-game-menu-opened", () => requestAnimationFrame(sync));
 window.addEventListener("safari-game-menu-closed", returnToRootAfterGameMenuClose);
 window.addEventListener("pageshow", () => requestAnimationFrame(sync));
-if (typeof MutationObserver === "function") {
-  new MutationObserver(() => requestAnimationFrame(sync)).observe(document.documentElement, { subtree:true, childList:true, attributes:true, attributeFilter:["hidden","disabled"] });
-}
 requestAnimationFrame(sync);
