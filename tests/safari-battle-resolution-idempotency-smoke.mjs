@@ -38,18 +38,58 @@ function phaseCount(battle, phase) {
       { op: "send_out", actor: "foe" },
     ],
   };
-  const first = commitSafariBattleResolution(state, resolution, "move");
+  assert.throws(
+    () => commitSafariBattleResolution(state, resolution, "move"),
+    /pre-applied foe replacement is not accepted/,
+    "the orchestrator must reject compatibility results that mutate the foe reserve before REPLACEMENT",
+  );
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.ACTION_1);
+  assert.equal(phaseCount(battle, SAFARI_BATTLE_PHASE.REPLACEMENT), 0);
+  assert.equal(battle.replacement_checkpoint ?? null, null);
+  assert.equal(battle.resolution_checkpoint ?? null, null);
+}
+
+{
+  const state = runtime();
+  const battle = state.variables.mapless.battle;
+  ensureSafariBattleOrchestrator(state);
+  beginSafariBattleCommand(state, "move");
+  let replacementCommits = 0;
+  const resolution = {
+    decision: 0,
+    foeReplacementRequired: true,
+    operations: [
+      { op: "use_move", actor: "player", target: "foe" },
+      { op: "faint", actor: "player", target: "foe" },
+    ],
+  };
+  const first = commitSafariBattleResolution(state, resolution, "move", {
+    replacementCommit(current) {
+      replacementCommits += 1;
+      return {
+        ...current,
+        foeReplacementRequired: false,
+        foeReplacementApplied: true,
+        operations: [...current.operations, { op: "send_out", actor: "foe" }],
+      };
+    },
+  });
   assert.equal(first.phase, SAFARI_BATTLE_PHASE.COMMAND);
+  assert.equal(replacementCommits, 1);
   assert.equal(phaseCount(battle, SAFARI_BATTLE_PHASE.CHECK_1), 1);
   assert.equal(phaseCount(battle, SAFARI_BATTLE_PHASE.POST_FAINT), 1);
   assert.equal(phaseCount(battle, SAFARI_BATTLE_PHASE.REPLACEMENT), 1);
   const traceLength = battle.phase_trace.length;
 
-  const replay = commitSafariBattleResolution(state, structuredClone(resolution), "move");
+  const replay = commitSafariBattleResolution(state, structuredClone(resolution), "move", {
+    replacementCommit() {
+      replacementCommits += 1;
+      throw new Error("replacement must not replay");
+    },
+  });
   assert.equal(replay.phase, SAFARI_BATTLE_PHASE.COMMAND);
+  assert.equal(replacementCommits, 1);
   assert.equal(battle.phase_trace.length, traceLength);
-  assert.equal(phaseCount(battle, SAFARI_BATTLE_PHASE.CHECK_1), 1);
-  assert.equal(phaseCount(battle, SAFARI_BATTLE_PHASE.POST_FAINT), 1);
   assert.equal(phaseCount(battle, SAFARI_BATTLE_PHASE.REPLACEMENT), 1);
 }
 
