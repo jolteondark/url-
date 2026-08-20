@@ -47,7 +47,7 @@ async function loadMenuUi() {
   loadStyle("./bridge-shell.css");
   loadStyle("./game-menu.css");
   await Promise.all([
-    loadModule("./game-menu-bridge.js?v=20260820-0834"),
+    loadModule("./game-menu-bridge.js?v=20260820-1234"),
     loadModule("./party-panel-bridge.js"),
     loadModule("./storage-panel-bridge.js"),
     loadModule("./party-storage-controls-bridge.js"),
@@ -92,6 +92,12 @@ document.addEventListener("click", (event) => {
   scheduleSceneBundleSync();
 });
 
+window.addEventListener("safari-game-menu-open-requested", async (event) => {
+  const tab = event.detail?.tab;
+  if (!new Set(["party", "bag", "box"]).has(tab)) return;
+  await loadMenuUi();
+  window.dispatchEvent(new CustomEvent("safari-game-menu-open-ready", { detail: { tab } }));
+});
 window.addEventListener("pageshow", scheduleSceneBundleSync, { passive: true });
 window.addEventListener("safari-runtime-changed", scheduleSceneBundleSync, { passive: true });
 syncSceneBundles();

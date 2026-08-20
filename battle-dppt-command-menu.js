@@ -133,6 +133,10 @@ function setMenu(mode) {
   window.dispatchEvent(new CustomEvent("mapless-dppt-menu-changed", { detail: { mode } }));
 }
 
+function requestGameMenu(tab) {
+  window.dispatchEvent(new CustomEvent("safari-game-menu-open-requested", { detail: { tab } }));
+}
+
 function returnToRootAfterGameMenuClose() {
   gameMenuWasOpen = false;
   const battle = runtimeBattle();
@@ -211,11 +215,11 @@ byId("battle-card")?.addEventListener("click", (event) => {
     const kind = command.dataset.dpptCommand;
     if (kind === "fight") return setMenu("fight");
     if (kind === "bag") return setMenu("bag");
-    if (kind === "party") return byId("menu-party")?.click();
+    if (kind === "party") return requestGameMenu("party");
   }
   if (event.target.closest("#dppt-command-back")) return setMenu("root");
   const bag = event.target.closest("[data-dppt-bag]");
-  if (bag?.dataset.dpptBag === "items") return byId("menu-bag")?.click();
+  if (bag?.dataset.dpptBag === "items") return requestGameMenu("bag");
   if (event.target.closest("#moves button[data-move-id]")) {
     queueMicrotask(() => {
       const card = byId("battle-card");
