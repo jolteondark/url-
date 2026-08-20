@@ -50,7 +50,7 @@ async function loadMenuUi() {
   await Promise.all([
     loadModule("./game-menu-bridge.js?v=20260820-1234"),
     loadModule("./party-panel-bridge.js"),
-    loadModule("./battle-party-voluntary-switch-bridge.js?v=20260820-1530"),
+    loadModule("./battle-party-voluntary-switch-bridge.js?v=20260820-1534"),
     loadModule("./storage-panel-bridge.js"),
     loadModule("./party-storage-controls-bridge.js"),
     loadModule("./species-form-metadata-bridge.js"),
