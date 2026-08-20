@@ -4,6 +4,7 @@ import { resolveSafariCanonicalBugBattleSprite } from "./runtime/safari-canonica
 import { resolveSafariCanonicalFileBattleSprite } from "./runtime/safari-canonical-battle-sprite-assets.js";
 
 let scheduled = false;
+const pendingLoads = new Map();
 const SIDES = [
   { side: "player", battlerIndex: 0, nameId: "player-name", combatantId: "player-combatant" },
   { side: "foe", battlerIndex: 1, nameId: "foe-name", combatantId: "foe-combatant" },
@@ -14,9 +15,10 @@ function ensureStyle() {
   const style = document.createElement("style");
   style.id = "canonical-battle-sprite-style";
   style.textContent = `
-    .canonical-battle-sprite{position:absolute;z-index:3;display:block;object-fit:contain;pointer-events:none;filter:drop-shadow(0 12px 10px rgba(0,0,0,.28));image-rendering:auto}
+    .canonical-battle-sprite{position:absolute;z-index:3;display:block;object-fit:contain;pointer-events:none;filter:drop-shadow(0 12px 10px rgba(0,0,0,.28));image-rendering:pixelated;opacity:1}
     .combatant.foe .canonical-battle-sprite{width:168px;height:168px;right:16px;bottom:8px}
     .combatant.player .canonical-battle-sprite{width:184px;height:184px;left:6px;bottom:10px}
+    .combatant[data-sprite-loading="true"] .text-mon{display:block!important;opacity:.28}
     @media(max-width:520px){
       .combatant.foe .canonical-battle-sprite{width:148px;height:148px;right:8px;bottom:9px}
       .combatant.player .canonical-battle-sprite{width:160px;height:160px;left:0;bottom:10px}
@@ -58,6 +60,75 @@ function resolveCanonicalAsset({ species, form, battlerIndex }) {
   return resolveSafariCanonicalBugBattleSprite({ species, form, side });
 }
 
+function imageForAsset(asset) {
+  const image = document.createElement("img");
+  image.className = "canonical-battle-sprite";
+  image.alt = "";
+  image.setAttribute("aria-hidden", "true");
+  image.decoding = "async";
+  image.loading = "eager";
+  image.fetchPriority = "high";
+  image.dataset.assetKey = `${asset.side}:${asset.species}:${asset.form}:${asset.sha256}`;
+  return image;
+}
+
+function commitLoadedImage(combatant, currentImage, candidate, fallback, legacy, key) {
+  if (!combatant.isConnected || combatant.dataset.pendingSpriteKey !== key) return;
+  const displayed = combatant.querySelector(".canonical-battle-sprite");
+  if (displayed && displayed !== candidate) displayed.replaceWith(candidate);
+  else if (!candidate.isConnected) combatant.append(candidate);
+  delete combatant.dataset.pendingSpriteKey;
+  delete combatant.dataset.spriteLoading;
+  setHidden(candidate, false);
+  setHidden(legacy, true);
+  setHidden(fallback, true);
+  pendingLoads.delete(combatant.id);
+}
+
+function beginAssetLoad(combatant, currentImage, asset, fallback, legacy) {
+  const key = `${asset.side}:${asset.species}:${asset.form}:${asset.sha256}`;
+  if (currentImage?.dataset.assetKey === key && currentImage.complete && currentImage.naturalWidth > 0) {
+    delete combatant.dataset.pendingSpriteKey;
+    delete combatant.dataset.spriteLoading;
+    setHidden(currentImage, false);
+    setHidden(legacy, true);
+    setHidden(fallback, true);
+    return;
+  }
+  if (combatant.dataset.pendingSpriteKey === key) return;
+
+  combatant.dataset.pendingSpriteKey = key;
+  combatant.dataset.spriteLoading = "true";
+  // Never blank the arena while Safari is decoding a replacement. Keep the old
+  // loaded sprite when one exists; otherwise keep the lightweight fallback visible.
+  const hasUsableCurrent = Boolean(currentImage?.complete && currentImage.naturalWidth > 0);
+  setHidden(currentImage, !hasUsableCurrent);
+  setHidden(legacy, true);
+  setHidden(fallback, hasUsableCurrent);
+
+  const candidate = imageForAsset(asset);
+  pendingLoads.set(combatant.id, candidate);
+  candidate.addEventListener("load", () => {
+    commitLoadedImage(combatant, currentImage, candidate, fallback, legacy, key);
+  }, { once: true });
+  candidate.addEventListener("error", () => {
+    if (combatant.dataset.pendingSpriteKey !== key) return;
+    delete combatant.dataset.pendingSpriteKey;
+    delete combatant.dataset.spriteLoading;
+    pendingLoads.delete(combatant.id);
+    const displayed = combatant.querySelector(".canonical-battle-sprite");
+    const hasDisplayed = Boolean(displayed?.complete && displayed.naturalWidth > 0);
+    setHidden(displayed, !hasDisplayed);
+    setHidden(fallback, hasDisplayed);
+    schedule();
+  }, { once: true });
+  candidate.src = asset.src;
+  // Cached data/file URLs can complete synchronously on Safari.
+  if (candidate.complete && candidate.naturalWidth > 0) {
+    commitLoadedImage(combatant, currentImage, candidate, fallback, legacy, key);
+  }
+}
+
 function renderSide({ side, battlerIndex, nameId, combatantId }) {
   const combatant = document.getElementById(combatantId);
   if (!combatant) return;
@@ -66,33 +137,24 @@ function renderSide({ side, battlerIndex, nameId, combatantId }) {
   const form = owner?.form ?? Number(combatant.dataset.form ?? 0);
   if (!species) return;
   const asset = resolveCanonicalAsset({ species, form, battlerIndex });
-  let image = combatant.querySelector(".canonical-battle-sprite");
+  const image = combatant.querySelector(".canonical-battle-sprite");
   const fallback = combatant.querySelector(".text-mon");
   const legacy = combatant.querySelector(".battle-sprite-image");
   const atlas = combatant.querySelector(".atlas-battle-sprite");
   if (atlas) atlas.remove();
+
   if (!asset) {
+    delete combatant.dataset.pendingSpriteKey;
+    delete combatant.dataset.spriteLoading;
+    pendingLoads.delete(combatant.id);
+    // If canonical coverage is absent, never leave an empty battlefield.
     setHidden(image, true);
     setHidden(legacy, true);
     setHidden(fallback, false);
     return;
   }
-  if (!image) {
-    image = document.createElement("img");
-    image.className = "canonical-battle-sprite";
-    image.alt = "";
-    image.setAttribute("aria-hidden", "true");
-    image.decoding = "async";
-    combatant.append(image);
-  }
-  const key = `${asset.side}:${asset.species}:${asset.form}:${asset.sha256}`;
-  if (image.dataset.assetKey !== key) {
-    image.dataset.assetKey = key;
-    image.src = asset.src;
-  }
-  setHidden(image, false);
-  setHidden(legacy, true);
-  setHidden(fallback, true);
+
+  beginAssetLoad(combatant, image, asset, fallback, legacy);
 }
 
 function battleCard() {
@@ -104,13 +166,7 @@ function render() {
   ensureStyle();
   const battle = battleCard();
   if (!battle || battle.hidden) return;
-
-  // Runtime state is committed before preview-app finishes playing the old
-  // combatant's event queue. Keep the already rendered sprite stable until the
-  // shared turn-phase contract leaves RESOLVING; otherwise a trainer reserve can
-  // visually replace the foe before the defeated foe's hit/faint animation ends.
   if (shouldFreezeCanonicalBattleSprite(battle)) return;
-
   for (const side of SIDES) renderSide(side);
 }
 
@@ -124,8 +180,6 @@ function installPhaseResync() {
   const card = battleCard();
   if (!card || typeof MutationObserver !== "function") return;
   const observer = new MutationObserver(() => {
-    // Do not spin on repeated RESOLVING mutations. The one transition out of
-    // RESOLVING schedules the runtime-owned sprite that is current at that time.
     if (!shouldFreezeCanonicalBattleSprite(card)) schedule();
   });
   observer.observe(card, {
@@ -139,3 +193,4 @@ render();
 installPhaseResync();
 window.addEventListener("pageshow", schedule, { passive: true });
 window.addEventListener("safari-runtime-changed", schedule, { passive: true });
+window.addEventListener("safari-preview-start", schedule, { passive: true });
