@@ -109,6 +109,11 @@ async function chooseReplacement(button) {
   if (!legal) return;
 
   selecting = true;
+  if (button instanceof HTMLElement) {
+    button.blur();
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+  }
   syncReplacementUi();
   try {
     await replaceSafariBattlePlayer(globalThis.__maplessSafariRuntime, partyIndex);
@@ -122,7 +127,7 @@ async function chooseReplacement(button) {
 
 byId("battle-card")?.addEventListener("click", (event) => {
   const replacement = event.target.closest("button[data-player-replacement-party-index]");
-  if (!replacement || !replacementActive()) return;
+  if (!replacement || replacement.disabled || !replacementActive()) return;
   event.preventDefault();
   event.stopImmediatePropagation();
   void chooseReplacement(replacement);
