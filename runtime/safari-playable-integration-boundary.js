@@ -1,6 +1,7 @@
 import * as base from "./safari-playable-integration-wounded.js";
 import { resolveBrowserBattleRound } from "./browser-battle-round-runtime.js";
 import { resolveBrowserPlayerReplacementContinuation } from "./browser-player-replacement-continuation.js";
+import { resolveBrowserTrainerReplacementContinuation } from "./browser-trainer-replacement-continuation.js";
 import { resolveBoundaryTrialBattleHandoff } from "./mapless-boundary-trial-battle-handoff.js";
 import {
   SAFARI_BATTLE_PHASE,
@@ -158,7 +159,30 @@ function resolveBoundaryRound(runtime, selectedMoveId) {
     abortSafariBattleCommand(runtime, "boundary round failed");
     throw error;
   }
-  const operations = resolved.operations.map((operation) => ({ ...operation, battleTurn: battle.turn }));
+
+  let trainerReplacement = null;
+  if (Number(resolved.decision ?? 0) === 0 && resolved.battleContinuationHandoff?.foeReplacementRequired) {
+    trainerReplacement = resolveBrowserTrainerReplacementContinuation({
+      battleContinuationHandoff: resolved.battleContinuationHandoff,
+      partyOrder: Array.isArray(battle.trainer_party_order) ? battle.trainer_party_order : null,
+      idxBattler: 1,
+      sideSize: 1,
+    });
+    if (trainerReplacement.result === "continued_with_replacement") {
+      resolved = {
+        ...resolved,
+        foe: clone(trainerReplacement.activeFoe),
+        battleContinuationHandoff: clone(trainerReplacement.battleContinuationHandoff),
+        foeReplacementApplied: true,
+        replacementApplied: true,
+      };
+    }
+  }
+
+  const operations = [
+    ...(resolved.operations ?? []),
+    ...(trainerReplacement?.operations ?? []),
+  ].map((operation) => ({ ...operation, battleTurn: battle.turn }));
   const continuationHandoff = resolved.battleContinuationHandoff;
   if (Array.isArray(continuationHandoff?.playerParty)) runtime.player.party = clone(continuationHandoff.playerParty);
   else runtime.player.party[playerActiveIndex] = resolved.player;
@@ -166,9 +190,11 @@ function resolveBoundaryRound(runtime, selectedMoveId) {
   battle.player_replacement_required = Boolean(continuationHandoff?.playerReplacementRequired);
   battle.player_replacement_handoff = battle.player_replacement_required ? clone(continuationHandoff) : null;
 
-  const activeIndex = Number(battle.trainer_party_index ?? 0);
-  battle.trainer_party[activeIndex] = structuredClone(resolved.foe);
-  battle.foe = structuredClone(resolved.foe);
+  if (Array.isArray(continuationHandoff?.foeParty)) battle.trainer_party = clone(continuationHandoff.foeParty);
+  const activeIndex = Number(continuationHandoff?.foeActivePartyIndex ?? battle.trainer_party_index ?? 0);
+  battle.trainer_party_index = activeIndex;
+  if (trainerReplacement?.partyOrder) battle.trainer_party_order = clone(trainerReplacement.partyOrder);
+  battle.foe = clone(battle.trainer_party?.[activeIndex] ?? resolved.foe);
   battle.decision = Number(resolved.decision);
   battle.turn += 1;
   battle.last_operations = operations;
@@ -188,6 +214,8 @@ function resolveBoundaryRound(runtime, selectedMoveId) {
     operations: battle.last_operations,
     presentation: battle.presentation,
     playerReplacementRequired: Boolean(battle.player_replacement_required),
+    foeReplacementApplied: Boolean(resolved.foeReplacementApplied),
+    replacementApplied: Boolean(resolved.replacementApplied),
     persistenceRequested: requestsSave(battle.last_operations),
   };
   const committed = commitSafariBattleResolution(runtime, resolution, "move", {
