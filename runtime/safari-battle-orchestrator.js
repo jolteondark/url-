@@ -359,13 +359,6 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   }
 
   const resolvedCommandKind = commandKind ?? battle.pending_command_kind ?? "command";
-  if (result?.turnConsumed === false) {
-    return rejectUnconsumedCommand(battle, result, resolvedCommandKind);
-  }
-
-  const replayed = replayCommittedResolution(battle, result, resolvedCommandKind);
-  if (replayed) return replayed;
-
   const decision = Number(result?.decision ?? battle.decision ?? 0);
   const playerReplacementRequired = Boolean(result?.playerReplacementRequired ?? battle.player_replacement_required);
   const foeReplacementRequired = Boolean(result?.foeReplacementRequired);
@@ -379,6 +372,13 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   }
   if (battle.completed) {
     throw new Error("pre-RESULT battle completion is not accepted; RESULT is the only completion boundary");
+  }
+
+  const replayed = replayCommittedResolution(battle, result, resolvedCommandKind);
+  if (replayed) return replayed;
+
+  if (result?.turnConsumed === false) {
+    return rejectUnconsumedCommand(battle, result, resolvedCommandKind);
   }
 
   const resolutionCheckpoint = beginResolutionCheckpoint(battle, resolvedCommandKind);

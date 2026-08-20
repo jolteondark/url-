@@ -163,6 +163,33 @@ function phaseCount(battle, phase) {
   const resolution = {
     decision: 0,
     operations: [
+      { op: "use_move", actor: "player", target: "foe" },
+      { op: "use_move", actor: "foe", target: "player" },
+    ],
+  };
+  commitSafariBattleResolution(state, resolution, "move");
+  const traceLength = battle.phase_trace.length;
+  const commandCount = phaseCount(battle, SAFARI_BATTLE_PHASE.COMMAND);
+
+  const replay = commitSafariBattleResolution(state, {
+    ...structuredClone(resolution),
+    turnConsumed: false,
+  }, "move");
+  assert.equal(replay.phase, SAFARI_BATTLE_PHASE.COMMAND);
+  assert.equal(battle.phase_trace.length, traceLength,
+    "a committed resolution replay must be idempotent even if a compatibility adapter changes turnConsumed");
+  assert.equal(phaseCount(battle, SAFARI_BATTLE_PHASE.COMMAND), commandCount,
+    "committed replay must not append a second COMMAND through the unconsumed-command rollback path");
+}
+
+{
+  const state = runtime();
+  const battle = state.variables.mapless.battle;
+  ensureSafariBattleOrchestrator(state);
+  beginSafariBattleCommand(state, "move");
+  const resolution = {
+    decision: 0,
+    operations: [
       { op: "try_use_move_failed", actor: "player", reason: "paralysis" },
       { op: "use_move", actor: "foe", target: "player" },
     ],
