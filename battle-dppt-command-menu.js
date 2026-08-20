@@ -10,7 +10,6 @@ const TYPE_LABELS = Object.freeze({
 
 let lastPhase = null;
 let lastTurn = null;
-let gameMenuWasOpen = false;
 
 function runtimeBattle() {
   return globalThis.__maplessSafariRuntime?.variables?.mapless?.battle ?? null;
@@ -116,7 +115,6 @@ function requestGameMenu(tab) {
 }
 
 function returnToRootAfterGameMenuClose() {
-  gameMenuWasOpen = false;
   const battle = runtimeBattle();
   if (!battle || phaseOf(battle) !== "COMMAND") return;
   setMenu("root");
@@ -142,12 +140,9 @@ function sync() {
 
   const enteredCommand = phase === "COMMAND" && lastPhase !== "COMMAND";
   const advancedTurn = phase === "COMMAND" && lastTurn != null && turn !== lastTurn;
-  const gameMenu = byId("game-menu");
-  const gameMenuOpen = Boolean(gameMenu && !gameMenu.hidden);
-  const returnedFromGameMenu = gameMenuWasOpen && !gameMenuOpen && phase === "COMMAND";
 
   if (phase === "COMMAND") {
-    if (enteredCommand || advancedTurn || returnedFromGameMenu || !["root", "fight", "bag"].includes(card.dataset.dpptMenu)) {
+    if (enteredCommand || advancedTurn || !["root", "fight", "bag"].includes(card.dataset.dpptMenu)) {
       setMenu("root");
     }
   } else if (phase === "RESULT") {
@@ -171,7 +166,6 @@ function sync() {
 
   lastPhase = phase;
   lastTurn = turn;
-  gameMenuWasOpen = gameMenuOpen;
 }
 
 byId("battle-card")?.addEventListener("click", (event) => {
