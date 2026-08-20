@@ -363,12 +363,13 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
 
   const actors = materializeActionOrder(battle, result, resolvedCommandKind);
   const consumedAction = commandConsumesAction(resolvedCommandKind);
+  const firstActionActor = consumedAction ? "player" : (actors[0] ?? null);
   const secondActionActor = consumedAction ? (actors[0] ?? null) : (actors[1] ?? null);
   const secondActionOccurred = secondActionActor != null;
-  tracePhase(battle, SAFARI_BATTLE_PHASE.CHECK_1, "first action resolved");
+  tracePhase(battle, SAFARI_BATTLE_PHASE.CHECK_1, "first action resolved", { actor: firstActionActor });
   if (secondActionOccurred) {
     tracePhase(battle, SAFARI_BATTLE_PHASE.ACTION_2, `second action:${secondActionActor}`, { actor: secondActionActor });
-    tracePhase(battle, SAFARI_BATTLE_PHASE.CHECK_2, "second action checked");
+    tracePhase(battle, SAFARI_BATTLE_PHASE.CHECK_2, "second action checked", { actor: secondActionActor });
   }
 
   const fainted = hasFaint(result) || playerReplacementRequired || foeReplacementRequired || terminalResolution;

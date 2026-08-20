@@ -131,6 +131,12 @@ function phaseCount(battle, phase) {
   assert.equal(battle.phase, SAFARI_BATTLE_PHASE.COMMAND);
   assert.equal(phaseCount(battle, SAFARI_BATTLE_PHASE.ACTION_2), 1);
   assert.equal(phaseCount(battle, SAFARI_BATTLE_PHASE.CHECK_2), 1);
+  const blockedChecks = battle.phase_trace.filter((entry) => [
+    SAFARI_BATTLE_PHASE.CHECK_1,
+    SAFARI_BATTLE_PHASE.CHECK_2,
+  ].includes(entry.phase));
+  assert.deepEqual(blockedChecks.map((entry) => entry.actor), ["player", "foe"],
+    "status-blocked ACTION_1 and the surviving foe ACTION_2 must each own their following CHECK actor");
   const traceLength = battle.phase_trace.length;
 
   commitSafariBattleResolution(state, structuredClone(resolution), "move");
@@ -178,6 +184,12 @@ function phaseCount(battle, phase) {
   ].includes(entry.phase));
   assert.deepEqual(actionTrace.map((entry) => entry.actor), ["foe", "player"],
     "move ACTION_1/ACTION_2 must reflect the scheduler-resolved actor order rather than command-entry order");
+  const checkTrace = battle.phase_trace.filter((entry) => [
+    SAFARI_BATTLE_PHASE.CHECK_1,
+    SAFARI_BATTLE_PHASE.CHECK_2,
+  ].includes(entry.phase));
+  assert.deepEqual(checkTrace.map((entry) => entry.actor), ["foe", "player"],
+    "CHECK_1/CHECK_2 must remain bound to the scheduler-resolved action actors");
 }
 
 {
@@ -195,6 +207,12 @@ function phaseCount(battle, phase) {
   ].includes(entry.phase));
   assert.deepEqual(actionTrace.map((entry) => entry.actor), ["player", "foe"],
     "a consumed Bag command owns ACTION_1 and the opponent response owns ACTION_2");
+  const checkTrace = battle.phase_trace.filter((entry) => [
+    SAFARI_BATTLE_PHASE.CHECK_1,
+    SAFARI_BATTLE_PHASE.CHECK_2,
+  ].includes(entry.phase));
+  assert.deepEqual(checkTrace.map((entry) => entry.actor), ["player", "foe"],
+    "a consumed Bag command and the foe response must each own their following CHECK actor");
 }
 
 console.log("Safari Battle resolution idempotency smoke passed");
