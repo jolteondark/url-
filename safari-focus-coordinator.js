@@ -16,7 +16,7 @@ function clearBattleFocusOutsideInteractivePhase(){
  const battle=byId("battle-card");
  const active=document.activeElement;
  if(!(active instanceof HTMLElement)||!battle?.contains(active))return;
- if(!s?.battle||!["COMMAND","REPLACEMENT","RESULT"].includes(s.battle.phase))active.blur();
+ if(visible(byId("game-menu"))||!s?.battle||!["COMMAND","REPLACEMENT","RESULT"].includes(s.battle.phase))active.blur();
 }
 function settle(){
  clearBattleFocusOutsideInteractivePhase();
@@ -49,5 +49,5 @@ function settle(){
   requestAnimationFrame(()=>{if(token===epoch&&enabled(target))target.focus({preventScroll:true})});
  }))
 }
-for(const name of ["safari-runtime-changed","safari-preview-start","safari-game-menu-closed","mapless-dppt-menu-changed","pageshow"])window.addEventListener(name,settle,{passive:true});
+for(const name of ["safari-runtime-changed","safari-preview-start","safari-game-menu-opened","safari-game-menu-closed","mapless-dppt-menu-changed","pageshow"])window.addEventListener(name,settle,{passive:true});
 settle();
