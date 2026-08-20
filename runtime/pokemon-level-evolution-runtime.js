@@ -34,19 +34,24 @@ function moveId(move) {
   return typeof move === "string" ? move : move?.id;
 }
 
-function levelEvolutionTarget(speciesMaster, level) {
+function levelEvolutionTarget(speciesMaster, runtime) {
   const unsupportedMethods = new Set();
+  const level = Number(runtime?.level);
+  const gender = Number(runtime?.gender);
   let eligible = null;
   for (const raw of speciesMaster?.evolutions ?? []) {
     const evolution = normalizeEvolution(raw);
     if (!evolution?.species || !evolution.method || evolution.prevolution) continue;
-    if (evolution.method !== "Level") {
+    if (!["Level", "LevelMale", "LevelFemale"].includes(evolution.method)) {
       unsupportedMethods.add(evolution.method);
       continue;
     }
     const requiredLevel = Number(evolution.parameter);
     if (!Number.isInteger(requiredLevel) || requiredLevel < 1) continue;
-    if (!eligible && level >= requiredLevel) {
+    const genderMatches = evolution.method === "Level"
+      || (evolution.method === "LevelMale" && gender === 0)
+      || (evolution.method === "LevelFemale" && gender === 1);
+    if (!eligible && genderMatches && level >= requiredLevel) {
       eligible = { target: evolution.species, method: evolution.method, parameter: requiredLevel };
     }
   }
@@ -278,7 +283,7 @@ export function resolvePokemonLevelEvolution(runtime, {
   }
   const sourceMaster = species_masters[runtime?.species];
   if (!sourceMaster) throw new RangeError(`missing species master for ${runtime?.species ?? "unknown species"}`);
-  const candidate = levelEvolutionTarget(sourceMaster, Number(runtime.level));
+  const candidate = levelEvolutionTarget(sourceMaster, runtime);
   const levelEvolutionCandidate = publicCandidate(candidate);
   if (!candidate.target) {
     return {
@@ -347,7 +352,7 @@ export function resolvePokemonLevelEvolution(runtime, {
     moveDecisionResolverSource,
   });
   recalculated = learned.pokemon;
-  const targetCandidate = levelEvolutionTarget(targetMaster, Number(recalculated.level));
+  const targetCandidate = levelEvolutionTarget(targetMaster, recalculated);
   const unsupportedMethods = mergedUnsupportedMethods(candidate.unsupportedMethods, targetCandidate.unsupportedMethods);
 
   return {
