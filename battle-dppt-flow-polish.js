@@ -1,9 +1,5 @@
 const byId = (id) => document.getElementById(id);
 
-let lastBattlePresent = false;
-let lastPhase = null;
-let lastReturnTarget = null;
-
 function state() {
   return globalThis.__maplessSafariRuntime?.variables?.mapless ?? null;
 }
@@ -12,105 +8,12 @@ function battle() {
   return state()?.battle ?? null;
 }
 
-function phaseOf(current = battle()) {
-  if (!current) return null;
-  return current.phase ?? null;
-}
-
-function scrollTo(node, block = "start") {
-  if (!node || typeof node.scrollIntoView !== "function") return;
-  node.scrollIntoView({ behavior: "smooth", block, inline: "nearest" });
-}
-
-function focusVisible(selector, root = document) {
-  const node = [...root.querySelectorAll(selector)].find((candidate) => !candidate.hidden && !candidate.disabled && candidate.getClientRects().length > 0);
-  if (node instanceof HTMLElement) node.focus({ preventScroll:true });
-  return node ?? null;
-}
-
-function clearBattleFocus() {
-  const card = byId("battle-card");
-  const active = document.activeElement;
-  if (card && active instanceof HTMLElement && card.contains(active)) active.blur();
-}
-
 function contextualizeReturn(current) {
   const button = byId("return-board");
-  if (!button || phaseOf(current) !== "RESULT") return;
+  if (!button || current?.phase !== "RESULT") return;
   const target = current?.return_target ?? "day_board";
   button.textContent = target === "home" ? "ラン結果へ" : target === "village" ? "村へ戻る" : "Day Boardへ戻る";
   button.setAttribute("aria-label", button.textContent);
-}
-
-function focusBoardNextAction() {
-  const board = byId("board-card");
-  if (!board || board.hidden) return;
-  focusVisible(".board-cell:not(:disabled):not(.consumed)", board)
-    ?? focusVisible("#enter-village:not(:disabled)", board);
-}
-
-function focusVillageNextAction() {
-  const village = byId("village-card");
-  if (!village || village.hidden) return;
-  focusVisible("button:not(:disabled)", village);
-}
-
-function syncFlow() {
-  const current = battle();
-  const phase = phaseOf(current);
-  const battlePresent = Boolean(current && !byId("battle-card")?.hidden);
-
-  if (battlePresent && !lastBattlePresent) {
-    requestAnimationFrame(() => scrollTo(byId("battle-card"), "start"));
-  }
-
-  contextualizeReturn(current);
-
-  if (battlePresent && phase === "COMMAND" && lastPhase !== "COMMAND") {
-    const card = byId("battle-card");
-    if (card) card.dataset.dpptMenu = "root";
-    const message = byId("battle-message");
-    if (message && message.dataset.presentationOwner !== "event") message.textContent = "どうする？";
-    requestAnimationFrame(() => focusVisible('[data-dppt-command="fight"]:not(:disabled)', card ?? document));
-  }
-
-  if (battlePresent && phase === "REPLACEMENT" && lastPhase !== "REPLACEMENT") {
-    requestAnimationFrame(() => scrollTo(byId("player-replacement-panel") ?? byId("battle-card")?.querySelector(".battle-command-panel"), "center"));
-  }
-
-  if (battlePresent && phase === "RESULT" && lastPhase !== "RESULT") {
-    requestAnimationFrame(() => {
-      scrollTo(byId("battle-card")?.querySelector(".battle-command-panel"), "end");
-      focusVisible("#return-board:not(:disabled)", byId("battle-card") ?? document);
-    });
-  }
-
-  const target = current?.return_target ?? null;
-  if (!battlePresent && lastBattlePresent) {
-    clearBattleFocus();
-    requestAnimationFrame(() => {
-      const stateNow = state();
-      if (lastReturnTarget === "home" || stateNow?.location === "home") {
-        scrollTo(document.querySelector(".app"), "start");
-      } else if (lastReturnTarget === "village" || stateNow?.location === "village") {
-        scrollTo(byId("village-card"), "start");
-        requestAnimationFrame(() => {
-          clearBattleFocus();
-          focusVillageNextAction();
-        });
-      } else {
-        scrollTo(byId("board-card"), "start");
-        requestAnimationFrame(() => {
-          clearBattleFocus();
-          focusBoardNextAction();
-        });
-      }
-    });
-  }
-
-  lastBattlePresent = battlePresent;
-  lastPhase = phase;
-  lastReturnTarget = target ?? lastReturnTarget;
 }
 
 let pending = false;
@@ -119,14 +22,11 @@ function schedule() {
   pending = true;
   requestAnimationFrame(() => {
     pending = false;
-    syncFlow();
+    contextualizeReturn(battle());
   });
 }
 
 window.addEventListener("safari-runtime-changed", schedule, { passive:true });
 window.addEventListener("safari-preview-start", schedule, { passive:true });
-window.addEventListener("safari-game-menu-opened", schedule, { passive:true });
-window.addEventListener("safari-game-menu-closed", schedule, { passive:true });
-window.addEventListener("mapless-dppt-menu-changed", schedule, { passive:true });
 window.addEventListener("pageshow", schedule, { passive:true });
 schedule();
