@@ -8,7 +8,9 @@
 #shop-card select,
 #village-card,
 #village-card button,
-#village-card select{
+#village-card select,
+#board-card,
+#board-card button{
   font-family:"MaplessPixel12","Hiragino Kaku Gothic ProN","Yu Gothic",monospace;
   font-synthesis:none;
 }
@@ -48,6 +50,22 @@
 #game-menu .party-lead-row{margin-top:5px!important}
 #game-menu .party-lead-badge,#game-menu .party-lead-button{min-height:32px!important;border:2px solid #4e5960!important;border-radius:3px!important;padding:4px 8px!important;background:linear-gradient(180deg,#fffdf0,#d8dacf)!important;color:#222!important;font-family:"MaplessPixel10",monospace;font-size:.7rem!important;font-weight:400!important}
 
+/* Storage/Box: compact PC-like pale grid. */
+#game-menu .storage-detail-card{color:#222}
+#game-menu .storage-detail-boxes{gap:6px!important}
+#game-menu .storage-empty{min-height:92px!important;border:2px solid #687276!important;border-radius:3px!important;background:repeating-linear-gradient(135deg,#d7dcd5 0 6px,#cbd2cb 6px 12px)!important;color:#60686a!important}
+#game-menu .storage-box{padding:7px!important;border:2px solid #586267!important;border-radius:3px!important;background:linear-gradient(180deg,#eef0e5,#d5dbd4)!important;box-shadow:inset 0 0 0 2px #fbfcf6}
+#game-menu .storage-box-head{margin-bottom:5px!important;padding:2px 3px 5px;border-bottom:2px solid #7b8589}
+#game-menu .storage-box-head strong{font-size:.84rem!important;font-weight:400!important;color:#202426}
+#game-menu .storage-box-head span{font-family:"MaplessPixel10",monospace!important;color:#4f575a!important;font-size:.7rem!important}
+#game-menu .storage-box-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:4px!important}
+#game-menu .storage-slot{padding:6px!important;border:2px solid #667075!important;border-radius:2px!important;background:linear-gradient(180deg,#fffdf0,#e1e5db)!important;color:#222!important;box-shadow:inset 0 0 0 1px #fff}
+#game-menu .storage-slot-head strong{font-size:.72rem!important;font-weight:400!important;color:#171a1b}
+#game-menu .storage-slot-head span,#game-menu .storage-slot-meta,#game-menu .storage-slot-status,#game-menu .storage-slot-moves li{font-family:"MaplessPixel10",monospace!important;color:#3d4345!important;font-size:.62rem!important}
+#game-menu .storage-slot .hp-track{height:7px!important;margin:3px 0 4px!important;border:1px solid #3d4341;background:#222;padding:1px}
+#game-menu .storage-slot .hp-track span{border-radius:0;background:linear-gradient(180deg,#72df70,#32a83c)}
+#game-menu .storage-slot-moves{gap:0!important;margin-top:4px!important}
+
 /* Shop: bright list/touch screen treatment, matching the same DS visual language. */
 #shop-card.shop-scene{border:3px solid #3a4246;border-radius:4px;background:linear-gradient(180deg,#dbe4e8,#eef0e6 18%,#d4d9d2);color:#222;box-shadow:inset 0 0 0 2px #f8faf5}
 #shop-card .scene-heading{border-bottom:3px solid #5b6b77;padding-bottom:8px}
@@ -65,9 +83,29 @@
 #shop-card .shop-actions button{min-height:46px;border:2px solid #4d565a;border-radius:3px;background:linear-gradient(180deg,#fffdf0,#d4d8cf);color:#222;font-weight:400}
 #shop-card #shop-confirm{background:linear-gradient(180deg,#9fc5dd,#6798ba);color:#fff;text-shadow:1px 1px 0 #3a5367}
 
-/* Village uses the same text family without changing facility mechanics. */
-#village-card .facility-panel,#village-card .bounty-quest{border-radius:3px}
-#village-card select,#village-card button{border-radius:3px}
+/* Village: one-screen DS facility hub, preserving existing actions. */
+#village-card.village-scene{border:3px solid #39444a;border-radius:4px;background:linear-gradient(180deg,#d8e5df 0,#eef1e5 16%,#d5dbd2 100%);color:#202426;box-shadow:inset 0 0 0 2px #f8faf2}
+#village-card .scene-heading{padding-bottom:7px;border-bottom:3px solid #687b7f}
+#village-card .scene-kicker,#village-card #village-actions{font-family:"MaplessPixel10",monospace}
+#village-card h2{font-size:1rem;font-weight:400;color:#1f2527}
+#village-card .notice{border:2px solid #4d595d;border-radius:3px;background:#fffef2;color:#222;box-shadow:inset 0 0 0 2px #e1e7e3;font-size:.84rem;line-height:1.3}
+#village-card .facility-panel,#village-card .bounty-quest{border:2px solid #59656a!important;border-radius:3px!important;background:linear-gradient(180deg,#f9f7e9,#dfe4da)!important;color:#222!important;box-shadow:inset 0 0 0 2px #fffef6}
+#village-card .facility-mark,#village-card .quest-label{font-family:"MaplessPixel10",monospace;border-radius:2px!important}
+#village-card select,#village-card button{min-height:44px;border:2px solid #515c61!important;border-radius:3px!important;background:linear-gradient(180deg,#fffdf0,#d5dad1)!important;color:#222!important;font-weight:400!important}
+#village-card #village-shop-open,#village-card #bounty-accept,#village-card #bounty-depart{background:linear-gradient(180deg,#9dc2d9,#6797b6)!important;color:#fff!important;text-shadow:1px 1px 0 #3d5668}
+#village-card #leave-village{background:linear-gradient(180deg,#f8f5e8,#d2d6cd)!important;color:#222!important;text-shadow:none}
+
+/* Day Board: turn the shell into a DS lower-screen choice grid. */
+#board-card.board-scene{border:3px solid #39444a;border-radius:4px;background:linear-gradient(180deg,#d7e4e8 0,#edf1e7 18%,#d5dbd3 100%);color:#202426;box-shadow:inset 0 0 0 2px #f8faf5}
+#board-card .scene-heading{padding-bottom:7px;border-bottom:3px solid #667780}
+#board-card .scene-kicker,#board-card #mode{font-family:"MaplessPixel10",monospace}
+#board-card h2{font-size:1rem;font-weight:400;color:#202527}
+#board-card #notice{border:2px solid #4e585d;border-radius:3px;background:#fffef2;color:#222;box-shadow:inset 0 0 0 2px #e2e7e3;font-size:.84rem;line-height:1.3}
+#board-card .board-grid{gap:5px}
+#board-card .board-cell{min-height:72px;border:2px solid #596368;border-radius:3px;background:linear-gradient(180deg,#faf8eb,#dde2d8);color:#202426;box-shadow:inset 0 0 0 2px #fffef6;font-weight:400}
+#board-card .board-cell:not(:disabled):active,#board-card .board-cell:focus-visible{background:linear-gradient(180deg,#dcecf5,#bed6e6);border-color:#4d7997;outline:0}
+#board-card .board-cell.consumed,#board-card .board-cell:disabled{opacity:.56;background:repeating-linear-gradient(135deg,#d3d8d1 0 6px,#c6cdc6 6px 12px);color:#737a7a}
+#board-card #enter-village{min-height:48px;border:2px solid #4f5b60;border-radius:3px;background:linear-gradient(180deg,#9fc5dc,#6899b9);color:#fff;font-weight:400;text-shadow:1px 1px 0 #3d5668}
 
 @media(max-width:520px){
   #game-menu{padding:max(3px,env(safe-area-inset-top)) 2px 2px}
@@ -76,7 +114,11 @@
   #game-menu .party-slot{min-height:112px!important;padding:6px!important}
   #game-menu .party-moves li{font-size:.66rem!important}
   #game-menu .party-lead-button{min-width:0!important;width:100%}
+  #game-menu .storage-box-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  #game-menu .storage-slot{padding:5px!important}
   #shop-card .shop-touch-catalog{grid-template-columns:1fr 1fr}
   #shop-card .shop-touch-item{min-height:64px;padding:7px}
   #shop-card .shop-actions{grid-template-columns:1fr 1fr}
+  #board-card .board-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #board-card .board-cell{min-height:68px;padding:7px}
 }
