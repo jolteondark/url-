@@ -113,6 +113,49 @@ function pendingPlayerReplacement(battle) {
   });
 }
 
+function commitBoundaryTrainerReplacement(runtime, result) {
+  const state = stateOf(runtime);
+  const battle = state.battle;
+  if (!result?.foeReplacementRequired || !result?.battleContinuationHandoff?.foeReplacementRequired) return result;
+
+  const continuation = resolveBrowserTrainerReplacementContinuation({
+    battleContinuationHandoff: result.battleContinuationHandoff,
+    partyOrder: Array.isArray(battle.trainer_party_order) ? battle.trainer_party_order : null,
+    idxBattler: 1,
+    sideSize: 1,
+  });
+  if (continuation.result !== "continued_with_replacement") {
+    throw new Error(`boundary trainer replacement owner did not continue: ${continuation.result}`);
+  }
+
+  const handoff = continuation.battleContinuationHandoff;
+  if (Array.isArray(handoff?.foeParty)) battle.trainer_party = clone(handoff.foeParty);
+  battle.trainer_party_index = Number(handoff?.foeActivePartyIndex ?? battle.trainer_party_index ?? 0);
+  if (continuation.partyOrder) battle.trainer_party_order = clone(continuation.partyOrder);
+  battle.foe = clone(continuation.activeFoe);
+
+  const battleTurn = Math.max(1, Number(battle.turn ?? 1) - 1);
+  const switchOperations = (continuation.operations ?? []).map((operation) => ({
+    ...clone(operation),
+    battleTurn,
+  }));
+  battle.last_operations = [...(battle.last_operations ?? result.operations ?? []), ...switchOperations];
+  battle.presentation = battlePresentation(battle.last_operations);
+  state.last_operations = clone(battle.last_operations);
+
+  return {
+    ...result,
+    foe: clone(continuation.activeFoe),
+    battleContinuationHandoff: clone(handoff),
+    trainerReplacementContinuation: continuation,
+    foeReplacementRequired: false,
+    foeReplacementApplied: true,
+    replacementApplied: true,
+    operations: clone(battle.last_operations),
+    presentation: clone(battle.presentation),
+  };
+}
+
 function resolveBoundaryRound(runtime, selectedMoveId) {
   const state = stateOf(runtime);
   const battle = state.battle;
@@ -160,29 +203,7 @@ function resolveBoundaryRound(runtime, selectedMoveId) {
     throw error;
   }
 
-  let trainerReplacement = null;
-  if (Number(resolved.decision ?? 0) === 0 && resolved.battleContinuationHandoff?.foeReplacementRequired) {
-    trainerReplacement = resolveBrowserTrainerReplacementContinuation({
-      battleContinuationHandoff: resolved.battleContinuationHandoff,
-      partyOrder: Array.isArray(battle.trainer_party_order) ? battle.trainer_party_order : null,
-      idxBattler: 1,
-      sideSize: 1,
-    });
-    if (trainerReplacement.result === "continued_with_replacement") {
-      resolved = {
-        ...resolved,
-        foe: clone(trainerReplacement.activeFoe),
-        battleContinuationHandoff: clone(trainerReplacement.battleContinuationHandoff),
-        foeReplacementApplied: true,
-        replacementApplied: true,
-      };
-    }
-  }
-
-  const operations = [
-    ...(resolved.operations ?? []),
-    ...(trainerReplacement?.operations ?? []),
-  ].map((operation) => ({ ...operation, battleTurn: battle.turn }));
+  const operations = (resolved.operations ?? []).map((operation) => ({ ...operation, battleTurn: battle.turn }));
   const continuationHandoff = resolved.battleContinuationHandoff;
   if (Array.isArray(continuationHandoff?.playerParty)) runtime.player.party = clone(continuationHandoff.playerParty);
   else runtime.player.party[playerActiveIndex] = resolved.player;
@@ -193,7 +214,6 @@ function resolveBoundaryRound(runtime, selectedMoveId) {
   if (Array.isArray(continuationHandoff?.foeParty)) battle.trainer_party = clone(continuationHandoff.foeParty);
   const activeIndex = Number(continuationHandoff?.foeActivePartyIndex ?? battle.trainer_party_index ?? 0);
   battle.trainer_party_index = activeIndex;
-  if (trainerReplacement?.partyOrder) battle.trainer_party_order = clone(trainerReplacement.partyOrder);
   battle.foe = clone(battle.trainer_party?.[activeIndex] ?? resolved.foe);
   battle.decision = Number(resolved.decision);
   battle.turn += 1;
@@ -207,6 +227,7 @@ function resolveBoundaryRound(runtime, selectedMoveId) {
     battle.player_replacement_handoff = null;
   }
 
+  const foeReplacementRequired = battle.decision === 0 && Boolean(continuationHandoff?.foeReplacementRequired);
   const resolution = {
     ...resolved,
     runtime,
@@ -214,11 +235,13 @@ function resolveBoundaryRound(runtime, selectedMoveId) {
     operations: battle.last_operations,
     presentation: battle.presentation,
     playerReplacementRequired: Boolean(battle.player_replacement_required),
-    foeReplacementApplied: Boolean(resolved.foeReplacementApplied),
-    replacementApplied: Boolean(resolved.replacementApplied),
+    foeReplacementRequired,
+    foeReplacementApplied: false,
+    replacementApplied: false,
     persistenceRequested: requestsSave(battle.last_operations),
   };
   const committed = commitSafariBattleResolution(runtime, resolution, "move", {
+    replacementCommit: (result) => commitBoundaryTrainerReplacement(runtime, result),
     rewardGrowthCommit: battle.decision > 0 ? (result) => {
       handoff = finalizeBoundaryBattle(runtime, battle, battle.decision);
       result.operations = clone(battle.last_operations);
@@ -238,7 +261,7 @@ function resolveBoundaryRound(runtime, selectedMoveId) {
     scheduling: resolved.scheduling,
     ppIntegration: resolved.ppIntegration,
     battleRuntimeIntegration: resolved.battleRuntimeIntegration,
-    battleContinuationHandoff: resolved.battleContinuationHandoff,
+    battleContinuationHandoff: committed.battleContinuationHandoff ?? resolved.battleContinuationHandoff,
     battleResultHandoff: resolved.battleResultHandoff,
     playerReplacementContinuation,
     playerReplacementRequired: Boolean(battle.player_replacement_required),

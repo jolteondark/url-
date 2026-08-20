@@ -30,11 +30,23 @@ for (let expectedIndex = 0; expectedIndex < 3; expectedIndex += 1) {
   if (expectedIndex < 2) {
     assert.equal(result.decision, 0);
     assert.equal(result.replacementApplied, true);
+    assert.equal(result.foeReplacementApplied, true);
     assert.equal(state.battle.trainer_party_index, expectedIndex + 1);
     assert.equal(state.battle.completed, false);
     assert.equal(state.battle.phase, "COMMAND");
-    assert.equal(state.battle.phase_trace.some((entry) => entry.phase === "REPLACEMENT"), true,
-      "boundary trainer reserve must pass through the central REPLACEMENT checkpoint");
+    assert.equal(state.battle.replacement_checkpoint?.committed, true,
+      "boundary trainer reserve mutation must commit through the central REPLACEMENT checkpoint");
+    assert.deepEqual(
+      state.battle.phase_trace.slice(-3).map((entry) => entry.phase),
+      ["POST_FAINT", "REPLACEMENT", "COMMAND"],
+      "boundary reserve must switch at REPLACEMENT and return to COMMAND without a same-round reserve action",
+    );
+    assert.equal(result.operations.filter((operation) => operation.op === "send_out").length, 1,
+      "canonical replacement/switch owner must emit exactly one reserve send_out");
+    const faintIndex = result.operations.findIndex((operation) => operation.op === "faint" && operation.target === "foe");
+    assert.ok(faintIndex >= 0, "boundary reserve KO must contain the defeated active faint operation");
+    assert.equal(result.operations.slice(faintIndex + 1).some((operation) => operation.op === "use_move" && operation.actor === "foe"), false,
+      "the newly sent-out boundary reserve must get zero attacks in the KO round");
   } else {
     assert.equal(result.decision, 1);
     assert.equal(state.battle.completed, true);
