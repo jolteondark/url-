@@ -1,7 +1,18 @@
 import * as base from "./safari-playable-integration-wounded.js";
 import { resolveBrowserBattleRound } from "./browser-battle-round-runtime.js";
 import { resolveBrowserPlayerReplacementContinuation } from "./browser-player-replacement-continuation.js";
+import { resolveBrowserTrainerReplacementContinuation } from "./browser-trainer-replacement-continuation.js";
 import { resolveBoundaryTrialBattleHandoff } from "./mapless-boundary-trial-battle-handoff.js";
+import {
+  SAFARI_BATTLE_PHASE,
+  abortSafariBattleCommand,
+  abortSafariBattleReturn,
+  beginSafariBattleCommand,
+  beginSafariBattleReturn,
+  commitSafariBattleResolution,
+  completeSafariBattleReplacement,
+  completeSafariBattleReturn,
+} from "./safari-battle-orchestrator.js";
 import { pokemonMoveTotalPp, setPokemonRuntimeMovePp, updatePokemonRuntime } from "./pokemon-runtime.js";
 import { SAFARI_MOVE_PRESENTATION } from "./safari-playable-integration-base.js";
 import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
@@ -79,7 +90,6 @@ function finalizeBoundaryBattle(runtime, battle, decision) {
     ...structuredClone(operation), owner: "mapless-boundary-trial-flow",
   }));
   if (decision === 1) runtime.player.party = runtime.player.party.map(fullyHealPokemon);
-  battle.completed = true;
   battle.decision = decision;
   battle.return_target = decision === 1 ? "day_board" : "boundary_trial";
   battle.last_operations = [...battle.last_operations, ...completionOperations];
@@ -117,6 +127,8 @@ function resolveBoundaryRound(runtime, selectedMoveId) {
       playerReplacementContinuation: pendingReplacement,
       battleContinuationHandoff: clone(battle.player_replacement_handoff),
       persistenceRequested: false,
+      phase: battle.phase ?? SAFARI_BATTLE_PHASE.REPLACEMENT,
+      phaseTrace: clone(battle.phase_trace ?? []),
     };
   }
 
@@ -129,18 +141,48 @@ function resolveBoundaryRound(runtime, selectedMoveId) {
   const foeMoveId = moveId(battle.foe?.moves?.[0]);
   if (!foeMoveId || !SAFARI_MOVE_MASTERS[foeMoveId]) throw new RangeError(`boundary foe move is outside the Safari projection: ${foeMoveId}`);
 
-  const resolved = resolveBrowserBattleRound({
-    player,
-    foe: battle.foe,
-    playerParty: runtime.player.party,
-    foeParty: battle.trainer_party,
-    playerActivePartyIndex: playerActiveIndex,
-    foeActivePartyIndex: Number(battle.trainer_party_index ?? 0),
-    selectedMoveId: selected,
-    foeMoveId,
-    moveMasters: SAFARI_MOVE_MASTERS,
-  });
-  const operations = resolved.operations.map((operation) => ({ ...operation, battleTurn: battle.turn }));
+  beginSafariBattleCommand(runtime, "move");
+  let resolved;
+  try {
+    resolved = resolveBrowserBattleRound({
+      player,
+      foe: battle.foe,
+      playerParty: runtime.player.party,
+      foeParty: battle.trainer_party,
+      playerActivePartyIndex: playerActiveIndex,
+      foeActivePartyIndex: Number(battle.trainer_party_index ?? 0),
+      selectedMoveId: selected,
+      foeMoveId,
+      moveMasters: SAFARI_MOVE_MASTERS,
+    });
+  } catch (error) {
+    abortSafariBattleCommand(runtime, "boundary round failed");
+    throw error;
+  }
+
+  let trainerReplacement = null;
+  if (Number(resolved.decision ?? 0) === 0 && resolved.battleContinuationHandoff?.foeReplacementRequired) {
+    trainerReplacement = resolveBrowserTrainerReplacementContinuation({
+      battleContinuationHandoff: resolved.battleContinuationHandoff,
+      partyOrder: Array.isArray(battle.trainer_party_order) ? battle.trainer_party_order : null,
+      idxBattler: 1,
+      sideSize: 1,
+    });
+    if (trainerReplacement.result === "continued_with_replacement") {
+      resolved = {
+        ...resolved,
+        foe: clone(trainerReplacement.activeFoe),
+        battleContinuationHandoff: clone(trainerReplacement.battleContinuationHandoff),
+        foeReplacementApplied: true,
+        replacementApplied: true,
+      };
+    }
+  }
+
+  const operations = [
+    ...(resolved.operations ?? []),
+    ...(trainerReplacement?.operations ?? []),
+  ].map((operation) => ({ ...operation, battleTurn: battle.turn }));
   const continuationHandoff = resolved.battleContinuationHandoff;
   if (Array.isArray(continuationHandoff?.playerParty)) runtime.player.party = clone(continuationHandoff.playerParty);
   else runtime.player.party[playerActiveIndex] = resolved.player;
@@ -148,22 +190,47 @@ function resolveBoundaryRound(runtime, selectedMoveId) {
   battle.player_replacement_required = Boolean(continuationHandoff?.playerReplacementRequired);
   battle.player_replacement_handoff = battle.player_replacement_required ? clone(continuationHandoff) : null;
 
-  const activeIndex = Number(battle.trainer_party_index ?? 0);
-  battle.trainer_party[activeIndex] = structuredClone(resolved.foe);
-  battle.foe = structuredClone(resolved.foe);
+  if (Array.isArray(continuationHandoff?.foeParty)) battle.trainer_party = clone(continuationHandoff.foeParty);
+  const activeIndex = Number(continuationHandoff?.foeActivePartyIndex ?? battle.trainer_party_index ?? 0);
+  battle.trainer_party_index = activeIndex;
+  if (trainerReplacement?.partyOrder) battle.trainer_party_order = clone(trainerReplacement.partyOrder);
+  battle.foe = clone(battle.trainer_party?.[activeIndex] ?? resolved.foe);
   battle.decision = Number(resolved.decision);
   battle.turn += 1;
   battle.last_operations = operations;
   battle.presentation = battlePresentation(operations);
   state.last_operations = operations;
+
   let handoff = null;
   if (battle.decision > 0) {
     battle.player_replacement_required = false;
     battle.player_replacement_handoff = null;
-    handoff = finalizeBoundaryBattle(runtime, battle, battle.decision);
   }
+
+  const resolution = {
+    ...resolved,
+    runtime,
+    decision: battle.decision,
+    operations: battle.last_operations,
+    presentation: battle.presentation,
+    playerReplacementRequired: Boolean(battle.player_replacement_required),
+    foeReplacementApplied: Boolean(resolved.foeReplacementApplied),
+    replacementApplied: Boolean(resolved.replacementApplied),
+    persistenceRequested: requestsSave(battle.last_operations),
+  };
+  const committed = commitSafariBattleResolution(runtime, resolution, "move", {
+    rewardGrowthCommit: battle.decision > 0 ? (result) => {
+      handoff = finalizeBoundaryBattle(runtime, battle, battle.decision);
+      result.operations = clone(battle.last_operations);
+      result.presentation = clone(battle.presentation);
+      result.boundaryTrialHandoff = handoff;
+      return result;
+    } : null,
+  });
+
   const playerReplacementContinuation = pendingPlayerReplacement(battle);
   return {
+    ...committed,
     runtime,
     decision: battle.decision,
     operations: battle.last_operations,
@@ -176,7 +243,7 @@ function resolveBoundaryRound(runtime, selectedMoveId) {
     playerReplacementContinuation,
     playerReplacementRequired: Boolean(battle.player_replacement_required),
     boundaryTrialHandoff: handoff,
-    persistenceRequested: requestsSave(battle.last_operations),
+    persistenceRequested: Boolean(committed.persistenceRequested || requestsSave(battle.last_operations)),
   };
 }
 
@@ -209,6 +276,8 @@ export function resolveSafariBoundaryPlayerReplacement(runtime, replacementParty
       operations: clone(continuation.operations ?? []),
       playerReplacementContinuation: continuation,
       playerReplacementRequired: true,
+      phase: battle.phase ?? SAFARI_BATTLE_PHASE.REPLACEMENT,
+      phaseTrace: clone(battle.phase_trace ?? []),
     };
   }
 
@@ -220,7 +289,7 @@ export function resolveSafariBoundaryPlayerReplacement(runtime, replacementParty
   const operations = (continuation.operations ?? []).map((operation) => ({ ...clone(operation), battleTurn: battle.turn }));
   battle.last_operations = [...(battle.last_operations ?? []), ...operations];
   state.last_operations = operations;
-  return {
+  const result = {
     runtime,
     result: "continued_with_replacement",
     decision: 0,
@@ -231,6 +300,8 @@ export function resolveSafariBoundaryPlayerReplacement(runtime, replacementParty
     playerActivePartyIndex: battle.player_party_index,
     playerPartyOrder: clone(battle.player_party_order),
   };
+  if (battle.phase === SAFARI_BATTLE_PHASE.REPLACEMENT) return completeSafariBattleReplacement(runtime, result);
+  return result;
 }
 
 export function resolveSafariBattleRound(runtime, selectedMoveId) {
@@ -245,24 +316,31 @@ export function returnSafariToDayBoard(runtime) {
   if (battle?.origin !== "boundary_trial") return base.returnSafariToDayBoard(runtime);
   if (!battle.completed) throw new Error("completed boundary battle is required");
   const summary = { decision: battle.decision, captured: false, expGained: 0, reward: null };
-  if (battle.decision === 1) {
-    const nextDay = Number(state.boundary_trial?.day ?? state.day + 1);
-    const board = createSafariPostBoundaryBoard(nextDay);
-    state.day = board.day;
-    state.board_events = board.board_events;
-    state.board_revealed = board.board_revealed;
-    state.board_consumed = board.board_consumed;
-    state.board_visited = board.board_visited;
-    state.location = "day_board";
-    state.board_suspended_for_boundary = false;
-    state.notice = "境界を越え、次のDay Boardへ進みました。";
-    state.battle = null;
-    state.last_operations = [{ op: "return_to_day_board", from: "boundary_trial", day: state.day }];
-    return { runtime, target: "day_board", summary, operations: state.last_operations };
+  beginSafariBattleReturn(runtime);
+  try {
+    let result;
+    if (battle.decision === 1) {
+      const nextDay = Number(state.boundary_trial?.day ?? state.day + 1);
+      const board = createSafariPostBoundaryBoard(nextDay);
+      state.day = board.day;
+      state.board_events = board.board_events;
+      state.board_revealed = board.board_revealed;
+      state.board_consumed = board.board_consumed;
+      state.board_visited = board.board_visited;
+      state.location = "day_board";
+      state.board_suspended_for_boundary = false;
+      state.notice = "境界を越え、次のDay Boardへ進みました。";
+      state.battle = null;
+      result = { runtime, target: "day_board", summary, operations: [{ op: "return_to_day_board", from: "boundary_trial", day: state.day }] };
+    } else {
+      state.location = "boundary_trial";
+      state.battle = null;
+      state.notice = "境界の試練に戻りました。";
+      result = { runtime, target: "boundary_trial", summary, operations: [{ op: "return_to_boundary_trial", decision: summary.decision }] };
+    }
+    return completeSafariBattleReturn(runtime, result);
+  } catch (error) {
+    if (state.battle) abortSafariBattleReturn(runtime, "boundary return failed");
+    throw error;
   }
-  state.location = "boundary_trial";
-  state.battle = null;
-  state.notice = "境界の試練に戻りました。";
-  state.last_operations = [{ op: "return_to_boundary_trial", decision: summary.decision }];
-  return { runtime, target: "boundary_trial", summary, operations: state.last_operations };
 }

@@ -35,14 +35,16 @@ state.battle = {
 
 const returned = await web.returnSafariToDayBoard(runtime);
 assert.equal(returned.target, "day_board");
+assert.equal(returned.phase, "RETURN", "boundary Result return must pass through the central RETURN checkpoint");
+assert.equal(returned.phaseTrace.at(-1)?.phase, "RETURN");
 assert.equal(state.location, "day_board");
 assert.equal(state.day, 11, "boundary Result return must materialize DAY 11");
 assert.equal(state.battle, null, "boundary Result return must clear the completed Battle");
 assert.equal(state.board_events.length, 8, "DAY 11 return must own a complete Board");
 assert.ok(state.board_events.some((event) => event?.kind === "next_day"), "DAY 11 Board must retain stairs/next_day");
 assert.equal(returned.persistenceRequested, true, "DAY 11 return must explicitly request persistence");
-assert.ok(returned.operations.some((operation) => operation?.op === "request_save"),
-  "web persistence contract must expose request_save after boundary return");
+assert.equal(returned.operations.filter((operation) => operation?.op === "request_save").length, 1,
+  "web persistence contract must expose exactly one request_save after boundary return");
 
 const expectedBoardEvents = structuredClone(state.board_events);
 const expectedRevealed = structuredClone(state.board_revealed);
