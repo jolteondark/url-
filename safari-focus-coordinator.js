@@ -5,6 +5,12 @@ function enabled(n){return visible(n)&&!n.disabled}
 function first(root,sel){return root?[...root.querySelectorAll(sel)].find(enabled)??null:null}
 function runtime(){return globalThis.__maplessSafariRuntime?.variables?.mapless??null}
 function stopScroll(){window.scrollTo({top:window.scrollY,left:window.scrollX,behavior:"auto"})}
+function commandTarget(battle){
+ const mode=battle?.dataset?.dpptMenu;
+ if(mode==="fight")return first(battle,'#moves button[data-move-id]:not(:disabled),#dppt-command-back:not(:disabled)');
+ if(mode==="bag")return first(battle,'#dppt-battle-bag button:not(:disabled),#dppt-command-back:not(:disabled)');
+ return first(battle,'#dppt-command-root button[data-dppt-command="fight"]:not(:disabled)');
+}
 function clearResolvingBattleFocus(){
  const s=runtime();
  const battle=byId("battle-card");
@@ -25,7 +31,7 @@ function settle(){
   if(s?.battle&&visible(battle)){
    const phase=s.battle.phase;
    scrollTarget=battle; block="start";
-   if(phase==="COMMAND") target=first(battle,'[data-dppt-command="fight"]:not(:disabled),.move-grid button:not(:disabled)');
+   if(phase==="COMMAND") target=commandTarget(battle);
    else if(phase==="REPLACEMENT") target=first(battle,'.player-replacement-panel button:not(:disabled)');
    else if(phase==="RESULT") target=enabled(byId("return-board"))?byId("return-board"):null;
   }else if(visible(byId("shop-card"))){
