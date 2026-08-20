@@ -100,6 +100,42 @@ function reserveKoResult() {
 {
   const rt = runtime();
   const battle = rt.variables.mapless.battle;
+  battle.player_replacement_required = true;
+  battle.player_party_index = 0;
+  ensureSafariBattleOrchestrator(rt);
+  beginSafariBattleCommand(rt, "move");
+  const result = {
+    ...reserveKoResult(),
+    playerReplacementRequired: true,
+    operations: [
+      { op: "use_move", actor: "player" },
+      { op: "faint", target: "foe" },
+      { op: "faint_self", target: "player" },
+    ],
+  };
+  let replacementCommits = 0;
+  const committed = commitSafariBattleResolution(rt, result, "move", {
+    replacementCommit(current) {
+      replacementCommits += 1;
+      assert.equal(battle.phase, SAFARI_BATTLE_PHASE.REPLACEMENT,
+        "simultaneous reserves must still commit the automatic foe switch inside REPLACEMENT");
+      return { ...current, foeReplacementRequired: false, foeReplacementApplied: true };
+    },
+  });
+  assert.equal(replacementCommits, 1);
+  assert.equal(committed.foeReplacementApplied, true);
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.REPLACEMENT,
+    "after automatic foe replacement, player replacement selection must keep the Battle at REPLACEMENT");
+  assert.equal(battle.completed, false);
+  assert.equal(battle.pending_reward_growth?.recipientPartyIndex, 0,
+    "simultaneous replacement must preserve the defeated player EXP recipient until player replacement completes");
+  assert.equal(battle.phase_trace.filter((step) => step.phase === SAFARI_BATTLE_PHASE.REPLACEMENT).length, 1,
+    "simultaneous replacement must expose one central REPLACEMENT checkpoint");
+}
+
+{
+  const rt = runtime();
+  const battle = rt.variables.mapless.battle;
   ensureSafariBattleOrchestrator(rt);
   beginSafariBattleCommand(rt, "move");
   const result = reserveKoResult();
