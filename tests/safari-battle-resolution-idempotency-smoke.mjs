@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import "./safari-battle-explicit-return-begin-smoke.mjs";
 import {
   SAFARI_BATTLE_PHASE,
   beginSafariBattleCommand,
