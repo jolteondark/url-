@@ -66,6 +66,15 @@ assert.equal(Number(state.battle.turn), turnBefore + 1,
   "replacement selection itself must not consume an additional Battle turn");
 assert.equal(Boolean(state.battle.player_replacement_required), false,
   "replacement requirement must clear after the canonical switch");
+assert.equal(state.battle.replacement_checkpoint?.side, "player",
+  "forced player replacement must commit through the central REPLACEMENT checkpoint");
+assert.equal(state.battle.replacement_checkpoint?.committed, true,
+  "forced player replacement checkpoint must commit exactly once before the next command");
+assert.deepEqual(
+  state.battle.phase_trace.slice(-2).map((entry) => entry.phase),
+  ["REPLACEMENT", "COMMAND"],
+  "actual player switch mutation must occur at REPLACEMENT immediately before the next COMMAND",
+);
 assert.ok(Number(runtime.player.party[1].hp) > 0);
 
 // Prove the selected reserve owns the very next command and terminal reflection.
@@ -102,5 +111,5 @@ assert.match(replacementUiSource, /replaceSafariBattlePlayer\(globalThis\.__mapl
 assert.match(replacementUiSource, /moves\.inert = true/,
   "normal move commands must be blocked while replacement selection is required");
 
-console.log("Safari active KO -> legal reserve replacement -> next command -> victory + UI wiring: ok");
+console.log("Safari active KO -> central REPLACEMENT commit -> legal reserve -> next command -> victory + UI wiring: ok");
 await import("./safari-voluntary-switch-command-smoke.mjs");
