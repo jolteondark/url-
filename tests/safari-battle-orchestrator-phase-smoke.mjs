@@ -90,9 +90,13 @@ function deferredExpIntegration() {
   beginSafariBattleReturn(rt);
   assert.equal(battle.phase, SAFARI_BATTLE_PHASE.RETURN);
   assert.equal(battle.completed, true, "RETURN keeps terminal completion committed");
+  assert.equal(rt.variables.mapless.pending_battle_return_checkpoint?.committed, false,
+    "RETURN begin must publish one pending central commit checkpoint");
   abortSafariBattleReturn(rt, "return failed:test");
   assert.equal(battle.phase, SAFARI_BATTLE_PHASE.RESULT,
     "failed RETURN must roll back through the central owner to the retryable RESULT boundary");
+  assert.equal(rt.variables.mapless.pending_battle_return_checkpoint, null,
+    "failed RETURN must discard only its uncommitted central checkpoint");
   assert.equal(battle.completed, true);
   assert.deepEqual(battle.phase_trace.slice(-2).map((step) => step.phase), ["RETURN", "RESULT"]);
   assert.match(battle.phase_trace.at(-1).reason, /return failed:test/);
@@ -114,11 +118,20 @@ function deferredExpIntegration() {
   assert.equal(returned.operations.filter((operation) => operation.op === "request_save").length, 1,
     "successful RETURN must expose exactly one post-Battle save checkpoint");
   assert.equal(returned.phaseTrace.at(-1).phase, SAFARI_BATTLE_PHASE.RETURN);
-  const replayedReturn = completeSafariBattleReturn(rt, returned);
+  assert.equal(rt.variables.mapless.battle_return_checkpoint?.committed, true,
+    "successful RETURN must publish one committed central checkpoint");
+  assert.equal(rt.variables.mapless.pending_battle_return_checkpoint, null);
+
+  const replayedReturn = completeSafariBattleReturn(rt, {
+    target: "day_board",
+    operations: [{ op: "return_to_day_board" }],
+  });
   assert.equal(replayedReturn.operations.filter((operation) => operation.op === "request_save").length, 1,
-    "compatibility replay of the same RETURN result must not duplicate request_save");
-  assert.deepEqual(rt.variables.mapless.last_operations, replayedReturn.operations,
-    "the saved operation snapshot must be the same RETURN result exposed to persistence consumers");
+    "fresh compatibility replay after RETURN must reuse the committed save snapshot rather than commit again");
+  assert.deepEqual(replayedReturn.operations, returned.operations,
+    "RETURN replay must expose the exact operation snapshot committed by the first central RETURN");
+  assert.deepEqual(rt.variables.mapless.last_operations, returned.operations,
+    "the saved operation snapshot must remain the first committed RETURN result");
 }
 
 {

@@ -159,6 +159,14 @@ function commitRewardGrowthCheckpoint(battle, result, rewardGrowthCommit, reason
   }
 }
 
+function returnCheckpointKey(battle) {
+  return [
+    Number(battle.turn ?? 0),
+    Number(battle.decision ?? 0),
+    Number((battle.phase_trace ?? []).length),
+  ].join(":");
+}
+
 export function ensureSafariBattleOrchestrator(runtime) {
   const battle = battleOf(runtime);
   if (!battle.phase) tracePhase(battle, battle.completed ? SAFARI_BATTLE_PHASE.RESULT : SAFARI_BATTLE_PHASE.COMMAND, "initialize");
@@ -300,6 +308,11 @@ export function beginSafariBattleReturn(runtime) {
     throw new Error(`battle return is unavailable during ${phase}`);
   }
   tracePhase(battle, SAFARI_BATTLE_PHASE.RETURN, "return requested");
+  state.pending_battle_return_checkpoint = {
+    key: returnCheckpointKey(battle),
+    committed: false,
+    phaseTrace: structuredClone(battle.phase_trace ?? []),
+  };
   state.last_battle_phase_trace = structuredClone(battle.phase_trace ?? []);
   return battle.phase;
 }
@@ -310,6 +323,7 @@ export function abortSafariBattleReturn(runtime, reason = "return failed") {
   if (!battle) return null;
   const phase = ensureSafariBattleOrchestrator(runtime);
   if (phase !== SAFARI_BATTLE_PHASE.RETURN) return phase;
+  state.pending_battle_return_checkpoint = null;
   tracePhase(battle, SAFARI_BATTLE_PHASE.RESULT, reason);
   state.last_battle_phase_trace = structuredClone(battle.phase_trace ?? []);
   return battle.phase;
@@ -319,6 +333,22 @@ export function completeSafariBattleReturn(runtime, result = {}) {
   const state = stateOf(runtime);
   const battle = state.battle;
   if (battle) state.last_battle_phase_trace = structuredClone(battle.phase_trace ?? state.last_battle_phase_trace ?? []);
+
+  const committedCheckpoint = state.battle_return_checkpoint;
+  if (committedCheckpoint?.committed === true) {
+    result.operations = structuredClone(committedCheckpoint.operations ?? []);
+    result.persistenceRequested = true;
+    state.last_operations = structuredClone(committedCheckpoint.operations ?? []);
+    result.phase = SAFARI_BATTLE_PHASE.RETURN;
+    result.phaseTrace = structuredClone(committedCheckpoint.phaseTrace ?? state.last_battle_phase_trace ?? []);
+    return result;
+  }
+
+  const pendingCheckpoint = state.pending_battle_return_checkpoint ?? {
+    key: `compat:${Number(state.last_battle_phase_trace?.length ?? 0)}`,
+    committed: false,
+    phaseTrace: structuredClone(state.last_battle_phase_trace ?? []),
+  };
   const operations = Array.isArray(result.operations) ? [...result.operations] : [];
   if (!operations.some((operation) => operation?.op === "request_save")) {
     operations.push({ op: "request_save", reason: "battle return committed" });
@@ -327,6 +357,13 @@ export function completeSafariBattleReturn(runtime, result = {}) {
   result.persistenceRequested = true;
   state.last_operations = operations;
   result.phase = SAFARI_BATTLE_PHASE.RETURN;
-  result.phaseTrace = structuredClone(state.last_battle_phase_trace ?? []);
+  result.phaseTrace = structuredClone(pendingCheckpoint.phaseTrace ?? state.last_battle_phase_trace ?? []);
+  state.battle_return_checkpoint = {
+    ...structuredClone(pendingCheckpoint),
+    committed: true,
+    operations: structuredClone(operations),
+    phaseTrace: structuredClone(result.phaseTrace),
+  };
+  state.pending_battle_return_checkpoint = null;
   return result;
 }
