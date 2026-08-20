@@ -1,0 +1,37 @@
+/* DPt-style focus mode: remove shell distractions while a battle owns the screen. Visual only. */
+body.dppt-battle-focus .game-header,
+body.dppt-battle-focus > .app > .hud,
+body.dppt-battle-focus > .app > .run-controls{
+  display:none!important;
+}
+body.dppt-battle-focus{
+  padding-top:max(2px,env(safe-area-inset-top));
+  padding-left:max(2px,env(safe-area-inset-left));
+  padding-right:max(2px,env(safe-area-inset-right));
+  padding-bottom:max(2px,env(safe-area-inset-bottom));
+  background:#111;
+}
+body.dppt-battle-focus .app{width:min(100%,760px)}
+body.dppt-battle-focus .game-stage{min-height:calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 4px)}
+body.dppt-battle-focus #battle-card{
+  margin:0;
+  min-height:calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 4px);
+}
+body.dppt-battle-focus #board-card,
+body.dppt-battle-focus #village-card,
+body.dppt-battle-focus #shop-card{display:none!important}
+
+/* When the system menu owns input, keep only that modal visually authoritative. */
+body.menu-open .run-controls{visibility:hidden;pointer-events:none}
+
+/* Returning from a focused screen should have one obvious target. */
+.dppt-return-focus{
+  outline:3px solid #f3cf55!important;
+  outline-offset:2px!important;
+  box-shadow:0 0 0 2px #25333d!important;
+}
+
+@media(max-width:540px) and (orientation:portrait){
+  body.dppt-battle-focus .app{width:100%}
+  body.dppt-battle-focus #battle-card{border-left-width:1px;border-right-width:1px}
+}
