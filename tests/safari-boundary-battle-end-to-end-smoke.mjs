@@ -2,6 +2,7 @@ import "./safari-boundary-player-replacement-smoke.mjs";
 import "./safari-boundary-player-ko-return-vertical-smoke.mjs";
 import "./safari-day13-shop-day14-continued-run-smoke.mjs";
 import "./safari-flooded-river-interaction-smoke.mjs";
+import "./safari-day14-river-day15-continued-run-smoke.mjs";
 import assert from "node:assert/strict";
 import { createSafariPlayableRuntime, resolveSafariBattleRound, returnSafariToDayBoard } from "../runtime/safari-playable-integration.js";
 import { startSafariBoundaryTrialBattle } from "../runtime/safari-boundary-trial-start.js";
