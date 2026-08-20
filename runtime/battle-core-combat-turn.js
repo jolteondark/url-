@@ -39,6 +39,35 @@ function resolveTryUseMoveInputCanonical(action) {
   return { action: prepared, resolution };
 }
 
+export function applyBattleAbilityItemSurvivalCanonical(action) {
+  const prepared = structuredClone(action);
+  if (
+    prepared?.kind !== "move" ||
+    prepared.moveSkipped === true ||
+    prepared.lastMoveFailed === true ||
+    !prepared.abilityItemActionBefore ||
+    Number(prepared.calculatedDamage ?? 0) <= 0
+  ) {
+    return prepared;
+  }
+
+  const modifiers = prepared.abilityItemActionBefore?.modifiers ?? {};
+  const survival = resolveBattleAbilityItemHookCanonical({
+    hook: "survival",
+    target: {
+      ability: modifiers.targetAbility ?? "NONE",
+      held_item: modifiers.targetItem ?? null,
+      hp: Number(prepared.hpBefore ?? 0),
+      max_hp: Number(prepared.totalHp ?? 0),
+    },
+    incomingDamage: Number(prepared.calculatedDamage ?? 0),
+    moldBreaker: Boolean(modifiers.moldBreaker),
+  });
+  prepared.abilityItemSurvival = survival;
+  if (survival?.triggered === true) prepared.calculatedDamage = Number(survival.damage ?? prepared.calculatedDamage);
+  return prepared;
+}
+
 function resolveCombatActionCanonical(action) {
   if (action?.kind !== "move") return action;
   const tried = resolveTryUseMoveInputCanonical(action);
@@ -59,7 +88,9 @@ function resolveCombatActionCanonical(action) {
   if (effectsGated.moveSkipped) return effectsGated;
   const targetChecked = resolveInitialTargetChecksCanonical(effectsGated);
   const hitLooped = resolveUseMoveHitLoopCanonical(targetChecked);
-  const hpResolved = resolveHpFaintActionCanonical(resolveAccuracyDamageVerticalCanonical(hitLooped));
+  const damageResolved = resolveAccuracyDamageVerticalCanonical(hitLooped);
+  const survived = applyBattleAbilityItemSurvivalCanonical(damageResolved);
+  const hpResolved = resolveHpFaintActionCanonical(survived);
   const postHitResolved = resolveUseMovePostHitCanonical(hpResolved);
   const instructed = resolveUseMoveInstructCanonical(postHitResolved);
   if (instructed.instructResolution?.terminated) return instructed;
