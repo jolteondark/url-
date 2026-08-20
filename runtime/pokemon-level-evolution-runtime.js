@@ -76,6 +76,37 @@ function preserveFaintedHp(before, after) {
   return after;
 }
 
+function hasAbilityMasterData(speciesMaster) {
+  return Array.isArray(speciesMaster?.abilities) || Array.isArray(speciesMaster?.hidden_abilities);
+}
+
+function canonicalEvolutionAbility(runtime, speciesMaster) {
+  if (!hasAbilityMasterData(speciesMaster)) return undefined;
+  const natural = Array.isArray(speciesMaster?.abilities) ? speciesMaster.abilities : [];
+  const hidden = Array.isArray(speciesMaster?.hidden_abilities) ? speciesMaster.hidden_abilities : [];
+  let index = Number(runtime?.ability_index);
+  if (!Number.isInteger(index) || index < 0) {
+    const personalId = Number(runtime?.personal_id);
+    index = Number.isInteger(personalId) ? (personalId & 1) : 0;
+  }
+  let ability = null;
+  if (index >= 2) {
+    ability = hidden[index - 2] ?? null;
+    if (!ability) {
+      const personalId = Number(runtime?.personal_id);
+      index = Number.isInteger(personalId) ? (personalId & 1) : 0;
+    }
+  }
+  if (!ability) ability = natural[index] ?? natural[0] ?? null;
+  return ability == null ? null : String(ability);
+}
+
+function applyCanonicalEvolutionAbility(runtime, speciesMaster) {
+  const ability = canonicalEvolutionAbility(runtime, speciesMaster);
+  if (ability === undefined) return runtime;
+  return { ...runtime, ability, ability_id: ability };
+}
+
 function canonicalEvolutionBlocker(runtime) {
   const stepsToHatch = Number(runtime?.steps_to_hatch ?? 0);
   if (Number.isInteger(stepsToHatch) && stepsToHatch > 0) return "EGG";
@@ -243,6 +274,7 @@ export function resolvePokemonLevelEvolution(runtime, {
     move_masters,
     disable_ivs_and_evs,
   })));
+  recalculated = applyCanonicalEvolutionAbility(recalculated, targetMaster);
   const learned = applyEvolutionMoveLearning(recalculated, targetMaster, {
     move_masters,
     nature_master,
