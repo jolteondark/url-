@@ -14,6 +14,20 @@ function replacementActive(battle = battleState()) {
   return battle?.phase === REPLACEMENT_PHASE;
 }
 
+function replacementOptions(battle = battleState()) {
+  if (!replacementActive(battle)) return [];
+  const stored = Array.isArray(battle?.player_replacement_options)
+    ? battle.player_replacement_options
+    : [];
+  if (stored.length > 0 || battle?.origin !== "boundary_trial") return stored;
+
+  const runtime = globalThis.__maplessSafariRuntime;
+  const pending = resolveSafariBoundaryPlayerReplacement(runtime);
+  return (pending?.playerReplacementContinuation?.replacementOptions ?? [])
+    .filter((option) => option?.canSwitchIn)
+    .map((option) => ({ partyIndex: Number(option.partyIndex), pokemon: structuredClone(option.pokemon) }));
+}
+
 function focusFirstReplacement() {
   const first = byId("player-replacement-panel")?.querySelector("button[data-player-replacement-party-index]:not(:disabled)");
   if (!(first instanceof HTMLElement)) return;
@@ -68,9 +82,7 @@ function syncReplacementUi() {
   }
 
   replacementWasActive = true;
-  const options = Array.isArray(battle.player_replacement_options)
-    ? battle.player_replacement_options
-    : [];
+  const options = replacementOptions(battle);
   const card = byId("battle-card");
   const moves = byId("moves");
   if (!card || !moves) return;
@@ -105,7 +117,7 @@ async function chooseReplacement(button) {
   if (selecting || !replacementActive()) return;
   const battle = battleState();
   const partyIndex = Number(button.dataset.playerReplacementPartyIndex);
-  const legal = (battle?.player_replacement_options ?? [])
+  const legal = replacementOptions(battle)
     .some((option) => Number(option?.partyIndex) === partyIndex);
   if (!legal) return;
 
