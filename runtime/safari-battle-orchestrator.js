@@ -484,7 +484,7 @@ export function completeSafariBattleReplacement(runtime, result = {}, {
     }, rewardGrowthCommit, "replacement growth checkpoint");
     battle.pending_reward_growth = null;
   }
-  tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, "player replacement completed");
+  resumeCommandAfterResolution(battle, "player replacement presentation pending");
   result.phase = battle.phase;
   result.phaseTrace = structuredClone(battle.phase_trace ?? []);
   return result;
