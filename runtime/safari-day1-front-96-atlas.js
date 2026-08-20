@@ -1,16 +1,17 @@
 const SPECIES = Object.freeze([
-  "BULBASAUR","CHARMANDER","SQUIRTLE","CATERPIE","WEEDLE",
-  "PIDGEY","RATTATA","SPEAROW","EKANS","SANDSHREW",
-  "NIDORANfE","NIDORANmA","VULPIX","ZUBAT","ODDISH",
-  "PARAS","VENONAT","DIGLETT","MEOWTH","PSYDUCK",
+  "BULBASAUR","CHARMANDER","SQUIRTLE","CATERPIE","WEEDLE","PIDGEY","RATTATA","SPEAROW","EKANS","SANDSHREW",
+  "NIDORANfE","NIDORANmA","VULPIX","ZUBAT","ODDISH","PARAS","VENONAT","DIGLETT","MEOWTH","PSYDUCK",
+  "MANKEY","GROWLITHE","POLIWAG","ABRA","MACHOP","BELLSPROUT","TENTACOOL","GEODUDE","PONYTA","SLOWPOKE",
+  "MAGNEMITE","FARFETCHD","DODUO","SEEL","GRIMER","SHELLDER","GASTLY","ONIX","DROWZEE","KRABBY",
+  "VOLTORB","EXEGGCUTE","CUBONE","LICKITUNG","KOFFING","RHYHORN","TANGELA","KANGASKHAN","HORSEA","GOLDEEN",
+  "STARYU","SCYTHER","PINSIR","TAUROS","MAGIKARP","LAPRAS","DITTO","EEVEE","PORYGON","DRATINI",
 ]);
 
 const INDEX = new Map(SPECIES.map((species, index) => [species, index]));
-const URLS = Object.freeze([
-  new URL("../assets/canonical-battle-sprites/day1-front/front-00.webp", import.meta.url).href,
-  new URL("../assets/canonical-battle-sprites/day1-front/front-01.webp", import.meta.url).href,
-]);
-const LOAD_STATE = ["idle", "idle"];
+const URLS = Object.freeze(Array.from({ length: 6 }, (_, chunk) =>
+  new URL(`../assets/canonical-battle-sprites/day1-front/front-${String(chunk).padStart(2, "0")}.webp`, import.meta.url).href
+));
+const LOAD_STATE = Array(URLS.length).fill("idle");
 
 function notify() {
   if (typeof window !== "undefined") window.dispatchEvent(new Event("safari-day1-front-96-atlas-state"));
