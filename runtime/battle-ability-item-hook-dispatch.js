@@ -24,6 +24,10 @@ import {
   resolveAirBalloonActionAfterCanonical,
   resolveAirBalloonActionBeforeCanonical,
 } from "./battle-core-air-balloon-extension.js";
+import {
+  BATTLE_CONTACT_REACTIVE_COVERAGE_CANONICAL,
+  resolveContactReactiveAbilityItemHookCanonical,
+} from "./battle-core-contact-reactive-extension.js";
 
 export const BATTLE_ABILITY_ITEM_HOOK_POINTS_CANONICAL = Object.freeze([
   "switch_in",
@@ -54,6 +58,7 @@ function combinedCoverageCanonical() {
     ...(BATTLE_ABILITY_ITEM_IMPLEMENTED_COVERAGE_CANONICAL.abilityIds ?? []),
     ...(BATTLE_ABILITY_ITEM_ENTRY_EXTENSION_COVERAGE_CANONICAL.abilityIds ?? []),
     ...(BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL.abilityIds ?? []),
+    ...(BATTLE_CONTACT_REACTIVE_COVERAGE_CANONICAL.abilityIds ?? []),
   ])].sort());
   const itemIds = Object.freeze([...new Set([
     ...(BATTLE_ABILITY_ITEM_IMPLEMENTED_COVERAGE_CANONICAL.itemIds ?? []),
@@ -61,6 +66,7 @@ function combinedCoverageCanonical() {
     ...(BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL.itemIds ?? []),
     ...(BATTLE_STATUS_CURE_BERRY_COVERAGE_CANONICAL.itemIds ?? []),
     ...(BATTLE_AIR_BALLOON_COVERAGE_CANONICAL.itemIds ?? []),
+    ...(BATTLE_CONTACT_REACTIVE_COVERAGE_CANONICAL.itemIds ?? []),
   ])].sort());
   return Object.freeze({
     abilityIds,
@@ -73,6 +79,7 @@ function combinedCoverageCanonical() {
       normalPlayExtension: BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL.classificationCounts,
       statusCureBerryExtension: BATTLE_STATUS_CURE_BERRY_COVERAGE_CANONICAL.classificationCounts,
       airBalloonExtension: BATTLE_AIR_BALLOON_COVERAGE_CANONICAL.classificationCounts,
+      contactReactiveExtension: BATTLE_CONTACT_REACTIVE_COVERAGE_CANONICAL.classificationCounts,
     }),
   });
 }
@@ -197,6 +204,13 @@ function resolveSharedActionAfterCanonical({ runtimeUser, runtimeTarget, move, d
     userStatusBerry: resolveStatusCureBerryHookCanonical(runtimeUser),
     targetStatusBerry: resolveStatusCureBerryHookCanonical(runtimeTarget),
     targetAirBalloon: resolveAirBalloonActionAfterCanonical({
+      target: runtimeTarget,
+      move,
+      damageDealt,
+      context,
+    }),
+    contactReactive: resolveContactReactiveAbilityItemHookCanonical({
+      user: runtimeUser,
       target: runtimeTarget,
       move,
       damageDealt,
