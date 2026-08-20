@@ -211,7 +211,15 @@ export async function replaceSafariBattlePlayer(runtime, replacementPartyIndex) 
     result = prepareSafariNormalPlayerReplacement(runtime, replacementPartyIndex);
     if (result.result === "replacement_selected") {
       result = completeSafariBattleReplacement(runtime, result, {
-        replacementCommit: () => replaceSafariNormalBattlePlayer(runtime, replacementPartyIndex),
+        replacementCommit: (current) => {
+          const committed = replaceSafariNormalBattlePlayer(runtime, replacementPartyIndex);
+          return {
+            ...current,
+            ...committed,
+            playerReplacementRequired: false,
+            playerReplacementApplied: true,
+          };
+        },
         rewardGrowthCommit: (current) => commitSafariNormalExpRewardGrowth(runtime, current),
       });
     }
