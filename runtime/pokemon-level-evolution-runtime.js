@@ -236,7 +236,7 @@ export function resolvePokemonLevelEvolution(runtime, {
   if (!targetMaster) throw new RangeError(`missing evolution target species master for ${candidate.target}`);
   const before = structuredClone(runtime);
   const nextForm = Number.isInteger(Number(targetMaster.form)) ? Number(targetMaster.form) : 0;
-  const speciesChanged = updatePokemonRuntime(runtime, { species: candidate.target, form: nextForm });
+  const speciesChanged = updatePokemonRuntime(runtime, { species: candidate.target, form: nextForm, forced_form: null });
   let recalculated = preserveFaintedHp(before, preserveAuthoritativeBattleFields(before, resolvePokemonRuntimeMasters(speciesChanged, {
     species_master: targetMaster,
     nature_master,
