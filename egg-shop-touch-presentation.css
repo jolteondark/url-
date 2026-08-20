@@ -1,0 +1,8 @@
+.egg-shop-scene{scroll-margin-top:12px}
+.egg-shop-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:14px 0}
+.egg-shop-choice{min-height:76px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:6px;padding:14px 16px;text-align:left;border-radius:14px}
+.egg-shop-choice strong{font-size:1rem;line-height:1.35}
+.egg-shop-choice small{font-size:.82rem;opacity:.78}
+.egg-shop-choice:disabled{opacity:.48}
+.egg-shop-actions{display:grid;grid-template-columns:1fr;gap:10px;margin-top:8px}
+@media(max-width:520px){.egg-shop-choices{grid-template-columns:1fr}.egg-shop-choice{min-height:68px}}

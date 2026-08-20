@@ -103,29 +103,16 @@ export async function interactiveSafariEggShop(runtime, index) {
   const visit = commitEggShopVisit(runtime, index);
   if (visit.result !== "completed") return visit;
   const presentation = safariEggShopPresentation(runtime);
-  const promptFn = typeof globalThis.prompt === "function" ? globalThis.prompt.bind(globalThis) : null;
-  const confirmFn = typeof globalThis.confirm === "function" ? globalThis.confirm.bind(globalThis) : null;
-  const alertFn = typeof globalThis.alert === "function" ? globalThis.alert.bind(globalThis) : null;
-  if (!promptFn || !confirmFn) {
-    state.notice = "本日の卵です。中身のポケモンは孵化するまで分かりません。";
-    return { ...visit, runtime, result:"egg_shop_opened", boundary:"egg_shop", eggShop:presentation, notice:state.notice };
+  if (typeof globalThis.document !== "undefined") {
+    globalThis.__maplessEggShopUi = { runtime, boardIndex:index, openedDay:Number(state.day) };
   }
-
-  const menu = presentation.items.map((item) => `${item.index + 1}. ${item.typeLabel}タイプのタマゴ　${item.price}円`).join("\n");
-  const answer = promptFn(`本日の卵です。中身のポケモンは孵化するまで分かりません。\n${menu}\n0. 戻る`, "0");
-  if (answer == null || String(answer).trim() === "0") return { ...visit, runtime, result:"returned", boundary:"egg_shop", eggShop:presentation };
-  const selected = Number.parseInt(answer, 10) - 1;
-  if (!Number.isInteger(selected) || selected < 0 || selected >= presentation.items.length) {
-    state.notice = "卵の番号が正しくありません。";
-    if (alertFn) alertFn(state.notice);
-    return { ...visit, runtime, result:"invalid_selection", boundary:"egg_shop", eggShop:presentation, notice:state.notice };
-  }
-  const ok = confirmFn(`このタマゴを\n${MAPLESS_EGG_SHOP_PRICE_V108}円で購入しますか？`);
-  const result = await purchaseSafariEggShopEgg(runtime, selected, { confirmed: ok });
-  if (alertFn) {
-    if (result.result === "bought") alertFn(state.notice);
-    else if (result.result === "party_full") alertFn("手持ちがいっぱいで卵を受け取れません。");
-    else if (result.result === "insufficient_money") alertFn("お金が足りません。");
-  }
-  return { ...visit, ...result, runtime, boundary:"egg_shop", eggShop:safariEggShopPresentation(runtime) };
+  state.notice = "本日の卵です。タイプを選んでください。中身のポケモンは孵化するまで分かりません。";
+  return {
+    ...visit,
+    runtime,
+    result:"egg_shop_opened",
+    boundary:"egg_shop",
+    eggShop:presentation,
+    notice:state.notice,
+  };
 }
