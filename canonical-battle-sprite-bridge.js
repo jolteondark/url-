@@ -194,12 +194,24 @@ function renderSide({ side, battlerIndex, nameId, combatantId }) {
   beginAssetLoad(combatant, image, asset, species, symbol, legacy);
 }
 
+function hasVisibleSprite(combatant) {
+  const image = combatant?.querySelector(".canonical-battle-sprite");
+  if (image && !image.hidden && image.complete && image.naturalWidth > 0) return true;
+  const fallback = combatant?.querySelector(".canonical-battle-front-fallback");
+  return Boolean(fallback && !fallback.hidden && fallback.style.backgroundImage);
+}
+
 function render() {
   scheduled = false;
   const battle = document.getElementById("battle-card");
-  if (!battle || battle.hidden || shouldFreezeCanonicalBattleSprite(battle)) return;
+  if (!battle || battle.hidden) return;
   ensureStyle();
-  for (const side of SIDES) renderSide(side);
+  const freezeExisting = shouldFreezeCanonicalBattleSprite(battle);
+  for (const side of SIDES) {
+    const combatant = document.getElementById(side.combatantId);
+    if (freezeExisting && hasVisibleSprite(combatant)) continue;
+    renderSide(side);
+  }
 }
 
 function schedule() {
@@ -211,9 +223,7 @@ function schedule() {
 function installPhaseResync() {
   const card = document.getElementById("battle-card");
   if (!card || typeof MutationObserver !== "function") return;
-  new MutationObserver(() => {
-    if (!shouldFreezeCanonicalBattleSprite(card)) schedule();
-  }).observe(card, { attributes: true, attributeFilter: ["data-turn-phase", "hidden"] });
+  new MutationObserver(schedule).observe(card, { attributes: true, attributeFilter: ["data-turn-phase", "hidden"] });
 }
 
 ensureStyle();
