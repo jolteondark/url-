@@ -174,9 +174,16 @@ function evolutionMoveIds(speciesMaster, level) {
   return ids;
 }
 
-function explicitMoveDecision(moveDecisions, level, move) {
+function explicitMoveDecision(moveDecisions, level, move, occurrence) {
   if (!moveDecisions || typeof moveDecisions !== "object") return null;
-  return moveDecisions[`${level}:${move}`] ?? moveDecisions[`evolution:${move}`] ?? null;
+  // Duplicate level-0/current-level entries are separate canonical offers. Let
+  // precomputed decisions address each offer independently while retaining the
+  // legacy per-move keys for callers that do not need occurrence specificity.
+  return moveDecisions[`${level}:${move}:${occurrence}`]
+    ?? moveDecisions[`evolution:${move}:${occurrence}`]
+    ?? moveDecisions[`${level}:${move}`]
+    ?? moveDecisions[`evolution:${move}`]
+    ?? null;
 }
 
 function resolvedMoveDecision({
@@ -185,16 +192,17 @@ function resolvedMoveDecision({
   moveDecisionResolverSource,
   level,
   move,
+  occurrence,
   moves,
 }) {
-  const explicit = explicitMoveDecision(moveDecisions, level, move);
+  const explicit = explicitMoveDecision(moveDecisions, level, move, occurrence);
   if (explicit != null) return explicit;
   let resolver = moveDecisionResolver;
   if (!resolver && (moveDecisionResolverSource == null || moveDecisionResolverSource === "safari_browser") && typeof globalThis !== "undefined") {
     resolver = globalThis.__maplessSafariMoveLearningResolver;
   }
   if (typeof resolver !== "function") return null;
-  return resolver({ level, move, moves: moves.map(moveId), reason: "evolution" }) ?? null;
+  return resolver({ level, move, occurrence, moves: moves.map(moveId), reason: "evolution" }) ?? null;
 }
 
 function applyEvolutionMoveLearning(runtime, targetMaster, {
@@ -209,9 +217,12 @@ function applyEvolutionMoveLearning(runtime, targetMaster, {
   const moves = (runtime.moves ?? []).map((move) => structuredClone(move));
   const operations = [];
   const level = Number(runtime.level);
+  const offerCounts = new Map();
   let changed = false;
 
   for (const move of evolutionMoveIds(targetMaster, level)) {
+    const occurrence = (offerCounts.get(move) ?? 0) + 1;
+    offerCounts.set(move, occurrence);
     if (moves.some((known) => moveId(known) === move)) {
       operations.push({ op: "skip_known_move", level, move, reason: "evolution" });
       continue;
@@ -230,6 +241,7 @@ function applyEvolutionMoveLearning(runtime, targetMaster, {
       moveDecisionResolverSource,
       level,
       move,
+      occurrence,
       moves,
     });
     if (decision?.decline === true) {
