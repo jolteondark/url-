@@ -107,6 +107,17 @@ function applyCanonicalEvolutionAbility(runtime, speciesMaster) {
   return { ...runtime, ability, ability_id: ability };
 }
 
+function applyCanonicalEvolutionGender(runtime, speciesMaster) {
+  const ratio = String(speciesMaster?.gender_ratio ?? speciesMaster?.gender_ratio_id ?? "")
+    .replace(/^:/, "")
+    .replace(/[^a-z0-9]/gi, "")
+    .toUpperCase();
+  if (ratio === "ALWAYSMALE") return { ...runtime, gender: 0 };
+  if (ratio === "ALWAYSFEMALE") return { ...runtime, gender: 1 };
+  if (ratio === "GENDERLESS") return { ...runtime, gender: 2 };
+  return runtime;
+}
+
 function canonicalEvolutionBlocker(runtime) {
   const stepsToHatch = Number(runtime?.steps_to_hatch ?? 0);
   if (Number.isInteger(stepsToHatch) && stepsToHatch > 0) return "EGG";
@@ -275,6 +286,7 @@ export function resolvePokemonLevelEvolution(runtime, {
     disable_ivs_and_evs,
   })));
   recalculated = applyCanonicalEvolutionAbility(recalculated, targetMaster);
+  recalculated = applyCanonicalEvolutionGender(recalculated, targetMaster);
   const learned = applyEvolutionMoveLearning(recalculated, targetMaster, {
     move_masters,
     nature_master,
