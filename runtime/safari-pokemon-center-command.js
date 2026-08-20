@@ -10,6 +10,7 @@ import { interactiveSafariMushroomField } from "./safari-mushroom-field-interact
 import { interactiveSafariHotSpring } from "./safari-hot-spring-interaction.js";
 import { interactiveSafariFakeNurse } from "./safari-fake-nurse-interaction.js";
 import { interactiveSafariTravelingCook } from "./safari-traveling-cook-interaction.js";
+import { interactiveSafariFloodedRiver } from "./safari-flooded-river-interaction.js";
 import { activateSafariDayBoardCell as activateSafariDayBoardCellBase } from "./safari-playable-integration-wounded.js";
 
 function moveId(move) {
@@ -42,6 +43,7 @@ export function activateSafariDayBoardCell(runtime, index) {
     if (event.normal_event_id === "hot_spring") return interactiveSafariHotSpring(runtime, index);
     if (event.normal_event_id === "fake_nurse") return interactiveSafariFakeNurse(runtime, index);
     if (event.normal_event_id === "traveling_cook") return interactiveSafariTravelingCook(runtime, index);
+    if (event.normal_event_id === "flooded_river") return interactiveSafariFloodedRiver(runtime, index);
   }
   if (!event || event.kind !== "center") return activateSafariDayBoardCellBase(runtime, index);
 
