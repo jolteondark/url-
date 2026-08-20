@@ -4,6 +4,15 @@ import {
 } from "./battle-core-ability-item-modifiers.js";
 
 const CONTACT_REACTIVE_ABILITIES = new Set(["ROUGHSKIN", "IRONBARBS"]);
+const CONTACT_STATUS_CHANCE_BY_ABILITY = Object.freeze({
+  STATIC: Object.freeze({ status: "PARALYSIS", chance: 30 }),
+  FLAMEBODY: Object.freeze({ status: "BURN", chance: 30 }),
+  POISONPOINT: Object.freeze({ status: "POISON", chance: 30 }),
+});
+const CONTACT_STAT_STAGE_BY_ABILITY = Object.freeze({
+  TANGLINGHAIR: Object.freeze({ stat: "SPEED", delta: -1 }),
+  GOOEY: Object.freeze({ stat: "SPEED", delta: -1 }),
+});
 const CONTACT_SUPPRESSING_ABILITIES = new Set(["LONGREACH"]);
 const CONTACT_REACTIVE_ITEMS = new Set(["ROCKYHELMET"]);
 const CONTACT_SUPPRESSING_ITEMS = new Set(["PROTECTIVEPADS"]);
@@ -34,6 +43,30 @@ function hitFactCanonical(damageDealt, context) {
   return Number(damageDealt ?? 0) > 0;
 }
 
+function contactStatusChanceRequestCanonical(targetAbility) {
+  const fact = CONTACT_STATUS_CHANCE_BY_ABILITY[targetAbility];
+  if (!fact) return null;
+  return Object.freeze({
+    subject: "user",
+    status: fact.status,
+    chance: fact.chance,
+    source: targetAbility,
+    sourceKind: "ability",
+  });
+}
+
+function contactStatChangesCanonical(targetAbility) {
+  const fact = CONTACT_STAT_STAGE_BY_ABILITY[targetAbility];
+  if (!fact) return Object.freeze([]);
+  return Object.freeze([Object.freeze({
+    subject: "user",
+    stat: fact.stat,
+    delta: fact.delta,
+    source: targetAbility,
+    sourceKind: "ability",
+  })]);
+}
+
 export function resolveContactReactiveAbilityItemHookCanonical({
   user = {},
   target = {},
@@ -53,30 +86,33 @@ export function resolveContactReactiveAbilityItemHookCanonical({
     || CONTACT_SUPPRESSING_ITEMS.has(userItem)
     || Boolean(context?.contactEffectsSuppressed);
   const magicGuard = userAbility === "MAGICGUARD";
-  const eligible = contact && hit && userHp > 0 && userMaxHp > 0 && !protectedFromContactEffects;
+  const eligible = contact && hit && userHp > 0 && !protectedFromContactEffects;
   const effects = [];
 
-  if (eligible && CONTACT_REACTIVE_ABILITIES.has(targetAbility)) {
+  if (eligible && userMaxHp > 0 && CONTACT_REACTIVE_ABILITIES.has(targetAbility)) {
     const damage = magicGuard ? 0 : fractionalDamage(userMaxHp, 8);
     effects.push(Object.freeze({
       source: targetAbility,
       sourceKind: "ability",
-      hpDelta: -damage,
+      hpDelta: damage > 0 ? -damage : 0,
       suppressedByMagicGuard: magicGuard,
     }));
   }
-  if (eligible && CONTACT_REACTIVE_ITEMS.has(targetItem)) {
+  if (eligible && userMaxHp > 0 && CONTACT_REACTIVE_ITEMS.has(targetItem)) {
     const damage = magicGuard ? 0 : fractionalDamage(userMaxHp, 6);
     effects.push(Object.freeze({
       source: targetItem,
       sourceKind: "held_item",
-      hpDelta: -damage,
+      hpDelta: damage > 0 ? -damage : 0,
       suppressedByMagicGuard: magicGuard,
     }));
   }
 
+  const statusChanceRequest = eligible ? contactStatusChanceRequestCanonical(targetAbility) : null;
+  const statChanges = eligible ? contactStatChangesCanonical(targetAbility) : Object.freeze([]);
   const rawHpDelta = effects.reduce((sum, effect) => sum + Number(effect.hpDelta ?? 0), 0);
-  const userHpDelta = -Math.min(userHp, Math.max(0, -rawHpDelta));
+  const reflectedDamage = Math.min(userHp, Math.max(0, -rawHpDelta));
+  const userHpDelta = reflectedDamage > 0 ? -reflectedDamage : 0;
   return Object.freeze({
     boundary: "action_after",
     contact,
@@ -87,14 +123,18 @@ export function resolveContactReactiveAbilityItemHookCanonical({
     targetItem,
     protectedFromContactEffects,
     magicGuard,
-    triggered: effects.some((effect) => effect.hpDelta < 0),
+    triggered: effects.some((effect) => effect.hpDelta < 0) || statusChanceRequest !== null || statChanges.length > 0,
     userHpDelta,
     effects: Object.freeze(effects),
+    statusChanceRequest,
+    statChanges,
   });
 }
 
 const ABILITY_IDS = Object.freeze([
   ...CONTACT_REACTIVE_ABILITIES,
+  ...Object.keys(CONTACT_STATUS_CHANCE_BY_ABILITY),
+  ...Object.keys(CONTACT_STAT_STAGE_BY_ABILITY),
   ...CONTACT_SUPPRESSING_ABILITIES,
 ].sort());
 const ITEM_IDS = Object.freeze([
@@ -109,6 +149,8 @@ export const BATTLE_CONTACT_REACTIVE_COVERAGE_CANONICAL = Object.freeze({
   itemCount: ITEM_IDS.length,
   classificationCounts: Object.freeze({
     contactReactiveAbilities: CONTACT_REACTIVE_ABILITIES.size,
+    contactStatusChanceAbilities: Object.keys(CONTACT_STATUS_CHANCE_BY_ABILITY).length,
+    contactStatStageAbilities: Object.keys(CONTACT_STAT_STAGE_BY_ABILITY).length,
     contactSuppressingAbilities: CONTACT_SUPPRESSING_ABILITIES.size,
     contactReactiveHeldItems: CONTACT_REACTIVE_ITEMS.size,
     contactSuppressingHeldItems: CONTACT_SUPPRESSING_ITEMS.size,
