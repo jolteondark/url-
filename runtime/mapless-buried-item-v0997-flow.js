@@ -23,16 +23,14 @@ function cloneSlots(slots = []) {
   return slots.map((slot) => slot == null ? null : [slot[0], Number(slot[1])]);
 }
 
-function knownCanonicalItem(itemId) {
-  return Object.prototype.hasOwnProperty.call(CANONICAL_SHOP_CATALOG.prices ?? {}, String(itemId));
-}
-
-function validItems(items) {
-  return [...new Set((items ?? []).filter((itemId) => knownCanonicalItem(itemId)))];
+function unique(items) {
+  return [...new Set((items ?? []).filter(Boolean))];
 }
 
 function machinePool() {
-  return validItems([
+  // Canonical source delegates the machine category to MaplessFacilities.machine_pool.
+  // The existing TM/TR merchant projections are the public runtime owner for that pool.
+  return unique([
     ...(CANONICAL_SHOP_CATALOG.pools?.tm_merchant ?? []),
     ...(CANONICAL_SHOP_CATALOG.pools?.tr_merchant ?? []),
   ]);
@@ -40,11 +38,13 @@ function machinePool() {
 
 function poolFor(category) {
   if (category === "machine") return machinePool();
-  return validItems(MAPLESS_BURIED_ITEM_V0997_POOLS[category] ?? []);
+  // The fixed source pools are canonical GameData::Item IDs. Do not narrow them by
+  // shop-price/catalog membership: a valid buried reward need not be a mart product.
+  return [...(MAPLESS_BURIED_ITEM_V0997_POOLS[category] ?? [])];
 }
 
 function fallbackItems() {
-  return validItems([
+  return unique([
     ...MAPLESS_BURIED_ITEM_V0997_POOLS.medicine,
     ...MAPLESS_BURIED_ITEM_V0997_POOLS.berry,
     ...MAPLESS_BURIED_ITEM_V0997_POOLS.ball,
