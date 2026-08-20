@@ -79,6 +79,17 @@ assert.equal(Number(state.battle.trainer_party_index), 1, "first KO must activat
 assert.ok(Number(state.battle.foe.hp) > 0, "replacement foe must be active");
 assert.ok(Number(runtime.player.party[playerIndex].hp) > 0 && Number(runtime.player.party[playerIndex].hp) <= hpBefore,
   "player HP must persist through trainer replacement");
+assert.deepEqual(
+  first.phaseTrace.slice(-4).map((step) => step.phase),
+  ["POST_FAINT", "REPLACEMENT", "REWARD_GROWTH", "COMMAND"],
+  "live trainer reserve mutation must occur inside the central REPLACEMENT checkpoint before growth and next command",
+);
+assert.equal(first.operations.filter((operation) => operation.op === "send_out").length, 1,
+  "canonical replacement/switch owner must emit exactly one send_out for the reserve");
+const faintIndex = first.operations.findIndex((operation) => operation.op === "faint" && operation.target === "foe");
+assert.ok(faintIndex >= 0, "first trainer KO must contain the defeated active faint operation");
+assert.equal(first.operations.slice(faintIndex + 1).some((operation) => operation.op === "use_move" && operation.actor === "foe"), false,
+  "the newly sent-out trainer reserve must get zero attacks in the KO round");
 
 const firstFoeDamage = first.presentation.find((event) => event.type === "damage_applied" && event.target === "foe");
 assert.ok(firstFoeDamage, "first trainer KO must expose foe damage presentation");
@@ -107,4 +118,4 @@ assert.equal(returned.result, "returned", "completed cold trainer Battle must re
 assert.equal(state.battle, null, "Board return must clear Battle state");
 assert.equal(state.location, "day_board", "Board return must land on Day Board");
 
-console.log("Safari cold trainer -> pre-replacement presentation identity -> reserve -> final victory -> Board return: ok");
+console.log("Safari cold trainer -> central replacement -> reserve -> final victory -> Board return: ok");
