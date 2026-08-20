@@ -478,11 +478,10 @@ export function completeSafariBattleReturn(runtime, result = {}) {
     return result;
   }
 
-  const pendingCheckpoint = state.pending_battle_return_checkpoint ?? {
-    key: `compat:${Number(state.last_battle_phase_trace?.length ?? 0)}`,
-    committed: false,
-    phaseTrace: structuredClone(state.last_battle_phase_trace ?? []),
-  };
+  const pendingCheckpoint = state.pending_battle_return_checkpoint;
+  if (!pendingCheckpoint || pendingCheckpoint.committed !== false || pendingCheckpoint.phaseTrace?.at(-1)?.phase !== SAFARI_BATTLE_PHASE.RETURN) {
+    throw new Error("battle return completion requires beginSafariBattleReturn from RESULT");
+  }
   const operations = Array.isArray(result.operations) ? [...result.operations] : [];
   if (!operations.some((operation) => operation?.op === "request_save")) {
     operations.push({ op: "request_save", reason: "battle return committed" });
