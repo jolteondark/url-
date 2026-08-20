@@ -5,6 +5,7 @@ import {
   beginSafariBattleCommand,
   commitSafariBattleResolution,
   ensureSafariBattleOrchestrator,
+  safariBattleCommandAllowed,
 } from "../runtime/safari-battle-orchestrator.js";
 
 function runtime() {
@@ -23,6 +24,20 @@ function runtime() {
 
 function phaseCount(battle, phase) {
   return (battle.phase_trace ?? []).filter((entry) => entry.phase === phase).length;
+}
+
+{
+  const state = runtime();
+  const battle = state.variables.mapless.battle;
+  ensureSafariBattleOrchestrator(state);
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.COMMAND);
+  battle.completed = true;
+  assert.equal(safariBattleCommandAllowed(state), true,
+    "COMMAND itself must be the sole command-readiness truth; legacy completed flags must not form a parallel gate");
+  battle.completed = false;
+  beginSafariBattleCommand(state, "move");
+  assert.equal(safariBattleCommandAllowed(state), false,
+    "non-COMMAND phases must reject the next command without consulting UI busy or compatibility flags");
 }
 
 {
