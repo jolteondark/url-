@@ -1,9 +1,9 @@
 import { resolveSafariBoundaryPlayerReplacement } from "./runtime/safari-playable-integration.js";
+import { completeSafariBattlePresentation } from "./runtime/safari-battle-orchestrator.js";
 import { replaceSafariBattlePlayer } from "./runtime/safari-web-playable-integration.js";
 
 const REPLACEMENT_PHASE = "REPLACEMENT";
 const byId = (id) => document.getElementById(id);
-let selecting = false;
 let replacementWasActive = false;
 
 function battleState() {
@@ -11,7 +11,7 @@ function battleState() {
 }
 
 function replacementActive(battle = battleState()) {
-  return battle?.phase === REPLACEMENT_PHASE;
+  return battle?.phase === REPLACEMENT_PHASE && battle?.presentation_checkpoint?.committed !== false;
 }
 
 function replacementOptions(battle = battleState()) {
@@ -61,7 +61,7 @@ function replacementButton(option) {
   const button = document.createElement("button");
   button.type = "button";
   button.dataset.playerReplacementPartyIndex = String(option.partyIndex);
-  button.disabled = selecting || !replacementActive();
+  button.disabled = !replacementActive();
 
   const name = document.createElement("strong");
   name.textContent = pokemon.nickname ?? pokemon.species ?? `Party ${Number(option.partyIndex) + 1}`;
@@ -114,14 +114,13 @@ function syncReplacementUi() {
 }
 
 async function chooseReplacement(button) {
-  if (selecting || !replacementActive()) return;
+  if (!replacementActive()) return;
   const battle = battleState();
   const partyIndex = Number(button.dataset.playerReplacementPartyIndex);
   const legal = replacementOptions(battle)
     .some((option) => Number(option?.partyIndex) === partyIndex);
   if (!legal) return;
 
-  selecting = true;
   if (button instanceof HTMLElement) {
     button.blur();
     button.disabled = true;
@@ -135,10 +134,14 @@ async function chooseReplacement(button) {
     } else {
       await replaceSafariBattlePlayer(runtime, partyIndex);
     }
+    const phaseBeforeAck = battleState()?.phase ?? null;
+    const phaseAfterAck = completeSafariBattlePresentation(runtime);
+    if (phaseAfterAck !== phaseBeforeAck) {
+      window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
+    }
   } catch (error) {
     globalThis.__maplessLastError = error;
   } finally {
-    selecting = false;
     queueMicrotask(syncReplacementUi);
   }
 }
