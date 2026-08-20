@@ -165,7 +165,11 @@ function evolutionMoveIds(speciesMaster, level) {
     const entry = normalizeLevelMove(raw);
     if (!entry?.move || !Number.isInteger(entry.level)) continue;
     if (entry.level !== 0 && entry.level !== Number(level)) continue;
-    if (!ids.includes(entry.move)) ids.push(entry.move);
+    // Essentials collects every matching move-list entry in source order, then
+    // pbLearnMove decides whether each offer is already known. Do not dedupe
+    // here: if the player declines an earlier duplicate, a later duplicate is
+    // still a distinct canonical offer.
+    ids.push(entry.move);
   }
   return ids;
 }
