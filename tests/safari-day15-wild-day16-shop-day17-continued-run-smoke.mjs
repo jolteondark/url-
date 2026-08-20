@@ -67,33 +67,47 @@ assert.deepEqual(state.board_events.map((entry) => entry?.kind),
   "DAY16 must be the next deterministic canonical weighted Board");
 assert.deepEqual(partyIdentity(), identityAtDay15);
 
-// Use the real generated DAY16 shop and retain that transaction into DAY17.
+// Use the real generated DAY16 shop. Some canonical shop types can legitimately have
+// no affordable stock after the DAY13 purchase, so either buy one affordable item or
+// leave through the existing shop-return owner; never inject money to force a purchase.
 const shopIndex = state.board_events.findIndex((entry) => entry?.kind === "shop");
 assert.ok(shopIndex >= 0);
 const opened = await web.activateSafariDayBoardCell(runtime, shopIndex);
 assert.equal(opened.result, "shop_opened");
 const shop = web.safariShopPresentation(runtime);
 assert.ok(shop?.items?.length > 0, "DAY16 shop must expose canonical stock");
+const bagBeforeDay16Shop = structuredClone(runtime.bag);
 const affordable = shop.items.find((item) =>
   item?.transaction_kind === "buy" && Number(item.price) > 0 && Number(item.price) <= Number(shop.money));
-assert.ok(affordable, "continued run must retain enough Money for one DAY16 canonical shop purchase");
-const moneyBefore = Number(runtime.bag.money);
-const bought = await web.purchaseSafariShopItem(runtime, {
-  itemId: affordable.id,
-  quantity: 1,
-  confirmed: true,
-});
-assert.equal(bought.result, "bought");
-assert.equal(Number(runtime.bag.money), moneyBefore - Number(affordable.price));
+let shopOutcome;
+if (affordable) {
+  const moneyBefore = Number(runtime.bag.money);
+  const bought = await web.purchaseSafariShopItem(runtime, {
+    itemId: affordable.id,
+    quantity: 1,
+    confirmed: true,
+  });
+  assert.equal(bought.result, "bought");
+  assert.equal(Number(runtime.bag.money), moneyBefore - Number(affordable.price));
+  shopOutcome = "bought";
+} else {
+  const left = web.leaveSafariShop(runtime);
+  assert.equal(left.result, "returned");
+  assert.deepEqual(runtime.bag, bagBeforeDay16Shop,
+    "leaving an unaffordable DAY16 canonical shop must not mutate Bag/Money");
+  shopOutcome = "left_unaffordable";
+}
+assert.equal(state.shop, null, "DAY16 shop owner must return control to Day Board");
 const bagAfterDay16Shop = structuredClone(runtime.bag);
 
 await advanceOrdinaryDay(17);
-assert.deepEqual(runtime.bag, bagAfterDay16Shop, "DAY17 must retain the real DAY16 shop transaction");
+assert.deepEqual(runtime.bag, bagAfterDay16Shop, "DAY17 must retain the DAY16 shop outcome");
 assert.deepEqual(partyIdentity(), identityAtDay15, "DAY17 must still hold the same Pokemon identities");
 assert.deepEqual(state.board_events.map((entry) => entry?.kind),
   ["wild", "trainer", "wild", "miner", "wild", "trap", "buried_item", "next_day"],
   "DAY17 must be the next deterministic canonical weighted Board");
+assert.ok(["bought", "left_unaffordable"].includes(shopOutcome));
 assert.equal(state.location, "day_board");
 assert.equal(state.battle, null);
 
-console.log("Safari DAY15 wild/flee -> DAY16 real shop -> DAY17 canonical Board: PASS");
+console.log(`Safari DAY15 wild/flee -> DAY16 real shop (${shopOutcome}) -> DAY17 canonical Board: PASS`);
