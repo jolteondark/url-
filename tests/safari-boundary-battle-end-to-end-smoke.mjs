@@ -6,6 +6,7 @@ import "./safari-day14-river-day15-continued-run-smoke.mjs";
 import "./safari-day15-wild-day16-shop-day17-continued-run-smoke.mjs";
 import "./safari-day17-buried-item-day18-continued-run-smoke.mjs";
 import "./safari-day18-egg-shop-day19-continued-run-smoke.mjs";
+import "./safari-day19-shop-boundary20-continued-run-smoke.mjs";
 import assert from "node:assert/strict";
 import { createSafariPlayableRuntime, resolveSafariBattleRound, returnSafariToDayBoard } from "../runtime/safari-playable-integration.js";
 import { startSafariBoundaryTrialBattle } from "../runtime/safari-boundary-trial-start.js";
