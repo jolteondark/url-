@@ -265,6 +265,24 @@ function beginResolutionCheckpoint(battle, commandKind) {
   return checkpoint;
 }
 
+function deferCommandUntilPresentation(battle, reason) {
+  const sequence = Number(battle.pending_command_sequence ?? battle.command_sequence ?? 0);
+  battle.presentation_checkpoint = {
+    sequence,
+    phase: battle.phase,
+    reason: reason ?? null,
+    committed: false,
+  };
+  return battle.phase;
+}
+
+function resumeCommandAfterResolution(battle, reason) {
+  if (battle.presentation_ack_required === true) {
+    return deferCommandUntilPresentation(battle, reason);
+  }
+  return tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, reason);
+}
+
 function returnCheckpointKey(battle) {
   return [
     Number(battle.turn ?? 0),
@@ -282,6 +300,7 @@ export function ensureSafariBattleOrchestrator(runtime) {
       state.battle_return_checkpoint = null;
       battle.resolution_checkpoint = null;
       battle.replacement_checkpoint = null;
+      battle.presentation_checkpoint = null;
     }
     tracePhase(battle, battle.completed ? SAFARI_BATTLE_PHASE.RESULT : SAFARI_BATTLE_PHASE.COMMAND, "initialize");
   }
@@ -403,9 +422,9 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
     if (hasRewardGrowthTail(result)) {
       result = commitRewardGrowthCheckpoint(battle, result, rewardGrowthCommit, "replacement growth checkpoint");
     }
-    tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, "replacement completed");
+    resumeCommandAfterResolution(battle, "replacement presentation pending");
   } else {
-    tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, `round complete:${resolvedCommandKind}`);
+    resumeCommandAfterResolution(battle, `round presentation pending:${resolvedCommandKind}`);
   }
 
   resolutionCheckpoint.committed = true;
@@ -416,6 +435,25 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   result.phase = battle.phase;
   result.phaseTrace = structuredClone(battle.phase_trace ?? []);
   return result;
+}
+
+export function completeSafariBattlePresentation(runtime) {
+  const battle = stateOf(runtime).battle;
+  if (!battle) return null;
+  const checkpoint = battle.presentation_checkpoint;
+  if (!checkpoint) return battle.phase;
+  if (checkpoint.committed === true) return battle.phase;
+  if (battle.completed || battle.phase === SAFARI_BATTLE_PHASE.RESULT || battle.phase === SAFARI_BATTLE_PHASE.RETURN) {
+    throw new Error(`battle presentation completion is unavailable during ${battle.phase}`);
+  }
+  if (Number(checkpoint.sequence) !== Number(battle.command_sequence ?? 0)) {
+    throw new Error("battle presentation checkpoint belongs to a different command");
+  }
+  if (battle.phase !== checkpoint.phase) {
+    throw new Error(`battle presentation checkpoint expected ${checkpoint.phase}, got ${battle.phase}`);
+  }
+  checkpoint.committed = true;
+  return tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, `presentation completed:${checkpoint.reason ?? "round"}`);
 }
 
 export function completeSafariBattleReplacement(runtime, result = {}, {
