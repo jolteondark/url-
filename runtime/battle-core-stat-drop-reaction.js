@@ -1,3 +1,4 @@
+const MOLD_BREAKER_ABILITIES = new Set(["MOLDBREAKER", "TERAVOLT", "TURBOBLAZE"]);
 const ALL_STAT_DROP_BLOCKING_ABILITIES = new Set(["CLEARBODY", "FULLMETALBODY", "WHITESMOKE"]);
 const STAT_SPECIFIC_DROP_BLOCKING_ABILITIES = Object.freeze({
   ATTACK: new Set(["HYPERCUTTER"]),
@@ -35,8 +36,9 @@ function normalizeChange(change) {
   return Object.freeze({ subject, stat, delta });
 }
 
-function blocksDrop({ targetAbility, targetItem, stat }) {
+function blocksDrop({ targetAbility, targetItem, stat, moldBreaker }) {
   if (STAT_DROP_BLOCKING_ITEMS.has(targetItem)) return true;
+  if (moldBreaker) return false;
   if (ALL_STAT_DROP_BLOCKING_ABILITIES.has(targetAbility)) return true;
   return STAT_SPECIFIC_DROP_BLOCKING_ABILITIES[stat]?.has(targetAbility) === true;
 }
@@ -46,10 +48,12 @@ export function resolveBattleStatDropReactionCanonical({
   target = {},
   changes = [],
   causedByOpponent = true,
+  moldBreaker = null,
 } = {}) {
   const sourceAbility = abilityId(source);
   const targetAbility = abilityId(target);
   const targetItem = heldItemId(target);
+  const bypass = moldBreaker === null ? MOLD_BREAKER_ABILITIES.has(sourceAbility) : Boolean(moldBreaker);
   const normalizedChanges = changes.map(normalizeChange);
 
   if (!causedByOpponent) {
@@ -57,6 +61,7 @@ export function resolveBattleStatDropReactionCanonical({
       sourceAbility,
       targetAbility,
       targetItem,
+      moldBreaker: bypass,
       causedByOpponent: false,
       appliedChanges: Object.freeze(normalizedChanges),
       blockedChanges: Object.freeze([]),
@@ -75,25 +80,27 @@ export function resolveBattleStatDropReactionCanonical({
       appliedChanges.push(change);
       continue;
     }
-    if (targetAbility === "MIRRORARMOR") {
+    if (targetAbility === "MIRRORARMOR" && !bypass) {
       blockedChanges.push(change);
       reflectedChanges.push(Object.freeze({ subject: "user", stat: change.stat, delta: change.delta }));
       continue;
     }
-    if (blocksDrop({ targetAbility, targetItem, stat: change.stat })) {
+    if (blocksDrop({ targetAbility, targetItem, stat: change.stat, moldBreaker: bypass })) {
       blockedChanges.push(change);
       continue;
     }
     appliedChanges.push(change);
   }
 
-  const appliedOpponentDrop = appliedChanges.some((change) => change.subject === "target" && change.delta < 0);
+  const loweredStats = [...new Set(appliedChanges
+    .filter((change) => change.subject === "target" && change.delta < 0)
+    .map((change) => change.stat))];
   const reactionChanges = [...reflectedChanges];
-  if (appliedOpponentDrop && targetAbility === "DEFIANT") {
-    reactionChanges.push(Object.freeze({ subject: "target", stat: "ATTACK", delta: 2 }));
+  if (targetAbility === "DEFIANT") {
+    for (const _stat of loweredStats) reactionChanges.push(Object.freeze({ subject: "target", stat: "ATTACK", delta: 2 }));
   }
-  if (appliedOpponentDrop && targetAbility === "COMPETITIVE") {
-    reactionChanges.push(Object.freeze({ subject: "target", stat: "SPECIAL_ATTACK", delta: 2 }));
+  if (targetAbility === "COMPETITIVE") {
+    for (const _stat of loweredStats) reactionChanges.push(Object.freeze({ subject: "target", stat: "SPECIAL_ATTACK", delta: 2 }));
   }
 
   let reason = "no_stat_drop_reaction";
@@ -105,6 +112,7 @@ export function resolveBattleStatDropReactionCanonical({
     sourceAbility,
     targetAbility,
     targetItem,
+    moldBreaker: bypass,
     causedByOpponent: true,
     appliedChanges: Object.freeze(appliedChanges),
     blockedChanges: Object.freeze(blockedChanges),
