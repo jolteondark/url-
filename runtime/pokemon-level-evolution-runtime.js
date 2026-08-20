@@ -3,14 +3,20 @@ import { updatePokemonRuntime } from "./pokemon-runtime.js";
 
 function normalizeEvolution(entry) {
   if (Array.isArray(entry)) {
-    const [species, method, parameter] = entry;
-    return { species: String(species ?? ""), method: String(method ?? ""), parameter };
+    const [species, method, parameter, prevolution = false] = entry;
+    return {
+      species: String(species ?? ""),
+      method: String(method ?? ""),
+      parameter,
+      prevolution: prevolution === true,
+    };
   }
   if (!entry || typeof entry !== "object") return null;
   return {
     species: String(entry.species ?? entry.target ?? entry.id ?? ""),
     method: String(entry.method ?? entry.type ?? ""),
     parameter: entry.parameter ?? entry.param ?? entry.level,
+    prevolution: (entry.prevolution ?? entry.is_prevolution ?? entry.prevo) === true,
   };
 }
 
@@ -32,7 +38,7 @@ function levelEvolutionTarget(speciesMaster, level) {
   let eligible = null;
   for (const raw of speciesMaster?.evolutions ?? []) {
     const evolution = normalizeEvolution(raw);
-    if (!evolution?.species || !evolution.method) continue;
+    if (!evolution?.species || !evolution.method || evolution.prevolution) continue;
     if (evolution.method !== "Level") {
       unsupportedMethods.add(evolution.method);
       continue;
