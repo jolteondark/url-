@@ -24,7 +24,7 @@ function runtime() {
   };
 }
 
-for (const commandKind of ["capture", "flee", "switch"]) {
+for (const commandKind of ["item", "capture", "flee", "switch"]) {
   const state = runtime();
   const battle = state.variables.mapless.battle;
   ensureSafariBattleOrchestrator(state);
@@ -48,6 +48,7 @@ for (const commandKind of ["capture", "flee", "switch"]) {
 }
 
 const ownerFiles = [
+  ["item", "../game-menu-bridge.js", "let bagUseBusy"],
   ["capture", "../battle-dppt-capture-owner-request.js", "captureBusy"],
   ["flee", "../battle-dppt-flee-owner-request.js", "fleeBusy"],
   ["switch", "../battle-party-voluntary-switch-bridge.js", "let selecting"],
