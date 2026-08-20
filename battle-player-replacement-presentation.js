@@ -1,4 +1,5 @@
 import { replaceSafariBattlePlayer } from "./runtime/safari-web-playable-integration.js";
+import { resolveSafariBoundaryPlayerReplacement } from "./runtime/safari-boundary-player-replacement-central.js";
 
 const REPLACEMENT_PHASE = "REPLACEMENT";
 const byId = (id) => document.getElementById(id);
@@ -116,7 +117,12 @@ async function chooseReplacement(button) {
   }
   syncReplacementUi();
   try {
-    await replaceSafariBattlePlayer(globalThis.__maplessSafariRuntime, partyIndex);
+    const runtime = globalThis.__maplessSafariRuntime;
+    if (battle?.origin === "boundary_trial") {
+      resolveSafariBoundaryPlayerReplacement(runtime, partyIndex);
+    } else {
+      await replaceSafariBattlePlayer(runtime, partyIndex);
+    }
   } catch (error) {
     globalThis.__maplessLastError = error;
   } finally {
