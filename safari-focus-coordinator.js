@@ -11,15 +11,15 @@ function commandTarget(battle){
  if(mode==="bag")return first(battle,'#dppt-battle-bag button:not(:disabled),#dppt-command-back:not(:disabled)');
  return first(battle,'#dppt-command-root button[data-dppt-command="fight"]:not(:disabled)');
 }
-function clearResolvingBattleFocus(){
+function clearBattleFocusOutsideInteractivePhase(){
  const s=runtime();
  const battle=byId("battle-card");
  const active=document.activeElement;
- if(!s?.battle||!visible(battle)||!(active instanceof HTMLElement)||!battle.contains(active))return;
- if(!["COMMAND","REPLACEMENT","RESULT"].includes(s.battle.phase))active.blur();
+ if(!(active instanceof HTMLElement)||!battle?.contains(active))return;
+ if(!s?.battle||!["COMMAND","REPLACEMENT","RESULT"].includes(s.battle.phase))active.blur();
 }
 function settle(){
- clearResolvingBattleFocus();
+ clearBattleFocusOutsideInteractivePhase();
  const token=++epoch;
  requestAnimationFrame(()=>requestAnimationFrame(()=>{
   if(token!==epoch)return;
