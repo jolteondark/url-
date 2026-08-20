@@ -35,7 +35,7 @@ async function loadBoardPresentation() {
 
 async function loadBattleUi() {
   loadStyle("./battle-core-safety.css");
-  await loadModule("./canonical-battle-sprite-bridge.js?v=20260820-1117");
+  await loadModule("./canonical-battle-sprite-bridge.js?v=20260820-1132");
 }
 
 async function loadShopUi() {
