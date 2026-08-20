@@ -113,3 +113,4 @@ assert.match(replacementUiSource, /moves\.inert = true/,
 
 console.log("Safari active KO -> central REPLACEMENT commit -> legal reserve -> next command -> victory + UI wiring: ok");
 await import("./safari-voluntary-switch-command-smoke.mjs");
+await import("./safari-battle-item-ko-return-vertical-smoke.mjs");
