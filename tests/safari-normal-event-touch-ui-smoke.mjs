@@ -36,7 +36,10 @@ try {
   else globalThis.document = originalDocument;
 }
 
+assert.equal(supportsSafariNormalEventTouch("wounded_pokemon"), true, "wounded Pokemon must enter the in-page touch handoff before its legacy native dialog");
+
 const dispatcher = await readFile(new URL("../runtime/safari-pokemon-center-command.js", import.meta.url), "utf8");
+const handoff = await readFile(new URL("../runtime/safari-normal-event-touch-handoff.js", import.meta.url), "utf8");
 const bridge = await readFile(new URL("../normal-event-touch-presentation.js", import.meta.url), "utf8");
 const index = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const touchBranch = dispatcher.indexOf("supportsSafariNormalEventTouch(event.normal_event_id)");
@@ -52,7 +55,13 @@ for (const ownerName of [
   "resolveSafariFakeNurseInteraction",
   "resolveSafariTravelingCookInteraction",
   "resolveSafariFloodedRiverInteraction",
+  "resolveSafariWoundedPokemonDecision",
 ]) assert.equal(bridge.includes(ownerName), true, `touch bridge must return to existing owner ${ownerName}`);
+assert.equal(handoff.includes('"wounded_pokemon"'), true);
+assert.equal(handoff.includes("prepareSafariWoundedPokemonCandidate"), true);
+assert.equal(handoff.includes("safariWoundedHealingInventory"), true);
+assert.equal(handoff.includes('id:`treat:${entry.itemId}`'), true, "wounded touch actions must be projected from eligible Bag healing inventory");
+assert.equal(bridge.includes('String(actionId).startsWith("treat:")'), true, "wounded touch treatment must return the selected item id to the existing decision owner");
 assert.equal(bridge.includes("saveSafariPlayableRun(window.localStorage, current)"), true);
 assert.equal(index.includes('id="normal-event-card"'), true);
 assert.equal(index.includes('id="normal-event-actions"'), true);

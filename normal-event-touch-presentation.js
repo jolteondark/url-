@@ -39,6 +39,7 @@ function loadOwner(eventId) {
       fake_nurse:"./runtime/safari-fake-nurse-interaction.js",
       traveling_cook:"./runtime/safari-traveling-cook-interaction.js",
       flooded_river:"./runtime/safari-flooded-river-interaction.js",
+      wounded_pokemon:"./runtime/safari-wounded-pokemon-integration.js",
     }[eventId];
     if (!specifier) throw new RangeError(`unsupported normal-event UI owner: ${eventId}`);
     ownerModules.set(eventId, import(specifier));
@@ -58,6 +59,13 @@ async function resolveAction(current, active, actionId) {
       : owner.resolveSafariTravelingCookInteraction(current, active.boardIndex, "pay", actionId);
   }
   if (active.eventId === "flooded_river") return owner.resolveSafariFloodedRiverInteraction(current, active.boardIndex, actionId);
+  if (active.eventId === "wounded_pokemon") {
+    const input = actionId === "leave"
+      ? { choice:"leave" }
+      : { choice:"treat", itemId:String(actionId).startsWith("treat:") ? String(actionId).slice(6) : "" };
+    const result = owner.resolveSafariWoundedPokemonDecision(current, active.boardIndex, input);
+    return { ...result, completed:Boolean(current.variables?.mapless?.board_consumed?.[active.boardIndex]) };
+  }
   throw new RangeError(`unsupported normal-event UI owner: ${active.eventId}`);
 }
 

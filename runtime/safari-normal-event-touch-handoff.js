@@ -1,4 +1,8 @@
 import { maplessCarryMoneyGain } from "./mapless-carry-class-rules.js";
+import {
+  prepareSafariWoundedPokemonCandidate,
+  safariWoundedHealingInventory,
+} from "./safari-wounded-pokemon-integration.js";
 
 const SUPPORTED = new Set([
   "street_performer",
@@ -7,6 +11,7 @@ const SUPPORTED = new Set([
   "fake_nurse",
   "traveling_cook",
   "flooded_river",
+  "wounded_pokemon",
 ]);
 
 function stateOf(runtime) {
@@ -19,7 +24,46 @@ function scalingValue(day) {
   return Math.max(Math.floor((Math.max(1, Number(day) || 1) - 1) / 5), 0);
 }
 
-function definition(runtime, eventId) {
+function woundedDefinition(runtime, index) {
+  const state = stateOf(runtime);
+  let candidate;
+  try {
+    candidate = prepareSafariWoundedPokemonCandidate(runtime, index);
+  } catch (error) {
+    if (/creationFormContext\./.test(String(error?.message ?? ""))) {
+      state.board_revealed[index] = true;
+      state.notice = `傷ついたポケモンの個体生成に必要なcanonical contextが未接続です: ${error.message}`;
+      return {
+        blockedResult: {
+          runtime,
+          result:"creation_context_required",
+          boundary:"normal_event",
+          notice:state.notice,
+          operations:[{ op:"wounded_creation_context_required", message:error.message }],
+        },
+      };
+    }
+    throw error;
+  }
+
+  const inventory = safariWoundedHealingInventory(runtime);
+  const actions = inventory.map((entry) => ({
+    id:`treat:${entry.itemId}`,
+    label:entry.itemId,
+    meta:`×${entry.quantity} · 治療に使う`,
+  }));
+  if (actions.length === 0) actions.push({ id:"no_item", label:"回復アイテムがありません", disabled:true });
+  actions.push({ id:"leave", label:"見捨てて立ち去る", secondary:true });
+  return {
+    title:"傷ついたポケモン",
+    message:`傷ついた${candidate.species} Lv.${candidate.level}がいます。回復アイテムで治療できます。`,
+    actions,
+    species:candidate.species,
+    level:candidate.level,
+  };
+}
+
+function definition(runtime, eventId, index) {
   const state = stateOf(runtime);
   const scale = scalingValue(state.day);
   if (eventId === "street_performer") {
@@ -45,6 +89,7 @@ function definition(runtime, eventId) {
   if (eventId === "flooded_river") {
     return { title:"増水した川", message:"濁流が進路を遮っています。", actions:[{id:"force",label:"強引に渡る",meta:"危険"},{id:"leave",label:"引き返す",secondary:true}] };
   }
+  if (eventId === "wounded_pokemon") return woundedDefinition(runtime, index);
   throw new RangeError(`unsupported normal-event touch id: ${eventId}`);
 }
 
@@ -62,8 +107,9 @@ export function openSafariNormalEventTouch(runtime, index) {
   if (state.board_consumed?.[index]) return { runtime, result:"already_consumed", operations:[] };
 
   state.board_revealed[index] = true;
-  state.board_visited[index] = true;
-  const ui = definition(runtime, eventId);
+  if (eventId !== "wounded_pokemon") state.board_visited[index] = true;
+  const ui = definition(runtime, eventId, index);
+  if (ui.blockedResult) return ui.blockedResult;
   state.notice = ui.message;
   if (typeof globalThis.document !== "undefined") {
     globalThis.__maplessNormalEventUi = { runtime, boardIndex:index, eventId, ...ui };
@@ -74,7 +120,7 @@ export function openSafariNormalEventTouch(runtime, index) {
     boundary:"normal_event",
     eventId,
     normalEventUi:ui,
-    availableActions:ui.actions.map((action) => action.id),
+    availableActions:ui.actions.filter((action) => action.disabled !== true).map((action) => action.id),
     notice:state.notice,
     operations:[],
   };
