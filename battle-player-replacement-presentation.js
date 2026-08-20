@@ -1,3 +1,4 @@
+import { resolveSafariBoundaryPlayerReplacement } from "./runtime/safari-playable-integration.js";
 import { replaceSafariBattlePlayer } from "./runtime/safari-web-playable-integration.js";
 
 const REPLACEMENT_PHASE = "REPLACEMENT";
@@ -116,7 +117,12 @@ async function chooseReplacement(button) {
   }
   syncReplacementUi();
   try {
-    await replaceSafariBattlePlayer(globalThis.__maplessSafariRuntime, partyIndex);
+    const runtime = globalThis.__maplessSafariRuntime;
+    if (battle?.origin === "boundary_trial") {
+      resolveSafariBoundaryPlayerReplacement(runtime, partyIndex);
+    } else {
+      await replaceSafariBattlePlayer(runtime, partyIndex);
+    }
   } catch (error) {
     globalThis.__maplessLastError = error;
   } finally {
