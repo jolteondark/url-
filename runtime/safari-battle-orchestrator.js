@@ -244,7 +244,10 @@ export function abortSafariBattleCommand(runtime, reason = "command failed") {
   return tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, reason);
 }
 
-export function commitSafariBattleResolution(runtime, result, commandKind = null, { rewardGrowthCommit = null } = {}) {
+export function commitSafariBattleResolution(runtime, result, commandKind = null, {
+  rewardGrowthCommit = null,
+  replacementCommit = null,
+} = {}) {
   const battle = battleOf(runtime);
   if (!battle.phase) ensureSafariBattleOrchestrator(runtime);
 
@@ -311,6 +314,10 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
     tracePhase(battle, SAFARI_BATTLE_PHASE.REPLACEMENT, "player replacement required");
   } else if (foeReplacementApplied && decision === 0) {
     tracePhase(battle, SAFARI_BATTLE_PHASE.REPLACEMENT, "trainer reserve sent out");
+    if (typeof replacementCommit === "function") {
+      const committedReplacement = replacementCommit(result);
+      if (committedReplacement && committedReplacement !== result) result = committedReplacement;
+    }
     if (hasRewardGrowthTail(result)) {
       result = commitRewardGrowthCheckpoint(battle, result, rewardGrowthCommit, "replacement growth checkpoint");
     }
