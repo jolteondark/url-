@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+await import("./safari-egg-shop-touch-ui-static-smoke.mjs");
 import {
   applySafariBoundaryTrialEntry,
   applySafariCampRecovery,
