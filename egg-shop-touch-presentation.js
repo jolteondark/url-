@@ -13,7 +13,11 @@ const startupModule = () => startupModulePromise ??= import("./runtime/safari-we
 
 function runtime() { return globalThis.__maplessSafariRuntime ?? null; }
 function state() { return runtime()?.variables?.mapless ?? null; }
-function activeEggShop() { return state()?.egg_shop_ui ?? null; }
+function activeEggShop() {
+  const active = globalThis.__maplessEggShopUi ?? null;
+  return active?.runtime === runtime() ? active : null;
+}
+function closeEggShopUi() { globalThis.__maplessEggShopUi = null; }
 
 function updateHud() {
   const current = runtime();
@@ -26,7 +30,7 @@ function updateHud() {
   if (party) party.textContent = `${current.player?.party?.length ?? 0} / 6`;
   if (money) money.textContent = `${moneyFormat.format(Number(current.bag?.money ?? 0))}円`;
   if (notice) notice.textContent = currentState.notice ?? "";
-  if (mode && activeEggShop()) mode.textContent = "卵屋";
+  if (mode) mode.textContent = activeEggShop() ? "卵屋" : (currentState.location === "day_board" ? "探索" : mode.textContent);
 }
 
 async function restoreBoardAvailability() {
@@ -45,12 +49,16 @@ async function restoreBoardAvailability() {
   }
   const village = byId("enter-village");
   if (village) village.disabled = currentState.location !== "day_board" || Boolean(currentState.battle) || Boolean(currentState.shop);
+  const save = byId("save-run");
+  if (save) save.disabled = false;
 }
 
 function lockBoard() {
   for (const button of byId("board")?.querySelectorAll("button[data-board-index]") ?? []) button.disabled = true;
   const village = byId("enter-village");
   if (village) village.disabled = true;
+  const save = byId("save-run");
+  if (save) save.disabled = true;
 }
 
 function resultMessage(result) {
@@ -102,7 +110,7 @@ async function sync() {
   else if (shop.money < shop.price) byId("egg-shop-message").textContent = "お金が足りません。";
   updateHud();
 
-  const openKey = `${shop.day}:${active.board_index}`;
+  const openKey = `${shop.day}:${active.boardIndex}`;
   if (openKey !== lastOpenKey) {
     lastOpenKey = openKey;
     requestAnimationFrame(() => card.scrollIntoView({ behavior:"smooth", block:"start" }));
@@ -133,11 +141,11 @@ document.addEventListener("click", async (event) => {
     const { purchaseSafariEggShopEgg } = await eggModule();
     const result = await purchaseSafariEggShopEgg(current, Number(choice.dataset.eggShopIndex), { confirmed:true });
     if (result.result === "bought") {
+      closeEggShopUi();
       if (result.persistenceRequested || result.operations?.some((operation) => operation.op === "request_save")) {
         const { saveSafariPlayableRun } = await startupModule();
         saveSafariPlayableRun(window.localStorage, current);
       }
-      delete state().egg_shop_ui;
       lastOpenKey = "";
       window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
     } else {
@@ -156,7 +164,7 @@ document.addEventListener("click", async (event) => {
 
 byId("egg-shop-cancel")?.addEventListener("click", async () => {
   if (purchasing || !activeEggShop()) return;
-  delete state().egg_shop_ui;
+  closeEggShopUi();
   state().notice = "Day Boardからマスを選んでください。";
   lastOpenKey = "";
   updateHud();
