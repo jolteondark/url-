@@ -94,7 +94,7 @@ export function resolveContactReactiveAbilityItemHookCanonical({
     effects.push(Object.freeze({
       source: targetAbility,
       sourceKind: "ability",
-      hpDelta: -damage,
+      hpDelta: damage > 0 ? -damage : 0,
       suppressedByMagicGuard: magicGuard,
     }));
   }
@@ -103,7 +103,7 @@ export function resolveContactReactiveAbilityItemHookCanonical({
     effects.push(Object.freeze({
       source: targetItem,
       sourceKind: "held_item",
-      hpDelta: -damage,
+      hpDelta: damage > 0 ? -damage : 0,
       suppressedByMagicGuard: magicGuard,
     }));
   }
@@ -111,7 +111,8 @@ export function resolveContactReactiveAbilityItemHookCanonical({
   const statusChanceRequest = eligible ? contactStatusChanceRequestCanonical(targetAbility) : null;
   const statChanges = eligible ? contactStatChangesCanonical(targetAbility) : Object.freeze([]);
   const rawHpDelta = effects.reduce((sum, effect) => sum + Number(effect.hpDelta ?? 0), 0);
-  const userHpDelta = -Math.min(userHp, Math.max(0, -rawHpDelta));
+  const reflectedDamage = Math.min(userHp, Math.max(0, -rawHpDelta));
+  const userHpDelta = reflectedDamage > 0 ? -reflectedDamage : 0;
   return Object.freeze({
     boundary: "action_after",
     contact,
