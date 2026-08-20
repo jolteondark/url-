@@ -1,6 +1,5 @@
 import { ensureSafariGeneralData } from "./safari-general-data-demand.js";
 import { SAFARI_MOVE_MASTERS, SAFARI_SPECIES_MASTERS } from "./safari-playable-data.js";
-import { activateSafariDayBoardCell as activateSafariDayBoardCellBase } from "./safari-playable-integration-wounded.js";
 import {
   MAPLESS_EGG_SHOP_CUSTOM_SPECIES_MASTERS_V108,
   MAPLESS_EGG_SHOP_PRICE_V108,
@@ -35,6 +34,19 @@ function randomInt(limit) {
 function typeLabel(species) {
   const types = maplessEggShopTypesV108(species);
   return types.map((type) => TYPE_LABELS[type] ?? type).join("/") || "不明";
+}
+
+function commitEggShopVisit(runtime, index) {
+  const state = stateOf(runtime);
+  const event = state.board_events?.[index];
+  if (!event || event.kind !== "egg_shop") throw new Error("egg_shop board event is required");
+  if (state.battle && !state.battle.completed) return { runtime, result:"battle_active", boundary:"battle", operations:[] };
+  if (state.shop) return { runtime, result:"shop_active", boundary:"shop", operations:[] };
+  state.board_revealed[index] = true;
+  state.board_visited[index] = true;
+  const operations = [{ op:"egg_shop_visit", index, reusable:true }];
+  state.last_operations = operations;
+  return { runtime, result:"completed", boundary:"egg_shop", operations };
 }
 
 export function safariEggShopPresentation(runtime) {
@@ -86,10 +98,8 @@ export async function purchaseSafariEggShopEgg(runtime, stockIndex, { confirmed 
 
 export async function interactiveSafariEggShop(runtime, index) {
   const state = stateOf(runtime);
-  const event = state.board_events?.[index];
-  if (!event || event.kind !== "egg_shop") return activateSafariDayBoardCellBase(runtime, index);
-
-  const visit = activateSafariDayBoardCellBase(runtime, index);
+  const visit = commitEggShopVisit(runtime, index);
+  if (visit.result !== "completed") return visit;
   const presentation = safariEggShopPresentation(runtime);
   const promptFn = typeof globalThis.prompt === "function" ? globalThis.prompt.bind(globalThis) : null;
   const confirmFn = typeof globalThis.confirm === "function" ? globalThis.confirm.bind(globalThis) : null;
