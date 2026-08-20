@@ -28,6 +28,10 @@ import {
   BATTLE_CONTACT_REACTIVE_COVERAGE_CANONICAL,
   resolveContactReactiveAbilityItemHookCanonical,
 } from "./battle-core-contact-reactive-extension.js";
+import {
+  BATTLE_SHELL_BELL_COVERAGE_CANONICAL,
+  resolveShellBellActionAfterCanonical,
+} from "./battle-core-shell-bell-extension.js";
 
 export const BATTLE_ABILITY_ITEM_HOOK_POINTS_CANONICAL = Object.freeze([
   "switch_in",
@@ -67,6 +71,7 @@ function combinedCoverageCanonical() {
     ...(BATTLE_STATUS_CURE_BERRY_COVERAGE_CANONICAL.itemIds ?? []),
     ...(BATTLE_AIR_BALLOON_COVERAGE_CANONICAL.itemIds ?? []),
     ...(BATTLE_CONTACT_REACTIVE_COVERAGE_CANONICAL.itemIds ?? []),
+    ...(BATTLE_SHELL_BELL_COVERAGE_CANONICAL.itemIds ?? []),
   ])].sort());
   return Object.freeze({
     abilityIds,
@@ -80,6 +85,7 @@ function combinedCoverageCanonical() {
       statusCureBerryExtension: BATTLE_STATUS_CURE_BERRY_COVERAGE_CANONICAL.classificationCounts,
       airBalloonExtension: BATTLE_AIR_BALLOON_COVERAGE_CANONICAL.classificationCounts,
       contactReactiveExtension: BATTLE_CONTACT_REACTIVE_COVERAGE_CANONICAL.classificationCounts,
+      shellBellExtension: BATTLE_SHELL_BELL_COVERAGE_CANONICAL.classificationCounts,
     }),
   });
 }
@@ -213,6 +219,11 @@ function resolveSharedActionAfterCanonical({ runtimeUser, runtimeTarget, move, d
       user: runtimeUser,
       target: runtimeTarget,
       move,
+      damageDealt,
+      context,
+    }),
+    userShellBell: resolveShellBellActionAfterCanonical({
+      user: runtimeUser,
       damageDealt,
       context,
     }),
