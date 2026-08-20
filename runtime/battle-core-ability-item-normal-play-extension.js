@@ -1,6 +1,7 @@
 const id = (value) => String(value ?? "").toUpperCase();
 
 const MOLD_BREAKER_ABILITIES = new Set(["MOLDBREAKER", "TERAVOLT", "TURBOBLAZE"]);
+const PRIORITY_BLOCK_ABILITIES = new Set(["ARMORTAIL", "DAZZLING", "QUEENLYMAJESTY"]);
 const WEATHER_SPEED_ABILITIES = Object.freeze({
   CHLOROPHYLL: new Set(["Sun", "HarshSun"]),
   SWIFTSWIM: new Set(["Rain", "HeavyRain"]),
@@ -42,7 +43,9 @@ const FULL_HP_DAMAGE_REDUCTION_ABILITIES = Object.freeze({
 });
 
 const EXTENSION_ABILITY_IDS = Object.freeze([
+  "ARMORTAIL",
   "CHLOROPHYLL",
+  "DAZZLING",
   "DEFEATIST",
   "DRAGONSMAW",
   "FILTER",
@@ -50,6 +53,7 @@ const EXTENSION_ABILITY_IDS = Object.freeze([
   "MULTISCALE",
   "PRANKSTER",
   "PRISMARMOR",
+  "QUEENLYMAJESTY",
   "ROCKYPAYLOAD",
   "SANDFORCE",
   "SANDRUSH",
@@ -132,9 +136,21 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
   const userStatus = id(user?.status ?? "NONE");
 
   const pranksterPriority = userAbility === "PRANKSTER" && category === "Status" ? 1 : 0;
+  const moldBreaker = MOLD_BREAKER_ABILITIES.has(userAbility);
+  const effectivePriority = Number(context?.effectivePriority ?? context?.priority ?? (Number(move?.priority ?? 0) + pranksterPriority));
+  const targetsOpponent = context?.targetsOpponent !== false;
+  const priorityAbilityBlocksMove = Number.isFinite(effectivePriority)
+    && effectivePriority > 0
+    && targetsOpponent
+    && PRIORITY_BLOCK_ABILITIES.has(targetAbility)
+    && !moldBreaker;
   const criticalStageDelta = (userAbility === "SUPERLUCK" ? 1 : 0)
     + (["SCOPELENS", "RAZORCLAW"].includes(userItem) ? 1 : 0);
   const assaultVestBlocksMove = userItem === "ASSAULTVEST" && category === "Status";
+  const moveSelectionBlocked = assaultVestBlocksMove || priorityAbilityBlocksMove;
+  const moveSelectionReason = assaultVestBlocksMove
+    ? "assault_vest_status_move"
+    : (priorityAbilityBlocksMove ? "target_priority_block_ability" : null);
   const assaultVestDefenseMultiplier = targetItem === "ASSAULTVEST" && category === "Special" ? 1.5 : 1;
   let accuracyMultiplier = userAbility === "VICTORYSTAR" ? 1.1 : 1;
   if (["BRIGHTPOWDER", "LAXINCENSE"].includes(targetItem)) accuracyMultiplier *= 0.9;
@@ -146,7 +162,6 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
     && ["Physical", "Special"].includes(category)
     && pokemonAtOrBelowHalfHp(user) ? 0.5 : 1;
   const attackMultiplier = solarPowerAttackMultiplier * defeatistAttackMultiplier;
-  const moldBreaker = MOLD_BREAKER_ABILITIES.has(userAbility);
 
   let powerMultiplier = 1;
   if (weather === "Sandstorm" && userAbility === "SANDFORCE" && ["ROCK", "GROUND", "STEEL"].includes(moveType)) {
@@ -180,8 +195,16 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
     priorityModifier: pranksterPriority,
     criticalStageDelta,
     moveSelection: Object.freeze({
-      blocked: assaultVestBlocksMove,
-      reason: assaultVestBlocksMove ? "assault_vest_status_move" : null,
+      blocked: moveSelectionBlocked,
+      reason: moveSelectionReason,
+    }),
+    movePriorityBlock: Object.freeze({
+      blocked: priorityAbilityBlocksMove,
+      reason: priorityAbilityBlocksMove ? "target_priority_block_ability" : null,
+      targetAbility,
+      effectivePriority: Number.isFinite(effectivePriority) ? effectivePriority : null,
+      targetsOpponent,
+      moldBreaker,
     }),
     damageMultiplierInput: Object.freeze({
       externalPowerMultiplier: powerMultiplier,
@@ -212,8 +235,9 @@ export const BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL = Obje
   itemCount: EXTENSION_ITEM_IDS.length,
   classificationCounts: Object.freeze({
     movePriority: 1,
+    priorityBlockAbilities: PRIORITY_BLOCK_ABILITIES.size,
     criticalStage: 3,
-    moveSelectionRestriction: 1,
+    moveSelectionRestriction: 1 + PRIORITY_BLOCK_ABILITIES.size,
     specialDefenseModifier: 1,
     accuracyModifier: 1,
     weatherSpeedModifier: 4,
