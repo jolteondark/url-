@@ -97,25 +97,24 @@ window.addEventListener("safari-game-menu-opened", (event) => {
 window.addEventListener("safari-game-menu-closed", restoreNormalMenu);
 
 const menu = byId("game-menu");
-const bagPane = byId("menu-bag-pane");
-if (bagPane && typeof MutationObserver === "function") {
-  let reinjectQueued = false;
-  new MutationObserver(() => {
-    if (reinjectQueued) return;
+let bagRefreshQueued = false;
+function queueBattleBagRefresh() {
+  if (bagRefreshQueued) return;
+  if (menu?.hidden || menu?.dataset.battleCommandMenu !== "bag" || !inBattleCommand()) return;
+  bagRefreshQueued = true;
+  requestAnimationFrame(() => {
+    bagRefreshQueued = false;
     if (menu?.hidden || menu?.dataset.battleCommandMenu !== "bag" || !inBattleCommand()) return;
-    reinjectQueued = true;
-    requestAnimationFrame(() => {
-      reinjectQueued = false;
-      injectBattleBall("bag");
-    });
-  }).observe(bagPane, { childList: true, subtree: false });
+    injectBattleBall("bag");
+  });
 }
 
+window.addEventListener("storage", queueBattleBagRefresh);
 window.addEventListener("safari-runtime-changed", () => {
   const current = battle();
   if (!current || current.phase !== "COMMAND") {
     if (menu && !menu.hidden && menu.dataset.battleCommandMenu) closeGameMenu();
     return;
   }
-  if (menu && !menu.hidden && menu.dataset.battleCommandMenu === "bag") injectBattleBall("bag");
+  queueBattleBagRefresh();
 });
