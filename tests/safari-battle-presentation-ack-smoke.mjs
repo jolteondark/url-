@@ -5,6 +5,7 @@ import {
   beginSafariBattleCommand,
   commitSafariBattleResolution,
   completeSafariBattlePresentation,
+  completeSafariBattleReplacement,
   ensureSafariBattleOrchestrator,
   safariBattleCommandAllowed,
 } from "../runtime/safari-battle-orchestrator.js";
@@ -117,6 +118,54 @@ function phaseCount(battle, phase) {
   ensureSafariBattleOrchestrator(state);
   beginSafariBattleCommand(state, "move");
   commitSafariBattleResolution(state, {
+    decision: 0,
+    playerReplacementRequired: true,
+    operations: [
+      { op: "use_move", actor: "foe", target: "player" },
+      { op: "faint", actor: "foe", target: "player" },
+    ],
+  }, "move");
+  battle.player_replacement_required = true;
+
+  let replacementCommits = 0;
+  const result = completeSafariBattleReplacement(state, {
+    playerReplacementRequired: true,
+    operations: [],
+  }, {
+    replacementCommit: (current) => {
+      replacementCommits += 1;
+      battle.player_replacement_required = false;
+      return {
+        ...current,
+        playerReplacementRequired: false,
+        playerReplacementApplied: true,
+        operations: [{ op: "send_out", actor: "player" }],
+      };
+    },
+  });
+
+  assert.equal(replacementCommits, 1);
+  assert.equal(result.phase, SAFARI_BATTLE_PHASE.REPLACEMENT,
+    "forced player replacement must not expose COMMAND before its presentation acknowledgement");
+  assert.equal(battle.presentation_checkpoint?.committed, false);
+  assert.equal(safariBattleCommandAllowed(state), false);
+
+  const commandCountBeforeAck = phaseCount(battle, SAFARI_BATTLE_PHASE.COMMAND);
+  completeSafariBattlePresentation(state);
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.COMMAND);
+  assert.equal(safariBattleCommandAllowed(state), true);
+  assert.equal(phaseCount(battle, SAFARI_BATTLE_PHASE.COMMAND), commandCountBeforeAck + 1,
+    "forced replacement presentation acknowledgement must publish COMMAND exactly once");
+  completeSafariBattlePresentation(state);
+  assert.equal(phaseCount(battle, SAFARI_BATTLE_PHASE.COMMAND), commandCountBeforeAck + 1);
+}
+
+{
+  const state = runtime();
+  const battle = state.variables.mapless.battle;
+  ensureSafariBattleOrchestrator(state);
+  beginSafariBattleCommand(state, "move");
+  commitSafariBattleResolution(state, {
     decision: 1,
     operations: [
       { op: "use_move", actor: "player", target: "foe" },
@@ -165,6 +214,16 @@ function phaseCount(battle, phase) {
     "root preview presentation owner must acknowledge the central checkpoint");
   assert.match(presentationOwner, /phaseAfterAck !== phaseBeforeAck[\s\S]*safari-runtime-changed/,
     "a phase-changing presentation acknowledgement must publish runtime change so DPt command UI can leave locked state");
+}
+
+{
+  const source = readFileSync(new URL("../battle-player-replacement-presentation.js", import.meta.url), "utf8");
+  assert.match(source, /completeSafariBattlePresentation/,
+    "forced player replacement presentation must acknowledge the central presentation checkpoint");
+  assert.doesNotMatch(source, /let selecting\b|\bselecting\s*=/,
+    "forced player replacement must not keep a local selecting readiness truth");
+  assert.match(source, /presentation_checkpoint\?\.committed !== false/,
+    "replacement selection must stop while the central replacement presentation checkpoint is pending");
 }
 
 await import("./safari-battle-dppt-presentation-ack-owners-smoke.mjs");
