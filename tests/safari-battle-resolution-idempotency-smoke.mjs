@@ -160,4 +160,41 @@ function phaseCount(battle, phase) {
   assert.equal(phaseCount(battle, SAFARI_BATTLE_PHASE.REPLACEMENT), 1);
 }
 
+{
+  const state = runtime();
+  const battle = state.variables.mapless.battle;
+  ensureSafariBattleOrchestrator(state);
+  beginSafariBattleCommand(state, "move");
+  commitSafariBattleResolution(state, {
+    decision: 0,
+    operations: [
+      { op: "use_move", actor: "foe", target: "player" },
+      { op: "use_move", actor: "player", target: "foe" },
+    ],
+  }, "move");
+  const actionTrace = battle.phase_trace.filter((entry) => [
+    SAFARI_BATTLE_PHASE.ACTION_1,
+    SAFARI_BATTLE_PHASE.ACTION_2,
+  ].includes(entry.phase));
+  assert.deepEqual(actionTrace.map((entry) => entry.actor), ["foe", "player"],
+    "move ACTION_1/ACTION_2 must reflect the scheduler-resolved actor order rather than command-entry order");
+}
+
+{
+  const state = runtime();
+  const battle = state.variables.mapless.battle;
+  ensureSafariBattleOrchestrator(state);
+  beginSafariBattleCommand(state, "item");
+  commitSafariBattleResolution(state, {
+    decision: 0,
+    operations: [{ op: "use_move", actor: "foe", target: "player" }],
+  }, "item");
+  const actionTrace = battle.phase_trace.filter((entry) => [
+    SAFARI_BATTLE_PHASE.ACTION_1,
+    SAFARI_BATTLE_PHASE.ACTION_2,
+  ].includes(entry.phase));
+  assert.deepEqual(actionTrace.map((entry) => entry.actor), ["player", "foe"],
+    "a consumed Bag command owns ACTION_1 and the opponent response owns ACTION_2");
+}
+
 console.log("Safari Battle resolution idempotency smoke passed");
