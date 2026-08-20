@@ -1,5 +1,6 @@
 import { ensureSafariGeneralData } from "./safari-general-data-demand.js";
 import { SAFARI_MOVE_MASTERS, SAFARI_SPECIES_MASTERS } from "./safari-playable-data.js";
+import { installMaplessEggShopCustomMoveMastersV108 } from "./mapless-egg-shop-custom-moves-v108.js";
 import {
   MAPLESS_EGG_SHOP_CUSTOM_SPECIES_MASTERS_V108,
   MAPLESS_EGG_SHOP_PRICE_V108,
@@ -73,6 +74,7 @@ export async function purchaseSafariEggShopEgg(runtime, stockIndex, { confirmed 
   if (money < MAPLESS_EGG_SHOP_PRICE_V108) return { runtime, result:"insufficient_money", operations:[] };
 
   await ensureSafariGeneralData();
+  installMaplessEggShopCustomMoveMastersV108(SAFARI_MOVE_MASTERS);
   const species = stock[index];
   const speciesMaster = MAPLESS_EGG_SHOP_CUSTOM_SPECIES_MASTERS_V108[species] ?? SAFARI_SPECIES_MASTERS[species];
   if (!speciesMaster) return { runtime, result:"species_master_unavailable", species, operations:[] };
