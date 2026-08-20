@@ -64,6 +64,8 @@ function preserveAuthoritativeBattleFields(before, after) {
 }
 
 function canonicalEvolutionBlocker(runtime) {
+  const stepsToHatch = Number(runtime?.steps_to_hatch ?? 0);
+  if (Number.isInteger(stepsToHatch) && stepsToHatch > 0) return "EGG";
   const heldItem = Object.prototype.hasOwnProperty.call(runtime ?? {}, "held_item")
     ? runtime.held_item
     : runtime?.item;
