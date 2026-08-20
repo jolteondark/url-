@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { SAFARI_BATTLE_PHASE } from "../runtime/safari-battle-orchestrator.js";
 import { switchSafariNormalBattlePlayer } from "../runtime/safari-normal-battle-voluntary-switch.js";
 
@@ -73,4 +74,21 @@ assert.equal(state.battle.phase, SAFARI_BATTLE_PHASE.COMMAND);
 assert.equal(state.battle.phase_trace.at(-1)?.phase, SAFARI_BATTLE_PHASE.COMMAND);
 assert.match(state.battle.phase_trace.at(-1)?.reason ?? "", /command not consumed:switch/);
 
-console.log("Safari voluntary switch -> ACTION_1 -> one foe ACTION_2 / rejected switch -> COMMAND: PASS");
+const bridgeSource = fs.readFileSync(new URL("../battle-party-voluntary-switch-bridge.js", import.meta.url), "utf8");
+const deferredSource = fs.readFileSync(new URL("../deferred-ui-loader.js", import.meta.url), "utf8");
+assert.match(bridgeSource, /from "\.\/runtime\/safari-normal-battle-voluntary-switch\.js"/,
+  "Battle Party UI must call the existing voluntary-switch owner rather than forced replacement");
+assert.match(bridgeSource, /switchSafariNormalBattlePlayer\(runtime\(\), partyIndex\)/,
+  "Battle Party selection must hand the selected Party index to the existing switch owner");
+assert.match(bridgeSource, /current\.phase === "COMMAND"/,
+  "voluntary Party switching must only be exposed during COMMAND");
+assert.match(bridgeSource, /current\.origin !== "boundary_trial"/,
+  "normal voluntary-switch bridge must not claim boundary-trial ownership");
+assert.match(bridgeSource, /Number\(pokemon\.hp \?\? 0\) <= 0/,
+  "fainted Party members must remain unselectable");
+assert.doesNotMatch(bridgeSource, /replaceSafariBattlePlayer/,
+  "voluntary switching must never reuse the forced-faint replacement owner");
+assert.match(deferredSource, /battle-party-voluntary-switch-bridge\.js\?v=/,
+  "the deferred Party menu bundle must load the Battle voluntary-switch bridge");
+
+console.log("Safari voluntary switch -> ACTION_1 -> one foe ACTION_2 / rejected switch -> COMMAND + Party UI wiring: PASS");
