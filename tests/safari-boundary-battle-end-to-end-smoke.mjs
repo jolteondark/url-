@@ -32,9 +32,17 @@ for (let expectedIndex = 0; expectedIndex < 3; expectedIndex += 1) {
     assert.equal(result.replacementApplied, true);
     assert.equal(state.battle.trainer_party_index, expectedIndex + 1);
     assert.equal(state.battle.completed, false);
+    assert.equal(state.battle.phase, "COMMAND");
+    assert.equal(state.battle.phase_trace.some((entry) => entry.phase === "REPLACEMENT"), true,
+      "boundary trainer reserve must pass through the central REPLACEMENT checkpoint");
   } else {
     assert.equal(result.decision, 1);
     assert.equal(state.battle.completed, true);
+    assert.equal(state.battle.phase, "RESULT");
+    assert.equal(state.battle.completed_phase, "RESULT");
+    assert.equal(state.battle.phase_trace.at(-1)?.phase, "RESULT");
+    assert.equal(state.battle.phase_trace.some((entry) => entry.phase === "POST_VICTORY"), true);
+    assert.equal(state.battle.phase_trace.some((entry) => entry.phase === "REWARD_GROWTH"), true);
     assert.equal(state.boundary_trial.result, "victory_returned_to_board");
     assert.equal(state.boundary_trial.trial_count, 1);
     assert.equal(state.boundary_trial.last_leader, "BROCK");
@@ -43,6 +51,11 @@ for (let expectedIndex = 0; expectedIndex < 3; expectedIndex += 1) {
 
 const returned = returnSafariToDayBoard(runtime);
 assert.equal(returned.target, "day_board");
+assert.equal(returned.phase, "RETURN");
+assert.equal(returned.persistenceRequested, true);
+assert.equal(returned.operations.filter((operation) => operation?.op === "request_save").length, 1,
+  "boundary RETURN must request persistence exactly once through the central owner");
+assert.equal(returned.phaseTrace.at(-1)?.phase, "RETURN");
 assert.equal(state.day, 11);
 assert.equal(state.location, "day_board");
 assert.equal(state.board_events.length, 8);
