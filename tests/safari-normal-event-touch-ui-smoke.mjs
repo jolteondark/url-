@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { openSafariNormalEventTouch, supportsSafariNormalEventTouch } from "../runtime/safari-normal-event-touch-handoff.js";
 await import("./safari-treasure-touch-smoke.mjs");
+await import("./safari-miner-touch-owner-smoke.mjs");
 
 const expected = Object.freeze({
   street_performer:["watch","leave"],
@@ -48,6 +49,8 @@ const legacyBranch = dispatcher.indexOf('event.normal_event_id === "street_perfo
 assert.ok(touchBranch >= 0 && legacyBranch > touchBranch, "browser touch handoff must precede legacy native-dialog interaction fallbacks");
 assert.equal(dispatcher.includes('event?.kind === "treasure"'), true, "treasure Board cells must enter the shared touch scene");
 assert.equal(dispatcher.includes("openSafariTreasureTouch(runtime, index)"), true);
+assert.equal(dispatcher.includes('event?.kind === "miner"'), true, "Miner Board cells must enter the shared touch scene");
+assert.equal(dispatcher.includes("openSafariMinerTouch(runtime, index)"), true);
 assert.equal(bridge.includes("globalThis.prompt"), false);
 assert.equal(bridge.includes("globalThis.confirm"), false);
 assert.equal(bridge.includes("globalThis.alert"), false);
@@ -60,6 +63,7 @@ for (const ownerName of [
   "resolveSafariFloodedRiverInteraction",
   "resolveSafariWoundedPokemonDecision",
   "resolveSafariTreasureChest",
+  "resolveSafariMinerAction",
 ]) assert.equal(bridge.includes(ownerName), true, `touch bridge must return to existing owner ${ownerName}`);
 assert.equal(handoff.includes('"wounded_pokemon"'), true);
 assert.equal(handoff.includes("prepareSafariWoundedPokemonCandidate"), true);

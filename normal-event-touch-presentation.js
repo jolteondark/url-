@@ -41,6 +41,7 @@ function loadOwner(eventId) {
       flooded_river:"./runtime/safari-flooded-river-interaction.js",
       wounded_pokemon:"./runtime/safari-wounded-pokemon-integration.js",
       treasure_chest:"./runtime/safari-treasure-chest-interaction.js",
+      miner:"./runtime/safari-miner-interaction.js",
     }[eventId];
     if (!specifier) throw new RangeError(`unsupported normal-event UI owner: ${eventId}`);
     ownerModules.set(eventId, import(specifier));
@@ -68,6 +69,7 @@ async function resolveAction(current, active, actionId) {
     return { ...result, completed:Boolean(current.variables?.mapless?.board_consumed?.[active.boardIndex]) };
   }
   if (active.eventId === "treasure_chest") return owner.resolveSafariTreasureChest(current, active.boardIndex, actionId);
+  if (active.eventId === "miner") return owner.resolveSafariMinerAction(current, active.boardIndex, actionId);
   throw new RangeError(`unsupported normal-event UI owner: ${active.eventId}`);
 }
 
