@@ -2,7 +2,7 @@ import { shouldFreezeCanonicalBattleSprite } from "./battle-sprite-phase-gate.js
 import { resolveInlineCanonicalBattleSprite } from "./runtime/safari-canonical-battle-sprite-inline.js";
 import { resolveSafariCanonicalBugBattleSprite } from "./runtime/safari-canonical-battle-sprite-bug.js";
 import { resolveSafariCanonicalFileBattleSprite } from "./runtime/safari-canonical-battle-sprite-assets.js";
-import { applySafariDay1Front96Sprite } from "./runtime/safari-day1-front-96-atlas.js?v=20260820-1200";
+import { applySafariDay1Front96Sprite } from "./runtime/safari-day1-front-96-atlas.js?v=20260820-1334";
 
 let scheduled = false;
 const pendingLoads = new Map();
