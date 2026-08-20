@@ -29,9 +29,10 @@ const extended = resolveEntryTerrainAbilityItemHookCanonical({ user: pokemon("EL
 assert.equal(extended.terrainRequest.duration, 8);
 
 assert.equal(resolveEntryTerrainAbilityItemHookCanonical({ user: pokemon("GRASSYSURGE") }).terrainRequest.terrain, "Grassy");
+assert.equal(resolveEntryTerrainAbilityItemHookCanonical({ user: pokemon("HADRONENGINE") }).terrainRequest.terrain, "Electric");
 assert.equal(resolveEntryTerrainAbilityItemHookCanonical({ user: pokemon("MISTYSURGE") }).terrainRequest.terrain, "Misty");
 assert.equal(resolveEntryTerrainAbilityItemHookCanonical({ user: pokemon("PSYCHICSURGE") }).terrainRequest.terrain, "Psychic");
-for (const ability of ["GRASSYSURGE", "MISTYSURGE", "PSYCHICSURGE"]) {
+for (const ability of ["GRASSYSURGE", "HADRONENGINE", "MISTYSURGE", "PSYCHICSURGE"]) {
   assert.equal(resolveEntryTerrainAbilityItemHookCanonical({ user: pokemon(ability, "TERRAINEXTENDER") }).terrainRequest.duration, 8);
 }
 
@@ -60,14 +61,14 @@ assert.equal(shared.entryTerrain.terrainRequest.terrain, "Psychic");
 assert.equal(shared.entryTerrain.terrainRequest.duration, 8);
 
 assert.deepEqual(BATTLE_ENTRY_TERRAIN_COVERAGE_CANONICAL.abilityIds, [
-  "ELECTRICSURGE", "GRASSYSURGE", "MISTYSURGE", "PSYCHICSURGE",
+  "ELECTRICSURGE", "GRASSYSURGE", "HADRONENGINE", "MISTYSURGE", "PSYCHICSURGE",
 ]);
 assert.deepEqual(BATTLE_ENTRY_TERRAIN_COVERAGE_CANONICAL.itemIds, ["TERRAINEXTENDER"]);
 for (const id of BATTLE_ENTRY_TERRAIN_COVERAGE_CANONICAL.abilityIds) {
   assert.ok(BATTLE_ABILITY_ITEM_SHARED_IMPLEMENTED_COVERAGE_CANONICAL.abilityIds.includes(id));
 }
 assert.ok(BATTLE_ABILITY_ITEM_SHARED_IMPLEMENTED_COVERAGE_CANONICAL.itemIds.includes("TERRAINEXTENDER"));
-assert.equal(BATTLE_ENTRY_TERRAIN_COVERAGE_CANONICAL.classificationCounts.entryTerrainAbilities, 4);
+assert.equal(BATTLE_ENTRY_TERRAIN_COVERAGE_CANONICAL.classificationCounts.entryTerrainAbilities, 5);
 assert.equal(BATTLE_ENTRY_TERRAIN_COVERAGE_CANONICAL.classificationCounts.terrainDurationHeldItems, 1);
 
 console.log("battle ability/item entry terrain smoke: PASS");
