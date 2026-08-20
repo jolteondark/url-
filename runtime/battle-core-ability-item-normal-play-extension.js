@@ -28,6 +28,12 @@ const TYPE_BOOST_ITEMS = Object.freeze({
   STEEL: "METALCOAT",
   FAIRY: "FAIRYFEATHER",
 });
+const ABILITY_TYPE_POWER_BOOSTS = Object.freeze({
+  STEELWORKER: Object.freeze({ type: "STEEL", multiplier: 1.5 }),
+  DRAGONSMAW: Object.freeze({ type: "DRAGON", multiplier: 1.5 }),
+  ROCKYPAYLOAD: Object.freeze({ type: "ROCK", multiplier: 1.5 }),
+  TRANSISTOR: Object.freeze({ type: "ELECTRIC", multiplier: 1.3 }),
+});
 const MOLD_BREAKER_SUPER_EFFECTIVE_REDUCTION_ABILITIES = new Set(["FILTER", "SOLIDROCK"]);
 const UNBYPASSABLE_SUPER_EFFECTIVE_REDUCTION_ABILITIES = new Set(["PRISMARMOR"]);
 const FULL_HP_DAMAGE_REDUCTION_ABILITIES = Object.freeze({
@@ -37,20 +43,26 @@ const FULL_HP_DAMAGE_REDUCTION_ABILITIES = Object.freeze({
 
 const EXTENSION_ABILITY_IDS = Object.freeze([
   "CHLOROPHYLL",
+  "DEFEATIST",
+  "DRAGONSMAW",
   "FILTER",
+  "FLAREBOOST",
   "MULTISCALE",
   "PRANKSTER",
   "PRISMARMOR",
+  "ROCKYPAYLOAD",
   "SANDFORCE",
   "SANDRUSH",
   "SHADOWSHIELD",
   "SLUSHRUSH",
   "SNIPER",
-  "SOLIDROCK",
   "SOLARPOWER",
+  "STEELWORKER",
   "SUPERLUCK",
   "SWIFTSWIM",
   "TINTEDLENS",
+  "TOXICBOOST",
+  "TRANSISTOR",
   "UNAWARE",
   "VICTORYSTAR",
 ]);
@@ -100,6 +112,12 @@ function pokemonAtFullHp(pokemon) {
   return Number.isFinite(hp) && Number.isFinite(maxHp) && maxHp > 0 && hp === maxHp;
 }
 
+function pokemonAtOrBelowHalfHp(pokemon) {
+  const hp = Number(pokemon?.hp ?? 0);
+  const maxHp = Number(pokemon?.max_hp ?? pokemon?.maxHp ?? 0);
+  return Number.isFinite(hp) && Number.isFinite(maxHp) && hp > 0 && maxHp > 0 && hp * 2 <= maxHp;
+}
+
 export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ user = {}, target = {}, move = {}, context = {} } = {}) {
   const userAbility = abilityId(user);
   const targetAbility = abilityId(target);
@@ -110,6 +128,7 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
   const moveType = id(move?.type);
   const typeMod = Number(context?.typeMod ?? context?.type_mod ?? 1);
   const critical = Boolean(context?.critical);
+  const userStatus = id(user?.status ?? "NONE");
 
   const pranksterPriority = userAbility === "PRANKSTER" && category === "Status" ? 1 : 0;
   const criticalStageDelta = (userAbility === "SUPERLUCK" ? 1 : 0)
@@ -122,6 +141,10 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
   const solarPowerAttackMultiplier = userAbility === "SOLARPOWER"
     && category === "Special"
     && ["Sun", "HarshSun"].includes(weather) ? 1.5 : 1;
+  const defeatistAttackMultiplier = userAbility === "DEFEATIST"
+    && ["Physical", "Special"].includes(category)
+    && pokemonAtOrBelowHalfHp(user) ? 0.5 : 1;
+  const attackMultiplier = solarPowerAttackMultiplier * defeatistAttackMultiplier;
   const moldBreaker = MOLD_BREAKER_ABILITIES.has(userAbility);
 
   let powerMultiplier = 1;
@@ -131,6 +154,10 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
   if (TYPE_BOOST_ITEMS[moveType] === userItem) powerMultiplier *= 1.2;
   if (userItem === "MUSCLEBAND" && category === "Physical") powerMultiplier *= 1.1;
   if (userItem === "WISEGLASSES" && category === "Special") powerMultiplier *= 1.1;
+  if (userAbility === "TOXICBOOST" && category === "Physical" && ["POISON", "TOXIC"].includes(userStatus)) powerMultiplier *= 1.5;
+  if (userAbility === "FLAREBOOST" && category === "Special" && userStatus === "BURN") powerMultiplier *= 1.5;
+  const abilityTypeBoost = ABILITY_TYPE_POWER_BOOSTS[userAbility];
+  if (abilityTypeBoost?.type === moveType) powerMultiplier *= abilityTypeBoost.multiplier;
 
   let finalDamageMultiplier = 1;
   if (userAbility === "TINTEDLENS" && typeMod > 0 && typeMod < 1) finalDamageMultiplier *= 2;
@@ -157,7 +184,7 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
     }),
     damageMultiplierInput: Object.freeze({
       externalPowerMultiplier: powerMultiplier,
-      externalAttackMultiplier: solarPowerAttackMultiplier,
+      externalAttackMultiplier: attackMultiplier,
       externalDefenseMultiplier: assaultVestDefenseMultiplier,
       externalFinalDamageMultiplier: finalDamageMultiplier,
     }),
@@ -201,5 +228,8 @@ export const BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL = Obje
     targetAccuracyHeldItems: 2,
     typeWeaknessAbilityModifier: 1,
     secondaryEffectSuppressionHeldItems: 1,
+    lowHpAttackPenaltyAbilities: 1,
+    statusPowerBoostAbilities: 2,
+    typePowerBoostAbilities: Object.keys(ABILITY_TYPE_POWER_BOOSTS).length,
   }),
 });
