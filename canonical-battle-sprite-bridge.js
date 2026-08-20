@@ -2,7 +2,6 @@ import { shouldFreezeCanonicalBattleSprite } from "./battle-sprite-phase-gate.js
 import { resolveInlineCanonicalBattleSprite } from "./runtime/safari-canonical-battle-sprite-inline.js";
 import { resolveSafariCanonicalBugBattleSprite } from "./runtime/safari-canonical-battle-sprite-bug.js";
 import { resolveSafariCanonicalFileBattleSprite } from "./runtime/safari-canonical-battle-sprite-assets.js";
-import { applySafariSpeciesSprite } from "./runtime/safari-species-sprite-atlas.js";
 
 let scheduled = false;
 const pendingLoads = new Map();
@@ -16,13 +15,13 @@ function ensureStyle() {
   const style = document.createElement("style");
   style.id = "canonical-battle-sprite-style";
   style.textContent = `
-    .canonical-battle-sprite,.canonical-battle-atlas-fallback{position:absolute;z-index:3;display:block;pointer-events:none;filter:drop-shadow(0 12px 10px rgba(0,0,0,.28));image-rendering:pixelated}
-    .canonical-battle-sprite{object-fit:contain}
-    .combatant.foe .canonical-battle-sprite,.combatant.foe .canonical-battle-atlas-fallback{width:168px!important;height:168px!important;right:16px;bottom:8px}
-    .combatant.player .canonical-battle-sprite,.combatant.player .canonical-battle-atlas-fallback{width:184px!important;height:184px!important;left:6px;bottom:10px}
+    .canonical-battle-sprite{position:absolute;z-index:3;display:block;object-fit:contain;pointer-events:none;filter:drop-shadow(0 12px 10px rgba(0,0,0,.28));image-rendering:pixelated;opacity:1}
+    .combatant.foe .canonical-battle-sprite{width:168px;height:168px;right:16px;bottom:8px}
+    .combatant.player .canonical-battle-sprite{width:184px;height:184px;left:6px;bottom:10px}
+    .combatant[data-sprite-loading="true"] .text-mon{display:block!important;opacity:.28}
     @media(max-width:520px){
-      .combatant.foe .canonical-battle-sprite,.combatant.foe .canonical-battle-atlas-fallback{width:148px!important;height:148px!important;right:8px;bottom:9px}
-      .combatant.player .canonical-battle-sprite,.combatant.player .canonical-battle-atlas-fallback{width:160px!important;height:160px!important;left:0;bottom:10px}
+      .combatant.foe .canonical-battle-sprite{width:148px;height:148px;right:8px;bottom:9px}
+      .combatant.player .canonical-battle-sprite{width:160px;height:160px;left:0;bottom:10px}
     }
   `;
   document.head.append(style);
@@ -38,8 +37,9 @@ function ownerPokemon(side) {
   if (!battle) return null;
   if (side === "foe") return battle.foe ?? null;
   const party = Array.isArray(runtime?.player?.party) ? runtime.player.party : [];
-  const index = Number(battle.player_party_index ?? 0);
-  return Number.isInteger(index) && index >= 0 && index < party.length ? party[index] : null;
+  const requestedIndex = Number(battle.player_party_index ?? 0);
+  if (!Number.isInteger(requestedIndex) || requestedIndex < 0 || requestedIndex >= party.length) return null;
+  return party[requestedIndex] ?? null;
 }
 
 function ownerIdentity(side) {
@@ -47,30 +47,17 @@ function ownerIdentity(side) {
   const species = typeof pokemon?.species === "string" ? pokemon.species.trim() : "";
   if (!species) return null;
   const form = pokemon.form == null ? 0 : Number(pokemon.form);
-  return { species, form: Number.isInteger(form) && form >= 0 ? form : 0 };
+  if (!Number.isInteger(form) || form < 0) return null;
+  return { species, form };
 }
 
 function resolveCanonicalAsset({ species, form, battlerIndex }) {
   const inline = resolveInlineCanonicalBattleSprite({ species, form, battlerIndex });
   if (inline) return inline;
   const side = (battlerIndex & 1) === 0 ? "player" : "foe";
-  return resolveSafariCanonicalFileBattleSprite({ species, form, side })
-    ?? resolveSafariCanonicalBugBattleSprite({ species, form, side });
-}
-
-function ensureAtlasFallback(combatant, species) {
-  let atlas = combatant.querySelector(".canonical-battle-atlas-fallback");
-  if (!atlas) {
-    atlas = document.createElement("span");
-    atlas.className = "canonical-battle-atlas-fallback";
-    atlas.setAttribute("aria-hidden", "true");
-    combatant.append(atlas);
-  }
-  const side = combatant.classList.contains("player") ? "player" : "foe";
-  const size = side === "player" ? 184 : 168;
-  const ok = applySafariSpeciesSprite(atlas, species, { size });
-  setHidden(atlas, !ok);
-  return ok ? atlas : null;
+  const fileBacked = resolveSafariCanonicalFileBattleSprite({ species, form, side });
+  if (fileBacked) return fileBacked;
+  return resolveSafariCanonicalBugBattleSprite({ species, form, side });
 }
 
 function imageForAsset(asset) {
@@ -85,54 +72,58 @@ function imageForAsset(asset) {
   return image;
 }
 
-function showAtlasOrSymbol(combatant, species, image, legacy, symbol) {
-  const atlas = ensureAtlasFallback(combatant, species);
-  setHidden(image, true);
-  setHidden(legacy, true);
-  setHidden(symbol, Boolean(atlas));
-  return atlas;
-}
-
-function commitLoadedImage(combatant, candidate, legacy, symbol, key) {
+function commitLoadedImage(combatant, currentImage, candidate, fallback, legacy, key) {
   if (!combatant.isConnected || combatant.dataset.pendingSpriteKey !== key) return;
   const displayed = combatant.querySelector(".canonical-battle-sprite");
   if (displayed && displayed !== candidate) displayed.replaceWith(candidate);
   else if (!candidate.isConnected) combatant.append(candidate);
   delete combatant.dataset.pendingSpriteKey;
-  pendingLoads.delete(combatant.id);
+  delete combatant.dataset.spriteLoading;
   setHidden(candidate, false);
   setHidden(legacy, true);
-  setHidden(symbol, true);
-  setHidden(combatant.querySelector(".canonical-battle-atlas-fallback"), true);
+  setHidden(fallback, true);
+  pendingLoads.delete(combatant.id);
 }
 
-function beginAssetLoad(combatant, currentImage, asset, species, legacy, symbol) {
+function beginAssetLoad(combatant, currentImage, asset, fallback, legacy) {
   const key = `${asset.side}:${asset.species}:${asset.form}:${asset.sha256}`;
   if (currentImage?.dataset.assetKey === key && currentImage.complete && currentImage.naturalWidth > 0) {
     delete combatant.dataset.pendingSpriteKey;
+    delete combatant.dataset.spriteLoading;
     setHidden(currentImage, false);
     setHidden(legacy, true);
-    setHidden(symbol, true);
-    setHidden(combatant.querySelector(".canonical-battle-atlas-fallback"), true);
+    setHidden(fallback, true);
     return;
   }
   if (combatant.dataset.pendingSpriteKey === key) return;
 
   combatant.dataset.pendingSpriteKey = key;
-  const hasCurrent = Boolean(currentImage?.complete && currentImage.naturalWidth > 0);
-  if (!hasCurrent) showAtlasOrSymbol(combatant, species, currentImage, legacy, symbol);
+  combatant.dataset.spriteLoading = "true";
+  const hasUsableCurrent = Boolean(currentImage?.complete && currentImage.naturalWidth > 0);
+  setHidden(currentImage, !hasUsableCurrent);
+  setHidden(legacy, true);
+  setHidden(fallback, hasUsableCurrent);
 
   const candidate = imageForAsset(asset);
   pendingLoads.set(combatant.id, candidate);
-  candidate.addEventListener("load", () => commitLoadedImage(combatant, candidate, legacy, symbol, key), { once: true });
+  candidate.addEventListener("load", () => {
+    commitLoadedImage(combatant, currentImage, candidate, fallback, legacy, key);
+  }, { once: true });
   candidate.addEventListener("error", () => {
     if (combatant.dataset.pendingSpriteKey !== key) return;
     delete combatant.dataset.pendingSpriteKey;
+    delete combatant.dataset.spriteLoading;
     pendingLoads.delete(combatant.id);
-    showAtlasOrSymbol(combatant, species, combatant.querySelector(".canonical-battle-sprite"), legacy, symbol);
+    const displayed = combatant.querySelector(".canonical-battle-sprite");
+    const hasDisplayed = Boolean(displayed?.complete && displayed.naturalWidth > 0);
+    setHidden(displayed, !hasDisplayed);
+    setHidden(fallback, hasDisplayed);
+    schedule();
   }, { once: true });
   candidate.src = asset.src;
-  if (candidate.complete && candidate.naturalWidth > 0) commitLoadedImage(combatant, candidate, legacy, symbol, key);
+  if (candidate.complete && candidate.naturalWidth > 0) {
+    commitLoadedImage(combatant, currentImage, candidate, fallback, legacy, key);
+  }
 }
 
 function renderSide({ side, battlerIndex, nameId, combatantId }) {
@@ -142,27 +133,36 @@ function renderSide({ side, battlerIndex, nameId, combatantId }) {
   const species = owner?.species ?? document.getElementById(nameId)?.textContent?.trim();
   const form = owner?.form ?? Number(combatant.dataset.form ?? 0);
   if (!species) return;
-
   const asset = resolveCanonicalAsset({ species, form, battlerIndex });
   const image = combatant.querySelector(".canonical-battle-sprite");
-  const symbol = combatant.querySelector(".text-mon");
+  const fallback = combatant.querySelector(".text-mon");
   const legacy = combatant.querySelector(".battle-sprite-image");
-  combatant.querySelector(".atlas-battle-sprite")?.remove();
+  const atlas = combatant.querySelector(".atlas-battle-sprite");
+  if (atlas) atlas.remove();
 
   if (!asset) {
     delete combatant.dataset.pendingSpriteKey;
+    delete combatant.dataset.spriteLoading;
     pendingLoads.delete(combatant.id);
-    showAtlasOrSymbol(combatant, species, image, legacy, symbol);
+    setHidden(image, true);
+    setHidden(legacy, true);
+    setHidden(fallback, false);
     return;
   }
-  beginAssetLoad(combatant, image, asset, species, legacy, symbol);
+
+  beginAssetLoad(combatant, image, asset, fallback, legacy);
+}
+
+function battleCard() {
+  return document.getElementById("battle-card");
 }
 
 function render() {
   scheduled = false;
   ensureStyle();
-  const card = document.getElementById("battle-card");
-  if (!card || card.hidden || shouldFreezeCanonicalBattleSprite(card)) return;
+  const battle = battleCard();
+  if (!battle || battle.hidden) return;
+  if (shouldFreezeCanonicalBattleSprite(battle)) return;
   for (const side of SIDES) renderSide(side);
 }
 
@@ -173,11 +173,15 @@ function schedule() {
 }
 
 function installPhaseResync() {
-  const card = document.getElementById("battle-card");
+  const card = battleCard();
   if (!card || typeof MutationObserver !== "function") return;
-  new MutationObserver(() => {
+  const observer = new MutationObserver(() => {
     if (!shouldFreezeCanonicalBattleSprite(card)) schedule();
-  }).observe(card, { attributes: true, attributeFilter: ["data-turn-phase", "hidden"] });
+  });
+  observer.observe(card, {
+    attributes: true,
+    attributeFilter: ["data-turn-phase", "hidden"],
+  });
 }
 
 ensureStyle();
