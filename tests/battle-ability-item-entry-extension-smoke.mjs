@@ -33,6 +33,35 @@ for (const ability of ["CLEARBODY", "WHITESMOKE", "FULLMETALBODY", "HYPERCUTTER"
 {
   const result = resolveIntimidateEntryReactionCanonical({
     source: pokemon("INTIMIDATE"),
+    target: pokemon("DEFIANT"),
+  });
+  assert.equal(result.replaceBaseChanges, false);
+  assert.deepEqual(result.changes, [{ subject: "target", stat: "ATTACK", delta: 2 }]);
+}
+
+{
+  const result = resolveIntimidateEntryReactionCanonical({
+    source: pokemon("INTIMIDATE"),
+    target: pokemon("COMPETITIVE"),
+  });
+  assert.equal(result.replaceBaseChanges, false);
+  assert.deepEqual(result.changes, [{ subject: "target", stat: "SPECIAL_ATTACK", delta: 2 }]);
+}
+
+{
+  const result = resolveIntimidateEntryReactionCanonical({
+    source: pokemon("INTIMIDATE"),
+    target: pokemon("MIRRORARMOR"),
+  });
+  assert.equal(result.blocksAttackDrop, true);
+  assert.equal(result.replaceBaseChanges, true);
+  assert.deepEqual(result.changes, [{ subject: "user", stat: "ATTACK", delta: -1 }]);
+  assert.equal(result.consumeRequest, null);
+}
+
+{
+  const result = resolveIntimidateEntryReactionCanonical({
+    source: pokemon("INTIMIDATE"),
     target: pokemon("RATTLED"),
   });
   assert.equal(result.replaceBaseChanges, false);
@@ -76,8 +105,9 @@ for (const ability of ["CLEARBODY", "WHITESMOKE", "FULLMETALBODY", "HYPERCUTTER"
   assert.equal(unrelated.consumeRequest, null);
 }
 
-assert.equal(BATTLE_ABILITY_ITEM_ENTRY_EXTENSION_COVERAGE_CANONICAL.abilityCount, 6);
+assert.equal(BATTLE_ABILITY_ITEM_ENTRY_EXTENSION_COVERAGE_CANONICAL.abilityCount, 9);
 assert.equal(BATTLE_ABILITY_ITEM_ENTRY_EXTENSION_COVERAGE_CANONICAL.itemCount, 1);
 assert.equal(BATTLE_ABILITY_ITEM_ENTRY_EXTENSION_COVERAGE_CANONICAL.classificationCounts.intimidateStatDropBlockers, 4);
+assert.equal(BATTLE_ABILITY_ITEM_ENTRY_EXTENSION_COVERAGE_CANONICAL.classificationCounts.intimidateReactiveAbilities, 5);
 
 console.log("battle ability/item entry extension smoke: PASS");

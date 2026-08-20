@@ -10,7 +10,13 @@ const INTIMIDATE_STAT_DROP_BLOCKERS = new Set([
   "HYPERCUTTER",
   "WHITESMOKE",
 ]);
-const INTIMIDATE_REACTIVE_ABILITIES = new Set(["GUARDDOG", "RATTLED"]);
+const INTIMIDATE_REACTIVE_ABILITIES = new Set([
+  "COMPETITIVE",
+  "DEFIANT",
+  "GUARDDOG",
+  "MIRRORARMOR",
+  "RATTLED",
+]);
 const INTIMIDATE_REACTIVE_ITEMS = new Set(["ADRENALINEORB"]);
 
 function hasOwn(object, key) {
@@ -32,8 +38,8 @@ function heldItemId(pokemon) {
   return canonicalId(pokemon?.item);
 }
 
-function statChange(stat, delta) {
-  return Object.freeze({ subject: "target", stat, delta });
+function statChange(stat, delta, subject = "target") {
+  return Object.freeze({ subject, stat, delta });
 }
 
 function consumeRequest(item, effectKind) {
@@ -72,6 +78,20 @@ export function resolveIntimidateEntryReactionCanonical({ source = {}, target = 
     });
   }
 
+  if (targetAbility === "MIRRORARMOR") {
+    return Object.freeze({
+      applies: true,
+      sourceAbility,
+      targetAbility,
+      targetItem,
+      blocksAttackDrop: true,
+      replaceBaseChanges: true,
+      changes: Object.freeze([statChange("ATTACK", -1, "user")]),
+      consumeRequest: null,
+      reason: "mirror_armor",
+    });
+  }
+
   if (targetAbility === "GUARDDOG") {
     return Object.freeze({
       applies: true,
@@ -87,6 +107,8 @@ export function resolveIntimidateEntryReactionCanonical({ source = {}, target = 
   }
 
   const changes = [];
+  if (targetAbility === "DEFIANT") changes.push(statChange("ATTACK", 2));
+  if (targetAbility === "COMPETITIVE") changes.push(statChange("SPECIAL_ATTACK", 2));
   if (targetAbility === "RATTLED") changes.push(statChange("SPEED", 1));
   let itemConsumeRequest = null;
   if (targetItem === "ADRENALINEORB") {
