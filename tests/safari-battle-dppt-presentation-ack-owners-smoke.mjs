@@ -77,7 +77,7 @@ for (const commandKind of ["item", "capture", "flee", "switch"]) {
     ],
   }, "move");
   const secondSequence = captureSafariBattlePresentationAckSequence(state);
-  assert.notEqual(secondSequence, firstSequence);
+  assert.notEqual(secondSequence.sequence, firstSequence.sequence);
   const traceLengthBeforeStaleAck = battle.phase_trace.length;
 
   assert.throws(
@@ -99,6 +99,58 @@ for (const commandKind of ["item", "capture", "flee", "switch"]) {
     commandCount,
     "same-sequence acknowledgement replay must remain idempotent",
   );
+}
+
+{
+  const state = runtime();
+  const firstBattle = state.variables.mapless.battle;
+  ensureSafariBattleOrchestrator(state);
+  beginSafariBattleCommand(state, "move");
+  commitSafariBattleResolution(state, {
+    decision: 0,
+    operations: [
+      { op: "use_move", actor: "player", target: "foe" },
+      { op: "use_move", actor: "foe", target: "player" },
+    ],
+  }, "move");
+  const firstBattleSequence = captureSafariBattlePresentationAckSequence(state);
+  assert.equal(firstBattleSequence.sequence, 1);
+
+  const secondBattle = {
+    turn: 1,
+    decision: 0,
+    completed: false,
+    presentation_ack_required: true,
+  };
+  state.variables.mapless.battle = secondBattle;
+  ensureSafariBattleOrchestrator(state);
+  beginSafariBattleCommand(state, "move");
+  commitSafariBattleResolution(state, {
+    decision: 0,
+    operations: [
+      { op: "use_move", actor: "foe", target: "player" },
+      { op: "use_move", actor: "player", target: "foe" },
+    ],
+  }, "move");
+  const secondBattleSequence = captureSafariBattlePresentationAckSequence(state);
+  assert.equal(secondBattleSequence.sequence, 1,
+    "fresh battles may legitimately reuse the same command sequence number");
+  assert.notEqual(firstBattleSequence.battle, secondBattleSequence.battle);
+  assert.equal(firstBattleSequence.battle, firstBattle);
+
+  const traceLengthBeforeCrossBattleAck = secondBattle.phase_trace.length;
+  assert.throws(
+    () => completeSafariBattlePresentationForSequence(state, firstBattleSequence),
+    /different battle instance/,
+    "a delayed callback from a previous battle must not acknowledge the next battle even when command sequence numbers match",
+  );
+  assert.equal(secondBattle.phase, SAFARI_BATTLE_PHASE.CHECK_2);
+  assert.equal(secondBattle.phase_trace.length, traceLengthBeforeCrossBattleAck,
+    "cross-battle stale acknowledgement must not mutate the new battle phase trace");
+  assert.equal(safariBattleCommandAllowed(state), false);
+
+  completeSafariBattlePresentationForSequence(state, secondBattleSequence);
+  assert.equal(secondBattle.phase, SAFARI_BATTLE_PHASE.COMMAND);
 }
 
 const ownerFiles = [
