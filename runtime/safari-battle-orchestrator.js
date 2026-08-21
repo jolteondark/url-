@@ -291,18 +291,29 @@ function returnCheckpointKey(battle) {
   ].join(":");
 }
 
+function completedResultRecorded(battle) {
+  if (battle.completed !== true) return false;
+  if (battle.completed_phase === SAFARI_BATTLE_PHASE.RESULT) return true;
+  const trace = Array.isArray(battle.phase_trace) ? battle.phase_trace : [];
+  return trace.some((entry) => entry?.phase === SAFARI_BATTLE_PHASE.RESULT);
+}
+
 export function ensureSafariBattleOrchestrator(runtime) {
   const state = stateOf(runtime);
   const battle = battleOf(runtime);
   if (!battle.phase) {
-    if (!battle.completed) {
+    const restoredResult = completedResultRecorded(battle);
+    if (battle.completed === true && !restoredResult) {
+      throw new Error("completed battle cannot initialize RESULT without a recorded RESULT boundary");
+    }
+    if (!restoredResult) {
       state.pending_battle_return_checkpoint = null;
       state.battle_return_checkpoint = null;
       battle.resolution_checkpoint = null;
       battle.replacement_checkpoint = null;
       battle.presentation_checkpoint = null;
     }
-    tracePhase(battle, battle.completed ? SAFARI_BATTLE_PHASE.RESULT : SAFARI_BATTLE_PHASE.COMMAND, "initialize");
+    tracePhase(battle, restoredResult ? SAFARI_BATTLE_PHASE.RESULT : SAFARI_BATTLE_PHASE.COMMAND, "initialize");
   }
   if (!Array.isArray(battle.phase_trace)) battle.phase_trace = [];
   return battle.phase;
