@@ -7,6 +7,7 @@ const id = (value) => String(value ?? "").toUpperCase();
 
 const MOLD_BREAKER_ABILITIES = new Set(["MOLDBREAKER", "TERAVOLT", "TURBOBLAZE"]);
 const PRIORITY_BLOCK_ABILITIES = new Set(["ARMORTAIL", "DAZZLING", "QUEENLYMAJESTY"]);
+const CRITICAL_HIT_PREVENTION_ABILITIES = new Set(["BATTLEARMOR", "SHELLARMOR"]);
 const WEATHER_SPEED_ABILITIES = Object.freeze({
   CHLOROPHYLL: new Set(["Sun", "HarshSun"]),
   SWIFTSWIM: new Set(["Rain", "HeavyRain"]),
@@ -59,6 +60,7 @@ const SPECIES_SPECIFIC_STAT_ITEMS = Object.freeze([
 
 const EXTENSION_ABILITY_IDS = Object.freeze([
   "ARMORTAIL",
+  "BATTLEARMOR",
   "CHLOROPHYLL",
   "DAZZLING",
   "DEFEATIST",
@@ -75,6 +77,7 @@ const EXTENSION_ABILITY_IDS = Object.freeze([
   "SANDRUSH",
   "SANDVEIL",
   "SHADOWSHIELD",
+  "SHELLARMOR",
   "SLUSHRUSH",
   "SNIPER",
   "SNOWCLOAK",
@@ -174,6 +177,12 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
     && !moldBreaker;
   const criticalStageDelta = (userAbility === "SUPERLUCK" ? 1 : 0)
     + (["SCOPELENS", "RAZORCLAW"].includes(userItem) ? 1 : 0);
+  const criticalHitBlocked = CRITICAL_HIT_PREVENTION_ABILITIES.has(targetAbility) && !moldBreaker;
+  const criticalHitPrevention = Object.freeze({
+    blocked: criticalHitBlocked,
+    targetAbility: CRITICAL_HIT_PREVENTION_ABILITIES.has(targetAbility) ? targetAbility : null,
+    moldBreaker,
+  });
   const assaultVestBlocksMove = userItem === "ASSAULTVEST" && category === "Status";
   const moveSelectionBlocked = assaultVestBlocksMove || priorityAbilityBlocksMove;
   const moveSelectionReason = assaultVestBlocksMove
@@ -242,6 +251,7 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
   return Object.freeze({
     priorityModifier: pranksterPriority,
     criticalStageDelta,
+    criticalHitPrevention,
     moveSelection: Object.freeze({
       blocked: moveSelectionBlocked,
       reason: moveSelectionReason,
@@ -272,6 +282,7 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
     damageCalculationInput: Object.freeze({
       userUnaware: userAbility === "UNAWARE",
       targetUnaware: targetAbility === "UNAWARE" && !moldBreaker,
+      targetCriticalHitPrevention: criticalHitPrevention,
     }),
     targetTypeResistBerry,
   });
@@ -286,6 +297,7 @@ export const BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL = Obje
     movePriority: 1,
     priorityBlockAbilities: PRIORITY_BLOCK_ABILITIES.size,
     criticalStage: 3,
+    criticalHitPreventionAbilities: CRITICAL_HIT_PREVENTION_ABILITIES.size,
     moveSelectionRestriction: 1 + PRIORITY_BLOCK_ABILITIES.size,
     specialDefenseModifier: 1,
     statusDefenseModifierAbilities: 1,
