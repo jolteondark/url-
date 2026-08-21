@@ -27,15 +27,26 @@ function normalizedWeather(context) {
   return String(context?.effectiveWeather ?? context?.weather ?? "").toUpperCase();
 }
 
-function immunityReason({ types, ability, item, weather }) {
-  if (WEATHER_DAMAGE_IMMUNE_ITEMS.has(item)) return "held_item";
+function abilitySuppressedCanonical(context = {}) {
+  return Boolean(context?.abilitySuppressed || context?.gastroAcidActive || context?.neutralizingGasActive);
+}
+
+function itemSuppressedCanonical(pokemon = {}, context = {}) {
+  return battlePokemonAbilityIdCanonical(pokemon) === "KLUTZ"
+    || Boolean(context?.itemSuppressed)
+    || Boolean(context?.magicRoomActive)
+    || Boolean(context?.embargoActive);
+}
+
+function immunityReason({ types, ability, item, weather, abilitySuppressed, itemSuppressed }) {
+  if (!itemSuppressed && WEATHER_DAMAGE_IMMUNE_ITEMS.has(item)) return "held_item";
   if (weather === "SANDSTORM") {
     if (types.some((type) => SANDSTORM_IMMUNE_TYPES.has(type))) return "type";
-    if (SANDSTORM_IMMUNE_ABILITIES.has(ability)) return "ability";
+    if (!abilitySuppressed && SANDSTORM_IMMUNE_ABILITIES.has(ability)) return "ability";
   }
   if (weather === "HAIL") {
     if (types.some((type) => HAIL_IMMUNE_TYPES.has(type))) return "type";
-    if (HAIL_IMMUNE_ABILITIES.has(ability)) return "ability";
+    if (!abilitySuppressed && HAIL_IMMUNE_ABILITIES.has(ability)) return "ability";
   }
   return null;
 }
@@ -47,8 +58,12 @@ export function resolveWeatherChipTurnEndCanonical(pokemon = {}, context = {}) {
   const weather = normalizedWeather(context);
   const hp = integerHp(pokemon, "hp");
   const maxHp = integerHp(pokemon, "maxHp");
+  const abilitySuppressed = abilitySuppressedCanonical(context);
+  const itemSuppressed = itemSuppressedCanonical(pokemon, context);
   const damagingWeather = weather === "SANDSTORM" || weather === "HAIL";
-  const immuneSource = damagingWeather ? immunityReason({ types, ability, item, weather }) : null;
+  const immuneSource = damagingWeather
+    ? immunityReason({ types, ability, item, weather, abilitySuppressed, itemSuppressed })
+    : null;
   const immune = immuneSource !== null;
   const amount = damagingWeather && !immune && hp > 0 && maxHp > 0
     ? Math.min(hp, Math.floor(maxHp / 16))
@@ -59,6 +74,8 @@ export function resolveWeatherChipTurnEndCanonical(pokemon = {}, context = {}) {
     item,
     types: Object.freeze(types),
     weather,
+    abilitySuppressed,
+    itemSuppressed,
     triggered: amount > 0,
     immune,
     immuneSource,
