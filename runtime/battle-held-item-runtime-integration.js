@@ -18,6 +18,7 @@ function actionAfterConsumeRequests(action, reflectedBattlerIndex) {
   if (Number(action?.targetBattlerIndex) === index) {
     if (after?.targetBerry?.triggered === true && after.targetBerry.consumeRequest) requests.push(after.targetBerry.consumeRequest);
     if (after?.targetAirBalloon?.triggered === true && after.targetAirBalloon.consumeRequest) requests.push(after.targetAirBalloon.consumeRequest);
+    if (after?.targetHitReactiveItem?.triggered === true && after.targetHitReactiveItem.consumeRequest) requests.push(after.targetHitReactiveItem.consumeRequest);
   }
   return requests;
 }
