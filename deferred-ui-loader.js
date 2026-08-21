@@ -56,8 +56,15 @@ async function loadMenuUi() {
     loadModule("./species-form-metadata-bridge.js"),
     loadModule("./species-sprite-atlas-bridge.js"),
   ]);
-  window.dispatchEvent(new CustomEvent("safari-game-menu-ui-ready"));
+  if (modules[0]) window.dispatchEvent(new CustomEvent("safari-game-menu-ui-ready"));
   return modules;
+}
+
+function menuUiReadyForTab(tab, modules) {
+  if (!modules?.[0]) return false;
+  if (tab === "party") return Boolean(modules[1]);
+  if (tab === "box") return Boolean(modules[3]);
+  return tab === "bag";
 }
 
 function syncSceneBundles() {
@@ -119,9 +126,13 @@ window.addEventListener("safari-game-menu-open-requested", async (event) => {
   if (!new Set(["party", "bag", "box"]).has(tab) || gameMenuOpenPending) return;
   setBattleMenuOpenPending(true);
   try {
-    await loadMenuUi();
+    const modules = await loadMenuUi();
     const battle = globalThis.__maplessSafariRuntime?.variables?.mapless?.battle;
     if (!battle || battle.phase !== "COMMAND") return;
+    if (!menuUiReadyForTab(tab, modules)) {
+      window.dispatchEvent(new CustomEvent("safari-game-menu-open-failed", { detail: { tab } }));
+      return;
+    }
     window.dispatchEvent(new CustomEvent("safari-game-menu-open-ready", { detail: { tab } }));
   } finally {
     setBattleMenuOpenPending(false);
