@@ -569,6 +569,9 @@ export function completeSafariBattleReturn(runtime, result = {}) {
   if (battle) state.last_battle_phase_trace = structuredClone(battle.phase_trace ?? state.last_battle_phase_trace ?? []);
 
   const committedCheckpoint = state.battle_return_checkpoint;
+  if (battle) {
+    throw new Error("battle return completion requires the active battle to be cleared");
+  }
   if (committedCheckpoint?.committed === true) {
     result.operations = structuredClone(committedCheckpoint.operations ?? []);
     result.persistenceRequested = true;
