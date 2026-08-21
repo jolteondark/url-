@@ -4,7 +4,7 @@ import { setMoney } from "./bag-economy-mart-flow.js";
 import { maplessCarryMoneyGain } from "./mapless-carry-class-rules.js";
 import { resolveDayBoardPlayableTurn } from "./mapless-day-board-playable-turn.js";
 import { markMaplessRunEnd } from "./mapless-run-end-lifecycle.js";
-import { resolvePokemonLevelEvolution } from "./pokemon-level-evolution-runtime.js";
+import { resolvePokemonLevelEvolutionWithPartyContext } from "./pokemon-level-evolution-party-context.js";
 import { resolvePokemonRuntimeMasters } from "./pokemon-runtime-masters.js";
 import { SAFARI_MOVE_MASTERS, SAFARI_NATURE_MASTERS, SAFARI_SPECIES_MASTERS } from "./safari-playable-data.js";
 
@@ -163,10 +163,11 @@ function commitPendingLevelEvolutions(runtime) {
     const natureMaster = SAFARI_NATURE_MASTERS[natureId];
     if (!natureMaster) throw new RangeError(`battle evolution nature is outside the Safari projection: ${natureId}`);
 
-    const resolved = resolvePokemonLevelEvolution(candidate, {
+    const resolved = resolvePokemonLevelEvolutionWithPartyContext(candidate, {
       species_masters: SAFARI_SPECIES_MASTERS,
       nature_master: natureMaster,
       move_masters: SAFARI_MOVE_MASTERS,
+      party,
     });
     party[index] = resolved.pokemon;
     operations.push(...structuredClone(resolved.operations ?? []));

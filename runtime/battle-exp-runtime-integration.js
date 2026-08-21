@@ -1,7 +1,7 @@
 import { resolveExpLevelMoveFlow } from "./battle-exp-level-move-flow.js";
 import { resolvePokemonRuntimeMasters } from "./pokemon-runtime-masters.js";
 import { updatePokemonRuntime } from "./pokemon-runtime.js";
-import { resolvePokemonLevelEvolution } from "./pokemon-level-evolution-runtime.js";
+import { resolvePokemonLevelEvolutionWithPartyContext } from "./pokemon-level-evolution-party-context.js";
 import { clearSafariBattleMoveLearningDecisions } from "./safari-battle-move-learning-choice.js";
 
 function hasGainExpRequest(action) {
@@ -113,12 +113,13 @@ export function commitBattleSystemsExpRuntime({ battleInput = {}, turn = {}, pok
       if (evolutionMasters && Number(flow.pokemon.level) > beforeLevel) {
         const beforeEvolution = runtime;
         const deferEvolution = action.battleExpInput.deferEvolution === true;
-        evolution = resolvePokemonLevelEvolution(runtime, {
+        evolution = resolvePokemonLevelEvolutionWithPartyContext(runtime, {
           ...evolutionMasters,
           maxMoves: action.battleExpInput.maxMoves ?? 4,
           // Deferred evolution is eligibility-only here. Do not consume explicit
           // choices or invoke the live browser resolver until terminal
-          // REWARD_GROWTH actually executes the evolution.
+          // REWARD_GROWTH actually executes the evolution. Party-context methods
+          // can surface a deferred candidate without guessing their final result.
           moveDecisions: deferEvolution ? {} : (action.battleExpInput.moveDecisions ?? {}),
           moveDecisionResolver: deferEvolution ? null : (action.battleExpInput.moveDecisionResolver ?? null),
           moveDecisionResolverSource: deferEvolution ? "deferred_probe" : (action.battleExpInput.moveDecisionResolverSource ?? null),
