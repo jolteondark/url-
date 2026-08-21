@@ -104,7 +104,7 @@ function weatherContextSatisfied(method, weather) {
   if (!current) return false;
   if (method === "LevelNoWeather") return current === "NONE";
   if (method === "LevelSun") return current === "SUN" || current === "HARSHSUN";
-  if (method === "LevelRain") return current === "RAIN" || current === "HEAVYRAIN";
+  if (method === "LevelRain") return current === "RAIN" || current === "HEAVYRAIN" || current === "FOG";
   if (method === "LevelSnow") return current === "HAIL";
   if (method === "LevelSandstorm") return current === "SANDSTORM";
   return false;
