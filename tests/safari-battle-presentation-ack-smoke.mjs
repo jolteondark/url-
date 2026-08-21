@@ -231,4 +231,5 @@ function phaseCount(battle, phase) {
 }
 
 await import("./safari-battle-dppt-presentation-ack-owners-smoke.mjs");
+await import("./safari-battle-persistence-phase-lock-smoke.mjs");
 console.log("Safari Battle presentation acknowledgement smoke passed");
