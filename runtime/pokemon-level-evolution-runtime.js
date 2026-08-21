@@ -34,7 +34,11 @@ function moveId(move) {
   return typeof move === "string" ? move : move?.id;
 }
 
-function levelEvolutionTarget(speciesMaster, runtime) {
+function normalizedTypeId(value) {
+  return String(value ?? "").replace(/^:/, "");
+}
+
+function levelEvolutionTarget(speciesMaster, runtime, moveMasters = {}) {
   const unsupportedMethods = new Set();
   const level = Number(runtime?.level);
   const gender = Number(runtime?.gender);
@@ -59,6 +63,7 @@ function levelEvolutionTarget(speciesMaster, runtime) {
     "HappinessMale",
     "HappinessFemale",
     "HappinessMove",
+    "HappinessMoveType",
     "MaxHappiness",
   ]);
   let eligible = null;
@@ -77,6 +82,20 @@ function levelEvolutionTarget(speciesMaster, runtime) {
       const conditionMatches = Number.isInteger(happiness) && happiness >= 220 && knowsMove;
       if (!eligible && conditionMatches) {
         eligible = { target: evolution.species, method: evolution.method, parameter: requiredMove };
+      }
+      continue;
+    }
+
+    if (evolution.method === "HappinessMoveType") {
+      const requiredType = normalizedTypeId(evolution.parameter);
+      const knowsMoveType = requiredType.length > 0
+        && (runtime?.moves ?? []).some((move) => {
+          const master = moveMasters?.[String(moveId(move) ?? "")];
+          return normalizedTypeId(master?.type ?? master?.type_id) === requiredType;
+        });
+      const conditionMatches = Number.isInteger(happiness) && happiness >= 220 && knowsMoveType;
+      if (!eligible && conditionMatches) {
+        eligible = { target: evolution.species, method: evolution.method, parameter: requiredType };
       }
       continue;
     }
@@ -335,7 +354,7 @@ export function resolvePokemonLevelEvolution(runtime, {
   }
   const sourceMaster = species_masters[runtime?.species];
   if (!sourceMaster) throw new RangeError(`missing species master for ${runtime?.species ?? "unknown species"}`);
-  const candidate = levelEvolutionTarget(sourceMaster, runtime);
+  const candidate = levelEvolutionTarget(sourceMaster, runtime, move_masters);
   const levelEvolutionCandidate = publicCandidate(candidate);
   if (!candidate.target) {
     return {
@@ -404,7 +423,7 @@ export function resolvePokemonLevelEvolution(runtime, {
     moveDecisionResolverSource,
   });
   recalculated = learned.pokemon;
-  const targetCandidate = levelEvolutionTarget(targetMaster, recalculated);
+  const targetCandidate = levelEvolutionTarget(targetMaster, recalculated, move_masters);
   const unsupportedMethods = mergedUnsupportedMethods(candidate.unsupportedMethods, targetCandidate.unsupportedMethods);
 
   return {
