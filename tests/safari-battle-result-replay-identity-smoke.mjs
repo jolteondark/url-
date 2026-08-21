@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import {
   SAFARI_BATTLE_PHASE,
   beginSafariBattleCommand,
+  beginSafariBattleReturn,
   commitSafariBattleResolution,
+  completeSafariBattleReturn,
   ensureSafariBattleOrchestrator,
 } from "../runtime/safari-battle-orchestrator.js";
 
@@ -69,5 +71,55 @@ assert.throws(
   "RESULT must reject a terminal replay tagged for another command sequence",
 );
 assert.equal(battle.phase_trace.length, traceLength);
+
+beginSafariBattleReturn(state);
+assert.equal(battle.phase, SAFARI_BATTLE_PHASE.RETURN);
+const returnTraceLength = battle.phase_trace.length;
+assert.throws(
+  () => completeSafariBattleReturn(state, {
+    target: "day_board",
+    operations: [{ op: "return_to_day_board" }],
+  }),
+  /active battle to be cleared/,
+  "RETURN must not commit the post-Battle save while the completed Battle object is still active",
+);
+assert.equal(state.variables.mapless.pending_battle_return_checkpoint?.committed, false,
+  "failed pre-clear RETURN completion must preserve the pending checkpoint for the real return owner");
+assert.equal(state.variables.mapless.battle_return_checkpoint ?? null, null,
+  "failed pre-clear RETURN completion must not publish a committed save checkpoint");
+assert.equal(battle.phase, SAFARI_BATTLE_PHASE.RETURN);
+assert.equal(battle.phase_trace.length, returnTraceLength,
+  "pre-clear RETURN rejection must not append a second phase transition");
+
+state.variables.mapless.battle = null;
+const returned = completeSafariBattleReturn(state, {
+  target: "day_board",
+  operations: [{ op: "return_to_day_board" }],
+});
+assert.equal(returned.phase, SAFARI_BATTLE_PHASE.RETURN);
+assert.equal(returned.operations.filter((operation) => operation.op === "request_save").length, 1,
+  "cleared Battle state may commit exactly one post-RETURN save checkpoint");
+assert.equal(state.variables.mapless.battle_return_checkpoint?.committed, true);
+assert.equal(state.variables.mapless.pending_battle_return_checkpoint, null);
+
+const replayedReturn = completeSafariBattleReturn(state, {
+  target: "day_board",
+  operations: [{ op: "return_to_day_board" }],
+});
+assert.deepEqual(replayedReturn.operations, returned.operations,
+  "RETURN compatibility replay must reuse the first committed operation/save snapshot");
+
+state.variables.mapless.battle = {
+  turn: 1,
+  decision: 0,
+  completed: false,
+};
+assert.throws(
+  () => completeSafariBattleReturn(state, {}),
+  /active battle to be cleared/,
+  "a stale committed RETURN replay must not apply after a new Battle object becomes active",
+);
+assert.deepEqual(state.variables.mapless.battle_return_checkpoint.operations, returned.operations,
+  "cross-Battle rejection must preserve the original committed RETURN snapshot without replaying it");
 
 console.log("Safari Battle RESULT replay identity smoke passed");
