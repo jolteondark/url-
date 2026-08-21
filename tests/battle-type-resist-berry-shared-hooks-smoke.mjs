@@ -13,7 +13,9 @@ const pokemon = (ability = "NONE", heldItem = null, extra = {}) => ({
   max_hp: 100,
   ...extra,
 });
-const move = (type, category = "Special") => ({ id: `${type}MOVE`, type, category, power: category === "Status" ? 0 : 80 });
+const move = (type, category = "Special", extra = {}) => ({
+  id: `${type}MOVE`, type, category, power: category === "Status" ? 0 : 80, ...extra,
+});
 
 assert.equal(BATTLE_TYPE_RESIST_BERRY_COVERAGE_CANONICAL.itemCount, 18);
 for (const id of ["OCCABERRY", "PASSHOBERRY", "WACANBERRY", "RINDOBERRY", "YACHEBERRY", "CHOPLEBERRY", "KEBIABERRY", "SHUCABERRY", "COBABERRY", "PAYAPABERRY", "TANGABERRY", "CHARTIBERRY", "KASIBBERRY", "HABANBERRY", "COLBURBERRY", "BABIRIBERRY", "CHILANBERRY", "ROSELIBERRY"]) {
@@ -56,6 +58,12 @@ for (const id of ["OCCABERRY", "PASSHOBERRY", "WACANBERRY", "RINDOBERRY", "YACHE
   assert.equal(resolveTypeResistBerryActionBeforeCanonical({
     user: pokemon(), target: pokemon("NONE", "OCCABERRY"), move: move("FIRE", "Status"), context: { typeMod: 2 },
   }).triggered, false);
+  assert.equal(resolveTypeResistBerryActionBeforeCanonical({
+    user: pokemon(),
+    target: pokemon("NONE", "CHOPLEBERRY"),
+    move: move("FIGHTING", "Physical", { power: 0, function_code: "FixedDamageUserLevel" }),
+    context: { typeMod: 2 },
+  }).triggered, false);
 }
 
 {
@@ -89,7 +97,6 @@ for (const id of ["OCCABERRY", "PASSHOBERRY", "WACANBERRY", "RINDOBERRY", "YACHE
     move: move("FIRE"),
     context: { typeMod: 2 },
   });
-  assert.equal(before.targetTypeResistBerry.triggered, true);
   assert.equal(before.modifiers.damageMultiplierInput.externalFinalDamageMultiplier, 0.5);
 
   const after = resolveBattleAbilityItemHookCanonical({
@@ -100,8 +107,21 @@ for (const id of ["OCCABERRY", "PASSHOBERRY", "WACANBERRY", "RINDOBERRY", "YACHE
     damageDealt: 40,
     context: { typeMod: 2 },
   });
-  assert.equal(after.targetTypeResistBerry.triggered, true);
-  assert.equal(after.targetTypeResistBerry.consumeRequest.permanent, true);
+  assert.equal(after.targetHitReactiveItem.triggered, true);
+  assert.equal(after.targetHitReactiveItem.consumeRequest.permanent, true);
+}
+
+{
+  const unnerve = resolveBattleAbilityItemHookCanonical({
+    hook: "action_after",
+    user: pokemon("UNNERVE"),
+    target: pokemon("RIPEN", "OCCABERRY"),
+    move: move("FIRE"),
+    damageDealt: 40,
+    context: { typeMod: 2 },
+  });
+  assert.equal(unnerve.targetHitReactiveItem.triggered, false);
+  assert.equal(unnerve.targetHitReactiveItem.blockedByBerrySuppression, true);
 }
 
 {
@@ -112,7 +132,7 @@ for (const id of ["OCCABERRY", "PASSHOBERRY", "WACANBERRY", "RINDOBERRY", "YACHE
     move: move("FIRE"),
     context: { typeMod: 2 },
   });
-  assert.equal(klutz.targetTypeResistBerry.triggered, false);
+  assert.equal(klutz.modifiers.damageMultiplierInput.externalFinalDamageMultiplier, 1);
 }
 
 console.log("battle type-resist Berry shared hooks smoke: PASS");
