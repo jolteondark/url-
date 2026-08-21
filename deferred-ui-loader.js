@@ -55,7 +55,7 @@ async function loadMenuUi() {
     loadModule("./party-panel-bridge.js?v=20260821-1535"),
     loadModule("./battle-party-voluntary-switch-bridge.js?v=20260821-1535"),
     loadModule("./storage-panel-bridge.js"),
-    loadModule("./party-storage-controls-bridge.js"),
+    loadModule("./party-storage-controls-bridge.js?v=20260822-0734"),
     loadModule("./species-form-metadata-bridge.js"),
     loadModule("./species-sprite-atlas-bridge.js"),
   ]);
