@@ -3,7 +3,10 @@ import {
   attemptSafariCapture,
   saveSafariPlayableRun,
 } from "./runtime/safari-web-playable-integration.js";
-import { completeSafariBattlePresentation } from "./runtime/safari-battle-orchestrator.js";
+import {
+  captureSafariBattlePresentationAckSequence,
+  completeSafariBattlePresentationForSequence,
+} from "./runtime/safari-battle-presentation-ack.js";
 import { formatSafariBattlePresentationEvent } from "./battle-presentation-narration.js";
 
 const byId = (id) => document.getElementById(id);
@@ -106,9 +109,10 @@ async function runCaptureRequest(sourceButton) {
 
   try {
     const result = await attemptSafariCapture(currentRuntime);
+    const presentationSequence = captureSafariBattlePresentationAckSequence(currentRuntime);
     globalThis.__maplessLastCaptureResult = result;
     await playPresentation(currentRuntime, result.presentation ?? []);
-    completeSafariBattlePresentation(currentRuntime);
+    completeSafariBattlePresentationForSequence(currentRuntime, presentationSequence);
     saveIfRequested(currentRuntime, result);
   } catch (error) {
     globalThis.__maplessLastError = error;
