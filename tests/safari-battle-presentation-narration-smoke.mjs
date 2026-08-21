@@ -132,3 +132,4 @@ await import("./battle-ordinary-powder-major-status-owner.mjs");
 await import("./safari-consumed-action-foe-response-smoke.mjs");
 await import("./browser-direct-normal-stat-stages-smoke.mjs");
 await import("./safari-battle-automatic-owner-phase-smoke.mjs");
+await import("./safari-battle-explicit-return-begin-smoke.mjs");
