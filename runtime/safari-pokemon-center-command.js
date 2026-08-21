@@ -15,6 +15,7 @@ import { interactiveSafariBuriedItem } from "./safari-buried-item-interaction.js
 import { interactiveSafariEggShop } from "./safari-egg-shop-interaction.js";
 import { openSafariTreasureTouch } from "./safari-treasure-chest-interaction.js";
 import { openSafariMinerTouch } from "./safari-miner-interaction.js";
+import { openSafariTavernTouch } from "./safari-tavern-interaction.js";
 import { openSafariNormalEventTouch, supportsSafariNormalEventTouch } from "./safari-normal-event-touch-handoff.js";
 import { activateSafariDayBoardCell as activateSafariDayBoardCellBase } from "./safari-playable-integration-wounded.js";
 
@@ -55,6 +56,7 @@ export function activateSafariDayBoardCell(runtime, index) {
   }
   if (event?.kind === "treasure" && typeof globalThis.document !== "undefined") return openSafariTreasureTouch(runtime, index);
   if (event?.kind === "miner" && typeof globalThis.document !== "undefined") return openSafariMinerTouch(runtime, index);
+  if (event?.kind === "tavern" && typeof globalThis.document !== "undefined") return openSafariTavernTouch(runtime, index);
   if (event?.kind === "buried_item") return interactiveSafariBuriedItem(runtime, index);
   if (event?.kind === "egg_shop") return interactiveSafariEggShop(runtime, index);
   if (!event || event.kind !== "center") return activateSafariDayBoardCellBase(runtime, index);
