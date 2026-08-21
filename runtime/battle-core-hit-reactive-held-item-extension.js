@@ -3,6 +3,10 @@ import {
   battlePokemonHeldItemIdCanonical,
 } from "./battle-core-ability-item-modifiers.js";
 import { isCanonicalFixedDamageFunction } from "./battle-core-hp-function-effects.js";
+import {
+  BATTLE_TYPE_RESIST_BERRY_COVERAGE_CANONICAL,
+  resolveTypeResistBerryActionAfterCanonical,
+} from "./battle-core-type-resist-berry-extension.js";
 
 const WEAKNESS_POLICY = "WEAKNESSPOLICY";
 const TYPE_HIT_STAT_ITEMS = Object.freeze({
@@ -11,7 +15,12 @@ const TYPE_HIT_STAT_ITEMS = Object.freeze({
   LUMINOUSMOSS: Object.freeze({ type: "WATER", stat: "SPECIAL_DEFENSE", delta: 1 }),
   SNOWBALL: Object.freeze({ type: "ICE", stat: "ATTACK", delta: 1 }),
 });
-const ITEM_IDS = Object.freeze([WEAKNESS_POLICY, ...Object.keys(TYPE_HIT_STAT_ITEMS)].sort());
+const TYPE_RESIST_BERRY_ITEMS = new Set(BATTLE_TYPE_RESIST_BERRY_COVERAGE_CANONICAL.itemIds);
+const ITEM_IDS = Object.freeze([
+  WEAKNESS_POLICY,
+  ...Object.keys(TYPE_HIT_STAT_ITEMS),
+  ...BATTLE_TYPE_RESIST_BERRY_COVERAGE_CANONICAL.itemIds,
+].sort());
 
 function canonicalId(value) {
   const raw = typeof value === "string" ? value : value?.id;
@@ -45,7 +54,7 @@ function targetStatChange(stat, delta) {
   return Object.freeze({ subject: "target", stat, delta });
 }
 
-export function resolveHitReactiveHeldItemActionAfterCanonical({ target = {}, move = {}, damageDealt = 0, context = {} } = {}) {
+export function resolveHitReactiveHeldItemActionAfterCanonical({ user = {}, target = {}, move = {}, damageDealt = 0, context = {} } = {}) {
   const item = battlePokemonHeldItemIdCanonical(target);
   const moveType = canonicalId(move?.type);
   const category = String(move?.category ?? "Status");
@@ -55,6 +64,14 @@ export function resolveHitReactiveHeldItemActionAfterCanonical({ target = {}, mo
   const suppressed = heldItemSuppressedCanonical(target, context);
   const typeMod = Number(context?.typeMod ?? context?.type_mod ?? 1);
   const fixedDamage = isCanonicalFixedDamageFunction(move?.function_code);
+
+  if (TYPE_RESIST_BERRY_ITEMS.has(item)) {
+    const berry = resolveTypeResistBerryActionAfterCanonical({ user, target, move, damageDealt, context });
+    return Object.freeze({
+      ...berry,
+      statChanges: Object.freeze([]),
+    });
+  }
 
   if (!ITEM_IDS.includes(item) || suppressed || !damagingMove || !hit || damage <= 0) {
     return Object.freeze({
@@ -110,6 +127,7 @@ export const BATTLE_HIT_REACTIVE_HELD_ITEM_COVERAGE_CANONICAL = Object.freeze({
   classificationCounts: Object.freeze({
     superEffectiveStatItems: 1,
     typeHitStatItems: Object.keys(TYPE_HIT_STAT_ITEMS).length,
+    typeResistBerryItems: BATTLE_TYPE_RESIST_BERRY_COVERAGE_CANONICAL.itemCount,
     hitConsumedHeldItems: ITEM_IDS.length,
   }),
 });

@@ -1,3 +1,8 @@
+import {
+  BATTLE_TYPE_RESIST_BERRY_COVERAGE_CANONICAL,
+  resolveTypeResistBerryActionBeforeCanonical,
+} from "./battle-core-type-resist-berry-extension.js";
+
 const id = (value) => String(value ?? "").toUpperCase();
 
 const MOLD_BREAKER_ABILITIES = new Set(["MOLDBREAKER", "TERAVOLT", "TURBOBLAZE"]);
@@ -97,6 +102,7 @@ const EXTENSION_ITEM_IDS = Object.freeze([
   "WISEGLASSES",
   ...Object.values(TYPE_BOOST_ITEMS),
   ...SPECIES_SPECIFIC_STAT_ITEMS,
+  ...BATTLE_TYPE_RESIST_BERRY_COVERAGE_CANONICAL.itemIds,
 ].sort());
 
 function hasOwn(object, key) {
@@ -155,6 +161,7 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
   const critical = Boolean(context?.critical);
   const userStatus = id(user?.status ?? "NONE");
   const targetStatus = id(target?.status ?? "NONE");
+  const targetTypeResistBerry = resolveTypeResistBerryActionBeforeCanonical({ user, target, move, context });
 
   const pranksterPriority = userAbility === "PRANKSTER" && category === "Status" ? 1 : 0;
   const moldBreaker = MOLD_BREAKER_ABILITIES.has(userAbility);
@@ -230,6 +237,7 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
     && !(fullHpReduction.bypassedByMoldBreaker && moldBreaker)) {
     finalDamageMultiplier *= 0.5;
   }
+  finalDamageMultiplier *= targetTypeResistBerry.damageMultiplier;
 
   return Object.freeze({
     priorityModifier: pranksterPriority,
@@ -265,6 +273,7 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
       userUnaware: userAbility === "UNAWARE",
       targetUnaware: targetAbility === "UNAWARE" && !moldBreaker,
     }),
+    targetTypeResistBerry,
   });
 }
 
@@ -299,5 +308,6 @@ export const BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL = Obje
     lowHpAttackPenaltyAbilities: 1,
     statusPowerBoostAbilities: 2,
     typePowerBoostAbilities: Object.keys(ABILITY_TYPE_POWER_BOOSTS).length,
+    typeResistBerryHeldItems: BATTLE_TYPE_RESIST_BERRY_COVERAGE_CANONICAL.itemCount,
   }),
 });
