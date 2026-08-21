@@ -5,7 +5,14 @@ import {
 import { resolveHpFaintActionCanonical } from "../runtime/battle-core-hp-faint.js";
 import { commitBattleSystemsHeldItemRuntime } from "../runtime/battle-held-item-runtime-integration.js";
 
-function action({ ability = "NONE", heldItem = null, hp = 100, damage = 150, moldBreaker = false } = {}) {
+function action({
+  ability = "NONE",
+  heldItem = null,
+  hp = 100,
+  damage = 150,
+  moldBreaker = false,
+  survivalRoll = undefined,
+} = {}) {
   return {
     kind: "move",
     battlerIndex: 0,
@@ -15,6 +22,7 @@ function action({ ability = "NONE", heldItem = null, hp = 100, damage = 150, mol
     hpBefore: hp,
     totalHp: 100,
     calculatedDamage: damage,
+    abilityItemSurvivalRandomRoll: survivalRoll,
     abilityItemActionBefore: {
       modifiers: {
         targetAbility: ability,
@@ -91,6 +99,46 @@ function runtimePokemon(item = null) {
   const notFull = applyBattleAbilityItemSurvivalCanonical(action({ heldItem: "FOCUSSASH", hp: 99 }));
   assert.equal(notFull.abilityItemSurvival.triggered, false);
   assert.equal(notFull.calculatedDamage, 150);
+}
+
+{
+  const survived = applyBattleAbilityItemSurvivalCanonical(action({
+    heldItem: "FOCUSBAND",
+    hp: 37,
+    damage: 80,
+    moldBreaker: true,
+    survivalRoll: 9,
+  }));
+  const hp = resolveHpFaintActionCanonical(survived);
+  assert.equal(survived.abilityItemSurvival.triggered, true, "Focus Band should trigger on a roll below 10");
+  assert.equal(survived.abilityItemSurvival.source, "FOCUSBAND");
+  assert.equal(survived.calculatedDamage, 36, "Focus Band should leave exactly 1 HP even below full HP");
+  assert.equal(hp.hpAfter, 1);
+  assert.equal(hp.fainted, false);
+  assert.equal(survived.abilityItemSurvival.consumeRequest, null, "Focus Band is not consumed");
+}
+
+{
+  const failedRoll = applyBattleAbilityItemSurvivalCanonical(action({
+    heldItem: "FOCUSBAND",
+    hp: 37,
+    damage: 80,
+    survivalRoll: 10,
+  }));
+  const hp = resolveHpFaintActionCanonical(failedRoll);
+  assert.equal(failedRoll.abilityItemSurvival.triggered, false, "Focus Band roll 10 must fail the 10% check");
+  assert.equal(failedRoll.calculatedDamage, 80);
+  assert.equal(hp.fainted, true);
+}
+
+{
+  const nonLethal = applyBattleAbilityItemSurvivalCanonical(action({
+    heldItem: "FOCUSBAND",
+    hp: 37,
+    damage: 20,
+    survivalRoll: 0,
+  }));
+  assert.equal(nonLethal.abilityItemSurvival.triggered, false, "Focus Band must only check lethal move damage");
 }
 
 {
