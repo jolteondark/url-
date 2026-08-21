@@ -13,7 +13,12 @@ const HAPPINESS_NIGHT_SENTINEL = -2147483640;
 const PARTY_CONTEXT_METHODS = new Set(["HasInParty", "LevelDarkInParty"]);
 const LEVEL_TIME_CONTEXT_METHODS = new Set(["LevelDay", "LevelNight", "LevelMorning", "LevelAfternoon", "LevelEvening"]);
 const HAPPINESS_TIME_CONTEXT_METHODS = new Set(["HappinessDay", "HappinessNight"]);
-const TIME_CONTEXT_METHODS = new Set([...LEVEL_TIME_CONTEXT_METHODS, ...HAPPINESS_TIME_CONTEXT_METHODS]);
+const HOLD_ITEM_TIME_CONTEXT_METHODS = new Set(["DayHoldItem", "NightHoldItem"]);
+const TIME_CONTEXT_METHODS = new Set([
+  ...LEVEL_TIME_CONTEXT_METHODS,
+  ...HAPPINESS_TIME_CONTEXT_METHODS,
+  ...HOLD_ITEM_TIME_CONTEXT_METHODS,
+]);
 const CONTEXT_METHODS = new Set([...PARTY_CONTEXT_METHODS, ...TIME_CONTEXT_METHODS]);
 const DEFAULT_HAPPINESS_THRESHOLD = 220;
 
@@ -33,6 +38,13 @@ function normalizeEvolution(entry) {
 
 function normalizedDataId(value) {
   return String(value ?? "").replace(/^:/, "");
+}
+
+function heldItemId(runtime) {
+  const heldItem = Object.prototype.hasOwnProperty.call(runtime ?? {}, "held_item")
+    ? runtime.held_item
+    : runtime?.item;
+  return normalizedDataId(heldItem);
 }
 
 function normalizedTypes(master) {
@@ -63,8 +75,8 @@ function canonicalHour(value) {
 }
 
 function timeContextSatisfied(method, hour) {
-  if (method === "LevelDay" || method === "HappinessDay") return hour >= 5 && hour < 20;
-  if (method === "LevelNight" || method === "HappinessNight") return hour >= 20 || hour < 5;
+  if (["LevelDay", "HappinessDay", "DayHoldItem"].includes(method)) return hour >= 5 && hour < 20;
+  if (["LevelNight", "HappinessNight", "NightHoldItem"].includes(method)) return hour >= 20 || hour < 5;
   if (method === "LevelMorning") return hour >= 5 && hour < 10;
   if (method === "LevelAfternoon") return hour >= 14 && hour < 17;
   if (method === "LevelEvening") return hour >= 17 && hour < 20;
@@ -93,6 +105,10 @@ function contextSatisfied(evolution, runtime, party, speciesMasters, hour) {
   }
   if (HAPPINESS_TIME_CONTEXT_METHODS.has(evolution.method)) {
     return Number(runtime?.happiness ?? 0) >= DEFAULT_HAPPINESS_THRESHOLD
+      && timeContextSatisfied(evolution.method, hour);
+  }
+  if (HOLD_ITEM_TIME_CONTEXT_METHODS.has(evolution.method)) {
+    return heldItemId(runtime) === normalizedDataId(evolution.parameter)
       && timeContextSatisfied(evolution.method, hour);
   }
   return false;
@@ -127,6 +143,18 @@ function adaptEvolutionEntry(raw, runtime, party, speciesMasters, hour) {
   const evolution = normalizeEvolution(raw);
   if (!evolution || evolution.prevolution || !CONTEXT_METHODS.has(evolution.method)) return structuredClone(raw);
   if (!contextSatisfied(evolution, runtime, party, speciesMasters, hour)) return null;
+  if (HOLD_ITEM_TIME_CONTEXT_METHODS.has(evolution.method)) {
+    const item = normalizedDataId(evolution.parameter);
+    if (Array.isArray(raw)) return [evolution.species, "HoldItem", item, evolution.prevolution];
+    return {
+      ...structuredClone(raw),
+      method: "HoldItem",
+      type: Object.prototype.hasOwnProperty.call(raw, "type") ? "HoldItem" : raw.type,
+      parameter: item,
+      param: Object.prototype.hasOwnProperty.call(raw, "param") ? item : raw.param,
+      level: Object.prototype.hasOwnProperty.call(raw, "level") ? item : raw.level,
+    };
+  }
   const sentinel = sentinelForMethod(evolution.method);
   if (Array.isArray(raw)) return [evolution.species, "Level", sentinel, evolution.prevolution];
   return {
@@ -155,7 +183,16 @@ function contextualSpeciesMasters(speciesMasters, runtime, party, hour) {
 }
 
 function matchingContextEntry(result, sourceMaster, runtime, party, speciesMasters, hour) {
-  if (!result?.evolved || result?.evolution?.method !== "Level") return null;
+  if (!result?.evolved) return null;
+  if (result?.evolution?.method === "HoldItem") {
+    const item = normalizedDataId(result?.evolution?.parameter);
+    return contextualEntries(sourceMaster).find((entry) =>
+      HOLD_ITEM_TIME_CONTEXT_METHODS.has(entry.method)
+        && entry.species === result.evolution.to
+        && normalizedDataId(entry.parameter) === item
+        && contextSatisfied(entry, runtime, party, speciesMasters, hour)) ?? null;
+  }
+  if (result?.evolution?.method !== "Level") return null;
   const method = methodForSentinel(Number(result?.evolution?.parameter));
   if (!method) return null;
   return contextualEntries(sourceMaster).find((entry) =>
@@ -165,7 +202,9 @@ function matchingContextEntry(result, sourceMaster, runtime, party, speciesMaste
 }
 
 function publicParameter(entry) {
-  if (entry.method === "HasInParty") return normalizedDataId(entry.parameter);
+  if (entry.method === "HasInParty" || HOLD_ITEM_TIME_CONTEXT_METHODS.has(entry.method)) {
+    return normalizedDataId(entry.parameter);
+  }
   if (HAPPINESS_TIME_CONTEXT_METHODS.has(entry.method)) return null;
   return Number(entry.parameter);
 }
@@ -188,6 +227,10 @@ function relabelContextualResult(result, sourceMaster, runtime, party, speciesMa
 
 function deferredContextCandidate(sourceMaster, runtime) {
   for (const entry of contextualEntries(sourceMaster)) {
+    if (HOLD_ITEM_TIME_CONTEXT_METHODS.has(entry.method)) {
+      if (heldItemId(runtime) !== normalizedDataId(entry.parameter)) continue;
+      return { to: entry.species, method: entry.method, parameter: publicParameter(entry) };
+    }
     if (entry.method !== "HasInParty"
       && !HAPPINESS_TIME_CONTEXT_METHODS.has(entry.method)
       && Number(runtime?.level) < Number(entry.parameter)) continue;
