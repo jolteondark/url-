@@ -92,9 +92,21 @@ function setOwnerAwarePhaseInteractive(element, enabled) {
   delete element.dataset.battleOwnerDisabled;
 }
 
+function releaseBattlePhaseLocks() {
+  for (const id of ["save-run", "continue-run"]) {
+    setOwnerAwarePhaseInteractive(byId(id), true);
+  }
+  for (const button of document.querySelectorAll?.("button[data-bag-use-item],button[data-player-replacement-party-index]") ?? []) {
+    setOwnerAwarePhaseInteractive(button, true);
+  }
+}
+
 export function applySafariBattlePhaseUi() {
   const currentBattle = battle();
-  if (!currentBattle) return;
+  if (!currentBattle) {
+    releaseBattlePhaseLocks();
+    return;
+  }
 
   const phase = phaseOf(currentBattle);
   const commandAllowed = phase === COMMAND_PHASE;
