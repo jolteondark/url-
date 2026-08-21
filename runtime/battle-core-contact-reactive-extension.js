@@ -2,6 +2,10 @@ import {
   battlePokemonAbilityIdCanonical,
   battlePokemonHeldItemIdCanonical,
 } from "./battle-core-ability-item-modifiers.js";
+import {
+  BATTLE_HIT_STAT_REACTION_COVERAGE_CANONICAL,
+  resolveHitStatReactionCanonical,
+} from "./battle-core-hit-stat-reaction-extension.js";
 
 const CONTACT_REACTIVE_ABILITIES = new Set(["ROUGHSKIN", "IRONBARBS"]);
 const CONTACT_STATUS_CHANCE_BY_ABILITY = Object.freeze({
@@ -161,7 +165,12 @@ export function resolveContactReactiveAbilityItemHookCanonical({
     ? effectSporeStatusChanceRequestCanonical({ user, userAbility, userItem, targetAbility })
     : null;
   const offensiveStatusChanceRequest = eligible ? offensiveContactStatusChanceRequestCanonical(userAbility) : null;
-  const statChanges = eligible ? contactStatChangesCanonical(targetAbility) : Object.freeze([]);
+  const contactStatChanges = eligible ? contactStatChangesCanonical(targetAbility) : Object.freeze([]);
+  const hitStatReaction = resolveHitStatReactionCanonical({ target, move, hit });
+  const statChanges = Object.freeze([
+    ...contactStatChanges,
+    ...(hitStatReaction.statChanges ?? []),
+  ]);
   const rawHpDelta = effects.reduce((sum, effect) => sum + Number(effect.hpDelta ?? 0), 0);
   const reflectedDamage = Math.min(userHp, Math.max(0, -rawHpDelta));
   const userHpDelta = reflectedDamage > 0 ? -reflectedDamage : 0;
@@ -185,6 +194,7 @@ export function resolveContactReactiveAbilityItemHookCanonical({
     statusChanceRequest,
     effectSporeStatusChanceRequest,
     offensiveStatusChanceRequest,
+    hitStatReaction,
     statChanges,
   });
 }
@@ -196,6 +206,7 @@ const ABILITY_IDS = Object.freeze([
   ...Object.keys(OFFENSIVE_CONTACT_STATUS_CHANCE_BY_ABILITY),
   ...Object.keys(CONTACT_STAT_STAGE_BY_ABILITY),
   ...CONTACT_SUPPRESSING_ABILITIES,
+  ...(BATTLE_HIT_STAT_REACTION_COVERAGE_CANONICAL.abilityIds ?? []),
 ].sort());
 const ITEM_IDS = Object.freeze([
   ...CONTACT_REACTIVE_ITEMS,
@@ -216,5 +227,6 @@ export const BATTLE_CONTACT_REACTIVE_COVERAGE_CANONICAL = Object.freeze({
     contactSuppressingAbilities: CONTACT_SUPPRESSING_ABILITIES.size,
     contactReactiveHeldItems: CONTACT_REACTIVE_ITEMS.size,
     contactSuppressingHeldItems: CONTACT_SUPPRESSING_ITEMS.size,
+    hitStatReactionAbilities: BATTLE_HIT_STAT_REACTION_COVERAGE_CANONICAL.abilityCount,
   }),
 });
