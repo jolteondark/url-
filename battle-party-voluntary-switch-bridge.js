@@ -186,8 +186,7 @@ document.addEventListener("click", (event) => {
   void chooseSwitch(button);
 }, true);
 
-const grid = byId("party-detail-grid");
-if (grid && typeof MutationObserver === "function") new MutationObserver(queueSync).observe(grid, { childList: true, subtree: true });
+window.addEventListener("safari-party-panel-rendered", queueSync);
 window.addEventListener("safari-game-menu-opened", (event) => { if (event.detail?.tab === "party") queueSync(); });
 window.addEventListener("safari-runtime-changed", queueSync);
 window.addEventListener("pageshow", queueSync);
