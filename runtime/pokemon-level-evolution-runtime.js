@@ -184,7 +184,11 @@ function levelEvolutionTarget(speciesMaster, runtime, moveMasters = {}) {
     }
 
     const requiredLevel = Number(evolution.parameter);
-    if (!Number.isInteger(requiredLevel) || requiredLevel < 1) continue;
+    const reservedContextSentinel = evolution.method === "Level"
+      && Number.isInteger(requiredLevel)
+      && requiredLevel >= -2147483648
+      && requiredLevel <= -2147483600;
+    if (!Number.isInteger(requiredLevel) || (requiredLevel < 1 && !reservedContextSentinel)) continue;
     let conditionMatches = evolution.method === "Level" || evolution.method === "Ninjask";
     if (evolution.method === "LevelMale") conditionMatches = gender === 0;
     else if (evolution.method === "LevelFemale") conditionMatches = gender === 1;
