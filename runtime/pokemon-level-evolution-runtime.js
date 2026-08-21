@@ -54,6 +54,7 @@ function levelEvolutionTarget(speciesMaster, runtime, moveMasters = {}) {
   const level = Number(runtime?.level);
   const gender = Number(runtime?.gender);
   const happiness = Number(runtime?.happiness);
+  const beauty = Number(runtime?.beauty);
   const attack = Number(runtime?.stats?.ATTACK ?? runtime?.attack);
   const defense = Number(runtime?.stats?.DEFENSE ?? runtime?.defense);
   const personalId = Number(runtime?.personal_id);
@@ -80,6 +81,7 @@ function levelEvolutionTarget(speciesMaster, runtime, moveMasters = {}) {
     "HoldItemMale",
     "HoldItemFemale",
     "MaxHappiness",
+    "Beauty",
   ]);
   let eligible = null;
   for (const raw of speciesMaster?.evolutions ?? []) {
@@ -87,6 +89,18 @@ function levelEvolutionTarget(speciesMaster, runtime, moveMasters = {}) {
     if (!evolution?.species || !evolution.method || evolution.prevolution) continue;
     if (!supportedMethods.has(evolution.method)) {
       unsupportedMethods.add(evolution.method);
+      continue;
+    }
+
+    if (evolution.method === "Beauty") {
+      const requiredBeauty = Number(evolution.parameter);
+      const conditionMatches = Number.isInteger(requiredBeauty)
+        && requiredBeauty >= 0
+        && Number.isFinite(beauty)
+        && beauty >= requiredBeauty;
+      if (!eligible && conditionMatches) {
+        eligible = { target: evolution.species, method: evolution.method, parameter: requiredBeauty };
+      }
       continue;
     }
 
