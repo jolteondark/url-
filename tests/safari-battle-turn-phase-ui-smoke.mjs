@@ -172,22 +172,24 @@ assert.match(flowPolishSource, /return current\.phase \?\? null/,
   "DPt flow polish must read the orchestrator phase directly");
 assert.doesNotMatch(flowPolishSource, /current\.completed|previewCommandBusy|player_replacement_required/,
   "DPt flow polish must not infer a second Battle phase truth");
-assert.match(menuFlowGuardSource, /return battle\(\)\?\.phase === "COMMAND"/,
-  "DPt menu flow guard must use COMMAND as the sole Battle command truth");
+assert.match(menuFlowGuardSource, /current\.phase !== "COMMAND"/,
+  "DPt menu flow guard must reject Battle overlays outside the orchestrator COMMAND phase");
 assert.doesNotMatch(menuFlowGuardSource, /\.completed|player_replacement_required|previewCommandBusy/,
   "DPt menu flow guard must not infer command availability from legacy Battle flags");
-assert.match(menuFlowGuardSource, /safari-battle-capture-requested/,
-  "Battle Bag Ball must request the same direct capture owner as the DPt root Ball");
-assert.doesNotMatch(menuFlowGuardSource, /capture\.click\(|getElementById\(["']capture["']\)/,
-  "Battle Bag Ball must not relay capture through the legacy hidden capture control");
+assert.doesNotMatch(menuFlowGuardSource, /safari-battle-capture-requested|battle-menu-ball-use|data-dppt-bag=["']ball["']/,
+  "Battle item overlay must remain item-only; capture belongs to the dedicated DPt command path");
 assert.match(captureOwnerSource, /safari-battle-capture-requested/,
   "capture presentation adapter must expose one shared direct request entrypoint");
+assert.match(captureOwnerSource, /data-dppt-bag=["']ball["']/,
+  "the DPt Battle Bag Ball must be owned directly by the capture presentation adapter");
 assert.match(captureOwnerSource, /attemptSafariCapture\(currentRuntime\)/,
   "the shared capture request entrypoint must delegate mechanics to the existing capture owner");
 assert.match(commandMenuSource, /return battle\.phase \?\? null/,
   "DPt command menu must read the orchestrator phase directly");
 assert.match(commandMenuSource, /const commandAllowed = phase === "COMMAND"/,
   "DPt command availability must be owned by the orchestrator COMMAND phase");
+assert.match(commandMenuSource, /data-dppt-bag=["']ball["']/,
+  "DPt command surface must retain the dedicated Battle Bag Ball entrypoint");
 assert.doesNotMatch(commandMenuSource, /\.completed|player_replacement_required|previewCommandBusy/,
   "DPt command menu must not infer phase or command availability from legacy Battle flags");
 assert.doesNotMatch(commandMenuSource, /byId\(["']capture["']\)\?\.click\(\)|byId\(["']flee["']\)\?\.click\(\)/,
