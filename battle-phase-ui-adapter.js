@@ -17,6 +17,7 @@ const VALID_PHASES = new Set([
   RESULT_PHASE,
   RETURN_PHASE,
 ]);
+const RETURN_MUTATION_MENU_IDS = ["menu-party", "menu-bag", "menu-box"];
 
 const byId = (id) => document.getElementById(id);
 
@@ -116,11 +117,19 @@ function releaseBattlePersistenceLocks() {
   }
 }
 
+function setPendingReturnMenuLocked(locked) {
+  for (const id of RETURN_MUTATION_MENU_IDS) {
+    setInteractive(byId(id), !locked);
+  }
+}
+
 export function applySafariBattlePhaseUi() {
   const currentBattle = battle();
   if (!currentBattle) {
     releaseBattleCommandLocks();
-    if (pendingBattleReturnCommit()) {
+    const returnCommitPending = pendingBattleReturnCommit();
+    setPendingReturnMenuLocked(returnCommitPending);
+    if (returnCommitPending) {
       for (const id of ["new-run", "save-run", "continue-run"]) {
         setOwnerAwarePhaseInteractive(byId(id), false);
       }
@@ -194,7 +203,7 @@ export function applySafariBattlePhaseUi() {
 
 function shouldAllowBattleClick(target, currentBattle = battle()) {
   if (!target?.closest) return true;
-  if (pendingBattleReturnCommit() && target.closest("#new-run,#save-run,#continue-run")) return false;
+  if (pendingBattleReturnCommit() && target.closest("#new-run,#save-run,#continue-run,#menu-party,#menu-bag,#menu-box")) return false;
   if (!currentBattle) return true;
   const phase = phaseOf(currentBattle);
   if (target.closest("#new-run")) return false;
