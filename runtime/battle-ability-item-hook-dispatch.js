@@ -57,6 +57,10 @@ import {
   BATTLE_TYPE_IMMUNITY_AFTER_EFFECT_COVERAGE_CANONICAL,
   resolveTypeImmunityAfterEffectHookCanonical,
 } from "./battle-core-type-immunity-after-effect-extension.js";
+import {
+  BATTLE_KO_BOOST_ABILITY_COVERAGE_CANONICAL,
+  resolveKoBoostAbilityActionAfterCanonical,
+} from "./battle-core-ko-boost-ability-extension.js";
 
 export const BATTLE_ABILITY_ITEM_HOOK_POINTS_CANONICAL = Object.freeze([
   "switch_in",
@@ -115,6 +119,7 @@ function combinedCoverageCanonical() {
     ...(BATTLE_BERRY_ABILITY_COVERAGE_CANONICAL.abilityIds ?? []),
     ...(BATTLE_CONTACT_REACTIVE_COVERAGE_CANONICAL.abilityIds ?? []),
     ...(BATTLE_TYPE_IMMUNITY_AFTER_EFFECT_COVERAGE_CANONICAL.abilityIds ?? []),
+    ...(BATTLE_KO_BOOST_ABILITY_COVERAGE_CANONICAL.abilityIds ?? []),
     ...(BATTLE_HELD_ITEM_EFFECT_SUPPRESSION_COVERAGE_CANONICAL.abilityIds ?? []),
   ])].sort());
   const itemIds = Object.freeze([...new Set([
@@ -149,6 +154,7 @@ function combinedCoverageCanonical() {
       contactReactiveExtension: BATTLE_CONTACT_REACTIVE_COVERAGE_CANONICAL.classificationCounts,
       shellBellExtension: BATTLE_SHELL_BELL_COVERAGE_CANONICAL.classificationCounts,
       typeImmunityAfterEffectExtension: BATTLE_TYPE_IMMUNITY_AFTER_EFFECT_COVERAGE_CANONICAL.classificationCounts,
+      koBoostAbilityExtension: BATTLE_KO_BOOST_ABILITY_COVERAGE_CANONICAL.classificationCounts,
     }),
   });
 }
@@ -336,6 +342,10 @@ function resolveSharedActionAfterCanonical({ runtimeUser, runtimeTarget, move, d
     userShellBell: resolveShellBellActionAfterCanonical({
       user: runtimeUser,
       damageDealt,
+      context,
+    }),
+    koBoost: resolveKoBoostAbilityActionAfterCanonical({
+      user: runtimeUser,
       context,
     }),
   });
