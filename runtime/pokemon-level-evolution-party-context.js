@@ -9,17 +9,23 @@ const LEVEL_AFTERNOON_SENTINEL = -2147483643;
 const LEVEL_EVENING_SENTINEL = -2147483642;
 const HAPPINESS_DAY_SENTINEL = -2147483641;
 const HAPPINESS_NIGHT_SENTINEL = -2147483640;
+const LEVEL_NO_WEATHER_SENTINEL = -2147483639;
+const LEVEL_SUN_SENTINEL = -2147483638;
+const LEVEL_RAIN_SENTINEL = -2147483637;
+const LEVEL_SNOW_SENTINEL = -2147483636;
+const LEVEL_SANDSTORM_SENTINEL = -2147483635;
 
 const PARTY_CONTEXT_METHODS = new Set(["HasInParty", "LevelDarkInParty"]);
 const LEVEL_TIME_CONTEXT_METHODS = new Set(["LevelDay", "LevelNight", "LevelMorning", "LevelAfternoon", "LevelEvening"]);
 const HAPPINESS_TIME_CONTEXT_METHODS = new Set(["HappinessDay", "HappinessNight"]);
 const HOLD_ITEM_TIME_CONTEXT_METHODS = new Set(["DayHoldItem", "NightHoldItem"]);
+const WEATHER_CONTEXT_METHODS = new Set(["LevelNoWeather", "LevelSun", "LevelRain", "LevelSnow", "LevelSandstorm"]);
 const TIME_CONTEXT_METHODS = new Set([
   ...LEVEL_TIME_CONTEXT_METHODS,
   ...HAPPINESS_TIME_CONTEXT_METHODS,
   ...HOLD_ITEM_TIME_CONTEXT_METHODS,
 ]);
-const CONTEXT_METHODS = new Set([...PARTY_CONTEXT_METHODS, ...TIME_CONTEXT_METHODS]);
+const CONTEXT_METHODS = new Set([...PARTY_CONTEXT_METHODS, ...TIME_CONTEXT_METHODS, ...WEATHER_CONTEXT_METHODS]);
 const DEFAULT_HAPPINESS_THRESHOLD = 220;
 
 function normalizeEvolution(entry) {
@@ -89,6 +95,21 @@ function timeContextSatisfied(method, hour) {
   return false;
 }
 
+function normalizedWeather(value) {
+  return normalizedDataId(value).replace(/[\s_-]+/g, "").toUpperCase();
+}
+
+function weatherContextSatisfied(method, weather) {
+  const current = normalizedWeather(weather);
+  if (!current) return false;
+  if (method === "LevelNoWeather") return current === "NONE";
+  if (method === "LevelSun") return current === "SUN" || current === "HARSHSUN";
+  if (method === "LevelRain") return current === "RAIN" || current === "HEAVYRAIN";
+  if (method === "LevelSnow") return current === "HAIL";
+  if (method === "LevelSandstorm") return current === "SANDSTORM";
+  return false;
+}
+
 function contextualEntries(speciesMaster) {
   const entries = [];
   for (const raw of speciesMaster?.evolutions ?? []) {
@@ -99,7 +120,7 @@ function contextualEntries(speciesMaster) {
   return entries;
 }
 
-function contextSatisfied(evolution, runtime, party, speciesMasters, hour) {
+function contextSatisfied(evolution, runtime, party, speciesMasters, hour, weather) {
   if (evolution.method === "HasInParty") return partyHasSpecies(party, evolution.parameter);
   if (evolution.method === "LevelDarkInParty") {
     return Number(runtime?.level) >= Number(evolution.parameter)
@@ -117,6 +138,10 @@ function contextSatisfied(evolution, runtime, party, speciesMasters, hour) {
     return heldItemId(runtime) === normalizedDataId(evolution.parameter)
       && timeContextSatisfied(evolution.method, hour);
   }
+  if (WEATHER_CONTEXT_METHODS.has(evolution.method)) {
+    return Number(runtime?.level) >= Number(evolution.parameter)
+      && weatherContextSatisfied(evolution.method, weather);
+  }
   return false;
 }
 
@@ -129,7 +154,12 @@ function sentinelForMethod(method) {
   if (method === "LevelAfternoon") return LEVEL_AFTERNOON_SENTINEL;
   if (method === "LevelEvening") return LEVEL_EVENING_SENTINEL;
   if (method === "HappinessDay") return HAPPINESS_DAY_SENTINEL;
-  return HAPPINESS_NIGHT_SENTINEL;
+  if (method === "HappinessNight") return HAPPINESS_NIGHT_SENTINEL;
+  if (method === "LevelNoWeather") return LEVEL_NO_WEATHER_SENTINEL;
+  if (method === "LevelSun") return LEVEL_SUN_SENTINEL;
+  if (method === "LevelRain") return LEVEL_RAIN_SENTINEL;
+  if (method === "LevelSnow") return LEVEL_SNOW_SENTINEL;
+  return LEVEL_SANDSTORM_SENTINEL;
 }
 
 function methodForSentinel(parameter) {
@@ -142,13 +172,18 @@ function methodForSentinel(parameter) {
   if (parameter === LEVEL_EVENING_SENTINEL) return "LevelEvening";
   if (parameter === HAPPINESS_DAY_SENTINEL) return "HappinessDay";
   if (parameter === HAPPINESS_NIGHT_SENTINEL) return "HappinessNight";
+  if (parameter === LEVEL_NO_WEATHER_SENTINEL) return "LevelNoWeather";
+  if (parameter === LEVEL_SUN_SENTINEL) return "LevelSun";
+  if (parameter === LEVEL_RAIN_SENTINEL) return "LevelRain";
+  if (parameter === LEVEL_SNOW_SENTINEL) return "LevelSnow";
+  if (parameter === LEVEL_SANDSTORM_SENTINEL) return "LevelSandstorm";
   return null;
 }
 
-function adaptEvolutionEntry(raw, runtime, party, speciesMasters, hour) {
+function adaptEvolutionEntry(raw, runtime, party, speciesMasters, hour, weather) {
   const evolution = normalizeEvolution(raw);
   if (!evolution || evolution.prevolution || !CONTEXT_METHODS.has(evolution.method)) return structuredClone(raw);
-  if (!contextSatisfied(evolution, runtime, party, speciesMasters, hour)) return null;
+  if (!contextSatisfied(evolution, runtime, party, speciesMasters, hour, weather)) return null;
   if (HOLD_ITEM_TIME_CONTEXT_METHODS.has(evolution.method)) {
     const item = normalizedDataId(evolution.parameter);
     if (Array.isArray(raw)) return [evolution.species, "HoldItem", item, evolution.prevolution];
@@ -173,13 +208,13 @@ function adaptEvolutionEntry(raw, runtime, party, speciesMasters, hour) {
   };
 }
 
-function contextualSpeciesMasters(speciesMasters, runtime, party, hour) {
+function contextualSpeciesMasters(speciesMasters, runtime, party, hour, weather) {
   const adapted = {};
   for (const [id, master] of Object.entries(speciesMasters ?? {})) {
     const evolutions = [];
     for (const raw of master?.evolutions ?? []) {
       const next = id === runtime?.species
-        ? adaptEvolutionEntry(raw, runtime, party, speciesMasters, hour)
+        ? adaptEvolutionEntry(raw, runtime, party, speciesMasters, hour, weather)
         : structuredClone(raw);
       if (next != null) evolutions.push(next);
     }
@@ -188,7 +223,7 @@ function contextualSpeciesMasters(speciesMasters, runtime, party, hour) {
   return adapted;
 }
 
-function matchingContextEntry(result, sourceMaster, runtime, party, speciesMasters, hour) {
+function matchingContextEntry(result, sourceMaster, runtime, party, speciesMasters, hour, weather) {
   if (!result?.evolved) return null;
   if (result?.evolution?.method === "HoldItem") {
     const item = normalizedDataId(result?.evolution?.parameter);
@@ -196,7 +231,7 @@ function matchingContextEntry(result, sourceMaster, runtime, party, speciesMaste
       HOLD_ITEM_TIME_CONTEXT_METHODS.has(entry.method)
         && entry.species === result.evolution.to
         && normalizedDataId(entry.parameter) === item
-        && contextSatisfied(entry, runtime, party, speciesMasters, hour)) ?? null;
+        && contextSatisfied(entry, runtime, party, speciesMasters, hour, weather)) ?? null;
   }
   if (result?.evolution?.method !== "Level") return null;
   const method = methodForSentinel(Number(result?.evolution?.parameter));
@@ -204,7 +239,7 @@ function matchingContextEntry(result, sourceMaster, runtime, party, speciesMaste
   return contextualEntries(sourceMaster).find((entry) =>
     entry.method === method
       && entry.species === result.evolution.to
-      && contextSatisfied(entry, runtime, party, speciesMasters, hour)) ?? null;
+      && contextSatisfied(entry, runtime, party, speciesMasters, hour, weather)) ?? null;
 }
 
 function publicParameter(entry) {
@@ -215,8 +250,8 @@ function publicParameter(entry) {
   return Number(entry.parameter);
 }
 
-function relabelContextualResult(result, sourceMaster, runtime, party, speciesMasters, hour) {
-  const matching = matchingContextEntry(result, sourceMaster, runtime, party, speciesMasters, hour);
+function relabelContextualResult(result, sourceMaster, runtime, party, speciesMasters, hour, weather) {
+  const matching = matchingContextEntry(result, sourceMaster, runtime, party, speciesMasters, hour, weather);
   if (!matching) return result;
 
   const parameter = publicParameter(matching);
@@ -264,9 +299,10 @@ export function resolvePokemonLevelEvolutionWithPartyContext(runtime, options = 
   }
 
   const hour = canonicalHour(options?.time_hour);
-  const adaptedMasters = contextualSpeciesMasters(speciesMasters, runtime, party, hour);
+  const weather = options?.weather_type ?? options?.weather;
+  const adaptedMasters = contextualSpeciesMasters(speciesMasters, runtime, party, hour, weather);
   const resolved = resolveBasePokemonLevelEvolution(runtime, { ...options, species_masters: adaptedMasters });
-  const relabeled = relabelContextualResult(resolved, sourceMaster, runtime, party, speciesMasters, hour);
+  const relabeled = relabelContextualResult(resolved, sourceMaster, runtime, party, speciesMasters, hour, weather);
   return {
     ...relabeled,
     unsupportedMethods: (relabeled.unsupportedMethods ?? []).filter((method) => !CONTEXT_METHODS.has(method)),
