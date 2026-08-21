@@ -44,6 +44,25 @@ function phaseCount(battle, phase) {
   const state = runtime();
   const battle = state.variables.mapless.battle;
   ensureSafariBattleOrchestrator(state);
+  const traceLength = battle.phase_trace.length;
+  assert.throws(
+    () => commitSafariBattleResolution(state, {
+      decision: 0,
+      operations: [{ op: "use_move", actor: "player", target: "foe" }],
+    }, "move"),
+    /fresh battle resolution requires ACTION_1; got COMMAND/,
+    "a fresh resolution must not bypass COMMAND -> ACTION_1 by committing directly from COMMAND",
+  );
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.COMMAND);
+  assert.equal(battle.phase_trace.length, traceLength,
+    "rejected direct resolution must not append CHECK/ACTION phases");
+  assert.equal(battle.resolution_checkpoint ?? null, null);
+}
+
+{
+  const state = runtime();
+  const battle = state.variables.mapless.battle;
+  ensureSafariBattleOrchestrator(state);
   beginSafariBattleCommand(state, "move");
   const resolution = {
     decision: 0,
