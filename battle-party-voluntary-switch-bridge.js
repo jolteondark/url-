@@ -2,7 +2,10 @@ import {
   SAFARI_MOVE_PRESENTATION,
   saveSafariPlayableRun,
 } from "./runtime/safari-web-playable-integration.js";
-import { completeSafariBattlePresentation } from "./runtime/safari-battle-orchestrator.js";
+import {
+  captureSafariBattlePresentationAckSequence,
+  completeSafariBattlePresentationForSequence,
+} from "./runtime/safari-battle-presentation-ack.js";
 import { switchSafariNormalBattlePlayer } from "./runtime/safari-normal-battle-voluntary-switch.js";
 import { formatSafariBattlePresentationEvent } from "./battle-presentation-narration.js";
 
@@ -155,6 +158,7 @@ async function chooseSwitch(button) {
   try {
     const currentRuntime = runtime();
     const result = switchSafariNormalBattlePlayer(currentRuntime, partyIndex);
+    const presentationSequence = captureSafariBattlePresentationAckSequence(currentRuntime);
     globalThis.__maplessLastBattleSwitchResult = result;
     if (result?.turnConsumed) {
       window.dispatchEvent(new CustomEvent("safari-game-menu-close-requested", { detail: { source: "battle-voluntary-switch" } }));
@@ -166,7 +170,7 @@ async function chooseSwitch(button) {
         await sleep(220);
       }
       await playPresentation(currentRuntime, result.presentation ?? []);
-      completeSafariBattlePresentation(currentRuntime);
+      completeSafariBattlePresentationForSequence(currentRuntime, presentationSequence);
       saveIfRequested(currentRuntime, result);
     }
   } catch (error) {
