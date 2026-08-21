@@ -409,6 +409,10 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   const replayed = replayCommittedResolution(battle, result, resolvedCommandKind);
   if (replayed) return replayed;
 
+  if (battle.phase !== SAFARI_BATTLE_PHASE.ACTION_1) {
+    throw new Error(`fresh battle resolution requires ACTION_1; got ${battle.phase}`);
+  }
+
   if (result?.turnConsumed === false) {
     return rejectUnconsumedCommand(battle, result, resolvedCommandKind);
   }
