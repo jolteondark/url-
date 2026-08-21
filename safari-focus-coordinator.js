@@ -57,5 +57,5 @@ function settle(){
   requestAnimationFrame(()=>{if(token===epoch&&enabled(target))target.focus({preventScroll:true})});
  }))
 }
-for(const name of ["safari-runtime-changed","safari-preview-start","safari-game-menu-opened","safari-game-menu-closed","mapless-dppt-menu-changed","pageshow"])window.addEventListener(name,settle,{passive:true});
+for(const name of ["safari-runtime-changed","safari-preview-start","safari-game-menu-opened","safari-game-menu-open-failed","safari-game-menu-closed","mapless-dppt-menu-changed","pageshow"])window.addEventListener(name,settle,{passive:true});
 settle();
