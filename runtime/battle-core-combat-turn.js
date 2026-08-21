@@ -106,6 +106,7 @@ function actionAfterSourcePokemonCanonical(prepared, side) {
       hp: Number(prepared.actorHpBefore ?? 0),
       max_hp: Number(prepared.actorTotalHp ?? 0),
       status: prepared?.hpFunctionInput?.actorStatus ?? "NONE",
+      stats: structuredClone(prepared.actorStats ?? prepared.userPokemon?.stats ?? {}),
     };
   }
   return {
@@ -114,6 +115,7 @@ function actionAfterSourcePokemonCanonical(prepared, side) {
     hp: Number(prepared.hpAfter ?? prepared.hpBefore ?? 0),
     max_hp: Number(prepared.totalHp ?? 0),
     status: "NONE",
+    stats: structuredClone(prepared.targetStats ?? prepared.targetPokemon?.stats ?? {}),
   };
 }
 
@@ -150,6 +152,7 @@ export function applyBattleAbilityItemActionAfterCanonical(action, inputStatStag
     context: {
       typeImmunityResolution: structuredClone(prepared.abilityItemTypeImmunityResolution ?? null),
       typeMod: Number(prepared?.typeEffectivenessResolution?.multiplier ?? 1),
+      targetFainted: Boolean(prepared.fainted ?? prepared.faintResolution?.fainted ?? Number(prepared.hpAfter ?? 1) <= 0),
       targetStatStages: structuredClone(statStages?.[Number(prepared.targetBattlerIndex)] ?? {}),
     },
   });
@@ -158,6 +161,7 @@ export function applyBattleAbilityItemActionAfterCanonical(action, inputStatStag
   const changes = [
     ...(actionAfter?.typeImmunityAfterEffect?.statChanges ?? []),
     ...(actionAfter?.targetHitReactiveItem?.statChanges ?? []),
+    ...(actionAfter?.koBoost?.statChanges ?? []),
   ];
   if (changes.length === 0) return { action: prepared, statStages };
   const stageResolution = applyBattleStatStageChangesCanonical(
