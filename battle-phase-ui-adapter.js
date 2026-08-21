@@ -28,6 +28,10 @@ function battle() {
   return state()?.battle ?? null;
 }
 
+function pendingBattleReturnCommit() {
+  return state()?.pending_battle_return_checkpoint?.committed === false;
+}
+
 function phaseOf(currentBattle = battle()) {
   const phase = currentBattle?.phase;
   return VALID_PHASES.has(phase) ? phase : null;
@@ -100,19 +104,29 @@ function releaseOwnerAwarePhaseLock(element) {
   delete element.dataset.battleOwnerDisabled;
 }
 
-function releaseBattlePhaseLocks() {
-  for (const id of ["new-run", "save-run", "continue-run"]) {
-    releaseOwnerAwarePhaseLock(byId(id));
-  }
+function releaseBattleCommandLocks() {
   for (const button of document.querySelectorAll?.("button[data-bag-use-item],button[data-player-replacement-party-index]") ?? []) {
     releaseOwnerAwarePhaseLock(button);
+  }
+}
+
+function releaseBattlePersistenceLocks() {
+  for (const id of ["new-run", "save-run", "continue-run"]) {
+    releaseOwnerAwarePhaseLock(byId(id));
   }
 }
 
 export function applySafariBattlePhaseUi() {
   const currentBattle = battle();
   if (!currentBattle) {
-    releaseBattlePhaseLocks();
+    releaseBattleCommandLocks();
+    if (pendingBattleReturnCommit()) {
+      for (const id of ["new-run", "save-run", "continue-run"]) {
+        setOwnerAwarePhaseInteractive(byId(id), false);
+      }
+    } else {
+      releaseBattlePersistenceLocks();
+    }
     return;
   }
 
@@ -179,7 +193,9 @@ export function applySafariBattlePhaseUi() {
 }
 
 function shouldAllowBattleClick(target, currentBattle = battle()) {
-  if (!currentBattle || !target?.closest) return true;
+  if (!target?.closest) return true;
+  if (pendingBattleReturnCommit() && target.closest("#new-run,#save-run,#continue-run")) return false;
+  if (!currentBattle) return true;
   const phase = phaseOf(currentBattle);
   if (target.closest("#new-run")) return false;
   if (target.closest("#return-board")) return phase === RESULT_PHASE;
