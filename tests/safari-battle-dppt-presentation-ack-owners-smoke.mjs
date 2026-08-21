@@ -65,6 +65,20 @@ for (const commandKind of ["item", "capture", "flee", "switch"]) {
     ],
   }, "move");
   const firstSequence = captureSafariBattlePresentationAckSequence(state);
+  const forgedSequence = Object.freeze({
+    battle,
+    checkpoint: battle.presentation_checkpoint,
+    sequence: firstSequence.sequence,
+  });
+  const traceLengthBeforeForgedAck = battle.phase_trace.length;
+  assert.throws(
+    () => completeSafariBattlePresentationForSequence(state, forgedSequence),
+    /token issued by the central capture owner/,
+    "presentation acknowledgement must not accept an ad-hoc token assembled from live Battle state",
+  );
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.CHECK_2);
+  assert.equal(battle.phase_trace.length, traceLengthBeforeForgedAck,
+    "forged acknowledgement rejection must not mutate the central phase trace");
   completeSafariBattlePresentationForSequence(state, firstSequence);
   assert.equal(battle.phase, SAFARI_BATTLE_PHASE.COMMAND);
 
