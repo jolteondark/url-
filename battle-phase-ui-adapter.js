@@ -93,7 +93,7 @@ function setOwnerAwarePhaseInteractive(element, enabled) {
 }
 
 function releaseBattlePhaseLocks() {
-  for (const id of ["save-run", "continue-run"]) {
+  for (const id of ["new-run", "save-run", "continue-run"]) {
     setOwnerAwarePhaseInteractive(byId(id), true);
   }
   for (const button of document.querySelectorAll?.("button[data-bag-use-item],button[data-player-replacement-party-index]") ?? []) {
@@ -151,6 +151,7 @@ export function applySafariBattlePhaseUi() {
     setInteractive(returnButton, resultReady);
   }
 
+  setOwnerAwarePhaseInteractive(byId("new-run"), false);
   for (const id of ["save-run", "continue-run"]) {
     setOwnerAwarePhaseInteractive(byId(id), persistenceAllowed);
   }
@@ -172,6 +173,7 @@ export function applySafariBattlePhaseUi() {
 function shouldAllowBattleClick(target, currentBattle = battle()) {
   if (!currentBattle || !target?.closest) return true;
   const phase = phaseOf(currentBattle);
+  if (target.closest("#new-run")) return false;
   if (target.closest("#return-board")) return phase === RESULT_PHASE;
   if (target.closest("#save-run,#continue-run")) return phase === COMMAND_PHASE || phase === RESULT_PHASE;
   if (target.closest("button[data-player-replacement-party-index]")) return phase === REPLACEMENT_PHASE;
