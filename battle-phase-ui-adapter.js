@@ -100,6 +100,7 @@ export function applySafariBattlePhaseUi() {
   const commandAllowed = phase === COMMAND_PHASE;
   const replacementAllowed = phase === REPLACEMENT_PHASE;
   const resultReady = phase === RESULT_PHASE;
+  const persistenceAllowed = commandAllowed || resultReady;
 
   const turn = byId("turn");
   if (turn) turn.textContent = phaseLabel(currentBattle, phase, Number(currentBattle.turn ?? 1));
@@ -138,6 +139,9 @@ export function applySafariBattlePhaseUi() {
     setInteractive(returnButton, resultReady);
   }
 
+  for (const id of ["save-run", "continue-run"]) {
+    setOwnerAwarePhaseInteractive(byId(id), persistenceAllowed);
+  }
   for (const button of document.querySelectorAll?.("button[data-bag-use-item]") ?? []) {
     setOwnerAwarePhaseInteractive(button, commandAllowed);
   }
@@ -157,6 +161,7 @@ function shouldAllowBattleClick(target, currentBattle = battle()) {
   if (!currentBattle || !target?.closest) return true;
   const phase = phaseOf(currentBattle);
   if (target.closest("#return-board")) return phase === RESULT_PHASE;
+  if (target.closest("#save-run,#continue-run")) return phase === COMMAND_PHASE || phase === RESULT_PHASE;
   if (target.closest("button[data-player-replacement-party-index]")) return phase === REPLACEMENT_PHASE;
   if (target.closest("#moves button[data-move-id],#capture,#flee,button[data-bag-use-item]")) return phase === COMMAND_PHASE;
   return true;
