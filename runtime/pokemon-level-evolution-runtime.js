@@ -38,6 +38,7 @@ function levelEvolutionTarget(speciesMaster, runtime) {
   const unsupportedMethods = new Set();
   const level = Number(runtime?.level);
   const gender = Number(runtime?.gender);
+  const happiness = Number(runtime?.happiness);
   const attack = Number(runtime?.stats?.ATTACK ?? runtime?.attack);
   const defense = Number(runtime?.stats?.DEFENSE ?? runtime?.defense);
   const personalId = Number(runtime?.personal_id);
@@ -54,6 +55,10 @@ function levelEvolutionTarget(speciesMaster, runtime) {
     "Silcoon",
     "Cascoon",
     "Ninjask",
+    "Happiness",
+    "HappinessMale",
+    "HappinessFemale",
+    "MaxHappiness",
   ]);
   let eligible = null;
   for (const raw of speciesMaster?.evolutions ?? []) {
@@ -63,6 +68,19 @@ function levelEvolutionTarget(speciesMaster, runtime) {
       unsupportedMethods.add(evolution.method);
       continue;
     }
+
+    if (["Happiness", "HappinessMale", "HappinessFemale", "MaxHappiness"].includes(evolution.method)) {
+      let conditionMatches = Number.isInteger(happiness);
+      if (evolution.method === "MaxHappiness") conditionMatches = conditionMatches && happiness === 255;
+      else conditionMatches = conditionMatches && happiness >= 220;
+      if (evolution.method === "HappinessMale") conditionMatches = conditionMatches && gender === 0;
+      else if (evolution.method === "HappinessFemale") conditionMatches = conditionMatches && gender === 1;
+      if (!eligible && conditionMatches) {
+        eligible = { target: evolution.species, method: evolution.method, parameter: null };
+      }
+      continue;
+    }
+
     const requiredLevel = Number(evolution.parameter);
     if (!Number.isInteger(requiredLevel) || requiredLevel < 1) continue;
     let conditionMatches = evolution.method === "Level" || evolution.method === "Ninjask";
