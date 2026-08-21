@@ -103,6 +103,38 @@ for (const commandKind of ["item", "capture", "flee", "switch"]) {
 
 {
   const state = runtime();
+  const battle = state.variables.mapless.battle;
+  ensureSafariBattleOrchestrator(state);
+  beginSafariBattleCommand(state, "move");
+  commitSafariBattleResolution(state, {
+    decision: 0,
+    operations: [
+      { op: "use_move", actor: "player", target: "foe" },
+      { op: "use_move", actor: "foe", target: "player" },
+    ],
+  }, "move");
+  const token = captureSafariBattlePresentationAckSequence(state);
+  const originalCheckpoint = battle.presentation_checkpoint;
+  battle.presentation_checkpoint = {
+    ...structuredClone(originalCheckpoint),
+    committed: false,
+  };
+  assert.equal(battle.presentation_checkpoint.sequence, token.sequence,
+    "a replacement checkpoint may reuse the same command sequence while still being a different central checkpoint");
+  const traceLengthBeforeCheckpointSwapAck = battle.phase_trace.length;
+  assert.throws(
+    () => completeSafariBattlePresentationForSequence(state, token),
+    /different presentation checkpoint/,
+    "a captured acknowledgement must not unlock a replacement checkpoint just because battle and sequence still match",
+  );
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.CHECK_2);
+  assert.equal(battle.phase_trace.length, traceLengthBeforeCheckpointSwapAck,
+    "checkpoint-identity rejection must leave the central phase trace unchanged");
+  assert.equal(safariBattleCommandAllowed(state), false);
+}
+
+{
+  const state = runtime();
   const firstBattle = state.variables.mapless.battle;
   ensureSafariBattleOrchestrator(state);
   beginSafariBattleCommand(state, "move");
