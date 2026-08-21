@@ -42,6 +42,10 @@ import {
   resolveAirBalloonActionBeforeCanonical,
 } from "./battle-core-air-balloon-extension.js";
 import {
+  BATTLE_HIT_REACTIVE_HELD_ITEM_COVERAGE_CANONICAL,
+  resolveHitReactiveHeldItemActionAfterCanonical,
+} from "./battle-core-hit-reactive-held-item-extension.js";
+import {
   BATTLE_CONTACT_REACTIVE_COVERAGE_CANONICAL,
   resolveContactReactiveAbilityItemHookCanonical,
 } from "./battle-core-contact-reactive-extension.js";
@@ -121,6 +125,7 @@ function combinedCoverageCanonical() {
     ...(BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL.itemIds ?? []),
     ...(BATTLE_STATUS_CURE_BERRY_COVERAGE_CANONICAL.itemIds ?? []),
     ...(BATTLE_AIR_BALLOON_COVERAGE_CANONICAL.itemIds ?? []),
+    ...(BATTLE_HIT_REACTIVE_HELD_ITEM_COVERAGE_CANONICAL.itemIds ?? []),
     ...(BATTLE_CONTACT_REACTIVE_COVERAGE_CANONICAL.itemIds ?? []),
     ...(BATTLE_SHELL_BELL_COVERAGE_CANONICAL.itemIds ?? []),
   ])].sort());
@@ -140,6 +145,7 @@ function combinedCoverageCanonical() {
       berryAbilityExtension: BATTLE_BERRY_ABILITY_COVERAGE_CANONICAL.classificationCounts,
       statusCureBerryExtension: BATTLE_STATUS_CURE_BERRY_COVERAGE_CANONICAL.classificationCounts,
       airBalloonExtension: BATTLE_AIR_BALLOON_COVERAGE_CANONICAL.classificationCounts,
+      hitReactiveHeldItemExtension: BATTLE_HIT_REACTIVE_HELD_ITEM_COVERAGE_CANONICAL.classificationCounts,
       contactReactiveExtension: BATTLE_CONTACT_REACTIVE_COVERAGE_CANONICAL.classificationCounts,
       shellBellExtension: BATTLE_SHELL_BELL_COVERAGE_CANONICAL.classificationCounts,
       typeImmunityAfterEffectExtension: BATTLE_TYPE_IMMUNITY_AFTER_EFFECT_COVERAGE_CANONICAL.classificationCounts,
@@ -309,6 +315,12 @@ function resolveSharedActionAfterCanonical({ runtimeUser, runtimeTarget, move, d
       typeImmunityResolution: context?.typeImmunityResolution ?? context?.abilityItemTypeImmunityResolution ?? null,
     }),
     targetAirBalloon: resolveAirBalloonActionAfterCanonical({
+      target: runtimeTarget,
+      move,
+      damageDealt,
+      context,
+    }),
+    targetHitReactiveItem: resolveHitReactiveHeldItemActionAfterCanonical({
       target: runtimeTarget,
       move,
       damageDealt,

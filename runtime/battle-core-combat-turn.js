@@ -122,7 +122,9 @@ function actionAfterMoveCanonical(prepared) {
   const effectChance = secondary.reduce((maximum, effect) => Math.max(maximum, Number(effect?.effectChance ?? effect?.chance ?? 0)), 0);
   return {
     id: prepared.moveId ?? null,
+    type: prepared?.damageInput?.damageMultiplierInput?.type ?? null,
     category: prepared.moveCategory ?? null,
+    function_code: prepared.functionCode ?? null,
     effect_chance: effectChance,
   };
 }
@@ -147,12 +149,17 @@ export function applyBattleAbilityItemActionAfterCanonical(action, inputStatStag
     damageDealt: Number(prepared.hpReductionResolution?.amount ?? 0),
     context: {
       typeImmunityResolution: structuredClone(prepared.abilityItemTypeImmunityResolution ?? null),
+      typeMod: Number(prepared?.typeEffectivenessResolution?.multiplier ?? 1),
+      targetStatStages: structuredClone(statStages?.[Number(prepared.targetBattlerIndex)] ?? {}),
     },
   });
   prepared.abilityItemActionAfter = actionAfter;
 
-  const changes = actionAfter?.typeImmunityAfterEffect?.statChanges ?? [];
-  if (!Array.isArray(changes) || changes.length === 0) return { action: prepared, statStages };
+  const changes = [
+    ...(actionAfter?.typeImmunityAfterEffect?.statChanges ?? []),
+    ...(actionAfter?.targetHitReactiveItem?.statChanges ?? []),
+  ];
+  if (changes.length === 0) return { action: prepared, statStages };
   const stageResolution = applyBattleStatStageChangesCanonical(
     statStages,
     changes,
