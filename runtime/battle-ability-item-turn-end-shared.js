@@ -25,6 +25,7 @@ export function resolveSharedBattleAbilityItemTurnEndCanonical({ pokemon = {}, c
     hpDelta,
     reason: extension?.reason ?? base?.reason ?? null,
     statusCureRequest: extension?.statusCureRequest ?? null,
+    statusCureChanceRequest: extension?.statusCureChanceRequest ?? null,
     turnEndStatusItemExtension: extension,
   });
 }
