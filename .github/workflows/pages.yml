@@ -39,6 +39,8 @@ jobs:
           node --check runtime/safari-playable-data.js
           node --check runtime/safari-species-sprite-manifest.js
           node --check runtime/safari-species-sprite-atlas.js
+          node --check runtime/safari-species-form-front-atlas.js
+          node --check runtime/safari-egg-hatch-visits-v108.js
           node --check runtime/ruby-mt19937-random.js
           node --check runtime/mapless-dynamic-trainer-master.js
           node --check runtime/mapless-dynamic-trainer-generator.js
@@ -50,6 +52,7 @@ jobs:
           node --check runtime/facility-reward-bag-money-integration.js
       - name: Run playable vertical smoke
         run: |
+          node tests/safari-egg-hatch-visits-v108-smoke.mjs
           node tests/runtime-smoke.mjs
           node tests/facility-reward-smoke.mjs
           node tests/trainer-party-handoff-smoke.mjs
@@ -80,7 +83,9 @@ jobs:
           cp -R assets dist/assets
           test -f dist/species-sprite-atlas-bridge.js
           test -f dist/runtime/safari-species-sprite-atlas.js
-          test -f dist/assets/general-front12/front-00.js
+          test -f dist/runtime/safari-species-form-front-atlas.js
+          test -f dist/runtime/safari-egg-hatch-visits-v108.js
+          test -f dist/assets/species-form/front.webp
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4
         with:
