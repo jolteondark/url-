@@ -28,6 +28,10 @@ import {
   resolveStatusCureBerryHookCanonical,
 } from "./battle-core-status-cure-berry-extension.js";
 import {
+  BATTLE_BERRY_CONSUMPTION_SUPPRESSION_COVERAGE_CANONICAL,
+  applyBerryConsumptionSuppressionCanonical,
+} from "./battle-core-berry-consumption-suppression-extension.js";
+import {
   BATTLE_AIR_BALLOON_COVERAGE_CANONICAL,
   resolveAirBalloonActionAfterCanonical,
   resolveAirBalloonActionBeforeCanonical,
@@ -76,6 +80,7 @@ function combinedCoverageCanonical() {
     ...(BATTLE_ENTRY_WEATHER_COVERAGE_CANONICAL.abilityIds ?? []),
     ...(BATTLE_ENTRY_TERRAIN_COVERAGE_CANONICAL.abilityIds ?? []),
     ...(BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL.abilityIds ?? []),
+    ...(BATTLE_BERRY_CONSUMPTION_SUPPRESSION_COVERAGE_CANONICAL.abilityIds ?? []),
     ...(BATTLE_CONTACT_REACTIVE_COVERAGE_CANONICAL.abilityIds ?? []),
     ...(BATTLE_TYPE_IMMUNITY_AFTER_EFFECT_COVERAGE_CANONICAL.abilityIds ?? []),
   ])].sort());
@@ -101,6 +106,7 @@ function combinedCoverageCanonical() {
       entryWeatherExtension: BATTLE_ENTRY_WEATHER_COVERAGE_CANONICAL.classificationCounts,
       entryTerrainExtension: BATTLE_ENTRY_TERRAIN_COVERAGE_CANONICAL.classificationCounts,
       normalPlayExtension: BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL.classificationCounts,
+      berryConsumptionSuppressionExtension: BATTLE_BERRY_CONSUMPTION_SUPPRESSION_COVERAGE_CANONICAL.classificationCounts,
       statusCureBerryExtension: BATTLE_STATUS_CURE_BERRY_COVERAGE_CANONICAL.classificationCounts,
       airBalloonExtension: BATTLE_AIR_BALLOON_COVERAGE_CANONICAL.classificationCounts,
       contactReactiveExtension: BATTLE_CONTACT_REACTIVE_COVERAGE_CANONICAL.classificationCounts,
@@ -231,14 +237,30 @@ function resolveSharedActionAfterCanonical({ runtimeUser, runtimeTarget, move, d
     move,
     damageDealt,
   });
+  const targetBerry = applyBerryConsumptionSuppressionCanonical(base.targetBerry, {
+    consumer: runtimeTarget,
+    opposing: runtimeUser,
+    context,
+  });
+  const userStatusBerry = applyBerryConsumptionSuppressionCanonical(resolveStatusCureBerryHookCanonical(runtimeUser), {
+    consumer: runtimeUser,
+    opposing: runtimeTarget,
+    context,
+  });
+  const targetStatusBerry = applyBerryConsumptionSuppressionCanonical(resolveStatusCureBerryHookCanonical(runtimeTarget), {
+    consumer: runtimeTarget,
+    opposing: runtimeUser,
+    context,
+  });
   return Object.freeze({
     ...base,
+    targetBerry,
     typeImmunityAfterEffect: resolveTypeImmunityAfterEffectHookCanonical({
       target: runtimeTarget,
       typeImmunityResolution: context?.typeImmunityResolution ?? context?.abilityItemTypeImmunityResolution ?? null,
     }),
-    userStatusBerry: resolveStatusCureBerryHookCanonical(runtimeUser),
-    targetStatusBerry: resolveStatusCureBerryHookCanonical(runtimeTarget),
+    userStatusBerry,
+    targetStatusBerry,
     targetAirBalloon: resolveAirBalloonActionAfterCanonical({
       target: runtimeTarget,
       move,
