@@ -4,11 +4,14 @@ import {
   SAFARI_BATTLE_PHASE,
   beginSafariBattleCommand,
   commitSafariBattleResolution,
-  completeSafariBattlePresentation,
   completeSafariBattleReplacement,
   ensureSafariBattleOrchestrator,
   safariBattleCommandAllowed,
 } from "../runtime/safari-battle-orchestrator.js";
+import {
+  captureSafariBattlePresentationAckSequence,
+  completeSafariBattlePresentationForSequence,
+} from "../runtime/safari-battle-presentation-ack.js";
 
 function runtime() {
   return {
@@ -27,6 +30,12 @@ function runtime() {
 
 function phaseCount(battle, phase) {
   return (battle.phase_trace ?? []).filter((entry) => entry.phase === phase).length;
+}
+
+function acknowledgePresentation(state) {
+  const token = captureSafariBattlePresentationAckSequence(state);
+  if (!token) return state.variables.mapless.battle?.phase ?? null;
+  return completeSafariBattlePresentationForSequence(state, token);
 }
 
 {
@@ -50,13 +59,15 @@ function phaseCount(battle, phase) {
   assert.equal(battle.presentation_checkpoint?.committed, false);
 
   const commandCountBeforeAck = phaseCount(battle, SAFARI_BATTLE_PHASE.COMMAND);
-  assert.equal(completeSafariBattlePresentation(state), SAFARI_BATTLE_PHASE.COMMAND);
+  const token = captureSafariBattlePresentationAckSequence(state);
+  assert.ok(token, "central orchestrator must issue an acknowledgement token for the pending presentation");
+  assert.equal(completeSafariBattlePresentationForSequence(state, token), SAFARI_BATTLE_PHASE.COMMAND);
   assert.equal(safariBattleCommandAllowed(state), true);
   assert.equal(battle.presentation_checkpoint?.committed, true);
   assert.equal(phaseCount(battle, SAFARI_BATTLE_PHASE.COMMAND), commandCountBeforeAck + 1,
     "presentation acknowledgement must publish COMMAND exactly once");
 
-  completeSafariBattlePresentation(state);
+  completeSafariBattlePresentationForSequence(state, token);
   assert.equal(phaseCount(battle, SAFARI_BATTLE_PHASE.COMMAND), commandCountBeforeAck + 1,
     "presentation acknowledgement replay must not publish a second COMMAND");
 }
@@ -75,7 +86,7 @@ function phaseCount(battle, phase) {
     "consumed Bag command must keep COMMAND closed through the foe response presentation");
   const checks = battle.phase_trace.filter((entry) => entry.phase === SAFARI_BATTLE_PHASE.CHECK_1 || entry.phase === SAFARI_BATTLE_PHASE.CHECK_2);
   assert.deepEqual(checks.map((entry) => entry.actor), ["player", "foe"]);
-  completeSafariBattlePresentation(state);
+  acknowledgePresentation(state);
   assert.equal(battle.phase, SAFARI_BATTLE_PHASE.COMMAND);
 }
 
@@ -108,7 +119,7 @@ function phaseCount(battle, phase) {
   assert.equal(battle.phase, SAFARI_BATTLE_PHASE.REPLACEMENT,
     "trainer reserve must remain at the central replacement/presentation boundary before COMMAND");
   assert.equal(safariBattleCommandAllowed(state), false);
-  completeSafariBattlePresentation(state);
+  acknowledgePresentation(state);
   assert.equal(battle.phase, SAFARI_BATTLE_PHASE.COMMAND);
 }
 
@@ -151,12 +162,12 @@ function phaseCount(battle, phase) {
   assert.equal(safariBattleCommandAllowed(state), false);
 
   const commandCountBeforeAck = phaseCount(battle, SAFARI_BATTLE_PHASE.COMMAND);
-  completeSafariBattlePresentation(state);
+  acknowledgePresentation(state);
   assert.equal(battle.phase, SAFARI_BATTLE_PHASE.COMMAND);
   assert.equal(safariBattleCommandAllowed(state), true);
   assert.equal(phaseCount(battle, SAFARI_BATTLE_PHASE.COMMAND), commandCountBeforeAck + 1,
     "forced replacement presentation acknowledgement must publish COMMAND exactly once");
-  completeSafariBattlePresentation(state);
+  acknowledgePresentation(state);
   assert.equal(phaseCount(battle, SAFARI_BATTLE_PHASE.COMMAND), commandCountBeforeAck + 1);
 }
 
@@ -177,8 +188,21 @@ function phaseCount(battle, phase) {
   assert.equal(battle.completed, true);
   assert.equal(battle.presentation_checkpoint ?? null, null,
     "terminal RESULT must not create a COMMAND-resume presentation checkpoint");
-  assert.equal(completeSafariBattlePresentation(state), SAFARI_BATTLE_PHASE.RESULT,
+  assert.equal(acknowledgePresentation(state), SAFARI_BATTLE_PHASE.RESULT,
     "terminal presentation acknowledgement must never skip explicit RESULT -> RETURN");
+}
+
+{
+  const orchestratorSource = readFileSync(new URL("../runtime/safari-battle-orchestrator.js", import.meta.url), "utf8");
+  const ackSource = readFileSync(new URL("../runtime/safari-battle-presentation-ack.js", import.meta.url), "utf8");
+  assert.doesNotMatch(orchestratorSource, /export function completeSafariBattlePresentation\s*\(/,
+    "central orchestrator must not export a tokenless presentation completion API");
+  assert.match(orchestratorSource, /const issuedPresentationAckTokens = new WeakSet\(\)/,
+    "central orchestrator must own acknowledgement token issuance");
+  assert.match(ackSource, /from "\.\/safari-battle-orchestrator\.js"/,
+    "presentation ack facade must only re-export the central orchestrator owner");
+  assert.doesNotMatch(ackSource, /new WeakSet|function battleOf|presentation_checkpoint/,
+    "presentation ack facade must not keep a second acknowledgement truth");
 }
 
 {
