@@ -382,16 +382,15 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   const incompleteReplacement = incompleteReplacementError(battle);
   if (incompleteReplacement) throw incompleteReplacement;
 
+  const resolvedCommandKind = commandKind ?? battle.pending_command_kind ?? "command";
   if (battle.phase === SAFARI_BATTLE_PHASE.RESULT && battle.completed) {
-    battle.pending_command_kind = null;
-    battle.pending_command_sequence = null;
-    if (requestsPersistence(result)) result.persistenceRequested = true;
-    result.phase = battle.phase;
-    result.phaseTrace = structuredClone(battle.phase_trace ?? []);
-    return result;
+    const replayed = replayCommittedResolution(battle, result, resolvedCommandKind);
+    if (!replayed) {
+      throw new Error("RESULT battle resolution replay requires committed command identity");
+    }
+    return replayed;
   }
 
-  const resolvedCommandKind = commandKind ?? battle.pending_command_kind ?? "command";
   const decision = Number(result?.decision ?? battle.decision ?? 0);
   const playerReplacementRequired = Boolean(result?.playerReplacementRequired ?? battle.player_replacement_required);
   const foeReplacementRequired = Boolean(result?.foeReplacementRequired);
