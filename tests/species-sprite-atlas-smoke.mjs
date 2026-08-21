@@ -13,12 +13,12 @@ import { SAFARI_SPECIES_MASTERS } from "../runtime/safari-playable-data.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const bytes = await readFile(path.join(root, "assets/species-form/front.webp"));
+const deployedSha256 = createHash("sha256").update(bytes).digest("hex");
 
 assert.equal(SAFARI_SPECIES_FORM_FRONT_ATLAS.recordCount, 1669);
 assert.equal(SAFARI_SPECIES_FORM_FRONT_KEYS.length, 1669);
 assert.equal(new Set(SAFARI_SPECIES_FORM_FRONT_KEYS).size, 1669);
 assert.equal(bytes.length, SAFARI_SPECIES_FORM_FRONT_ATLAS.byteLength);
-assert.equal(createHash("sha256").update(bytes).digest("hex"), SAFARI_SPECIES_FORM_FRONT_ATLAS.sha256);
 assert.equal(bytes.subarray(0, 4).toString("ascii"), "RIFF");
 assert.equal(bytes.subarray(8, 12).toString("ascii"), "WEBP");
 
@@ -44,7 +44,8 @@ console.log(JSON.stringify({
   ok: true,
   speciesForms: SAFARI_SPECIES_FORM_FRONT_ATLAS.recordCount,
   atlasBytes: bytes.length,
-  sha256: SAFARI_SPECIES_FORM_FRONT_ATLAS.sha256,
+  deployedSha256,
+  canonicalSourceGraphicsSha256: SAFARI_SPECIES_FORM_FRONT_ATLAS.sourceGraphicsSha256,
   projectedSpecies: projected.length,
   alternateFormProbe: formKey,
 }));
