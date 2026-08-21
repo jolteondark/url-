@@ -1,0 +1,21 @@
+// Generated from frozen source-v0.9.108 Delta move PBS; do not hand-edit.
+export const MAPLESS_DELTA_EXCHANGE_MOVE_MASTERS_V108 = Object.freeze({
+  ACHILLESHEEL:Object.freeze({"id":"ACHILLESHEEL","name":"Achilles Heel","type":"NORMAL","category":"Physical","power":45,"accuracy":100,"total_pp":15,"priority":0,"function_code":"MaplessAlwaysSuperEffective","effect_chance":0,"thaws_user":false}),
+  ANCIENTROAR:Object.freeze({"id":"ANCIENTROAR","name":"Ancient Roar","type":"ROCK","category":"Special","power":80,"accuracy":100,"total_pp":15,"priority":0,"function_code":"None","effect_chance":0,"thaws_user":false}),
+  CORRODE:Object.freeze({"id":"CORRODE","name":"Corrode","type":"POISON","category":"Special","power":70,"accuracy":100,"total_pp":10,"priority":0,"function_code":"MaplessCorrode","effect_chance":0,"thaws_user":false}),
+  CRYSTALRUSH:Object.freeze({"id":"CRYSTALRUSH","name":"Crystal Rush","type":"CRYSTAL","category":"Physical","power":45,"accuracy":100,"total_pp":30,"priority":1,"function_code":"None","effect_chance":0,"thaws_user":false}),
+  DARKMATTER:Object.freeze({"id":"DARKMATTER","name":"Dark Matter","type":"DARK","category":"Special","power":150,"accuracy":90,"total_pp":5,"priority":0,"function_code":"AttackAndSkipNextTurn","effect_chance":0,"thaws_user":false}),
+  DRACOJET:Object.freeze({"id":"DRACOJET","name":"Draco Jet","type":"DRAGON","category":"Physical","power":40,"accuracy":100,"total_pp":15,"priority":1,"function_code":"None","effect_chance":0,"thaws_user":false}),
+  DRAGONIFY:Object.freeze({"id":"DRAGONIFY","name":"Dragonify","type":"DRAGON","category":"Status","power":0,"accuracy":100,"total_pp":20,"priority":0,"function_code":"MaplessSetTargetTypesToDragon","effect_chance":0,"thaws_user":false}),
+  DRAKONVOICE:Object.freeze({"id":"DRAKONVOICE","name":"Drakon Voice","type":"DRAGON","category":"Special","power":105,"accuracy":85,"total_pp":10,"priority":0,"function_code":"None","effect_chance":0,"thaws_user":false}),
+  JETSTREAM:Object.freeze({"id":"JETSTREAM","name":"Jet Stream","type":"DRAGON","category":"Status","power":0,"accuracy":0,"total_pp":15,"priority":0,"function_code":"StartUserSideDoubleSpeed","effect_chance":0,"thaws_user":false}),
+  LIVEWIRE:Object.freeze({"id":"LIVEWIRE","name":"Livewire","type":"ELECTRIC","category":"Status","power":0,"accuracy":100,"total_pp":20,"priority":0,"function_code":"ParalyzeTarget","effect_chance":0,"thaws_user":false}),
+  LUNARCANNON:Object.freeze({"id":"LUNARCANNON","name":"Lunar Cannon","type":"DARK","category":"Special","power":105,"accuracy":100,"total_pp":10,"priority":0,"function_code":"TwoTurnAttack","effect_chance":0,"thaws_user":false}),
+  MEDUSARAY:Object.freeze({"id":"MEDUSARAY","name":"Medusa Ray","type":"ROCK","category":"Status","power":0,"accuracy":100,"total_pp":20,"priority":0,"function_code":"MaplessSetTargetTypesToRock","effect_chance":0,"thaws_user":false}),
+  MORPH:Object.freeze({"id":"MORPH","name":"Morph","type":"NORMAL","category":"Status","power":0,"accuracy":0,"total_pp":10,"priority":0,"function_code":"TransformUserIntoTarget","effect_chance":0,"thaws_user":false}),
+  NEWMOON:Object.freeze({"id":"NEWMOON","name":"New Moon","type":"DARK","category":"Status","power":0,"accuracy":0,"total_pp":5,"priority":0,"function_code":"MaplessStartNewMoon","effect_chance":0,"thaws_user":false}),
+  PERMAFROST:Object.freeze({"id":"PERMAFROST","name":"Permafrost","type":"ICE","category":"Status","power":0,"accuracy":100,"total_pp":15,"priority":0,"function_code":"FreezeTarget","effect_chance":0,"thaws_user":false}),
+  RETROGRADE:Object.freeze({"id":"RETROGRADE","name":"Retrograde","type":"NORMAL","category":"Status","power":0,"accuracy":100,"total_pp":30,"priority":0,"function_code":"MaplessRevertMega","effect_chance":0,"thaws_user":false}),
+  WILDFIRE:Object.freeze({"id":"WILDFIRE","name":"Wildfire","type":"FIRE","category":"Status","power":0,"accuracy":70,"total_pp":10,"priority":0,"function_code":"BurnTarget","effect_chance":0,"thaws_user":false}),
+});
+export function installMaplessDeltaExchangeMoveMastersV108(target){for(const [id,m] of Object.entries(MAPLESS_DELTA_EXCHANGE_MOVE_MASTERS_V108))target[id]=m;return Object.keys(MAPLESS_DELTA_EXCHANGE_MOVE_MASTERS_V108).length;}
