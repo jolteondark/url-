@@ -61,6 +61,10 @@ import {
   BATTLE_KO_BOOST_ABILITY_COVERAGE_CANONICAL,
   resolveKoBoostAbilityActionAfterCanonical,
 } from "./battle-core-ko-boost-ability-extension.js";
+import {
+  BATTLE_WONDER_GUARD_COVERAGE_CANONICAL,
+  resolveWonderGuardTypeImmunityCanonical,
+} from "./battle-core-wonder-guard-extension.js";
 
 export const BATTLE_ABILITY_ITEM_HOOK_POINTS_CANONICAL = Object.freeze([
   "switch_in",
@@ -120,6 +124,7 @@ function combinedCoverageCanonical() {
     ...(BATTLE_CONTACT_REACTIVE_COVERAGE_CANONICAL.abilityIds ?? []),
     ...(BATTLE_TYPE_IMMUNITY_AFTER_EFFECT_COVERAGE_CANONICAL.abilityIds ?? []),
     ...(BATTLE_KO_BOOST_ABILITY_COVERAGE_CANONICAL.abilityIds ?? []),
+    ...(BATTLE_WONDER_GUARD_COVERAGE_CANONICAL.abilityIds ?? []),
     ...(BATTLE_HELD_ITEM_EFFECT_SUPPRESSION_COVERAGE_CANONICAL.abilityIds ?? []),
   ])].sort());
   const itemIds = Object.freeze([...new Set([
@@ -155,6 +160,7 @@ function combinedCoverageCanonical() {
       shellBellExtension: BATTLE_SHELL_BELL_COVERAGE_CANONICAL.classificationCounts,
       typeImmunityAfterEffectExtension: BATTLE_TYPE_IMMUNITY_AFTER_EFFECT_COVERAGE_CANONICAL.classificationCounts,
       koBoostAbilityExtension: BATTLE_KO_BOOST_ABILITY_COVERAGE_CANONICAL.classificationCounts,
+      wonderGuardExtension: BATTLE_WONDER_GUARD_COVERAGE_CANONICAL.classificationCounts,
     }),
   });
 }
@@ -210,15 +216,21 @@ function resolveSharedActionBeforeCanonical({ runtimeUser, runtimeTarget, move, 
     move,
     context,
   });
+  const wonderGuard = resolveWonderGuardTypeImmunityCanonical({
+    user: runtimeUser,
+    target: runtimeTarget,
+    move,
+    typeMod: context?.typeMod ?? 1,
+  });
   const baseDamageMultiplierInput = base?.modifiers?.damageMultiplierInput ?? {};
   const baseAccuracyModifierInput = base?.modifiers?.accuracyModifierInput ?? {};
   const baseSpeedInput = base?.modifiers?.speedInput ?? {};
   const baseSecondaryEffectInput = base?.modifiers?.secondaryEffectInput ?? {};
   const covertCloak = Boolean(extension?.secondaryEffectInput?.targetHasCovertCloak);
-  const typeImmunity = Boolean(base?.modifiers?.typeImmunity) || airBalloon.immune;
+  const typeImmunity = Boolean(base?.modifiers?.typeImmunity) || airBalloon.immune || wonderGuard.typeIneffective;
   const typeImmunityResolution = base?.modifiers?.typeImmunity
     ? base.modifiers.typeImmunityResolution
-    : (airBalloon.typeImmunityResolution ?? base?.modifiers?.typeImmunityResolution ?? null);
+    : (airBalloon.typeImmunityResolution ?? (wonderGuard.typeIneffective ? wonderGuard : null) ?? base?.modifiers?.typeImmunityResolution ?? null);
   return Object.freeze({
     ...base,
     modifiers: Object.freeze({
@@ -267,6 +279,7 @@ function resolveSharedActionBeforeCanonical({ runtimeUser, runtimeTarget, move, 
       damageCalculationInput: extension.damageCalculationInput,
     }),
     airBalloon,
+    wonderGuard,
     priorityModifier: extension.priorityModifier,
     criticalStageDelta: extension.criticalStageDelta,
     moveSelection: extension.moveSelection,
