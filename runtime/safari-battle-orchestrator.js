@@ -21,6 +21,7 @@ const ACTION_MARKERS = new Set([
 ]);
 
 const issuedPresentationAckTokens = new WeakSet();
+let nextBattleInstanceSequence = 1;
 
 function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
@@ -239,6 +240,28 @@ function resolutionCheckpointSequence(battle) {
   return Number(battle.pending_command_sequence ?? battle.command_sequence ?? 0);
 }
 
+function ensureBattleInstanceSequence(battle) {
+  const existing = Number(battle.orchestrator_battle_instance_sequence);
+  if (Number.isInteger(existing) && existing > 0) {
+    nextBattleInstanceSequence = Math.max(nextBattleInstanceSequence, existing + 1);
+    return existing;
+  }
+  const sequence = nextBattleInstanceSequence;
+  nextBattleInstanceSequence += 1;
+  battle.orchestrator_battle_instance_sequence = sequence;
+  return sequence;
+}
+
+function resultBattleInstanceSequence(result) {
+  const raw = result?.orchestratorBattleInstanceSequence;
+  if (raw == null) return null;
+  const sequence = Number(raw);
+  if (!Number.isInteger(sequence) || sequence <= 0) {
+    throw new TypeError("battle resolution orchestratorBattleInstanceSequence must be a positive integer");
+  }
+  return sequence;
+}
+
 function resultCommandSequence(result) {
   const raw = result?.orchestratorCommandSequence;
   if (raw == null) return null;
@@ -251,11 +274,21 @@ function resultCommandSequence(result) {
 
 function bindResolutionToPendingCommand(battle, result) {
   const sequence = resolutionCheckpointSequence(battle);
+  const battleInstanceSequence = ensureBattleInstanceSequence(battle);
+  const taggedBattle = resultBattleInstanceSequence(result);
+  if (taggedBattle != null && taggedBattle !== battleInstanceSequence) {
+    throw new Error(
+      `stale battle resolution belongs to battle instance ${taggedBattle}; current battle instance is ${battleInstanceSequence}`,
+    );
+  }
   const tagged = resultCommandSequence(result);
   if (tagged != null && tagged !== sequence) {
     throw new Error(`stale battle resolution belongs to command sequence ${tagged}; current command sequence is ${sequence}`);
   }
-  if (result && typeof result === "object") result.orchestratorCommandSequence = sequence;
+  if (result && typeof result === "object") {
+    result.orchestratorBattleInstanceSequence = battleInstanceSequence;
+    result.orchestratorCommandSequence = sequence;
+  }
   return sequence;
 }
 
@@ -267,7 +300,15 @@ function incompleteResolutionError(checkpoint) {
 function replayCommittedResolution(battle, result, commandKind) {
   const checkpoint = battle.resolution_checkpoint;
   const sequence = resolutionCheckpointSequence(battle);
-  if (!checkpoint || checkpoint.sequence !== sequence || checkpoint.commandKind !== commandKind) return null;
+  const battleInstanceSequence = ensureBattleInstanceSequence(battle);
+  if (
+    !checkpoint ||
+    checkpoint.sequence !== sequence ||
+    checkpoint.battleInstanceSequence !== battleInstanceSequence ||
+    checkpoint.commandKind !== commandKind
+  ) return null;
+  const taggedBattle = resultBattleInstanceSequence(result);
+  if (taggedBattle == null || taggedBattle !== checkpoint.battleInstanceSequence) return null;
   const tagged = resultCommandSequence(result);
   if (tagged == null || tagged !== checkpoint.sequence) return null;
   if (checkpoint.committed !== true) throw incompleteResolutionError(checkpoint);
@@ -285,6 +326,7 @@ function replayCommittedResolution(battle, result, commandKind) {
 
 function beginResolutionCheckpoint(battle, commandKind) {
   const checkpoint = {
+    battleInstanceSequence: ensureBattleInstanceSequence(battle),
     sequence: resolutionCheckpointSequence(battle),
     commandKind,
     committed: false,
@@ -341,6 +383,7 @@ function completedResultRecorded(battle) {
 export function ensureSafariBattleOrchestrator(runtime) {
   const state = stateOf(runtime);
   const battle = battleOf(runtime);
+  ensureBattleInstanceSequence(battle);
   if (!battle.phase) {
     const restoredResult = completedResultRecorded(battle);
     if (battle.completed === true && !restoredResult) {
@@ -438,7 +481,6 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
 
   const resolutionCheckpoint = beginResolutionCheckpoint(battle, resolvedCommandKind);
   const terminalResolution = decision !== 0;
-
   const actors = materializeActionOrder(battle, result, resolvedCommandKind);
   const consumedAction = commandConsumesAction(resolvedCommandKind);
   const firstActionActor = consumedAction ? "player" : (actors[0] ?? null);
@@ -487,6 +529,7 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   }
 
   if (result && typeof result === "object") {
+    result.orchestratorBattleInstanceSequence = resolutionCheckpoint.battleInstanceSequence;
     result.orchestratorCommandSequence = resolutionCheckpoint.sequence;
   }
   resolutionCheckpoint.phase = battle.phase;
@@ -597,6 +640,7 @@ export function completeSafariBattleReplacement(runtime, result = {}, {
       throw new Error("player replacement completion belongs to a different resolution checkpoint");
     }
     if (result && typeof result === "object") {
+      result.orchestratorBattleInstanceSequence = resolutionCheckpoint.battleInstanceSequence;
       result.orchestratorCommandSequence = resolutionCheckpoint.sequence;
     }
     resolutionCheckpoint.phase = battle.phase;
