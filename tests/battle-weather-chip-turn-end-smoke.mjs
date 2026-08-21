@@ -3,7 +3,7 @@ import {
   BATTLE_WEATHER_CHIP_TURN_END_COVERAGE_CANONICAL,
   resolveWeatherChipTurnEndCanonical,
 } from "../runtime/battle-core-weather-chip-turn-end-extension.js";
-import { resolveBattleAbilityItemHookCanonical } from "../runtime/battle-ability-item-hook-dispatch.js";
+import { commitBattleAbilityItemTurnEndRuntime } from "../runtime/battle-ability-item-turn-end-runtime.js";
 
 const pokemon = (ability = "NONE", item = null, extra = {}) => ({
   ability,
@@ -13,6 +13,7 @@ const pokemon = (ability = "NONE", item = null, extra = {}) => ({
   max_hp: 160,
   status: "NONE",
   types: ["NORMAL"],
+  stats: { ATTACK: 100, DEFENSE: 100, SPECIAL_ATTACK: 100, SPECIAL_DEFENSE: 100, SPEED: 100 },
   ...extra,
 });
 
@@ -52,21 +53,21 @@ const pokemon = (ability = "NONE", item = null, extra = {}) => ({
 }
 
 {
-  const shared = resolveBattleAbilityItemHookCanonical({
-    hook: "turn_end",
-    user: pokemon("NONE", "LEFTOVERS", { hp: 80 }),
+  const shared = commitBattleAbilityItemTurnEndRuntime({
+    pokemon: pokemon("NONE", "LEFTOVERS", { hp: 80 }),
     context: { effectiveWeather: "Sandstorm" },
   });
-  assert.equal(shared.weatherChip.hpDelta, -10);
-  assert.equal(shared.hpDelta, 0, "weather chip must resolve before Leftovers recovery");
+  assert.equal(shared.commit.weatherChip.hpDelta, -10);
+  assert.equal(shared.commit.hpDelta, 0, "weather chip must resolve before Leftovers recovery");
+  assert.equal(shared.pokemon.hp, 80);
 
-  const faintBeforeRecovery = resolveBattleAbilityItemHookCanonical({
-    hook: "turn_end",
-    user: pokemon("NONE", "LEFTOVERS", { hp: 5 }),
+  const faintBeforeRecovery = commitBattleAbilityItemTurnEndRuntime({
+    pokemon: pokemon("NONE", "LEFTOVERS", { hp: 5 }),
     context: { effectiveWeather: "Sandstorm" },
   });
-  assert.equal(faintBeforeRecovery.weatherChip.hpDelta, -5);
-  assert.equal(faintBeforeRecovery.hpDelta, -5, "weather KO must prevent later Leftovers recovery");
+  assert.equal(faintBeforeRecovery.commit.weatherChip.hpDelta, -5);
+  assert.equal(faintBeforeRecovery.commit.hpDelta, -5, "weather KO must prevent later Leftovers recovery");
+  assert.equal(faintBeforeRecovery.pokemon.hp, 0);
 }
 
 assert.equal(BATTLE_WEATHER_CHIP_TURN_END_COVERAGE_CANONICAL.classificationCounts.weatherDamageAbilities, 7);
