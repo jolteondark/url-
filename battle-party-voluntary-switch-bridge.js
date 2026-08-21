@@ -152,8 +152,6 @@ async function chooseSwitch(button) {
     button.disabled = true;
   }
   syncControls();
-  const card = byId("battle-card");
-  if (card) card.dataset.dpptMenu = "locked";
 
   try {
     const currentRuntime = runtime();
