@@ -290,6 +290,22 @@ function resultCommandSequence(result) {
   return sequence;
 }
 
+function resolveCommandKindForCommit(battle, result, commandKind) {
+  if (commandKind != null) return commandKind;
+  const checkpoint = battle.resolution_checkpoint;
+  if (checkpoint?.committed === true) {
+    const taggedBattle = resultBattleInstanceSequence(result);
+    const taggedCommand = resultCommandSequence(result);
+    if (
+      taggedBattle === checkpoint.battleInstanceSequence &&
+      taggedCommand === checkpoint.sequence
+    ) {
+      return checkpoint.commandKind;
+    }
+  }
+  return battle.pending_command_kind ?? "command";
+}
+
 function bindResolutionToPendingCommand(battle, result) {
   const sequence = resolutionCheckpointSequence(battle);
   const battleInstanceSequence = ensureBattleInstanceSequence(battle);
@@ -461,7 +477,7 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   const incompleteReplacement = incompleteReplacementError(battle);
   if (incompleteReplacement) throw incompleteReplacement;
 
-  const resolvedCommandKind = commandKind ?? battle.pending_command_kind ?? "command";
+  const resolvedCommandKind = resolveCommandKindForCommit(battle, result, commandKind);
   if (battle.phase === SAFARI_BATTLE_PHASE.RESULT && battle.completed) {
     const replayed = replayCommittedResolution(battle, result, resolvedCommandKind);
     if (!replayed) {
