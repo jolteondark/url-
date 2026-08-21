@@ -103,9 +103,7 @@ async function runCaptureRequest(sourceButton) {
   const currentBattle = currentRuntime?.variables?.mapless?.battle;
   if (!currentRuntime || currentBattle?.phase !== "COMMAND" || currentBattle.kind !== "wild") return;
 
-  const card = byId("battle-card");
   if (sourceButton instanceof HTMLElement) sourceButton.blur();
-  if (card) card.dataset.dpptMenu = "locked";
 
   try {
     const result = await attemptSafariCapture(currentRuntime);

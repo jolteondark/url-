@@ -170,6 +170,10 @@ for (const [name, relativePath, legacyGate] of ownerFiles) {
     `${name} must not retain ${legacyGate} as a parallel Battle command-readiness truth`);
   assert.match(source, /\.phase\s*!==\s*"COMMAND"|phase\s*===\s*"COMMAND"|REPLACEMENT_PHASE/,
     `${name} readiness must remain derived from the central Battle phase`);
+  if (name === "capture" || name === "flee") {
+    assert.doesNotMatch(source, /dataset\.dpptMenu\s*=\s*["']locked["']/,
+      `${name} owner must not create a parallel DPt lock before the central phase transition`);
+  }
 }
 
 console.log("Safari DPt Battle presentation acknowledgement owner smoke passed");
