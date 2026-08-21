@@ -36,16 +36,17 @@ const ordinaryLiechi = resolveBerryAbilityPreConsumptionCanonical({
 });
 assert.equal(ordinaryLiechi.triggered, false);
 
+const ordinarySitrus = Object.freeze({
+  item: "SITRUSBERRY",
+  triggered: true,
+  heal: 25,
+  statChanges: Object.freeze([]),
+  consumeRequest: Object.freeze({ item: "SITRUSBERRY", itemIsBerry: true, effectKind: "hp_restore", permanent: true }),
+  boundary: "action_after",
+});
 const ripenSitrus = resolveBerryAbilityPreConsumptionCanonical({
   pokemon: pokemon("RIPEN", "SITRUSBERRY", 40, 100),
-  berryResolution: Object.freeze({
-    item: "SITRUSBERRY",
-    triggered: true,
-    heal: 25,
-    statChanges: Object.freeze([]),
-    consumeRequest: Object.freeze({ item: "SITRUSBERRY", itemIsBerry: true, effectKind: "hp_restore", permanent: true }),
-    boundary: "action_after",
-  }),
+  berryResolution: ordinarySitrus,
 });
 assert.equal(ripenSitrus.heal, 50);
 
@@ -64,27 +65,27 @@ assert.deepEqual(ripenLiechi.statChanges, [{ subject: "user", stat: "ATTACK", de
 
 const cheekPouch = resolveBerryAbilityPostConsumptionCanonical({
   pokemon: pokemon("CHEEKPOUCH", "SITRUSBERRY", 40, 100),
-  berryResolution: ripenSitrus,
+  berryResolution: ordinarySitrus,
 });
 assert.equal(cheekPouch.triggered, true);
 assert.equal(cheekPouch.hpDelta, 33);
 
 const noConsumption = resolveBerryAbilityPostConsumptionCanonical({
   pokemon: pokemon("CHEEKPOUCH", "SITRUSBERRY", 40, 100),
-  berryResolution: { ...ripenSitrus, triggered: false, consumeRequest: null },
+  berryResolution: { ...ordinarySitrus, triggered: false, consumeRequest: null },
 });
 assert.equal(noConsumption.triggered, false);
 assert.equal(noConsumption.hpDelta, 0);
 
 const staleAlias = resolveBerryAbilityPostConsumptionCanonical({
   pokemon: { ability: null, ability_id: "CHEEKPOUCH", held_item: null, item: "SITRUSBERRY", hp: 40, max_hp: 100 },
-  berryResolution: ripenSitrus,
+  berryResolution: ordinarySitrus,
 });
 assert.equal(staleAlias.triggered, false);
 
 const legacy = resolveBerryAbilityPostConsumptionCanonical({
   pokemon: { ability_id: "CHEEKPOUCH", item: "SITRUSBERRY", hp: 40, max_hp: 100 },
-  berryResolution: ripenSitrus,
+  berryResolution: ordinarySitrus,
 });
 assert.equal(legacy.triggered, true);
 assert.equal(legacy.hpDelta, 33);
