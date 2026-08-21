@@ -113,6 +113,7 @@ export function openSafariNormalEventTouch(runtime, index) {
   state.notice = ui.message;
   if (typeof globalThis.document !== "undefined") {
     globalThis.__maplessNormalEventUi = { runtime, boardIndex:index, eventId, ...ui };
+    globalThis.window?.dispatchEvent?.(new CustomEvent("safari-normal-event-ui"));
   }
   return {
     runtime,
