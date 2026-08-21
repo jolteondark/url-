@@ -39,6 +39,7 @@ const cases = [
   ["LevelSun", "HarshSun", "Rain"],
   ["LevelRain", "Rain", "Sun"],
   ["LevelRain", "HeavyRain", "Sun"],
+  ["LevelRain", "Fog", "Sun"],
   ["LevelSnow", "Hail", "Rain"],
   ["LevelSandstorm", "Sandstorm", "Sun"],
 ];
