@@ -289,10 +289,22 @@ function beginResolutionCheckpoint(battle, commandKind) {
 
 function deferCommandUntilPresentation(battle, reason) {
   const sequence = Number(battle.pending_command_sequence ?? battle.command_sequence ?? 0);
+  const checkpointReason = reason ?? null;
+  const existing = battle.presentation_checkpoint;
+  if (existing?.committed === false) {
+    if (
+      Number(existing.sequence) !== sequence ||
+      existing.phase !== battle.phase ||
+      (existing.reason ?? null) !== checkpointReason
+    ) {
+      throw new Error("battle presentation checkpoint is already pending for a different command boundary");
+    }
+    return battle.phase;
+  }
   battle.presentation_checkpoint = {
     sequence,
     phase: battle.phase,
-    reason: reason ?? null,
+    reason: checkpointReason,
     committed: false,
   };
   return battle.phase;
