@@ -32,6 +32,9 @@ const pokemon = (ability = "NONE", item = null, extra = {}) => ({
     assert.equal(result.immune, true);
   }
   assert.equal(resolveWeatherChipTurnEndCanonical(pokemon("NONE", "SAFETYGOGGLES"), { effectiveWeather: "Sandstorm" }).hpDelta, 0);
+  assert.equal(resolveWeatherChipTurnEndCanonical(pokemon("SANDVEIL"), { effectiveWeather: "Sandstorm", abilitySuppressed: true }).hpDelta, -10);
+  assert.equal(resolveWeatherChipTurnEndCanonical(pokemon("NONE", "SAFETYGOGGLES"), { effectiveWeather: "Sandstorm", itemSuppressed: true }).hpDelta, -10);
+  assert.equal(resolveWeatherChipTurnEndCanonical(pokemon("KLUTZ", "SAFETYGOGGLES"), { effectiveWeather: "Sandstorm" }).hpDelta, -10);
 }
 
 {
