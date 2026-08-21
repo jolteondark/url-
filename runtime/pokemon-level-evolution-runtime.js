@@ -76,6 +76,9 @@ function levelEvolutionTarget(speciesMaster, runtime, moveMasters = {}) {
     "HappinessMove",
     "HappinessMoveType",
     "HappinessHoldItem",
+    "HoldItem",
+    "HoldItemMale",
+    "HoldItemFemale",
     "MaxHappiness",
   ]);
   let eligible = null;
@@ -112,12 +115,16 @@ function levelEvolutionTarget(speciesMaster, runtime, moveMasters = {}) {
       continue;
     }
 
-    if (evolution.method === "HappinessHoldItem") {
+    if (["HappinessHoldItem", "HoldItem", "HoldItemMale", "HoldItemFemale"].includes(evolution.method)) {
       const requiredItem = normalizedDataId(evolution.parameter);
-      const conditionMatches = Number.isInteger(happiness)
-        && happiness >= 220
-        && requiredItem.length > 0
-        && heldItemId(runtime) === requiredItem;
+      let conditionMatches = requiredItem.length > 0 && heldItemId(runtime) === requiredItem;
+      if (evolution.method === "HappinessHoldItem") {
+        conditionMatches = conditionMatches && Number.isInteger(happiness) && happiness >= 220;
+      } else if (evolution.method === "HoldItemMale") {
+        conditionMatches = conditionMatches && gender === 0;
+      } else if (evolution.method === "HoldItemFemale") {
+        conditionMatches = conditionMatches && gender === 1;
+      }
       if (!eligible && conditionMatches) {
         eligible = { target: evolution.species, method: evolution.method, parameter: requiredItem };
       }
@@ -447,7 +454,8 @@ export function resolvePokemonLevelEvolution(runtime, {
     moveDecisionResolverSource,
   });
   recalculated = learned.pokemon;
-  const consumedEvolutionItem = candidate.method === "HappinessHoldItem" ? candidate.parameter : null;
+  const itemConsumptionMethods = new Set(["HappinessHoldItem", "HoldItem", "HoldItemMale", "HoldItemFemale"]);
+  const consumedEvolutionItem = itemConsumptionMethods.has(candidate.method) ? candidate.parameter : null;
   if (consumedEvolutionItem) {
     recalculated = { ...recalculated, held_item: null, item: null };
   }
