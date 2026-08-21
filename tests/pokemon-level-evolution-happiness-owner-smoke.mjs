@@ -42,6 +42,15 @@ const speciesMasters = {
     ],
   },
   HOLD2: { ...base, id: "HOLD2", base_stats: stats(55, 65, 55, 65, 55, 75) },
+  HOLDHAPPY: {
+    ...base,
+    id: "HOLDHAPPY",
+    evolutions: [
+      ["HOLDHAPPY2", "HoldItemHappiness", "SOOTHEBELL", false],
+      ["TRADE2", "Trade", null, false],
+    ],
+  },
+  HOLDHAPPY2: { ...base, id: "HOLDHAPPY2", base_stats: stats(58, 68, 58, 68, 58, 78) },
   ITEMHOLD: { ...base, id: "ITEMHOLD", evolutions: [["ITEMHOLD2", "HoldItem", "RAZORCLAW", false], ["TRADE2", "Trade", null, false]] },
   ITEMHOLD2: { ...base, id: "ITEMHOLD2" },
   ITEMMALE: { ...base, id: "ITEMMALE", evolutions: [["ITEMMALE2", "HoldItemMale", "RAZORFANG", false]] },
@@ -142,6 +151,33 @@ const options = {
   assert.equal(evolved.pokemon.moves[0].pp, 17, "existing move PP must survive the evolution");
   assert.ok(evolved.operations.some((operation) => operation.op === "consume_evolution_item" && operation.item === "SOOTHEBELL"));
   assert.deepEqual(evolved.unsupportedMethods, ["Item"]);
+}
+
+{
+  const low = resolvePokemonLevelEvolution(runtime("HOLDHAPPY", 219, 0, "SOOTHEBELL"), options);
+  assert.equal(low.evolved, false, "HoldItemHappiness must enforce the canonical happiness threshold");
+  assert.equal(low.pokemon.held_item, "SOOTHEBELL", "failed HoldItemHappiness eligibility must not consume the held item");
+  assert.deepEqual(low.unsupportedMethods, ["Trade"]);
+
+  const wrongItem = resolvePokemonLevelEvolution(runtime("HOLDHAPPY", 220, 0, "ORANBERRY"), options);
+  assert.equal(wrongItem.evolved, false, "HoldItemHappiness must require the configured item");
+  assert.equal(wrongItem.pokemon.held_item, "ORANBERRY");
+
+  const candidate = runtime("HOLDHAPPY", 220, 0, "SOOTHEBELL");
+  candidate.item = "ORANBERRY";
+  const evolved = resolvePokemonLevelEvolution(candidate, options);
+  assert.equal(evolved.evolved, true);
+  assert.equal(evolved.evolution.method, "HoldItemHappiness");
+  assert.equal(evolved.evolution.parameter, "SOOTHEBELL");
+  assert.equal(evolved.pokemon.species, "HOLDHAPPY2");
+  assert.equal(evolved.pokemon.held_item, null, "successful HoldItemHappiness evolution consumes the authoritative held item");
+  assert.equal(evolved.pokemon.item, null);
+  assert.equal(evolved.pokemon.personal_id, 0x12345678);
+  assert.equal(evolved.pokemon.status, "POISON");
+  assert.equal(evolved.pokemon.status_count, 2);
+  assert.equal(evolved.pokemon.moves[0].pp, 17, "existing move PP must survive HoldItemHappiness evolution");
+  assert.ok(evolved.operations.some((operation) => operation.op === "consume_evolution_item" && operation.item === "SOOTHEBELL"));
+  assert.deepEqual(evolved.unsupportedMethods, ["Trade"]);
 }
 
 {
