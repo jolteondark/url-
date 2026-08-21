@@ -107,9 +107,9 @@ assert.match(uiSource, /持ち越し候補を読み込めませんでした。�
   "candidate load failure must never trap Run End without fallback");
 assert.match(uiSource, /window\.dispatchEvent\(new CustomEvent\("safari-runtime-changed"\)\)/,
   "successful selection must repaint the main preview");
-assert.match(previewSource, /preview-app\.js\?v=20260818-2318/,
-  "carryover acceptance must follow the current preview-app cache key instead of pinning the older rescue build");
-assert.match(previewSource, /carryover-next-run-presentation\.js\?v=20260818-1558/);
+assert.match(previewSource, /preview-app\.js\?v=20260819-1700/,
+  "carryover acceptance must follow the current preview-app cache key");
+assert.match(previewSource, /carryover-next-run-presentation\.js\?v=20260820-0531/);
 assert.match(previewSource, /await carryoverPresentation\.renderSafariCarryoverSelection\?\.\(\)/,
   "preview must explicitly render selector after saved runtime restore");
 assert.match(previewSource, /function rememberPreviewStartError\(error\)/,
@@ -122,6 +122,6 @@ assert.match(previewSource, /globalThis\.__maplessLastError = exact/,
   "selector-module failure must retain the diagnosed exact Error globally");
 assert.match(previewSource, /carryoverPanelVisible/);
 assert.match(previewSource, /carryoverError/);
-assert.match(indexSource, /preview\.js\?v=20260820-2134/);
+assert.match(indexSource, /preview\.js\?v=20260821-1434/);
 
 console.log("Safari carryover Run End -> visible keeper/fallback -> next Day Board: ok");
