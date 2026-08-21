@@ -170,6 +170,7 @@ export function applyBattleAbilityItemActionAfterCanonical(action, inputStatStag
   const changes = [
     ...(actionAfter?.typeImmunityAfterEffect?.statChanges ?? []),
     ...(actionAfter?.targetHitReactiveItem?.statChanges ?? []),
+    ...(actionAfter?.contactReactive?.statChanges ?? []),
     ...(actionAfter?.koBoost?.statChanges ?? []),
   ];
   if (changes.length === 0) return { action: prepared, statStages };
