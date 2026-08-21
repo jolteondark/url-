@@ -3,17 +3,26 @@ let epoch=0;
 function visible(n){return !!(n&&!n.hidden&&n.getClientRects().length)}
 function enabled(n){return visible(n)&&!n.disabled}
 function first(root,sel){return root?[...root.querySelectorAll(sel)].find(enabled)??null:null}
+function current(root,sel){const active=document.activeElement;return active instanceof HTMLElement&&root?.contains(active)&&enabled(active)&&active.matches(sel)?active:null}
 function runtime(){return globalThis.__maplessSafariRuntime?.variables?.mapless??null}
 function stopScroll(){window.scrollTo({top:window.scrollY,left:window.scrollX,behavior:"auto"})}
 function commandTarget(battle){
  const mode=battle?.dataset?.dpptMenu;
- if(mode==="fight")return first(battle,'#moves button[data-move-id]:not(:disabled),#dppt-command-back:not(:disabled)');
- if(mode==="bag")return first(battle,'#dppt-battle-bag button:not(:disabled),#dppt-command-back:not(:disabled)');
- return first(battle,'#dppt-command-root button[data-dppt-command="fight"]:not(:disabled)');
+ if(mode==="fight"){
+  const sel='#moves button[data-move-id]:not(:disabled),#dppt-command-back:not(:disabled)';
+  return current(battle,sel)??first(battle,sel);
+ }
+ if(mode==="bag"){
+  const sel='#dppt-battle-bag button:not(:disabled),#dppt-command-back:not(:disabled)';
+  return current(battle,sel)??first(battle,sel);
+ }
+ const sel='#dppt-command-root button:not(:disabled)';
+ return current(battle,sel)??first(battle,'#dppt-command-root button[data-dppt-command="fight"]:not(:disabled)');
 }
 function gameMenuTarget(menu){
  const pane=[...menu.querySelectorAll("[data-menu-pane]")].find(visible)??null;
- return first(pane,'button:not(:disabled),select:not(:disabled),input:not(:disabled),[tabindex]:not([tabindex="-1"])')??(enabled(byId("game-menu-close"))?byId("game-menu-close"):null);
+ const sel='button:not(:disabled),select:not(:disabled),input:not(:disabled),[tabindex]:not([tabindex="-1"])';
+ return current(pane,sel)??first(pane,sel)??(enabled(byId("game-menu-close"))?byId("game-menu-close"):null);
 }
 function clearBattleFocusOutsideInteractivePhase(){
  const s=runtime();
