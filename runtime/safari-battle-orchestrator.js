@@ -240,6 +240,24 @@ function resolutionCheckpointSequence(battle) {
   return Number(battle.pending_command_sequence ?? battle.command_sequence ?? 0);
 }
 
+function requirePendingCommandProvenance(battle, commandKind) {
+  const pendingSequence = Number(battle.pending_command_sequence);
+  const commandSequence = Number(battle.command_sequence ?? 0);
+  const pendingKind = battle.pending_command_kind;
+  if (
+    !Number.isInteger(pendingSequence) ||
+    pendingSequence <= 0 ||
+    pendingSequence !== commandSequence ||
+    pendingKind == null
+  ) {
+    throw new Error("fresh battle resolution requires a centrally issued pending command");
+  }
+  if (String(pendingKind) !== String(commandKind)) {
+    throw new Error(`battle resolution command kind ${commandKind} does not match pending command ${pendingKind}`);
+  }
+  return pendingSequence;
+}
+
 function ensureBattleInstanceSequence(battle) {
   const existing = Number(battle.orchestrator_battle_instance_sequence);
   if (Number.isInteger(existing) && existing > 0) {
@@ -473,6 +491,7 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   if (battle.phase !== SAFARI_BATTLE_PHASE.ACTION_1) {
     throw new Error(`fresh battle resolution requires ACTION_1; got ${battle.phase}`);
   }
+  requirePendingCommandProvenance(battle, resolvedCommandKind);
 
   bindResolutionToPendingCommand(battle, result);
   if (result?.turnConsumed === false) {
