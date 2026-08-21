@@ -9,6 +9,7 @@ import { resolveBattleSpeedCanonical } from "./battle-core-speed.js";
 import { applyBattleStatStageChangesCanonical, createBattleStatStageStateCanonical, resolveBattleStatStageChangesCanonical } from "./battle-core-stat-stages.js";
 import { buildRestStatusInputCanonical, isCanonicalFixedDamageFunction, resolveCanonicalFixedDamage } from "./battle-core-hp-function-effects.js";
 import { resolveBattleAbilityItemHookCanonical } from "./battle-ability-item-hook-dispatch.js";
+import { resolveMoveOrderAbilityItemExtensionCanonical } from "./battle-core-ability-item-move-order-extension.js";
 
 function moveId(move) { return typeof move === "string" ? move : move?.id; }
 function requireMoveMaster(moveMasters, id) {
@@ -192,6 +193,11 @@ export function buildBrowserBattleActionInput({ actor, target, move, moveIndex, 
 export function buildBrowserBattlePriorityEntry({ action, pokemon, move, statStages, actionIndex, battlerIndex }) {
   const speedInput = action?.abilityItemActionBefore?.modifiers?.speedInput ?? {};
   const speedStage = Number(statStages?.[Number(battlerIndex)]?.SPEED ?? 0);
+  const klutz = canonicalAbilityId(pokemon) === "KLUTZ";
+  const moveOrderUser = klutz ? { ...pokemon, held_item: null, item: null, held_item_effect_suppressed: true } : pokemon;
+  const moveOrder = resolveMoveOrderAbilityItemExtensionCanonical({ user: moveOrderUser, move });
+  // Consumable/probabilistic move-first effects stay inert here until their RNG/consume request is committed live.
+  const liveMoveOrder = moveOrder.consumeRequest ? null : moveOrder;
   return {
     actionIndex: Number(actionIndex),
     battlerIndex: Number(battlerIndex),
@@ -203,6 +209,8 @@ export function buildBrowserBattlePriorityEntry({ action, pokemon, move, statSta
       ...speedInput,
     }),
     movePriority: Number(move?.priority ?? 0) + Number(action?.abilityItemActionBefore?.priorityModifier ?? 0),
+    abilitySubPriority: Number(liveMoveOrder?.abilitySubPriority ?? 0),
+    itemSubPriority: Number(liveMoveOrder?.itemSubPriority ?? 0),
   };
 }
 
