@@ -42,7 +42,7 @@ function materializeTryUseRolls(tryUse, moveUseRng, rolls) {
   return false;
 }
 
-function materializeAction(action, rng, criticalRng, moveUseRng) {
+function materializeAction(action, rng, criticalRng, moveUseRng, survivalRng) {
   const prepared = structuredClone(action ?? {});
   const rolls = [];
   const blocked = materializeTryUseRolls(prepared.useMoveInput?.tryUseMoveInput, moveUseRng, rolls);
@@ -61,6 +61,12 @@ function materializeAction(action, rng, criticalRng, moveUseRng) {
     prepared.damageInput.damageMultiplierInput.randomRoll = value;
     rolls.push({ kind: "damage_variance", limit: 16, value, sourceSymbol: "Battle::Move#pbCalcDamageMultipliers", sourceBodySha256: DAMAGE_MULTIPLIERS_BODY_SHA256 });
   }
+  const targetItem = String(prepared?.abilityItemActionBefore?.modifiers?.targetItem ?? "").toUpperCase();
+  if (!blocked && targetItem === "FOCUSBAND" && prepared.abilityItemSurvivalRandomRoll === undefined) {
+    const value = survivalRng.randInt(100);
+    prepared.abilityItemSurvivalRandomRoll = value;
+    rolls.push({ kind: "focus_band_survival", limit: 100, value });
+  }
   if (rolls.length) prepared.seededAccuracyDamageRolls = rolls;
   return prepared;
 }
@@ -68,15 +74,15 @@ function materializeAction(action, rng, criticalRng, moveUseRng) {
 export function materializeSeededAccuracyDamageCanonical(input = {}) {
   const seed = Number(input.combatRandomSeed ?? 0) & 0x7fffffff;
   const rng = new RubyMT19937Random(seed);
-  // Critical and move-use preflight rolls remain deterministic sibling streams
-  // until the full canonical Battle RNG stream is composed end-to-end. This
-  // preserves the established accuracy/damage-variance transcript while making
-  // their source-backed owners available to ordinary combat composition.
+  // Critical, move-use preflight, and held-item survival rolls remain deterministic sibling streams
+  // until the full canonical Battle RNG stream is composed end-to-end. This preserves the
+  // established accuracy/damage-variance transcript while keeping probabilistic survival replayable.
   const criticalRng = new RubyMT19937Random((seed ^ 0x43524954) >>> 0);
   const moveUseRng = new RubyMT19937Random((seed ^ 0x53544154) >>> 0);
+  const survivalRng = new RubyMT19937Random((seed ^ 0x464f4355) >>> 0);
   const rounds = (Array.isArray(input.rounds) ? input.rounds : []).map((round) => ({
     ...round,
-    actions: (Array.isArray(round.actions) ? round.actions : []).map((action) => materializeAction(action, rng, criticalRng, moveUseRng)),
+    actions: (Array.isArray(round.actions) ? round.actions : []).map((action) => materializeAction(action, rng, criticalRng, moveUseRng, survivalRng)),
   }));
   return { ...input, combatRandomSeed: seed, rounds };
 }
