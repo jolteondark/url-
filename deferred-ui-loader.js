@@ -47,8 +47,8 @@ async function loadShopUi() {
 async function loadMenuUi() {
   loadStyle("./bridge-shell.css");
   loadStyle("./game-menu.css");
-  await Promise.all([
-    loadModule("./game-menu-bridge.js?v=20260821-0345"),
+  const modules = await Promise.all([
+    loadModule("./game-menu-bridge.js?v=20260821-0936"),
     loadModule("./party-panel-bridge.js"),
     loadModule("./battle-party-voluntary-switch-bridge.js?v=20260820-1535"),
     loadModule("./storage-panel-bridge.js"),
@@ -56,6 +56,8 @@ async function loadMenuUi() {
     loadModule("./species-form-metadata-bridge.js"),
     loadModule("./species-sprite-atlas-bridge.js"),
   ]);
+  window.dispatchEvent(new CustomEvent("safari-game-menu-ui-ready"));
+  return modules;
 }
 
 function syncSceneBundles() {
