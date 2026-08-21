@@ -68,6 +68,7 @@ export function resolveBrowserTrainerBattleRound({
   playerReplacementPartyIndex = null,
   playerPartyOrder = null,
   playerIdxBattler = 0,
+  deferFoeReplacement = false,
 } = {}) {
   const preparedRoundInput = {
     ...roundInput,
@@ -86,9 +87,6 @@ export function resolveBrowserTrainerBattleRound({
     sideSize,
   });
 
-  // Foe replacement mechanics are deliberately not committed here. The central
-  // Battle orchestrator invokes the existing canonical chooser/switch owner only
-  // after POST_FAINT has advanced to the REPLACEMENT checkpoint.
   const afterFoeHandoff = round.battleContinuationHandoff;
   const nextFoe = round.foe;
 
@@ -104,7 +102,7 @@ export function resolveBrowserTrainerBattleRound({
   const nextPlayer = playerReplacementApplied ? playerContinuation.activePlayer : round.player;
   const playerSwitchOperations = clone(playerContinuation.operations ?? []);
 
-  return {
+  const result = {
     ...round,
     player: clone(nextPlayer),
     foe: clone(nextFoe),
@@ -131,4 +129,9 @@ export function resolveBrowserTrainerBattleRound({
     continuationOperations: playerSwitchOperations,
     presentationOperations: [...round.operations, ...playerSwitchOperations],
   };
+
+  // Normal Safari trainer battles use this compatibility wrapper as their
+  // replacement checkpoint owner. Callers that are themselves phase-orchestrated
+  // can explicitly defer and invoke commitBrowserTrainerFoeReplacement later.
+  return deferFoeReplacement ? result : commitBrowserTrainerFoeReplacement(result);
 }
