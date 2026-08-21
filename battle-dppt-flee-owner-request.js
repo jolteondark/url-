@@ -104,9 +104,7 @@ async function runFleeRequest(sourceButton) {
   if (!currentRuntime || currentBattle?.phase !== "COMMAND") return;
   if (currentBattle.kind !== "wild" || currentBattle.origin === "village_bounty") return;
 
-  const card = byId("battle-card");
   if (sourceButton instanceof HTMLElement) sourceButton.blur();
-  if (card) card.dataset.dpptMenu = "locked";
 
   try {
     const result = attemptSafariFlee(currentRuntime);
