@@ -90,7 +90,9 @@ function settleRenderedPane(paneId){
 }
 function settlePartyPanel(){settleRenderedPane("menu-party-pane")}
 function settleBagPanel(){settleRenderedPane("menu-bag-pane")}
+function settleBoxPanel(){settleRenderedPane("menu-box-pane")}
 for(const name of ["safari-runtime-changed","safari-preview-start","safari-game-menu-opened","safari-game-menu-open-failed","safari-game-menu-closed","mapless-dppt-menu-changed","pageshow"])window.addEventListener(name,settle,{passive:true});
 window.addEventListener("safari-party-panel-rendered",settlePartyPanel,{passive:true});
+window.addEventListener("safari-storage-controls-rendered",settleBoxPanel,{passive:true});
 window.addEventListener("storage",settleBagPanel,{passive:true});
 settle();
