@@ -87,9 +87,13 @@ assert.equal(resolveHitStatReactionCanonical({
     target: pokemon("STAMINA"),
     move: { id: "TACKLE", type: "NORMAL", category: "Physical" },
     damageDealt: 12,
-    context: { hit: true },
+    context: { hit: true, contact: false },
   });
-  assert.deepEqual(result.hitStatReaction.statChanges, [
+  assert.equal(result.contactReactive.contact, false);
+  assert.deepEqual(result.contactReactive.hitStatReaction.statChanges, [
+    { subject: "target", stat: "DEFENSE", delta: 1 },
+  ]);
+  assert.deepEqual(result.contactReactive.statChanges, [
     { subject: "target", stat: "DEFENSE", delta: 1 },
   ]);
 }
