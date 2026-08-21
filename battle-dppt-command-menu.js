@@ -188,12 +188,6 @@ byId("battle-card")?.addEventListener("click", (event) => {
   if (event.target.closest("#dppt-command-back")) return setMenu("root");
   const bag = event.target.closest("[data-dppt-bag]");
   if (bag?.dataset.dpptBag === "items") return requestGameMenu("bag");
-  if (event.target.closest("#moves button[data-move-id]")) {
-    queueMicrotask(() => {
-      const card = byId("battle-card");
-      if (card) card.dataset.dpptMenu = "locked";
-    });
-  }
 }, true);
 
 window.addEventListener("safari-runtime-changed", () => requestAnimationFrame(sync));
