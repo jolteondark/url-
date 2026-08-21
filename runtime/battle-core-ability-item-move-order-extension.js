@@ -34,6 +34,13 @@ function hpFractionAtMost(pokemon, numerator, denominator) {
   return hp > 0 && hp * denominator <= maxHp * numerator;
 }
 
+function effectiveSubPriorityCanonical(abilitySubPriority, itemSubPriority) {
+  let subPriority = Number(abilitySubPriority ?? 0);
+  const item = Number(itemSubPriority ?? 0);
+  if ((subPriority === 0 && item !== 0) || (subPriority < 0 && item >= 1)) subPriority = item;
+  return subPriority;
+}
+
 const MOVE_LAST_HELD_ITEMS = new Set(["FULLINCENSE", "LAGGINGTAIL"]);
 const MOVE_LAST_ABILITIES = new Set(["MYCELIUMMIGHT", "STALL"]);
 const MOVE_FIRST_HELD_ITEMS = new Set(["CUSTAPBERRY", "QUICKCLAW"]);
@@ -68,7 +75,7 @@ export function resolveMoveOrderAbilityItemExtensionCanonical({
   const movePriorityRaw = Number(move?.priority ?? 0);
   const movePriority = Number.isFinite(movePriorityRaw) ? movePriorityRaw : 0;
   const moveCategory = canonicalId(move?.category);
-  const damagingMove = moveCategory !== "STATUS";
+  const damagingMove = moveCategory === "PHYSICAL" || moveCategory === "SPECIAL";
 
   const quickDrawEligible = ability === "QUICKDRAW" && damagingMove;
   const quickDrawTriggered = quickDrawEligible && abilityRoll !== null && abilityRoll < 30;
@@ -88,12 +95,14 @@ export function resolveMoveOrderAbilityItemExtensionCanonical({
     && custapHpEligible;
   const itemForcesLast = itemAvailable && MOVE_LAST_HELD_ITEMS.has(heldItem);
   const itemSubPriority = (quickClawTriggered || custapTriggered) ? 1 : (itemForcesLast ? -1 : 0);
+  const effectiveSubPriority = effectiveSubPriorityCanonical(abilitySubPriority, itemSubPriority);
 
   let source = null;
-  if (abilitySubPriority > 0) source = "QUICKDRAW";
-  else if (itemSubPriority > 0) source = quickClawTriggered ? "QUICKCLAW" : "CUSTAPBERRY";
-  else if (itemSubPriority < 0) source = heldItem;
-  else if (abilitySubPriority < 0) source = myceliumMightForcesLast ? "MYCELIUMMIGHT" : "STALL";
+  if (effectiveSubPriority > 0) {
+    source = abilitySubPriority > 0 ? "QUICKDRAW" : (quickClawTriggered ? "QUICKCLAW" : "CUSTAPBERRY");
+  } else if (effectiveSubPriority < 0) {
+    source = abilitySubPriority < 0 ? (myceliumMightForcesLast ? "MYCELIUMMIGHT" : "STALL") : heldItem;
+  }
 
   const consumeRequest = custapTriggered
     ? Object.freeze({ item: "CUSTAPBERRY", permanent: true, reason: "move_first_within_priority" })
@@ -101,11 +110,12 @@ export function resolveMoveOrderAbilityItemExtensionCanonical({
 
   return Object.freeze({
     boundary: "action_before",
-    forceFirstWithinPriority: abilitySubPriority > 0 || itemSubPriority > 0,
-    forceLastWithinPriority: abilitySubPriority < 0 || itemSubPriority < 0,
+    forceFirstWithinPriority: effectiveSubPriority > 0,
+    forceLastWithinPriority: effectiveSubPriority < 0,
     source,
     abilitySubPriority,
     itemSubPriority,
+    effectiveSubPriority,
     movePriority,
     priorityDelta: 0,
     abilityChanceRequest: quickDrawEligible
