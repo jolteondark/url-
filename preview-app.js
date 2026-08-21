@@ -20,7 +20,10 @@ import {
   setSafariPartyLead,
   startSafariVillageBounty,
 } from "./runtime/safari-web-playable-integration.js";
-import { completeSafariBattlePresentation } from "./runtime/safari-battle-orchestrator.js";
+import {
+  captureSafariBattlePresentationAckSequence,
+  completeSafariBattlePresentationForSequence,
+} from "./runtime/safari-battle-presentation-ack.js";
 import {
   ensureSafariGeneralCombatData,
   ensureSafariGeneralData,
@@ -292,6 +295,7 @@ function render() {
 }
 
 async function playPresentation(events) {
+  const presentationAckToken = captureSafariBattlePresentationAckSequence(runtime);
   for (const event of events) {
     const message = presentationMessage(event);
     if (message) setBattlePresentationMessage(message);
@@ -336,7 +340,9 @@ async function playPresentation(events) {
     }
   }
   const phaseBeforeAck = mapless().battle?.phase ?? null;
-  const phaseAfterAck = completeSafariBattlePresentation(runtime);
+  const phaseAfterAck = presentationAckToken
+    ? completeSafariBattlePresentationForSequence(runtime, presentationAckToken)
+    : phaseBeforeAck;
   if (phaseAfterAck !== phaseBeforeAck) {
     window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
   }
