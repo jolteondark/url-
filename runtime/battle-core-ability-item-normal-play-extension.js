@@ -54,6 +54,7 @@ const EXTENSION_ABILITY_IDS = Object.freeze([
   "DRAGONSMAW",
   "FILTER",
   "FLAREBOOST",
+  "MARVELSCALE",
   "MULTISCALE",
   "PRANKSTER",
   "PRISMARMOR",
@@ -140,6 +141,7 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
   const typeMod = Number(context?.typeMod ?? context?.type_mod ?? 1);
   const critical = Boolean(context?.critical);
   const userStatus = id(user?.status ?? "NONE");
+  const targetStatus = id(target?.status ?? "NONE");
 
   const pranksterPriority = userAbility === "PRANKSTER" && category === "Status" ? 1 : 0;
   const moldBreaker = MOLD_BREAKER_ABILITIES.has(userAbility);
@@ -158,6 +160,11 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
     ? "assault_vest_status_move"
     : (priorityAbilityBlocksMove ? "target_priority_block_ability" : null);
   const assaultVestDefenseMultiplier = targetItem === "ASSAULTVEST" && category === "Special" ? 1.5 : 1;
+  const marvelScaleDefenseMultiplier = targetAbility === "MARVELSCALE"
+    && category === "Physical"
+    && targetStatus !== "NONE"
+    && !moldBreaker ? 1.5 : 1;
+  const defenseMultiplier = assaultVestDefenseMultiplier * marvelScaleDefenseMultiplier;
   let accuracyMultiplier = userAbility === "VICTORYSTAR" ? 1.1 : 1;
   if (["BRIGHTPOWDER", "LAXINCENSE"].includes(targetItem)) accuracyMultiplier *= 0.9;
   if (WEATHER_EVASION_ABILITIES[targetAbility]?.has(weather) && !moldBreaker) accuracyMultiplier *= 0.8;
@@ -216,7 +223,7 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
     damageMultiplierInput: Object.freeze({
       externalPowerMultiplier: powerMultiplier,
       externalAttackMultiplier: attackMultiplier,
-      externalDefenseMultiplier: assaultVestDefenseMultiplier,
+      externalDefenseMultiplier: defenseMultiplier,
       externalFinalDamageMultiplier: finalDamageMultiplier,
     }),
     accuracyModifierInput: Object.freeze({
@@ -246,6 +253,7 @@ export const BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL = Obje
     criticalStage: 3,
     moveSelectionRestriction: 1 + PRIORITY_BLOCK_ABILITIES.size,
     specialDefenseModifier: 1,
+    statusDefenseModifierAbilities: 1,
     accuracyModifier: 1,
     weatherEvasionAbilities: Object.keys(WEATHER_EVASION_ABILITIES).length,
     weatherSpeedModifier: 4,
