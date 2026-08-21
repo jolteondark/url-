@@ -1,6 +1,6 @@
 import { quantity } from "./bag-economy-mart-flow.js";
 import { projectCanonicalResolvedShopBrowserDisplay } from "./canonical-shop-item-display.js";
-import { safariShopPresentation as legacySafariShopPresentation } from "./safari-playable-integration-boundary-return.js";
+import { safariShopPresentation as legacySafariShopPresentation } from "./safari-playable-integration-boundary.js";
 
 function maplessState(runtime) {
   const state = runtime?.variables?.mapless;
