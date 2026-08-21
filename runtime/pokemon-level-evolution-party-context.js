@@ -1,5 +1,7 @@
 import { resolvePokemonLevelEvolution as resolveBasePokemonLevelEvolution } from "./pokemon-level-evolution-runtime.js";
 
+const HAS_IN_PARTY_LEVEL_SENTINEL = -2147483648;
+
 function normalizeEvolution(entry) {
   if (Array.isArray(entry)) {
     const [species, method, parameter, prevolution = false] = entry;
@@ -34,30 +36,30 @@ function hasInPartyEntries(speciesMaster) {
   return entries;
 }
 
-function adaptEvolutionEntry(raw, runtime, party) {
+function adaptEvolutionEntry(raw, party) {
   const evolution = normalizeEvolution(raw);
   if (!evolution || evolution.prevolution || evolution.method !== "HasInParty") return structuredClone(raw);
   if (!partyHasSpecies(party, evolution.parameter)) return null;
   // The base owner already owns all species/form/stats/HP/move-learning continuity.
-  // Convert only the satisfied level-up trigger to an always-eligible level check,
-  // then relabel the public result back to the canonical HasInParty method.
-  if (Array.isArray(raw)) return [evolution.species, "Level", Math.max(1, Number(runtime?.level) || 1), evolution.prevolution];
+  // Convert only the satisfied level-up trigger to an unmistakable always-eligible
+  // Level sentinel, then relabel the public result back to canonical HasInParty.
+  if (Array.isArray(raw)) return [evolution.species, "Level", HAS_IN_PARTY_LEVEL_SENTINEL, evolution.prevolution];
   return {
     ...structuredClone(raw),
     method: "Level",
     type: Object.prototype.hasOwnProperty.call(raw, "type") ? "Level" : raw.type,
-    parameter: Math.max(1, Number(runtime?.level) || 1),
-    param: Object.prototype.hasOwnProperty.call(raw, "param") ? Math.max(1, Number(runtime?.level) || 1) : raw.param,
-    level: Object.prototype.hasOwnProperty.call(raw, "level") ? Math.max(1, Number(runtime?.level) || 1) : raw.level,
+    parameter: HAS_IN_PARTY_LEVEL_SENTINEL,
+    param: Object.prototype.hasOwnProperty.call(raw, "param") ? HAS_IN_PARTY_LEVEL_SENTINEL : raw.param,
+    level: Object.prototype.hasOwnProperty.call(raw, "level") ? HAS_IN_PARTY_LEVEL_SENTINEL : raw.level,
   };
 }
 
-function contextualSpeciesMasters(speciesMasters, runtime, party) {
+function contextualSpeciesMasters(speciesMasters, party) {
   const adapted = {};
   for (const [id, master] of Object.entries(speciesMasters ?? {})) {
     const evolutions = [];
     for (const raw of master?.evolutions ?? []) {
-      const next = adaptEvolutionEntry(raw, runtime, party);
+      const next = adaptEvolutionEntry(raw, party);
       if (next != null) evolutions.push(next);
     }
     adapted[id] = { ...master, evolutions };
@@ -66,7 +68,7 @@ function contextualSpeciesMasters(speciesMasters, runtime, party) {
 }
 
 function relabelHasInPartyResult(result, sourceMaster, party) {
-  if (!result?.evolved || result?.evolution?.method !== "Level") return result;
+  if (!result?.evolved || result?.evolution?.method !== "Level" || Number(result?.evolution?.parameter) !== HAS_IN_PARTY_LEVEL_SENTINEL) return result;
   const matching = hasInPartyEntries(sourceMaster).find((entry) =>
     entry.species === result.evolution.to && partyHasSpecies(party, entry.parameter));
   if (!matching) return result;
@@ -108,7 +110,7 @@ export function resolvePokemonLevelEvolutionWithPartyContext(runtime, options = 
     };
   }
 
-  const adaptedMasters = contextualSpeciesMasters(speciesMasters, runtime, party);
+  const adaptedMasters = contextualSpeciesMasters(speciesMasters, party);
   const resolved = resolveBasePokemonLevelEvolution(runtime, {
     ...options,
     species_masters: adaptedMasters,
