@@ -208,7 +208,6 @@ function closeBattleMenuOutsideCommand() {
   close();
 }
 
-new MutationObserver(adoptPanels).observe(document.body, { childList: true, subtree: true });
 adoptPanels();
 
 byId("menu-party")?.addEventListener("click", () => show("party"));
@@ -264,6 +263,7 @@ byId("game-menu")?.addEventListener("click", async (event) => {
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !byId("game-menu")?.hidden) close();
 });
+window.addEventListener("safari-game-menu-ui-ready", adoptPanels);
 window.addEventListener("safari-game-menu-open-ready", (event) => {
   const tab = event.detail?.tab;
   if (["party", "bag", "box"].includes(tab)) show(tab);
