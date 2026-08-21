@@ -45,6 +45,12 @@ const FULL_HP_DAMAGE_REDUCTION_ABILITIES = Object.freeze({
   MULTISCALE: Object.freeze({ bypassedByMoldBreaker: true }),
   SHADOWSHIELD: Object.freeze({ bypassedByMoldBreaker: false }),
 });
+const SPECIES_SPECIFIC_STAT_ITEMS = Object.freeze([
+  "LIGHTBALL",
+  "THICKCLUB",
+  "DEEPSEATOOTH",
+  "DEEPSEASCALE",
+]);
 
 const EXTENSION_ABILITY_IDS = Object.freeze([
   "ARMORTAIL",
@@ -90,6 +96,7 @@ const EXTENSION_ITEM_IDS = Object.freeze([
   "SCOPELENS",
   "WISEGLASSES",
   ...Object.values(TYPE_BOOST_ITEMS),
+  ...SPECIES_SPECIFIC_STAT_ITEMS,
 ].sort());
 
 function hasOwn(object, key) {
@@ -114,6 +121,10 @@ function itemId(pokemon) {
   return id(pokemon?.item);
 }
 
+function speciesId(pokemon) {
+  return id(pokemon?.species);
+}
+
 function weatherId(context) {
   return String(context?.effectiveWeather ?? context?.weather ?? "");
 }
@@ -135,6 +146,8 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
   const targetAbility = abilityId(target);
   const userItem = itemId(user);
   const targetItem = itemId(target);
+  const userSpecies = speciesId(user);
+  const targetSpecies = speciesId(target);
   const category = moveCategory(move);
   const weather = weatherId(context);
   const moveType = id(move?.type);
@@ -160,11 +173,14 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
     ? "assault_vest_status_move"
     : (priorityAbilityBlocksMove ? "target_priority_block_ability" : null);
   const assaultVestDefenseMultiplier = targetItem === "ASSAULTVEST" && category === "Special" ? 1.5 : 1;
+  const deepSeaScaleDefenseMultiplier = targetItem === "DEEPSEASCALE"
+    && targetSpecies === "CLAMPERL"
+    && category === "Special" ? 2 : 1;
   const marvelScaleDefenseMultiplier = targetAbility === "MARVELSCALE"
     && category === "Physical"
     && targetStatus !== "NONE"
     && !moldBreaker ? 1.5 : 1;
-  const defenseMultiplier = assaultVestDefenseMultiplier * marvelScaleDefenseMultiplier;
+  const defenseMultiplier = assaultVestDefenseMultiplier * deepSeaScaleDefenseMultiplier * marvelScaleDefenseMultiplier;
   let accuracyMultiplier = userAbility === "VICTORYSTAR" ? 1.1 : 1;
   if (["BRIGHTPOWDER", "LAXINCENSE"].includes(targetItem)) accuracyMultiplier *= 0.9;
   if (WEATHER_EVASION_ABILITIES[targetAbility]?.has(weather) && !moldBreaker) accuracyMultiplier *= 0.8;
@@ -175,7 +191,17 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
   const defeatistAttackMultiplier = userAbility === "DEFEATIST"
     && ["Physical", "Special"].includes(category)
     && pokemonAtOrBelowHalfHp(user) ? 0.5 : 1;
-  const attackMultiplier = solarPowerAttackMultiplier * defeatistAttackMultiplier;
+  let speciesHeldItemAttackMultiplier = 1;
+  if (userItem === "LIGHTBALL" && userSpecies === "PIKACHU" && ["Physical", "Special"].includes(category)) {
+    speciesHeldItemAttackMultiplier *= 2;
+  }
+  if (userItem === "THICKCLUB" && ["CUBONE", "MAROWAK"].includes(userSpecies) && category === "Physical") {
+    speciesHeldItemAttackMultiplier *= 2;
+  }
+  if (userItem === "DEEPSEATOOTH" && userSpecies === "CLAMPERL" && category === "Special") {
+    speciesHeldItemAttackMultiplier *= 2;
+  }
+  const attackMultiplier = solarPowerAttackMultiplier * defeatistAttackMultiplier * speciesHeldItemAttackMultiplier;
 
   let powerMultiplier = 1;
   if (weather === "Sandstorm" && userAbility === "SANDFORCE" && ["ROCK", "GROUND", "STEEL"].includes(moveType)) {
@@ -262,6 +288,7 @@ export const BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL = Obje
     weatherPowerModifier: 1,
     typeBoostHeldItems: Object.keys(TYPE_BOOST_ITEMS).length,
     categoryBoostHeldItems: 2,
+    speciesSpecificStatHeldItems: SPECIES_SPECIFIC_STAT_ITEMS.length,
     superEffectiveOffenseModifier: 2,
     superEffectiveDefenseModifier: MOLD_BREAKER_SUPER_EFFECTIVE_REDUCTION_ABILITIES.size + UNBYPASSABLE_SUPER_EFFECTIVE_REDUCTION_ABILITIES.size,
     fullHpDamageReductionAbilities: Object.keys(FULL_HP_DAMAGE_REDUCTION_ABILITIES).length,
