@@ -62,6 +62,16 @@ export const BATTLE_ABILITY_ITEM_HOOK_POINTS_CANONICAL = Object.freeze([
   "survival",
 ]);
 
+export const BATTLE_HELD_ITEM_EFFECT_SUPPRESSION_COVERAGE_CANONICAL = Object.freeze({
+  abilityIds: Object.freeze(["KLUTZ"]),
+  itemIds: Object.freeze([]),
+  abilityCount: 1,
+  itemCount: 0,
+  classificationCounts: Object.freeze({
+    heldItemEffectSuppressionAbilities: 1,
+  }),
+});
+
 function requireHookPoint(hook) {
   const normalized = String(hook ?? "").toLowerCase();
   if (!BATTLE_ABILITY_ITEM_HOOK_POINTS_CANONICAL.includes(normalized)) {
@@ -70,11 +80,23 @@ function requireHookPoint(hook) {
   return normalized;
 }
 
+function effectIdCanonical(value) {
+  if (value && typeof value === "object") {
+    return String(value.id ?? value.ID ?? value.name ?? "").trim().toUpperCase();
+  }
+  return String(value ?? "").trim().toUpperCase();
+}
+
 function pokemonRuntimeSourceCanonical(pokemon) {
   if (!pokemon || typeof pokemon !== "object" || Array.isArray(pokemon)) return {};
   const source = { ...pokemon };
   if (Object.prototype.hasOwnProperty.call(pokemon, "ability")) source.ability_id = pokemon.ability;
   if (Object.prototype.hasOwnProperty.call(pokemon, "held_item")) source.item = pokemon.held_item;
+  if (effectIdCanonical(source.ability ?? source.ability_id) === "KLUTZ") {
+    source.held_item = null;
+    source.item = null;
+    source.held_item_effect_suppressed = true;
+  }
   return source;
 }
 
@@ -89,6 +111,7 @@ function combinedCoverageCanonical() {
     ...(BATTLE_BERRY_ABILITY_COVERAGE_CANONICAL.abilityIds ?? []),
     ...(BATTLE_CONTACT_REACTIVE_COVERAGE_CANONICAL.abilityIds ?? []),
     ...(BATTLE_TYPE_IMMUNITY_AFTER_EFFECT_COVERAGE_CANONICAL.abilityIds ?? []),
+    ...(BATTLE_HELD_ITEM_EFFECT_SUPPRESSION_COVERAGE_CANONICAL.abilityIds ?? []),
   ])].sort());
   const itemIds = Object.freeze([...new Set([
     ...(BATTLE_ABILITY_ITEM_IMPLEMENTED_COVERAGE_CANONICAL.itemIds ?? []),
@@ -108,6 +131,7 @@ function combinedCoverageCanonical() {
     itemCount: itemIds.length,
     classificationCounts: Object.freeze({
       ...BATTLE_ABILITY_ITEM_IMPLEMENTED_COVERAGE_CANONICAL.classificationCounts,
+      heldItemEffectSuppressionAbilities: BATTLE_HELD_ITEM_EFFECT_SUPPRESSION_COVERAGE_CANONICAL.classificationCounts.heldItemEffectSuppressionAbilities,
       entryExtension: BATTLE_ABILITY_ITEM_ENTRY_EXTENSION_COVERAGE_CANONICAL.classificationCounts,
       entryWeatherExtension: BATTLE_ENTRY_WEATHER_COVERAGE_CANONICAL.classificationCounts,
       entryTerrainExtension: BATTLE_ENTRY_TERRAIN_COVERAGE_CANONICAL.classificationCounts,
