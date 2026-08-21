@@ -34,8 +34,19 @@ function moveId(move) {
   return typeof move === "string" ? move : move?.id;
 }
 
-function normalizedTypeId(value) {
+function normalizedDataId(value) {
   return String(value ?? "").replace(/^:/, "");
+}
+
+function normalizedTypeId(value) {
+  return normalizedDataId(value);
+}
+
+function heldItemId(runtime) {
+  const heldItem = Object.prototype.hasOwnProperty.call(runtime ?? {}, "held_item")
+    ? runtime.held_item
+    : runtime?.item;
+  return normalizedDataId(heldItem);
 }
 
 function levelEvolutionTarget(speciesMaster, runtime, moveMasters = {}) {
@@ -64,6 +75,7 @@ function levelEvolutionTarget(speciesMaster, runtime, moveMasters = {}) {
     "HappinessFemale",
     "HappinessMove",
     "HappinessMoveType",
+    "HappinessHoldItem",
     "MaxHappiness",
   ]);
   let eligible = null;
@@ -96,6 +108,18 @@ function levelEvolutionTarget(speciesMaster, runtime, moveMasters = {}) {
       const conditionMatches = Number.isInteger(happiness) && happiness >= 220 && knowsMoveType;
       if (!eligible && conditionMatches) {
         eligible = { target: evolution.species, method: evolution.method, parameter: requiredType };
+      }
+      continue;
+    }
+
+    if (evolution.method === "HappinessHoldItem") {
+      const requiredItem = normalizedDataId(evolution.parameter);
+      const conditionMatches = Number.isInteger(happiness)
+        && happiness >= 220
+        && requiredItem.length > 0
+        && heldItemId(runtime) === requiredItem;
+      if (!eligible && conditionMatches) {
+        eligible = { target: evolution.species, method: evolution.method, parameter: requiredItem };
       }
       continue;
     }
@@ -423,6 +447,10 @@ export function resolvePokemonLevelEvolution(runtime, {
     moveDecisionResolverSource,
   });
   recalculated = learned.pokemon;
+  const consumedEvolutionItem = candidate.method === "HappinessHoldItem" ? candidate.parameter : null;
+  if (consumedEvolutionItem) {
+    recalculated = { ...recalculated, held_item: null, item: null };
+  }
   const targetCandidate = levelEvolutionTarget(targetMaster, recalculated, move_masters);
   const unsupportedMethods = mergedUnsupportedMethods(candidate.unsupportedMethods, targetCandidate.unsupportedMethods);
 
@@ -443,6 +471,6 @@ export function resolvePokemonLevelEvolution(runtime, {
       newMaxHp: recalculated.max_hp ?? null,
       oldHp: before.hp ?? null,
       newHp: recalculated.hp ?? null,
-    }, ...learned.operations],
+    }, ...learned.operations, ...(consumedEvolutionItem ? [{ op: "consume_evolution_item", item: consumedEvolutionItem }] : [])],
   };
 }
