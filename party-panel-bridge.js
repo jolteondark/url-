@@ -173,6 +173,7 @@ function renderPartyPanel() {
   byId("party-detail-count").textContent = `${party.length} / 6`;
   const slots = Array.from({ length: 6 }, (_, index) => pokemonSlot(party[index] ?? null, index));
   byId("party-detail-grid").replaceChildren(...slots);
+  window.dispatchEvent(new CustomEvent("safari-party-panel-rendered"));
 }
 
 function scheduleRender() {
