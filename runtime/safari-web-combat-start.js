@@ -120,6 +120,15 @@ export async function activateSafariWebCombatCell(runtime, index) {
   const event = state.board_events?.[index];
   if (!event || !["wild", "trainer"].includes(event.kind)) throw new Error("wild or trainer board event is required");
   if (state.battle) return { runtime, result: "battle_active", boundary: "battle", notice: "戦闘を先に終えてください。", operations: [] };
+  if (state.pending_battle_return_checkpoint?.committed === false) {
+    return {
+      runtime,
+      result: "battle_return_pending",
+      boundary: "battle",
+      notice: "戦闘結果の保存を完了してください。",
+      operations: [],
+    };
+  }
   if (state.shop) return { runtime, result: "shop_active", boundary: "shop", notice: "ショップを先に終了してください。", operations: [] };
 
   const previousBoardEvents = state.board_events;

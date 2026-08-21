@@ -70,6 +70,17 @@ beginSafariBattleReturn(rt);
 assert.equal(state.battle.phase, SAFARI_BATTLE_PHASE.RETURN);
 assert.equal(state.pending_battle_return_checkpoint?.committed, false);
 state.battle = null;
+
+const blockedDuringReturnCommit = await activateSafariWebCombatCell(rt, 0);
+assert.equal(blockedDuringReturnCommit.result, "battle_return_pending",
+  "clearing the Battle object must not permit a new combat before RETURN persistence commits");
+assert.equal(state.battle, null,
+  "a combat attempt during the RETURN persistence window must not create a replacement Battle object");
+assert.deepEqual(state.board_consumed, [false],
+  "a combat attempt during the RETURN persistence window must not consume the next board cell");
+assert.equal(state.pending_battle_return_checkpoint?.committed, false,
+  "the central pending RETURN checkpoint remains the sole readiness truth until completion");
+
 const returned = completeSafariBattleReturn(rt, {
   target: "day_board",
   operations: [{ op: "return_to_day_board" }],
