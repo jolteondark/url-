@@ -237,6 +237,26 @@ function resolutionCheckpointSequence(battle) {
   return Number(battle.pending_command_sequence ?? battle.command_sequence ?? 0);
 }
 
+function resultCommandSequence(result) {
+  const raw = result?.orchestratorCommandSequence;
+  if (raw == null) return null;
+  const sequence = Number(raw);
+  if (!Number.isInteger(sequence) || sequence < 0) {
+    throw new TypeError("battle resolution orchestratorCommandSequence must be a non-negative integer");
+  }
+  return sequence;
+}
+
+function bindResolutionToPendingCommand(battle, result) {
+  const sequence = resolutionCheckpointSequence(battle);
+  const tagged = resultCommandSequence(result);
+  if (tagged != null && tagged !== sequence) {
+    throw new Error(`stale battle resolution belongs to command sequence ${tagged}; current command sequence is ${sequence}`);
+  }
+  if (result && typeof result === "object") result.orchestratorCommandSequence = sequence;
+  return sequence;
+}
+
 function incompleteResolutionError(checkpoint) {
   if (!checkpoint || checkpoint.committed !== false) return null;
   return new Error(`battle resolution checkpoint is incomplete and cannot be replayed: ${checkpoint.sequence ?? "unknown"}`);
@@ -370,6 +390,7 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   }
 
   const resolvedCommandKind = commandKind ?? battle.pending_command_kind ?? "command";
+  bindResolutionToPendingCommand(battle, result);
   const decision = Number(result?.decision ?? battle.decision ?? 0);
   const playerReplacementRequired = Boolean(result?.playerReplacementRequired ?? battle.player_replacement_required);
   const foeReplacementRequired = Boolean(result?.foeReplacementRequired);
@@ -442,6 +463,9 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
     resumeCommandAfterResolution(battle, `round presentation pending:${resolvedCommandKind}`);
   }
 
+  if (result && typeof result === "object") {
+    result.orchestratorCommandSequence = resolutionCheckpoint.sequence;
+  }
   resolutionCheckpoint.committed = true;
   resolutionCheckpoint.phase = battle.phase;
   battle.pending_command_kind = null;
