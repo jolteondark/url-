@@ -1,5 +1,6 @@
 const byId=(id)=>document.getElementById(id);
 let epoch=0;
+let menuFallbackFocused=false;
 function visible(n){return !!(n&&!n.hidden&&n.getClientRects().length)}
 function enabled(n){return visible(n)&&!n.disabled}
 function first(root,sel){return root?[...root.querySelectorAll(sel)].find(enabled)??null:null}
@@ -19,12 +20,21 @@ function commandTarget(battle){
  const sel='#dppt-command-root button:not(:disabled)';
  return current(battle,sel)??first(battle,'#dppt-command-root button[data-dppt-command="fight"]:not(:disabled)');
 }
-function gameMenuTarget(menu){
+function gameMenuTarget(menu,{upgradeFallback=false}={}){
  const sel='button:not(:disabled),select:not(:disabled),input:not(:disabled),[tabindex]:not([tabindex="-1"])';
- const active=current(menu,sel);
- if(active)return active;
  const pane=[...menu.querySelectorAll("[data-menu-pane]")].find(visible)??null;
- return first(pane,sel)??(enabled(byId("game-menu-close"))?byId("game-menu-close"):null);
+ const paneActive=current(pane,sel);
+ if(paneActive){menuFallbackFocused=false;return paneActive;}
+ const close=byId("game-menu-close");
+ if(!upgradeFallback){
+  const active=current(menu,sel);
+  if(active){if(active!==close)menuFallbackFocused=false;return active;}
+ }
+ const paneTarget=first(pane,sel);
+ if(paneTarget){menuFallbackFocused=false;return paneTarget;}
+ if(enabled(close)){menuFallbackFocused=true;return close;}
+ menuFallbackFocused=false;
+ return null;
 }
 function clearBattleFocusOutsideInteractivePhase(){
  const s=runtime();
@@ -33,17 +43,19 @@ function clearBattleFocusOutsideInteractivePhase(){
  if(!(active instanceof HTMLElement)||!battle?.contains(active))return;
  if(visible(byId("game-menu"))||!s?.battle||!["COMMAND","REPLACEMENT","RESULT"].includes(s.battle.phase))active.blur();
 }
-function settle(){
+function settle(options={}){
+ const upgradeMenuFallback=options?.upgradeMenuFallback===true;
  clearBattleFocusOutsideInteractivePhase();
  const token=++epoch;
  requestAnimationFrame(()=>requestAnimationFrame(()=>{
   if(token!==epoch)return;
   const menu=byId("game-menu");
   if(visible(menu)){
-   const target=gameMenuTarget(menu);
+   const target=gameMenuTarget(menu,{upgradeFallback:upgradeMenuFallback});
    requestAnimationFrame(()=>{if(token===epoch&&enabled(target))target.focus({preventScroll:true})});
    return;
   }
+  menuFallbackFocused=false;
   const s=runtime();
   let target=null,scrollTarget=null,block="nearest";
   const battle=byId("battle-card");
@@ -68,16 +80,16 @@ function settle(){
   requestAnimationFrame(()=>{if(token===epoch&&enabled(target))target.focus({preventScroll:true})});
  }))
 }
-function settlePartyPanel(){
+function settleRenderedPane(paneId){
  const menu=byId("game-menu");
- const partyPane=byId("menu-party-pane");
- if(visible(menu)&&visible(partyPane))settle();
+ const pane=byId(paneId);
+ if(!visible(menu)||!visible(pane))return;
+ const close=byId("game-menu-close");
+ const upgradeMenuFallback=menuFallbackFocused&&document.activeElement===close;
+ settle({upgradeMenuFallback});
 }
-function settleBagPanel(){
- const menu=byId("game-menu");
- const bagPane=byId("menu-bag-pane");
- if(visible(menu)&&visible(bagPane))settle();
-}
+function settlePartyPanel(){settleRenderedPane("menu-party-pane")}
+function settleBagPanel(){settleRenderedPane("menu-bag-pane")}
 for(const name of ["safari-runtime-changed","safari-preview-start","safari-game-menu-opened","safari-game-menu-open-failed","safari-game-menu-closed","mapless-dppt-menu-changed","pageshow"])window.addEventListener(name,settle,{passive:true});
 window.addEventListener("safari-party-panel-rendered",settlePartyPanel,{passive:true});
 window.addEventListener("storage",settleBagPanel,{passive:true});
