@@ -2,7 +2,10 @@ import {
   SAFARI_MOVE_PRESENTATION,
   saveSafariPlayableRun,
 } from "./runtime/safari-web-playable-integration.js";
-import { completeSafariBattlePresentation } from "./runtime/safari-battle-orchestrator.js";
+import {
+  captureSafariBattlePresentationAckSequence,
+  completeSafariBattlePresentationForSequence,
+} from "./runtime/safari-battle-presentation-ack.js";
 import { attemptSafariFlee } from "./runtime/safari-flee-command.js?v=20260818-1335";
 import { formatSafariBattlePresentationEvent } from "./battle-presentation-narration.js";
 
@@ -107,9 +110,10 @@ async function runFleeRequest(sourceButton) {
 
   try {
     const result = attemptSafariFlee(currentRuntime);
+    const presentationSequence = captureSafariBattlePresentationAckSequence(currentRuntime);
     globalThis.__maplessLastFleeResult = result;
     await playPresentation(currentRuntime, result.presentation ?? []);
-    completeSafariBattlePresentation(currentRuntime);
+    completeSafariBattlePresentationForSequence(currentRuntime, presentationSequence);
     saveIfRequested(currentRuntime, result);
   } catch (error) {
     globalThis.__maplessLastError = error;

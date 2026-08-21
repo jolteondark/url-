@@ -4,10 +4,13 @@ import {
   SAFARI_BATTLE_PHASE,
   beginSafariBattleCommand,
   commitSafariBattleResolution,
-  completeSafariBattlePresentation,
   ensureSafariBattleOrchestrator,
   safariBattleCommandAllowed,
 } from "../runtime/safari-battle-orchestrator.js";
+import {
+  captureSafariBattlePresentationAckSequence,
+  completeSafariBattlePresentationForSequence,
+} from "../runtime/safari-battle-presentation-ack.js";
 
 function runtime() {
   return {
@@ -41,10 +44,61 @@ for (const commandKind of ["item", "capture", "flee", "switch"]) {
     `${commandKind} must reject another command before presentation acknowledgement`);
   assert.equal(battle.presentation_checkpoint?.committed, false);
 
-  completeSafariBattlePresentation(state);
+  const sequence = captureSafariBattlePresentationAckSequence(state);
+  completeSafariBattlePresentationForSequence(state, sequence);
   assert.equal(battle.phase, SAFARI_BATTLE_PHASE.COMMAND,
     `${commandKind} presentation acknowledgement must publish COMMAND`);
   assert.equal(safariBattleCommandAllowed(state), true);
+}
+
+{
+  const state = runtime();
+  const battle = state.variables.mapless.battle;
+  ensureSafariBattleOrchestrator(state);
+
+  beginSafariBattleCommand(state, "move");
+  commitSafariBattleResolution(state, {
+    decision: 0,
+    operations: [
+      { op: "use_move", actor: "player", target: "foe" },
+      { op: "use_move", actor: "foe", target: "player" },
+    ],
+  }, "move");
+  const firstSequence = captureSafariBattlePresentationAckSequence(state);
+  completeSafariBattlePresentationForSequence(state, firstSequence);
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.COMMAND);
+
+  beginSafariBattleCommand(state, "move");
+  commitSafariBattleResolution(state, {
+    decision: 0,
+    operations: [
+      { op: "use_move", actor: "foe", target: "player" },
+      { op: "use_move", actor: "player", target: "foe" },
+    ],
+  }, "move");
+  const secondSequence = captureSafariBattlePresentationAckSequence(state);
+  assert.notEqual(secondSequence, firstSequence);
+  const traceLengthBeforeStaleAck = battle.phase_trace.length;
+
+  assert.throws(
+    () => completeSafariBattlePresentationForSequence(state, firstSequence),
+    /stale battle presentation acknowledgement/,
+    "a delayed presentation callback must not acknowledge a newer command checkpoint",
+  );
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.CHECK_2);
+  assert.equal(battle.phase_trace.length, traceLengthBeforeStaleAck,
+    "stale presentation acknowledgement must not mutate central phase trace");
+  assert.equal(safariBattleCommandAllowed(state), false);
+
+  completeSafariBattlePresentationForSequence(state, secondSequence);
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.COMMAND);
+  const commandCount = battle.phase_trace.filter((entry) => entry.phase === SAFARI_BATTLE_PHASE.COMMAND).length;
+  completeSafariBattlePresentationForSequence(state, secondSequence);
+  assert.equal(
+    battle.phase_trace.filter((entry) => entry.phase === SAFARI_BATTLE_PHASE.COMMAND).length,
+    commandCount,
+    "same-sequence acknowledgement replay must remain idempotent",
+  );
 }
 
 const ownerFiles = [
@@ -52,15 +106,18 @@ const ownerFiles = [
   ["capture", "../battle-dppt-capture-owner-request.js", "captureBusy"],
   ["flee", "../battle-dppt-flee-owner-request.js", "fleeBusy"],
   ["switch", "../battle-party-voluntary-switch-bridge.js", "let selecting"],
+  ["forced replacement", "../battle-player-replacement-presentation.js", "let selecting"],
 ];
 for (const [name, relativePath, legacyGate] of ownerFiles) {
   const source = fs.readFileSync(new URL(relativePath, import.meta.url), "utf8");
-  assert.match(source, /completeSafariBattlePresentation\s*\(/,
-    `${name} presentation owner must acknowledge the central presentation checkpoint`);
+  assert.match(source, /captureSafariBattlePresentationAckSequence\s*\(/,
+    `${name} presentation owner must capture the central command sequence before asynchronous presentation completion`);
+  assert.match(source, /completeSafariBattlePresentationForSequence\s*\(/,
+    `${name} presentation owner must acknowledge only its captured central command sequence`);
   assert.equal(source.includes(legacyGate), false,
     `${name} must not retain ${legacyGate} as a parallel Battle command-readiness truth`);
-  assert.match(source, /\.phase\s*!==\s*"COMMAND"|phase\s*===\s*"COMMAND"/,
-    `${name} readiness must be derived from central COMMAND phase`);
+  assert.match(source, /\.phase\s*!==\s*"COMMAND"|phase\s*===\s*"COMMAND"|REPLACEMENT_PHASE/,
+    `${name} readiness must remain derived from the central Battle phase`);
 }
 
 console.log("Safari DPt Battle presentation acknowledgement owner smoke passed");
