@@ -12,7 +12,7 @@ export function captureSafariBattlePresentationAckSequence(runtime) {
   if (!Number.isInteger(sequence) || sequence < 0) {
     throw new Error("battle presentation checkpoint has invalid command sequence");
   }
-  return Object.freeze({ battle, sequence });
+  return Object.freeze({ battle, checkpoint, sequence });
 }
 
 export function completeSafariBattlePresentationForSequence(runtime, expectedSequence) {
@@ -31,7 +31,9 @@ export function completeSafariBattlePresentationForSequence(runtime, expectedSeq
   }
 
   const checkpoint = battle.presentation_checkpoint;
-  if (!checkpoint) return completeSafariBattlePresentation(runtime);
+  if (!checkpoint || expectedSequence.checkpoint !== checkpoint) {
+    throw new Error("stale battle presentation acknowledgement belongs to a different presentation checkpoint");
+  }
   if (Number(checkpoint.sequence) !== sequence) {
     throw new Error(
       `stale battle presentation acknowledgement belongs to command sequence ${sequence}; current presentation sequence is ${checkpoint.sequence}`,
