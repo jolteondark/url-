@@ -340,6 +340,7 @@ function resolveSharedActionAfterCanonical({ runtimeUser, runtimeTarget, move, d
       context,
     }),
     targetHitReactiveItem: resolveHitReactiveHeldItemActionAfterCanonical({
+      user: runtimeUser,
       target: runtimeTarget,
       move,
       damageDealt,
