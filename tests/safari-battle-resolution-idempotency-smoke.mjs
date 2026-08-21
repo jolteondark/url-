@@ -82,6 +82,11 @@ function phaseCount(battle, phase) {
   assert.equal(battle.phase_trace.length, traceLength,
     "a tagged structured-clone replay of the committed resolution must remain exactly-once");
 
+  const implicitKindReplay = commitSafariBattleResolution(state, structuredClone(committedResolution));
+  assert.equal(implicitKindReplay.phase, SAFARI_BATTLE_PHASE.COMMAND);
+  assert.equal(battle.phase_trace.length, traceLength,
+    "a centrally tagged committed replay must recover its command kind from the central checkpoint when adapters omit it");
+
   const unrelatedResolution = {
     decision: 0,
     operations: [{ op: "use_move", actor: "foe", target: "player" }],
