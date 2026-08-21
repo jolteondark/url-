@@ -117,6 +117,13 @@ function relabelFieldResult(result, sourceMaster, runtime, options) {
   return { ...result, evolution, levelEvolutionCandidate, operations };
 }
 
+function withoutFieldUnsupported(result) {
+  return {
+    ...result,
+    unsupportedMethods: (result?.unsupportedMethods ?? []).filter((method) => !FIELD_CONTEXT_METHODS.has(method)),
+  };
+}
+
 export function resolvePokemonLevelEvolutionWithFieldContext(runtime, options = {}) {
   const speciesMasters = options?.species_masters;
   if (!speciesMasters || typeof speciesMasters !== "object" || Array.isArray(speciesMasters)) {
@@ -125,7 +132,7 @@ export function resolvePokemonLevelEvolutionWithFieldContext(runtime, options = 
   const sourceMaster = speciesMasters[runtime?.species];
   const party = options?.party;
   if (!Array.isArray(party)) {
-    const base = resolvePokemonLevelEvolutionWithPartyContext(runtime, options);
+    const base = withoutFieldUnsupported(resolvePokemonLevelEvolutionWithPartyContext(runtime, options));
     if (base?.levelEvolutionCandidate) return base;
     const deferred = deferredFieldCandidate(sourceMaster, runtime);
     return deferred ? { ...base, levelEvolutionCandidate: deferred } : base;
@@ -134,9 +141,5 @@ export function resolvePokemonLevelEvolutionWithFieldContext(runtime, options = 
     ...options,
     species_masters: adaptedSpeciesMasters(speciesMasters, runtime, options),
   });
-  const relabeled = relabelFieldResult(resolved, sourceMaster, runtime, options);
-  return {
-    ...relabeled,
-    unsupportedMethods: (relabeled.unsupportedMethods ?? []).filter((method) => !FIELD_CONTEXT_METHODS.has(method)),
-  };
+  return withoutFieldUnsupported(relabelFieldResult(resolved, sourceMaster, runtime, options));
 }
