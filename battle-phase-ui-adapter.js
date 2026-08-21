@@ -92,12 +92,20 @@ function setOwnerAwarePhaseInteractive(element, enabled) {
   delete element.dataset.battleOwnerDisabled;
 }
 
+function releaseOwnerAwarePhaseLock(element) {
+  if (!element) return;
+  element.inert = false;
+  if (element.dataset.battlePhaseLocked !== "true") return;
+  delete element.dataset.battlePhaseLocked;
+  delete element.dataset.battleOwnerDisabled;
+}
+
 function releaseBattlePhaseLocks() {
   for (const id of ["new-run", "save-run", "continue-run"]) {
-    setOwnerAwarePhaseInteractive(byId(id), true);
+    releaseOwnerAwarePhaseLock(byId(id));
   }
   for (const button of document.querySelectorAll?.("button[data-bag-use-item],button[data-player-replacement-party-index]") ?? []) {
-    setOwnerAwarePhaseInteractive(button, true);
+    releaseOwnerAwarePhaseLock(button);
   }
 }
 
