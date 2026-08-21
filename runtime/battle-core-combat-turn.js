@@ -13,6 +13,7 @@ import { resolveUseMoveDancerCanonical } from "./battle-core-use-move-dancer.js"
 import { materializeSeededAccuracyDamageCanonical } from "./battle-core-seeded-accuracy-damage.js";
 import { materializeSeededSecondaryEffectsCanonical } from "./battle-core-seeded-secondary-effect.js";
 import { resolveBattleAbilityItemHookCanonical } from "./battle-ability-item-hook-dispatch.js";
+import { resolveFocusBandSurvivalCanonical } from "./battle-core-focus-band-survival-extension.js";
 import {
   applyBattleStatStageChangesCanonical,
   battleStatStageEffectSucceededCanonical,
@@ -52,17 +53,25 @@ export function applyBattleAbilityItemSurvivalCanonical(action) {
   }
 
   const modifiers = prepared.abilityItemActionBefore?.modifiers ?? {};
-  const survival = resolveBattleAbilityItemHookCanonical({
+  const target = {
+    ability: modifiers.targetAbility ?? "NONE",
+    held_item: modifiers.targetItem ?? null,
+    hp: Number(prepared.hpBefore ?? 0),
+    max_hp: Number(prepared.totalHp ?? 0),
+  };
+  const baseSurvival = resolveBattleAbilityItemHookCanonical({
     hook: "survival",
-    target: {
-      ability: modifiers.targetAbility ?? "NONE",
-      held_item: modifiers.targetItem ?? null,
-      hp: Number(prepared.hpBefore ?? 0),
-      max_hp: Number(prepared.totalHp ?? 0),
-    },
+    target,
     incomingDamage: Number(prepared.calculatedDamage ?? 0),
     moldBreaker: Boolean(modifiers.moldBreaker),
   });
+  const survival = baseSurvival?.triggered === true
+    ? baseSurvival
+    : resolveFocusBandSurvivalCanonical({
+      target,
+      incomingDamage: Number(prepared.calculatedDamage ?? 0),
+      randomRoll: prepared.abilityItemSurvivalRandomRoll,
+    });
   prepared.abilityItemSurvival = survival;
   if (survival?.triggered === true) prepared.calculatedDamage = Number(survival.damage ?? prepared.calculatedDamage);
   return prepared;
