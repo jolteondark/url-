@@ -1,4 +1,4 @@
-import {resolveVillageBountyDepart} from './mapless-village-bounty-depart.js';
+import {resolveVillageBountyDepart} from './mapless-village-bounty-money-integration.js';
 const copy=v=>v==null?v:JSON.parse(JSON.stringify(v));
 export function resolveVillageBountyAccept(input={}){
  const facilityId=String(input.facility_id??input.facility?.id??'').toLowerCase();const state=input.village?{...input.village,bounties:copy(input.village.bounties||[]),active_bounty:copy(input.village.active_bounty||null)}:null;const operations=[];
