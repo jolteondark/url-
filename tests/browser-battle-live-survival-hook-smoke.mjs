@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   applyBattleAbilityItemSurvivalCanonical,
 } from "../runtime/battle-core-combat-turn.js";
+import { materializeSeededAccuracyDamageCanonical } from "../runtime/battle-core-seeded-accuracy-damage.js";
 import { resolveHpFaintActionCanonical } from "../runtime/battle-core-hp-faint.js";
 import { commitBattleSystemsHeldItemRuntime } from "../runtime/battle-held-item-runtime-integration.js";
 
@@ -139,6 +140,21 @@ function runtimePokemon(item = null) {
     survivalRoll: 0,
   }));
   assert.equal(nonLethal.abilityItemSurvival.triggered, false, "Focus Band must only check lethal move damage");
+}
+
+{
+  const seededInput = {
+    combatRandomSeed: 12345,
+    rounds: [{ actions: [action({ heldItem: "FOCUSBAND", hp: 37, damage: 80 })] }],
+  };
+  const first = materializeSeededAccuracyDamageCanonical(seededInput);
+  const second = materializeSeededAccuracyDamageCanonical(seededInput);
+  const firstAction = first.rounds[0].actions[0];
+  const secondAction = second.rounds[0].actions[0];
+  assert.ok(Number.isInteger(firstAction.abilityItemSurvivalRandomRoll));
+  assert.ok(firstAction.abilityItemSurvivalRandomRoll >= 0 && firstAction.abilityItemSurvivalRandomRoll < 100);
+  assert.equal(firstAction.abilityItemSurvivalRandomRoll, secondAction.abilityItemSurvivalRandomRoll, "Focus Band roll must be deterministic for a combat seed");
+  assert.ok(firstAction.seededAccuracyDamageRolls.some((roll) => roll.kind === "focus_band_survival" && roll.limit === 100));
 }
 
 {
