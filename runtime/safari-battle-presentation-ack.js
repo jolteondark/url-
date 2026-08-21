@@ -1,5 +1,7 @@
 import { completeSafariBattlePresentation } from "./safari-battle-orchestrator.js";
 
+const issuedPresentationAckTokens = new WeakSet();
+
 function battleOf(runtime) {
   return runtime?.variables?.mapless?.battle ?? null;
 }
@@ -12,7 +14,9 @@ export function captureSafariBattlePresentationAckSequence(runtime) {
   if (!Number.isInteger(sequence) || sequence < 0) {
     throw new Error("battle presentation checkpoint has invalid command sequence");
   }
-  return Object.freeze({ battle, checkpoint, sequence });
+  const token = Object.freeze({ battle, checkpoint, sequence });
+  issuedPresentationAckTokens.add(token);
+  return token;
 }
 
 export function completeSafariBattlePresentationForSequence(runtime, expectedSequence) {
@@ -20,6 +24,9 @@ export function completeSafariBattlePresentationForSequence(runtime, expectedSeq
   if (!battle) return null;
   if (!expectedSequence || typeof expectedSequence !== "object") {
     throw new Error("battle presentation acknowledgement requires a captured command sequence token");
+  }
+  if (!issuedPresentationAckTokens.has(expectedSequence)) {
+    throw new Error("battle presentation acknowledgement requires a token issued by the central capture owner");
   }
   if (expectedSequence.battle !== battle) {
     throw new Error("stale battle presentation acknowledgement belongs to a different battle instance");
