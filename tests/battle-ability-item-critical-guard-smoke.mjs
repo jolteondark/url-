@@ -35,7 +35,7 @@ for (const ability of ["BATTLEARMOR", "SHELLARMOR"]) {
     move: { id: "SLASH", type: "NORMAL", category: "Physical", power: 70 },
     selectedMoveId: "SLASH",
   });
-  assert.equal(shared.criticalHitPrevention.blocked, true, `${ability} shared hook`);
+  assert.equal(shared.modifiers.damageCalculationInput.targetCriticalHitPrevention.blocked, true, `${ability} shared hook`);
 }
 
 for (const ability of ["MOLDBREAKER", "TERAVOLT", "TURBOBLAZE"]) {
@@ -46,8 +46,8 @@ for (const ability of ["MOLDBREAKER", "TERAVOLT", "TURBOBLAZE"]) {
     move: { id: "SLASH", type: "NORMAL", category: "Physical", power: 70 },
     selectedMoveId: "SLASH",
   });
-  assert.equal(bypassed.criticalHitPrevention.blocked, false, `${ability} bypass`);
-  assert.equal(bypassed.criticalHitPrevention.moldBreaker, true);
+  assert.equal(bypassed.modifiers.damageCalculationInput.targetCriticalHitPrevention.blocked, false, `${ability} bypass`);
+  assert.equal(bypassed.modifiers.damageCalculationInput.targetCriticalHitPrevention.moldBreaker, true);
 }
 
 {
