@@ -1,5 +1,8 @@
 import { SAFARI_MOVE_PRESENTATION, saveSafariPlayableRun, useSafariBattleItem } from "./runtime/safari-web-playable-integration.js";
-import { completeSafariBattlePresentation } from "./runtime/safari-battle-orchestrator.js";
+import {
+  captureSafariBattlePresentationAckSequence,
+  completeSafariBattlePresentationForSequence,
+} from "./runtime/safari-battle-presentation-ack.js";
 import { useSafariBagItemOnPartyPokemon } from "./runtime/safari-bag-item-use.js";
 import { formatSafariBattlePresentationEvent } from "./battle-presentation-narration.js";
 
@@ -237,11 +240,12 @@ byId("game-menu")?.addEventListener("click", async (event) => {
         const pending = useSafariBattleItem(runtime, { itemId: use.dataset.bagUseItem, partyIndex });
         globalThis.__maplessApplyBattlePhaseUi?.();
         const result = await pending;
+        const presentationSequence = captureSafariBattlePresentationAckSequence(runtime);
         globalThis.__maplessLastBattleItemResult = result;
         if (result.turnConsumed) {
           close();
           await playBattleItemPresentation(runtime, result.presentation ?? []);
-          completeSafariBattlePresentation(runtime);
+          completeSafariBattlePresentationForSequence(runtime, presentationSequence);
         }
       } else {
         const result = useSafariBagItemOnPartyPokemon(runtime, { itemId: use.dataset.bagUseItem, partyIndex });
