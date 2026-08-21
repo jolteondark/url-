@@ -33,9 +33,18 @@ const speciesMasters = {
   FEMALE2: { ...base, id: "FEMALE2" },
   MAX: { ...base, id: "MAX", evolutions: [["MAX2", "MaxHappiness", null, false]] },
   MAX2: { ...base, id: "MAX2" },
+  HOLD: {
+    ...base,
+    id: "HOLD",
+    evolutions: [
+      ["HOLD2", "HappinessHoldItem", "SOOTHEBELL", false],
+      ["HOLDITEM2", "Item", "MOONSTONE", false],
+    ],
+  },
+  HOLD2: { ...base, id: "HOLD2", base_stats: stats(55, 65, 55, 65, 55, 75) },
 };
 
-function runtime(species, happiness, gender = 0) {
+function runtime(species, happiness, gender = 0, heldItem = "ORANBERRY") {
   return {
     species,
     form: 0,
@@ -55,8 +64,8 @@ function runtime(species, happiness, gender = 0) {
     nature_for_stats_id: null,
     ability: "RUNAWAY",
     ability_id: "RUNAWAY",
-    held_item: "ORANBERRY",
-    item: "ORANBERRY",
+    held_item: heldItem,
+    item: heldItem,
     status: "POISON",
     status_count: 2,
     steps_to_hatch: 0,
@@ -100,6 +109,33 @@ const options = {
   const maxed = resolvePokemonLevelEvolution(runtime("MAX", 255), options);
   assert.equal(maxed.evolved, true);
   assert.equal(maxed.evolution.method, "MaxHappiness");
+}
+
+{
+  const low = resolvePokemonLevelEvolution(runtime("HOLD", 219, 0, "SOOTHEBELL"), options);
+  assert.equal(low.evolved, false, "matching held item must not bypass the happiness threshold");
+  assert.equal(low.pokemon.held_item, "SOOTHEBELL", "failed eligibility must not consume the held item");
+  assert.deepEqual(low.unsupportedMethods, ["Item"]);
+
+  const wrongItem = resolvePokemonLevelEvolution(runtime("HOLD", 220, 0, "ORANBERRY"), options);
+  assert.equal(wrongItem.evolved, false, "happiness alone must not satisfy HappinessHoldItem");
+  assert.equal(wrongItem.pokemon.held_item, "ORANBERRY", "wrong held item must be retained");
+
+  const candidate = runtime("HOLD", 220, 0, "SOOTHEBELL");
+  candidate.item = "ORANBERRY";
+  const evolved = resolvePokemonLevelEvolution(candidate, options);
+  assert.equal(evolved.evolved, true);
+  assert.equal(evolved.evolution.method, "HappinessHoldItem");
+  assert.equal(evolved.evolution.parameter, "SOOTHEBELL");
+  assert.equal(evolved.pokemon.species, "HOLD2");
+  assert.equal(evolved.pokemon.held_item, null, "successful canonical HappinessHoldItem evolution consumes the authoritative held item");
+  assert.equal(evolved.pokemon.item, null, "legacy item alias must not resurrect the consumed evolution item");
+  assert.equal(evolved.pokemon.personal_id, 0x12345678);
+  assert.equal(evolved.pokemon.status, "POISON");
+  assert.equal(evolved.pokemon.status_count, 2);
+  assert.equal(evolved.pokemon.moves[0].pp, 17, "existing move PP must survive the evolution");
+  assert.ok(evolved.operations.some((operation) => operation.op === "consume_evolution_item" && operation.item === "SOOTHEBELL"));
+  assert.deepEqual(evolved.unsupportedMethods, ["Item"]);
 }
 
 console.log("canonical happiness level-up evolution owner: PASS");
