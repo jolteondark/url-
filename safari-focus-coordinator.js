@@ -11,6 +11,10 @@ function commandTarget(battle){
  if(mode==="bag")return first(battle,'#dppt-battle-bag button:not(:disabled),#dppt-command-back:not(:disabled)');
  return first(battle,'#dppt-command-root button[data-dppt-command="fight"]:not(:disabled)');
 }
+function gameMenuTarget(menu){
+ const pane=[...menu.querySelectorAll("[data-menu-pane]")].find(visible)??null;
+ return first(pane,'button:not(:disabled),select:not(:disabled),input:not(:disabled),[tabindex]:not([tabindex="-1"])')??(enabled(byId("game-menu-close"))?byId("game-menu-close"):null);
+}
 function clearBattleFocusOutsideInteractivePhase(){
  const s=runtime();
  const battle=byId("battle-card");
@@ -24,7 +28,11 @@ function settle(){
  requestAnimationFrame(()=>requestAnimationFrame(()=>{
   if(token!==epoch)return;
   const menu=byId("game-menu");
-  if(visible(menu))return;
+  if(visible(menu)){
+   const target=gameMenuTarget(menu);
+   requestAnimationFrame(()=>{if(token===epoch&&enabled(target))target.focus({preventScroll:true})});
+   return;
+  }
   const s=runtime();
   let target=null,scrollTarget=null,block="nearest";
   const battle=byId("battle-card");
