@@ -1,5 +1,8 @@
 import { resolveSafariBoundaryPlayerReplacement } from "./runtime/safari-playable-integration.js";
-import { completeSafariBattlePresentation } from "./runtime/safari-battle-orchestrator.js";
+import {
+  captureSafariBattlePresentationAckSequence,
+  completeSafariBattlePresentationForSequence,
+} from "./runtime/safari-battle-presentation-ack.js";
 import { replaceSafariBattlePlayer } from "./runtime/safari-web-playable-integration.js";
 
 const REPLACEMENT_PHASE = "REPLACEMENT";
@@ -106,8 +109,9 @@ async function chooseReplacement(button) {
     } else {
       await replaceSafariBattlePlayer(runtime, partyIndex);
     }
+    const presentationSequence = captureSafariBattlePresentationAckSequence(runtime);
     const phaseBeforeAck = battleState()?.phase ?? null;
-    const phaseAfterAck = completeSafariBattlePresentation(runtime);
+    const phaseAfterAck = completeSafariBattlePresentationForSequence(runtime, presentationSequence);
     if (phaseAfterAck !== phaseBeforeAck) {
       window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
     }
