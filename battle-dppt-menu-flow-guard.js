@@ -75,12 +75,6 @@ function lockMenuToBattlePurpose(tab) {
     close.setAttribute("aria-label", "戦闘へ戻る");
   }
   injectBattleBall(tab);
-  requestAnimationFrame(() => {
-    const first = menu.querySelector(`[data-menu-pane="${tab}"] button:not(:disabled), [data-menu-pane="${tab}"] select:not(:disabled)`);
-    const fallback = byId("game-menu-close");
-    const target = first instanceof HTMLElement ? first : fallback;
-    if (target instanceof HTMLElement) target.focus({ preventScroll: true });
-  });
 }
 
 window.addEventListener("safari-game-menu-opened", (event) => {
