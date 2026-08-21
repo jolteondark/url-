@@ -210,8 +210,12 @@ function phaseCount(battle, phase) {
     "root preview Battle readiness must have no second truth beside COMMAND");
 
   const presentationOwner = source.match(/async function playPresentation\(events\) \{[\s\S]*?\n\}/)?.[0] ?? "";
-  assert.match(presentationOwner, /completeSafariBattlePresentation\(runtime\)/,
-    "root preview presentation owner must acknowledge the central checkpoint");
+  assert.match(presentationOwner, /captureSafariBattlePresentationAckSequence\(runtime\)/,
+    "root preview presentation owner must capture the central ack token before animation awaits");
+  assert.match(presentationOwner, /completeSafariBattlePresentationForSequence\(runtime,\s*presentationAckToken\)/,
+    "root preview presentation owner must acknowledge only the token captured for that presentation");
+  assert.doesNotMatch(presentationOwner, /completeSafariBattlePresentation\(runtime\)/,
+    "root preview presentation owner must not bypass stale-callback protection with tokenless acknowledgement");
   assert.match(presentationOwner, /phaseAfterAck !== phaseBeforeAck[\s\S]*safari-runtime-changed/,
     "a phase-changing presentation acknowledgement must publish runtime change so DPt command UI can leave locked state");
 }
