@@ -51,16 +51,22 @@ function normalizedTypes(master) {
   return Array.isArray(master?.types) ? master.types.map(normalizedDataId) : [];
 }
 
+function isEggPokemon(pokemon) {
+  const stepsToHatch = Number(pokemon?.steps_to_hatch ?? 0);
+  return Number.isInteger(stepsToHatch) && stepsToHatch > 0;
+}
+
 function partyHasSpecies(party, species) {
   const required = normalizedDataId(species);
   if (!required || !Array.isArray(party)) return false;
-  return party.some((pokemon) => normalizedDataId(pokemon?.species) === required);
+  return party.some((pokemon) => !isEggPokemon(pokemon) && normalizedDataId(pokemon?.species) === required);
 }
 
 function partyHasType(party, type, speciesMasters) {
   const required = normalizedDataId(type);
   if (!required || !Array.isArray(party)) return false;
   return party.some((pokemon) => {
+    if (isEggPokemon(pokemon)) return false;
     const runtimeTypes = Array.isArray(pokemon?.types) ? pokemon.types.map(normalizedDataId) : [];
     if (runtimeTypes.includes(required)) return true;
     const master = speciesMasters?.[normalizedDataId(pokemon?.species)];
