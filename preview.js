@@ -1,3 +1,5 @@
+import { installSafariEggHatchVisitBridgeV108 } from "./runtime/safari-egg-hatch-visits-v108.js";
+
 let appPromise = null;
 let replacementPresentationPromise = null;
 let carryoverPresentationPromise = null;
@@ -140,6 +142,7 @@ function onContinueRun() {
   startPreview("continue");
 }
 
+installSafariEggHatchVisitBridgeV108();
 window.addEventListener("error", captureBattleRenderError);
 window.addEventListener("safari-runtime-changed", traceSceneAfterRuntimeChange);
 newRun?.addEventListener("click", onNewRun);
