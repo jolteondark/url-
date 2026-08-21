@@ -64,6 +64,44 @@ function phaseCount(battle, phase) {
   const battle = state.variables.mapless.battle;
   ensureSafariBattleOrchestrator(state);
   beginSafariBattleCommand(state, "move");
+  const committedResolution = {
+    decision: 0,
+    operations: [
+      { op: "use_move", actor: "player", target: "foe" },
+      { op: "use_move", actor: "foe", target: "player" },
+    ],
+  };
+  commitSafariBattleResolution(state, committedResolution, "move");
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.COMMAND);
+  assert.equal(Number.isInteger(committedResolution.orchestratorCommandSequence), true,
+    "the committed resolution must retain its central command identity for compatibility replay");
+  const traceLength = battle.phase_trace.length;
+
+  const taggedReplay = commitSafariBattleResolution(state, structuredClone(committedResolution), "move");
+  assert.equal(taggedReplay.phase, SAFARI_BATTLE_PHASE.COMMAND);
+  assert.equal(battle.phase_trace.length, traceLength,
+    "a tagged structured-clone replay of the committed resolution must remain exactly-once");
+
+  const unrelatedResolution = {
+    decision: 0,
+    operations: [{ op: "use_move", actor: "foe", target: "player" }],
+  };
+  assert.throws(
+    () => commitSafariBattleResolution(state, unrelatedResolution, "move"),
+    /fresh battle resolution requires ACTION_1; got COMMAND/,
+    "an untagged fresh result must not impersonate the previous command's committed replay while COMMAND is idle",
+  );
+  assert.equal(unrelatedResolution.orchestratorCommandSequence ?? null, null,
+    "rejected untagged results must not be mutated into the previous command identity");
+  assert.equal(battle.phase_trace.length, traceLength,
+    "rejected untagged results must not append any phase after the committed command");
+}
+
+{
+  const state = runtime();
+  const battle = state.variables.mapless.battle;
+  ensureSafariBattleOrchestrator(state);
+  beginSafariBattleCommand(state, "move");
   const resolution = {
     decision: 0,
     foeReplacementApplied: true,

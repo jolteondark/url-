@@ -266,6 +266,8 @@ function replayCommittedResolution(battle, result, commandKind) {
   const checkpoint = battle.resolution_checkpoint;
   const sequence = resolutionCheckpointSequence(battle);
   if (!checkpoint || checkpoint.sequence !== sequence || checkpoint.commandKind !== commandKind) return null;
+  const tagged = resultCommandSequence(result);
+  if (tagged == null || tagged !== checkpoint.sequence) return null;
   if (checkpoint.committed !== true) throw incompleteResolutionError(checkpoint);
   battle.pending_command_kind = null;
   battle.pending_command_sequence = null;
@@ -390,7 +392,6 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   }
 
   const resolvedCommandKind = commandKind ?? battle.pending_command_kind ?? "command";
-  bindResolutionToPendingCommand(battle, result);
   const decision = Number(result?.decision ?? battle.decision ?? 0);
   const playerReplacementRequired = Boolean(result?.playerReplacementRequired ?? battle.player_replacement_required);
   const foeReplacementRequired = Boolean(result?.foeReplacementRequired);
@@ -413,6 +414,7 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
     throw new Error(`fresh battle resolution requires ACTION_1; got ${battle.phase}`);
   }
 
+  bindResolutionToPendingCommand(battle, result);
   if (result?.turnConsumed === false) {
     return rejectUnconsumedCommand(battle, result, resolvedCommandKind);
   }
