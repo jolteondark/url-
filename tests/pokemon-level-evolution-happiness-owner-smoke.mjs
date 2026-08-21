@@ -42,6 +42,12 @@ const speciesMasters = {
     ],
   },
   HOLD2: { ...base, id: "HOLD2", base_stats: stats(55, 65, 55, 65, 55, 75) },
+  ITEMHOLD: { ...base, id: "ITEMHOLD", evolutions: [["ITEMHOLD2", "HoldItem", "RAZORCLAW", false], ["TRADE2", "Trade", null, false]] },
+  ITEMHOLD2: { ...base, id: "ITEMHOLD2" },
+  ITEMMALE: { ...base, id: "ITEMMALE", evolutions: [["ITEMMALE2", "HoldItemMale", "RAZORFANG", false]] },
+  ITEMMALE2: { ...base, id: "ITEMMALE2" },
+  ITEMFEMALE: { ...base, id: "ITEMFEMALE", evolutions: [["ITEMFEMALE2", "HoldItemFemale", "OVALSTONE", false]] },
+  ITEMFEMALE2: { ...base, id: "ITEMFEMALE2" },
 };
 
 function runtime(species, happiness, gender = 0, heldItem = "ORANBERRY") {
@@ -138,4 +144,40 @@ const options = {
   assert.deepEqual(evolved.unsupportedMethods, ["Item"]);
 }
 
-console.log("canonical happiness level-up evolution owner: PASS");
+{
+  const wrong = resolvePokemonLevelEvolution(runtime("ITEMHOLD", 0, 0, "ORANBERRY"), options);
+  assert.equal(wrong.evolved, false, "HoldItem must require the configured item");
+  assert.equal(wrong.pokemon.held_item, "ORANBERRY");
+  assert.deepEqual(wrong.unsupportedMethods, ["Trade"]);
+
+  const candidate = runtime("ITEMHOLD", 0, 0, "RAZORCLAW");
+  candidate.item = "ORANBERRY";
+  const evolved = resolvePokemonLevelEvolution(candidate, options);
+  assert.equal(evolved.evolved, true);
+  assert.equal(evolved.evolution.method, "HoldItem");
+  assert.equal(evolved.pokemon.species, "ITEMHOLD2");
+  assert.equal(evolved.pokemon.held_item, null, "successful HoldItem evolution consumes the authoritative item");
+  assert.equal(evolved.pokemon.item, null);
+  assert.equal(evolved.pokemon.personal_id, 0x12345678);
+  assert.equal(evolved.pokemon.status, "POISON");
+  assert.equal(evolved.pokemon.status_count, 2);
+  assert.equal(evolved.pokemon.moves[0].pp, 17);
+  assert.ok(evolved.operations.some((operation) => operation.op === "consume_evolution_item" && operation.item === "RAZORCLAW"));
+  assert.deepEqual(evolved.unsupportedMethods, ["Trade"]);
+}
+
+{
+  const male = resolvePokemonLevelEvolution(runtime("ITEMMALE", 0, 0, "RAZORFANG"), options);
+  assert.equal(male.evolved, true);
+  assert.equal(male.evolution.method, "HoldItemMale");
+  assert.equal(male.pokemon.held_item, null);
+  assert.equal(resolvePokemonLevelEvolution(runtime("ITEMMALE", 0, 1, "RAZORFANG"), options).evolved, false);
+
+  const female = resolvePokemonLevelEvolution(runtime("ITEMFEMALE", 0, 1, "OVALSTONE"), options);
+  assert.equal(female.evolved, true);
+  assert.equal(female.evolution.method, "HoldItemFemale");
+  assert.equal(female.pokemon.held_item, null);
+  assert.equal(resolvePokemonLevelEvolution(runtime("ITEMFEMALE", 0, 0, "OVALSTONE"), options).evolved, false);
+}
+
+console.log("canonical happiness/held-item level-up evolution owner: PASS");
