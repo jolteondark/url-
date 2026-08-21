@@ -147,11 +147,20 @@ function payTrainerPrize(runtime, battle) {
   return [{ op: "trainer_prize_money", requested, adjusted, applied: gained, carryClass, trainer: battle.trainer?.trainer_full_name ?? null }];
 }
 
-function commitPendingLevelEvolutions(runtime) {
+function evolutionContextOf(battle = {}) {
+  const context = battle?.evolution_context ?? battle?.evolutionContext ?? {};
+  return {
+    time_hour: context?.hour ?? context?.hour_of_day ?? context?.hourOfDay,
+    weather_type: context?.weather ?? context?.weather_type ?? context?.weatherType,
+  };
+}
+
+function commitPendingLevelEvolutions(runtime, battle = {}) {
   const party = Array.isArray(runtime?.player?.party) ? runtime.player.party : [];
   const operations = [];
   const presentation = [];
   const unsupportedMethods = new Set();
+  const evolutionContext = evolutionContextOf(battle);
 
   for (let index = 0; index < party.length; index += 1) {
     const pokemon = party[index];
@@ -168,6 +177,7 @@ function commitPendingLevelEvolutions(runtime) {
       nature_master: natureMaster,
       move_masters: SAFARI_MOVE_MASTERS,
       party,
+      ...evolutionContext,
     });
     party[index] = resolved.pokemon;
     operations.push(...structuredClone(resolved.operations ?? []));
@@ -191,7 +201,7 @@ export function commitSafariNormalLevelEvolutionRewardGrowth(runtime, result = {
   const battle = state.battle;
   if (!battle || Number(battle.decision) === 0) return result;
 
-  const pending = commitPendingLevelEvolutions(runtime);
+  const pending = commitPendingLevelEvolutions(runtime, battle);
   if (pending.operations.length === 0 && pending.presentation.length === 0 && pending.unsupportedMethods.length === 0) return result;
 
   battle.unsupported_evolution_methods = [...pending.unsupportedMethods];
