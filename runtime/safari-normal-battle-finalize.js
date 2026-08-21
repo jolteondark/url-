@@ -6,6 +6,7 @@ import { resolveDayBoardPlayableTurn } from "./mapless-day-board-playable-turn.j
 import { markMaplessRunEnd } from "./mapless-run-end-lifecycle.js";
 import { resolvePokemonLevelEvolutionWithLocationContext } from "./pokemon-level-evolution-location-context.js";
 import { resolvePokemonRuntimeMasters } from "./pokemon-runtime-masters.js";
+import { applyShedinjaAfterEvolution } from "./pokemon-shedinja-after-evolution.js";
 import { SAFARI_MOVE_MASTERS, SAFARI_NATURE_MASTERS, SAFARI_SPECIES_MASTERS } from "./safari-playable-data.js";
 
 const moveId = (move) => typeof move === "string" ? move : move?.id;
@@ -188,8 +189,21 @@ function commitPendingLevelEvolutions(runtime, battle = {}) {
     });
     party[index] = resolved.pokemon;
     operations.push(...structuredClone(resolved.operations ?? []));
-    for (const method of resolved.unsupportedMethods ?? []) unsupportedMethods.add(method);
+    for (const method of resolved.unsupportedMethods ?? []) {
+      if (method !== "Shedinja") unsupportedMethods.add(method);
+    }
     if (resolved.evolved && resolved.evolution) {
+      const sourceSpeciesMaster = SAFARI_SPECIES_MASTERS[candidate.species];
+      const shedinja = applyShedinjaAfterEvolution({
+        sourcePokemon: candidate,
+        sourceSpeciesMaster,
+        speciesMasters: SAFARI_SPECIES_MASTERS,
+        natureMaster,
+        moveMasters: SAFARI_MOVE_MASTERS,
+        party,
+        bagSlots: runtime?.bag?.slots,
+      });
+      operations.push(...structuredClone(shedinja.operations ?? []));
       presentation.push({
         type: "evolution",
         actor: "player",
