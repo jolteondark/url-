@@ -20,9 +20,11 @@ function commandTarget(battle){
  return current(battle,sel)??first(battle,'#dppt-command-root button[data-dppt-command="fight"]:not(:disabled)');
 }
 function gameMenuTarget(menu){
- const pane=[...menu.querySelectorAll("[data-menu-pane]")].find(visible)??null;
  const sel='button:not(:disabled),select:not(:disabled),input:not(:disabled),[tabindex]:not([tabindex="-1"])';
- return current(pane,sel)??first(pane,sel)??(enabled(byId("game-menu-close"))?byId("game-menu-close"):null);
+ const active=current(menu,sel);
+ if(active)return active;
+ const pane=[...menu.querySelectorAll("[data-menu-pane]")].find(visible)??null;
+ return first(pane,sel)??(enabled(byId("game-menu-close"))?byId("game-menu-close"):null);
 }
 function clearBattleFocusOutsideInteractivePhase(){
  const s=runtime();
