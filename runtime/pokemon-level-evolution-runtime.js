@@ -58,6 +58,7 @@ function levelEvolutionTarget(speciesMaster, runtime) {
     "Happiness",
     "HappinessMale",
     "HappinessFemale",
+    "HappinessMove",
     "MaxHappiness",
   ]);
   let eligible = null;
@@ -66,6 +67,17 @@ function levelEvolutionTarget(speciesMaster, runtime) {
     if (!evolution?.species || !evolution.method || evolution.prevolution) continue;
     if (!supportedMethods.has(evolution.method)) {
       unsupportedMethods.add(evolution.method);
+      continue;
+    }
+
+    if (evolution.method === "HappinessMove") {
+      const requiredMove = String(evolution.parameter ?? "");
+      const knowsMove = requiredMove.length > 0
+        && (runtime?.moves ?? []).some((move) => String(moveId(move) ?? "") === requiredMove);
+      const conditionMatches = Number.isInteger(happiness) && happiness >= 220 && knowsMove;
+      if (!eligible && conditionMatches) {
+        eligible = { target: evolution.species, method: evolution.method, parameter: requiredMove };
+      }
       continue;
     }
 

@@ -33,7 +33,7 @@ const source = {
     { level: 12, move: "DEFERMOVE2" },
   ],
   evolutions: [
-    { species: "DEFERGROW2", method: "Level", parameter: 12 },
+    { species: "DEFERGROW2", method: "HappinessMove", parameter: "DEFERMOVE2" },
     { species: "DEFERUNSUPPORTED1", method: "Item", parameter: "MOONSTONE" },
   ],
 };
@@ -110,6 +110,7 @@ const player = materialize(source, {
   personal_id: 11223344,
   form: 0,
   hp: 12,
+  happiness: 220,
   status: "POISON",
   status_count: 2,
   item: "STALEITEM",
@@ -168,11 +169,13 @@ assert.equal(firstResult.decision, 0, "first trainer foe must hand off to the re
 assert.equal(afterFirst.level, 12, "first KO must cross both level boundaries exactly");
 assert.deepEqual(afterFirst.moves.map((move) => move.id), ["DEFERKO", "DEFERMOVE1", "DEFERMOVE2", "SWIFT"],
   "each crossed level must learn its move through the explicit four-slot replacement owner");
-assert.equal(afterFirst.species, source.id, "Level evolution must not commit between trainer foes");
-assert.equal(afterFirst.__battle_level_evolution_pending, true, "level gain must retain a transient pending-evolution marker until battle end");
+assert.equal(afterFirst.species, source.id, "move-dependent evolution must not commit between trainer foes");
+assert.equal(afterFirst.__battle_level_evolution_pending, true, "learning the required move on level-up must create a transient pending evolution");
 assert.equal(firstResult.expIntegration.commits[0].evolutionDeferred, true);
 assert.equal(firstResult.expIntegration.commits[0].evolution, null);
 assert.equal(firstResult.expIntegration.commits[0].pendingEvolution?.to, evolved.id);
+assert.equal(firstResult.expIntegration.commits[0].pendingEvolution?.method, "HappinessMove");
+assert.equal(firstResult.expIntegration.commits[0].pendingEvolution?.parameter, "DEFERMOVE2");
 assert.ok(!firstResult.operations.some((operation) => operation.op === "level_evolution"), "nonterminal trainer replacement must not publish evolution");
 assert.equal(runtime.variables.mapless.battle.trainer_party_index, 1, "second trainer Pokemon must become active");
 
@@ -183,10 +186,13 @@ const afterSecond = runtime.player.party[0];
 assert.equal(secondResult.decision, 1, "second trainer foe must end the battle");
 assert.equal(secondResult.phase, "RESULT");
 assert.equal(secondResult.persistenceRequested, true, "terminal result must still surface request_save");
-assert.equal(afterSecond.species, evolved.id, "eligible Level evolution must commit only at terminal battle finalize");
+assert.equal(afterSecond.species, evolved.id, "eligible HappinessMove evolution must commit only at terminal battle finalize");
 assert.equal(afterSecond.form, 2);
 assert.equal("__battle_level_evolution_pending" in afterSecond, false, "transient marker must never survive terminal finalize/save");
-assert.ok(secondResult.operations.some((operation) => operation.op === "level_evolution" && operation.to === evolved.id));
+assert.ok(secondResult.operations.some((operation) => operation.op === "level_evolution"
+  && operation.to === evolved.id
+  && operation.method === "HappinessMove"
+  && operation.parameter === "DEFERMOVE2"));
 assert.deepEqual([...runtime.variables.mapless.battle.unsupported_evolution_methods].sort(), ["Item", "Trade"].sort());
 assert.equal(afterSecond.personal_id, identity);
 assert.equal(afterSecond.ability, "KEEPAUTHABILITY");
@@ -196,7 +202,7 @@ assert.equal(afterSecond.status_count, 2);
 assert.equal(afterSecond.hp, hpBeforeTerminal + (afterSecond.max_hp - maxHpBeforeTerminal), "post-battle evolution must preserve injured HP by max-HP delta");
 assert.equal(afterSecond.moves[0].pp, 2, "one move use against each foe must consume exactly two PP across the whole trainer battle");
 assert.equal(afterSecond.moves[1].pp, 11, "newly learned level-11 move must retain its learned PP through evolution");
-assert.equal(afterSecond.moves[2].pp, 12, "newly learned level-12 move must retain its learned PP through evolution");
+assert.equal(afterSecond.moves[2].pp, 12, "required HappinessMove move must retain its learned PP through evolution");
 assert.equal(afterSecond.moves[3].pp, 6, "untouched move PP must not refill or change through evolution");
 
 const storage = new MemoryStorage();
@@ -223,4 +229,4 @@ assert.deepEqual(continuedPokemon.moves.map(({ id, pp }) => ({ id, pp })), [
   { id: "SWIFT", pp: 6 },
 ]);
 
-console.log("Safari trainer multi-foe EXP -> multi-level moves -> deferred Level evolution -> browser save -> fresh Continue: PASS");
+console.log("Safari trainer multi-foe EXP -> multi-level moves -> deferred HappinessMove evolution -> browser save -> fresh Continue: PASS");
