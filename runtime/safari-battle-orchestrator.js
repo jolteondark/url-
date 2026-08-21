@@ -271,12 +271,16 @@ function replayCommittedResolution(battle, result, commandKind) {
   const tagged = resultCommandSequence(result);
   if (tagged == null || tagged !== checkpoint.sequence) return null;
   if (checkpoint.committed !== true) throw incompleteResolutionError(checkpoint);
+  if (!checkpoint.committedResult) {
+    throw new Error(`committed battle resolution snapshot is missing: ${checkpoint.sequence ?? "unknown"}`);
+  }
+  const committedResult = structuredClone(checkpoint.committedResult);
   battle.pending_command_kind = null;
   battle.pending_command_sequence = null;
-  if (requestsPersistence(result)) result.persistenceRequested = true;
-  result.phase = battle.phase;
-  result.phaseTrace = structuredClone(battle.phase_trace ?? []);
-  return result;
+  if (requestsPersistence(committedResult)) committedResult.persistenceRequested = true;
+  committedResult.phase = battle.phase;
+  committedResult.phaseTrace = structuredClone(battle.phase_trace ?? []);
+  return committedResult;
 }
 
 function beginResolutionCheckpoint(battle, commandKind) {
@@ -485,13 +489,14 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   if (result && typeof result === "object") {
     result.orchestratorCommandSequence = resolutionCheckpoint.sequence;
   }
-  resolutionCheckpoint.committed = true;
   resolutionCheckpoint.phase = battle.phase;
   battle.pending_command_kind = null;
   battle.pending_command_sequence = null;
   if (requestsPersistence(result)) result.persistenceRequested = true;
   result.phase = battle.phase;
   result.phaseTrace = structuredClone(battle.phase_trace ?? []);
+  resolutionCheckpoint.committedResult = structuredClone(result);
+  resolutionCheckpoint.committed = true;
   return result;
 }
 
