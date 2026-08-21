@@ -131,6 +131,7 @@ function renderControls() {
   ensureStyle();
   addPartyControls();
   addStorageControls();
+  window.dispatchEvent(new CustomEvent("safari-storage-controls-rendered"));
 }
 
 function scheduleRender() {
