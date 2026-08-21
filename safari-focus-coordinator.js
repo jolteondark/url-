@@ -62,6 +62,12 @@ function settlePartyPanel(){
  const partyPane=byId("menu-party-pane");
  if(visible(menu)&&visible(partyPane))settle();
 }
+function settleBagPanel(){
+ const menu=byId("game-menu");
+ const bagPane=byId("menu-bag-pane");
+ if(visible(menu)&&visible(bagPane))settle();
+}
 for(const name of ["safari-runtime-changed","safari-preview-start","safari-game-menu-opened","safari-game-menu-open-failed","safari-game-menu-closed","mapless-dppt-menu-changed","pageshow"])window.addEventListener(name,settle,{passive:true});
 window.addEventListener("safari-party-panel-rendered",settlePartyPanel,{passive:true});
+window.addEventListener("storage",settleBagPanel,{passive:true});
 settle();
