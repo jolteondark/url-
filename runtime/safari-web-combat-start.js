@@ -119,7 +119,7 @@ export async function activateSafariWebCombatCell(runtime, index) {
   const state = stateOf(runtime);
   const event = state.board_events?.[index];
   if (!event || !["wild", "trainer"].includes(event.kind)) throw new Error("wild or trainer board event is required");
-  if (state.battle && !state.battle.completed) return { runtime, result: "battle_active", boundary: "battle", notice: "戦闘を先に終えてください。", operations: [] };
+  if (state.battle) return { runtime, result: "battle_active", boundary: "battle", notice: "戦闘を先に終えてください。", operations: [] };
   if (state.shop) return { runtime, result: "shop_active", boundary: "shop", notice: "ショップを先に終了してください。", operations: [] };
 
   const previousBoardEvents = state.board_events;
