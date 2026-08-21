@@ -3,6 +3,7 @@ import {
   battlePokemonHeldItemIdCanonical,
 } from "./battle-core-ability-item-modifiers.js";
 import { resolveBerryConsumptionSuppressionCanonical } from "./battle-core-berry-consumption-suppression-extension.js";
+import { isCanonicalFixedDamageFunction } from "./battle-core-hp-function-effects.js";
 
 const TYPE_RESIST_BERRY_BY_ITEM = Object.freeze({
   OCCABERRY: "FIRE",
@@ -50,11 +51,13 @@ function typeResistBerryApplicabilityCanonical({ user = {}, target = {}, move = 
   const consumptionSuppression = resolveBerryConsumptionSuppressionCanonical({ consumer: target, opposing: user, context });
   const matchingType = Boolean(berryType && moveType === berryType);
   const chilan = item === "CHILANBERRY";
+  const fixedDamage = isCanonicalFixedDamageFunction(move?.function_code);
   const qualifyingEffectiveness = chilan ? true : Number.isFinite(typeMod) && typeMod > 1;
   const eligible = Boolean(
     berryType
     && matchingType
     && damagingMoveCanonical(move)
+    && !fixedDamage
     && qualifyingEffectiveness
     && !suppressed
     && !consumptionSuppression.blocked
@@ -66,6 +69,7 @@ function typeResistBerryApplicabilityCanonical({ user = {}, target = {}, move = 
     moveType,
     typeMod,
     chilan,
+    fixedDamage,
     matchingType,
     suppressed,
     berryConsumptionSuppression: consumptionSuppression,
