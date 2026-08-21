@@ -4,7 +4,6 @@ import { replaceSafariBattlePlayer } from "./runtime/safari-web-playable-integra
 
 const REPLACEMENT_PHASE = "REPLACEMENT";
 const byId = (id) => document.getElementById(id);
-let replacementWasActive = false;
 
 function battleState() {
   return globalThis.__maplessSafariRuntime?.variables?.mapless?.battle ?? null;
@@ -26,25 +25,6 @@ function replacementOptions(battle = battleState()) {
   return (pending?.playerReplacementContinuation?.replacementOptions ?? [])
     .filter((option) => option?.canSwitchIn)
     .map((option) => ({ partyIndex: Number(option.partyIndex), pokemon: structuredClone(option.pokemon) }));
-}
-
-function focusFirstReplacement() {
-  const first = byId("player-replacement-panel")?.querySelector("button[data-player-replacement-party-index]:not(:disabled)");
-  if (!(first instanceof HTMLElement)) return;
-  first.focus({ preventScroll:true });
-}
-
-function restoreBattleRoot() {
-  const card = byId("battle-card");
-  const battle = battleState();
-  if (!card || card.hidden || battle?.phase !== "COMMAND") return;
-  card.dataset.dpptMenu = "root";
-  const message = byId("battle-message");
-  if (message && message.dataset.presentationOwner !== "event") message.textContent = "どうする？";
-  requestAnimationFrame(() => {
-    card.querySelector('[data-dppt-command="fight"]:not(:disabled)')?.focus?.({ preventScroll:true });
-    card.scrollIntoView?.({ behavior:"smooth", block:"end", inline:"nearest" });
-  });
 }
 
 function clearReplacementUi() {
@@ -73,15 +53,11 @@ function replacementButton(option) {
 
 function syncReplacementUi() {
   const battle = battleState();
-  const active = replacementActive(battle);
-  if (!active) {
+  if (!replacementActive(battle)) {
     clearReplacementUi();
-    if (replacementWasActive) queueMicrotask(restoreBattleRoot);
-    replacementWasActive = false;
     return;
   }
 
-  replacementWasActive = true;
   const options = replacementOptions(battle);
   const card = byId("battle-card");
   const moves = byId("moves");
@@ -107,10 +83,6 @@ function syncReplacementUi() {
   grid.replaceChildren(...options.map(replacementButton));
   panel.replaceChildren(heading, grid);
   globalThis.__maplessApplyBattlePhaseUi?.();
-  requestAnimationFrame(() => {
-    panel.scrollIntoView?.({ behavior:"smooth", block:"center", inline:"nearest" });
-    focusFirstReplacement();
-  });
 }
 
 async function chooseReplacement(button) {
