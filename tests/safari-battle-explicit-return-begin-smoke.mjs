@@ -7,6 +7,7 @@ import {
   completeSafariBattleReturn,
   ensureSafariBattleOrchestrator,
 } from "../runtime/safari-battle-orchestrator.js";
+import { activateSafariWebCombatCell } from "../runtime/safari-web-combat-start.js";
 
 function runtime() {
   return {
@@ -36,6 +37,19 @@ commitSafariBattleResolution(rt, {
 
 assert.equal(state.battle.phase, SAFARI_BATTLE_PHASE.RESULT);
 assert.equal(state.battle.completed, true);
+
+state.board_events = [{ kind: "wild" }];
+state.board_consumed = [false];
+const completedBattle = state.battle;
+const blockedStart = await activateSafariWebCombatCell(rt, 0);
+assert.equal(blockedStart.result, "battle_active",
+  "a completed RESULT battle must remain active until the explicit RETURN transition clears it");
+assert.equal(state.battle, completedBattle,
+  "starting the next combat must not overwrite the completed RESULT battle before RETURN");
+assert.equal(state.battle.phase, SAFARI_BATTLE_PHASE.RESULT);
+assert.deepEqual(state.board_consumed, [false],
+  "a blocked next-combat attempt must not consume the next board cell before RETURN");
+
 assert.throws(
   () => completeSafariBattleReturn(rt, {
     target: "day_board",
