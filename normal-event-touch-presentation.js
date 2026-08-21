@@ -167,13 +167,6 @@ function scheduleSync() {
   requestAnimationFrame(() => { sync().catch((error) => { globalThis.__maplessLastError = error; console.error("[Mapless] normal-event UI sync failed", error); }); });
 }
 
-document.addEventListener("click", (event) => {
-  if (event.target.closest("#board button[data-board-index]")) {
-    setTimeout(scheduleSync, 0);
-    setTimeout(scheduleSync, 80);
-  }
-});
-
 document.addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-normal-event-action]");
   if (!button || resolving) return;
@@ -205,8 +198,7 @@ document.addEventListener("click", async (event) => {
   }
 });
 
-const notice = byId("notice");
-if (notice) new MutationObserver(scheduleSync).observe(notice, { subtree:true, childList:true, characterData:true });
+window.addEventListener("safari-normal-event-ui", scheduleSync, { passive:true });
 window.addEventListener("safari-runtime-changed", scheduleSync, { passive:true });
 window.addEventListener("pageshow", scheduleSync, { passive:true });
 scheduleSync();
