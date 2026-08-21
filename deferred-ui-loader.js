@@ -120,6 +120,8 @@ window.addEventListener("safari-game-menu-open-requested", async (event) => {
   setBattleMenuOpenPending(true);
   try {
     await loadMenuUi();
+    const battle = globalThis.__maplessSafariRuntime?.variables?.mapless?.battle;
+    if (!battle || battle.phase !== "COMMAND") return;
     window.dispatchEvent(new CustomEvent("safari-game-menu-open-ready", { detail: { tab } }));
   } finally {
     setBattleMenuOpenPending(false);
