@@ -60,15 +60,84 @@ assert.equal(shared.entryTerrain.triggered, true);
 assert.equal(shared.entryTerrain.terrainRequest.terrain, "Psychic");
 assert.equal(shared.entryTerrain.terrainRequest.duration, 8);
 
+// Terrain Seeds use the same shared switch-in boundary. The stat-stage owner
+// must apply the request successfully before the held-item lifecycle commits
+// the permanent consumption request.
+const electricSeed = resolveEntryTerrainAbilityItemHookCanonical({
+  user: pokemon("ELECTRICSURGE", "ELECTRICSEED"),
+});
+assert.equal(electricSeed.seedEffect.triggered, true);
+assert.equal(electricSeed.seedEffect.terrain, "Electric");
+assert.deepEqual(electricSeed.seedEffect.statChanges, [
+  { subject: "user", stat: "DEFENSE", delta: 1 },
+]);
+assert.deepEqual(electricSeed.seedEffect.consumeRequest, {
+  item: "ELECTRICSEED",
+  itemIsBerry: false,
+  effectKind: "terrain_seed_stat",
+  permanent: true,
+});
+assert.equal(electricSeed.seedEffect.consumeAfterSuccessfulStatRaise, true);
+
+const grassySeed = resolveEntryTerrainAbilityItemHookCanonical({
+  user: pokemon("OVERGROW", "GRASSYSEED"),
+  context: { effectiveTerrain: "Grassy" },
+});
+assert.equal(grassySeed.triggered, false);
+assert.equal(grassySeed.seedEffect.triggered, true);
+assert.equal(grassySeed.seedEffect.statChanges[0].stat, "DEFENSE");
+
+const mistySeed = resolveEntryTerrainAbilityItemHookCanonical({
+  user: pokemon("OVERGROW", "MISTYSEED"),
+  context: { terrain: "Misty" },
+});
+assert.equal(mistySeed.seedEffect.triggered, true);
+assert.equal(mistySeed.seedEffect.statChanges[0].stat, "SPECIAL_DEFENSE");
+
+const psychicSeedShared = resolveBattleAbilityItemHookCanonical({
+  hook: "switch_in",
+  user: pokemon("PSYCHICSURGE", "PSYCHICSEED"),
+  target: pokemon("NONE"),
+});
+assert.equal(psychicSeedShared.entryTerrain.seedEffect.triggered, true);
+assert.equal(psychicSeedShared.entryTerrain.seedEffect.terrain, "Psychic");
+assert.equal(psychicSeedShared.entryTerrain.seedEffect.statChanges[0].stat, "SPECIAL_DEFENSE");
+
+// A terrain-changing Ability resolves before its own held Seed, so the new
+// terrain takes precedence over the terrain that existed before switch-in.
+const replacedTerrain = resolveEntryTerrainAbilityItemHookCanonical({
+  user: pokemon("ELECTRICSURGE", "MISTYSEED"),
+  context: { effectiveTerrain: "Misty" },
+});
+assert.equal(replacedTerrain.terrainRequest.terrain, "Electric");
+assert.equal(replacedTerrain.seedEffect.triggered, false);
+
+const staleSeed = resolveEntryTerrainAbilityItemHookCanonical({
+  user: { ability: "OVERGROW", held_item: null, item: "ELECTRICSEED" },
+  context: { effectiveTerrain: "Electric" },
+});
+assert.equal(staleSeed.seedEffect.triggered, false);
+
+const legacySeed = resolveEntryTerrainAbilityItemHookCanonical({
+  user: { ability_id: "OVERGROW", item: "GRASSYSEED" },
+  context: { effectiveTerrain: "Grassy" },
+});
+assert.equal(legacySeed.seedEffect.triggered, true);
+
 assert.deepEqual(BATTLE_ENTRY_TERRAIN_COVERAGE_CANONICAL.abilityIds, [
   "ELECTRICSURGE", "GRASSYSURGE", "HADRONENGINE", "MISTYSURGE", "PSYCHICSURGE",
 ]);
-assert.deepEqual(BATTLE_ENTRY_TERRAIN_COVERAGE_CANONICAL.itemIds, ["TERRAINEXTENDER"]);
+assert.deepEqual(BATTLE_ENTRY_TERRAIN_COVERAGE_CANONICAL.itemIds, [
+  "ELECTRICSEED", "GRASSYSEED", "MISTYSEED", "PSYCHICSEED", "TERRAINEXTENDER",
+]);
 for (const id of BATTLE_ENTRY_TERRAIN_COVERAGE_CANONICAL.abilityIds) {
   assert.ok(BATTLE_ABILITY_ITEM_SHARED_IMPLEMENTED_COVERAGE_CANONICAL.abilityIds.includes(id));
 }
-assert.ok(BATTLE_ABILITY_ITEM_SHARED_IMPLEMENTED_COVERAGE_CANONICAL.itemIds.includes("TERRAINEXTENDER"));
+for (const id of BATTLE_ENTRY_TERRAIN_COVERAGE_CANONICAL.itemIds) {
+  assert.ok(BATTLE_ABILITY_ITEM_SHARED_IMPLEMENTED_COVERAGE_CANONICAL.itemIds.includes(id));
+}
 assert.equal(BATTLE_ENTRY_TERRAIN_COVERAGE_CANONICAL.classificationCounts.entryTerrainAbilities, 5);
 assert.equal(BATTLE_ENTRY_TERRAIN_COVERAGE_CANONICAL.classificationCounts.terrainDurationHeldItems, 1);
+assert.equal(BATTLE_ENTRY_TERRAIN_COVERAGE_CANONICAL.classificationCounts.terrainSeedHeldItems, 4);
 
 console.log("battle ability/item entry terrain smoke: PASS");
