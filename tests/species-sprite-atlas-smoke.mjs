@@ -22,9 +22,16 @@ assert.equal(bytes.length, SAFARI_SPECIES_FORM_FRONT_ATLAS.byteLength);
 assert.equal(bytes.subarray(0, 4).toString("ascii"), "RIFF");
 assert.equal(bytes.subarray(8, 12).toString("ascii"), "WEBP");
 
-const projected = Object.keys(SAFARI_SPECIES_MASTERS);
-assert.equal(projected.length, 875);
-for (const species of ["BULBASAUR", "EEVEE", "PIKACHU", "RATTATA", "ZWEILOUS", "GHOLDENGO"]) {
+// safari-playable-data intentionally bootstraps only three species. The full
+// 875-species GENERAL master projection is installed lazily on combat entry;
+// sprite coverage is owned by the independent 1669 species/form atlas keys.
+const bootstrapSpecies = Object.keys(SAFARI_SPECIES_MASTERS);
+assert.deepEqual(new Set(bootstrapSpecies), new Set(["EEVEE", "RATTATA", "PIKACHU"]));
+for (const species of bootstrapSpecies) {
+  assert.equal(resolveSafariSpeciesFormFrontSprite(species)?.species, species);
+  assert.equal(resolveSafariSpeciesSprite(species)?.species, species);
+}
+for (const species of ["BULBASAUR", "ZWEILOUS", "GHOLDENGO"]) {
   assert.equal(resolveSafariSpeciesFormFrontSprite(species)?.species, species);
   assert.equal(resolveSafariSpeciesSprite(species)?.species, species);
 }
@@ -46,6 +53,6 @@ console.log(JSON.stringify({
   atlasBytes: bytes.length,
   deployedSha256,
   canonicalSourceGraphicsSha256: SAFARI_SPECIES_FORM_FRONT_ATLAS.sourceGraphicsSha256,
-  projectedSpecies: projected.length,
+  bootstrapSpecies: bootstrapSpecies.length,
   alternateFormProbe: formKey,
 }));
