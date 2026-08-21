@@ -4,6 +4,7 @@ import {
   SAFARI_BATTLE_PHASE,
   beginSafariBattleCommand,
   commitSafariBattleResolution,
+  completeSafariBattleReplacement,
   ensureSafariBattleOrchestrator,
   safariBattleCommandAllowed,
 } from "../runtime/safari-battle-orchestrator.js";
@@ -49,6 +50,63 @@ for (const commandKind of ["item", "capture", "flee", "switch"]) {
   assert.equal(battle.phase, SAFARI_BATTLE_PHASE.COMMAND,
     `${commandKind} presentation acknowledgement must publish COMMAND`);
   assert.equal(safariBattleCommandAllowed(state), true);
+}
+
+{
+  const state = runtime();
+  const battle = state.variables.mapless.battle;
+  ensureSafariBattleOrchestrator(state);
+  beginSafariBattleCommand(state, "move");
+  commitSafariBattleResolution(state, {
+    decision: 0,
+    playerReplacementRequired: true,
+    operations: [
+      { op: "use_move", actor: "foe", target: "player" },
+      { op: "faint", actor: "foe", target: "player" },
+    ],
+  }, "move");
+  battle.player_replacement_required = true;
+
+  let replacementCommits = 0;
+  const replacementResult = completeSafariBattleReplacement(state, {
+    playerReplacementRequired: true,
+    operations: [],
+  }, {
+    replacementCommit(current) {
+      replacementCommits += 1;
+      battle.player_replacement_required = false;
+      return {
+        ...current,
+        playerReplacementRequired: false,
+        playerReplacementApplied: true,
+        operations: [{ op: "send_out", actor: "player" }],
+      };
+    },
+  });
+  assert.equal(replacementResult.phase, SAFARI_BATTLE_PHASE.REPLACEMENT);
+  assert.equal(replacementCommits, 1);
+
+  const checkpoint = battle.presentation_checkpoint;
+  const token = captureSafariBattlePresentationAckSequence(state);
+  const replay = completeSafariBattleReplacement(state, {
+    playerReplacementRequired: false,
+    playerReplacementApplied: true,
+    operations: [{ op: "send_out", actor: "player" }],
+  }, {
+    replacementCommit() {
+      replacementCommits += 1;
+      throw new Error("committed replacement must not replay");
+    },
+  });
+  assert.equal(replay.phase, SAFARI_BATTLE_PHASE.REPLACEMENT);
+  assert.equal(replacementCommits, 1,
+    "replaying replacement completion before presentation ack must not re-run the switch owner");
+  assert.equal(battle.presentation_checkpoint, checkpoint,
+    "replacement completion replay must preserve the already-issued central presentation checkpoint identity");
+
+  completeSafariBattlePresentationForSequence(state, token);
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.COMMAND,
+    "the token captured before replacement completion replay must still acknowledge the same checkpoint");
 }
 
 {
@@ -214,7 +272,7 @@ for (const [name, relativePath, legacyGate] of ownerFiles) {
     `${name} presentation owner must acknowledge only its captured central command sequence`);
   assert.equal(source.includes(legacyGate), false,
     `${name} must not retain ${legacyGate} as a parallel Battle command-readiness truth`);
-  assert.match(source, /\.phase\s*!==\s*"COMMAND"|phase\s*===\s*"COMMAND"|REPLACEMENT_PHASE/,
+  assert.match(source, /\.phase\s*!==\s*["']COMMAND["']|phase\s*===\s*["']COMMAND["']|REPLACEMENT_PHASE/,
     `${name} readiness must remain derived from the central Battle phase`);
   if (name === "capture" || name === "flee") {
     assert.doesNotMatch(source, /dataset\.dpptMenu\s*=\s*["']locked["']/,
