@@ -1,5 +1,6 @@
 import { updatePokemonRuntime } from "./pokemon-runtime.js";
 import { resolveBattleAbilityItemHookCanonical } from "./battle-ability-item-hook-dispatch.js";
+import { resolveWeatherChipTurnEndCanonical } from "./battle-core-weather-chip-turn-end-extension.js";
 
 function clampHp(value, maxHp) {
   return Math.min(Math.max(0, Math.trunc(Number(maxHp ?? 0))), Math.max(0, Math.trunc(Number(value ?? 0))));
@@ -7,23 +8,28 @@ function clampHp(value, maxHp) {
 
 export function commitBattleAbilityItemTurnEndRuntime({ pokemon, context = {} } = {}) {
   let runtime = updatePokemonRuntime(pokemon, {});
+  const hpBefore = Number(runtime.hp ?? 0);
+  const maxHp = Number(runtime.max_hp ?? runtime.maxHp ?? hpBefore);
+  const weatherChip = resolveWeatherChipTurnEndCanonical(runtime, context);
+  const hpAfterWeather = clampHp(hpBefore + Number(weatherChip.hpDelta ?? 0), maxHp);
+  if (hpAfterWeather !== hpBefore) runtime = updatePokemonRuntime(runtime, { hp: hpAfterWeather });
+
   const hook = resolveBattleAbilityItemHookCanonical({
     hook: "turn_end",
     user: runtime,
     context,
   });
-  if (hook?.triggered !== true) {
+  if (weatherChip.triggered !== true && hook?.triggered !== true) {
     return Object.freeze({ pokemon: runtime, commit: null });
   }
 
-  const hpBefore = Number(runtime.hp ?? 0);
-  const maxHp = Number(runtime.max_hp ?? runtime.maxHp ?? hpBefore);
-  const hpAfter = clampHp(hpBefore + Number(hook.hpDelta ?? 0), maxHp);
+  const hpBeforeHook = Number(runtime.hp ?? hpAfterWeather);
+  const hpAfter = clampHp(hpBeforeHook + Number(hook?.hpDelta ?? 0), maxHp);
   let statusChanged = false;
   const patch = {};
-  if (hpAfter !== hpBefore) patch.hp = hpAfter;
+  if (hpAfter !== hpBeforeHook) patch.hp = hpAfter;
 
-  if (hook.statusRequest && hpAfter > 0 && String(runtime.status ?? "NONE").toUpperCase() === "NONE") {
+  if (hook?.statusRequest && hpAfter > 0 && String(runtime.status ?? "NONE").toUpperCase() === "NONE") {
     patch.status = String(hook.statusRequest.status ?? "NONE").toUpperCase();
     patch.status_count = 0;
     statusChanged = patch.status !== "NONE";
@@ -37,10 +43,11 @@ export function commitBattleAbilityItemTurnEndRuntime({ pokemon, context = {} } 
       hpBefore,
       hpAfter: Number(runtime.hp ?? hpAfter),
       hpDelta: Number(runtime.hp ?? hpAfter) - hpBefore,
-      reason: hook.reason ?? null,
+      reason: hook?.reason ?? weatherChip.reason ?? null,
+      weatherChip: structuredClone(weatherChip),
       statusChanged,
-      statusRequest: hook.statusRequest ? structuredClone(hook.statusRequest) : null,
-      statChanges: Object.freeze(structuredClone(hook.statChanges ?? [])),
+      statusRequest: hook?.statusRequest ? structuredClone(hook.statusRequest) : null,
+      statChanges: Object.freeze(structuredClone(hook?.statChanges ?? [])),
     }),
   });
 }
