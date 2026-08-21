@@ -194,6 +194,9 @@ function phaseCount(battle, phase) {
     },
   });
   assert.equal(first.phase, SAFARI_BATTLE_PHASE.COMMAND);
+  assert.equal(first.foeReplacementRequired, false);
+  assert.equal(first.foeReplacementApplied, true);
+  assert.equal(first.operations.some((operation) => operation?.op === "send_out"), true);
   assert.equal(replacementCommits, 1);
   assert.equal(phaseCount(battle, SAFARI_BATTLE_PHASE.CHECK_1), 1);
   assert.equal(phaseCount(battle, SAFARI_BATTLE_PHASE.POST_FAINT), 1);
@@ -207,6 +210,12 @@ function phaseCount(battle, phase) {
     },
   });
   assert.equal(replay.phase, SAFARI_BATTLE_PHASE.COMMAND);
+  assert.equal(replay.foeReplacementRequired, false,
+    "replay must return the centrally committed post-replacement result, not the caller's stale pre-commit input");
+  assert.equal(replay.foeReplacementApplied, true,
+    "replay must preserve replacement fields produced by the original central commit");
+  assert.equal(replay.operations.some((operation) => operation?.op === "send_out"), true,
+    "replay must preserve operations appended by the committed replacement owner");
   assert.equal(replacementCommits, 1);
   assert.equal(battle.phase_trace.length, traceLength);
   assert.equal(phaseCount(battle, SAFARI_BATTLE_PHASE.REPLACEMENT), 1);
