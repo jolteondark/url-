@@ -122,6 +122,6 @@ assert.match(previewSource, /globalThis\.__maplessLastError = exact/,
   "selector-module failure must retain the diagnosed exact Error globally");
 assert.match(previewSource, /carryoverPanelVisible/);
 assert.match(previewSource, /carryoverError/);
-assert.match(indexSource, /preview\.js\?v=20260821-1835/);
+assert.match(indexSource, /preview\.js\?v=20260821-2134/);
 
 console.log("Safari carryover Run End -> visible keeper/fallback -> next Day Board: ok");
