@@ -7,10 +7,15 @@ const LEVEL_NIGHT_SENTINEL = -2147483645;
 const LEVEL_MORNING_SENTINEL = -2147483644;
 const LEVEL_AFTERNOON_SENTINEL = -2147483643;
 const LEVEL_EVENING_SENTINEL = -2147483642;
+const HAPPINESS_DAY_SENTINEL = -2147483641;
+const HAPPINESS_NIGHT_SENTINEL = -2147483640;
 
 const PARTY_CONTEXT_METHODS = new Set(["HasInParty", "LevelDarkInParty"]);
-const TIME_CONTEXT_METHODS = new Set(["LevelDay", "LevelNight", "LevelMorning", "LevelAfternoon", "LevelEvening"]);
+const LEVEL_TIME_CONTEXT_METHODS = new Set(["LevelDay", "LevelNight", "LevelMorning", "LevelAfternoon", "LevelEvening"]);
+const HAPPINESS_TIME_CONTEXT_METHODS = new Set(["HappinessDay", "HappinessNight"]);
+const TIME_CONTEXT_METHODS = new Set([...LEVEL_TIME_CONTEXT_METHODS, ...HAPPINESS_TIME_CONTEXT_METHODS]);
 const CONTEXT_METHODS = new Set([...PARTY_CONTEXT_METHODS, ...TIME_CONTEXT_METHODS]);
+const DEFAULT_HAPPINESS_THRESHOLD = 220;
 
 function normalizeEvolution(entry) {
   if (Array.isArray(entry)) {
@@ -58,8 +63,8 @@ function canonicalHour(value) {
 }
 
 function timeContextSatisfied(method, hour) {
-  if (method === "LevelDay") return hour >= 5 && hour < 20;
-  if (method === "LevelNight") return hour >= 20 || hour < 5;
+  if (method === "LevelDay" || method === "HappinessDay") return hour >= 5 && hour < 20;
+  if (method === "LevelNight" || method === "HappinessNight") return hour >= 20 || hour < 5;
   if (method === "LevelMorning") return hour >= 5 && hour < 10;
   if (method === "LevelAfternoon") return hour >= 14 && hour < 17;
   if (method === "LevelEvening") return hour >= 17 && hour < 20;
@@ -82,8 +87,12 @@ function contextSatisfied(evolution, runtime, party, speciesMasters, hour) {
     return Number(runtime?.level) >= Number(evolution.parameter)
       && partyHasType(party, "DARK", speciesMasters);
   }
-  if (TIME_CONTEXT_METHODS.has(evolution.method)) {
+  if (LEVEL_TIME_CONTEXT_METHODS.has(evolution.method)) {
     return Number(runtime?.level) >= Number(evolution.parameter)
+      && timeContextSatisfied(evolution.method, hour);
+  }
+  if (HAPPINESS_TIME_CONTEXT_METHODS.has(evolution.method)) {
+    return Number(runtime?.happiness ?? 0) >= DEFAULT_HAPPINESS_THRESHOLD
       && timeContextSatisfied(evolution.method, hour);
   }
   return false;
@@ -96,7 +105,9 @@ function sentinelForMethod(method) {
   if (method === "LevelNight") return LEVEL_NIGHT_SENTINEL;
   if (method === "LevelMorning") return LEVEL_MORNING_SENTINEL;
   if (method === "LevelAfternoon") return LEVEL_AFTERNOON_SENTINEL;
-  return LEVEL_EVENING_SENTINEL;
+  if (method === "LevelEvening") return LEVEL_EVENING_SENTINEL;
+  if (method === "HappinessDay") return HAPPINESS_DAY_SENTINEL;
+  return HAPPINESS_NIGHT_SENTINEL;
 }
 
 function methodForSentinel(parameter) {
@@ -107,6 +118,8 @@ function methodForSentinel(parameter) {
   if (parameter === LEVEL_MORNING_SENTINEL) return "LevelMorning";
   if (parameter === LEVEL_AFTERNOON_SENTINEL) return "LevelAfternoon";
   if (parameter === LEVEL_EVENING_SENTINEL) return "LevelEvening";
+  if (parameter === HAPPINESS_DAY_SENTINEL) return "HappinessDay";
+  if (parameter === HAPPINESS_NIGHT_SENTINEL) return "HappinessNight";
   return null;
 }
 
@@ -114,9 +127,6 @@ function adaptEvolutionEntry(raw, runtime, party, speciesMasters, hour) {
   const evolution = normalizeEvolution(raw);
   if (!evolution || evolution.prevolution || !CONTEXT_METHODS.has(evolution.method)) return structuredClone(raw);
   if (!contextSatisfied(evolution, runtime, party, speciesMasters, hour)) return null;
-  // The base owner already owns all species/form/stats/HP/move-learning continuity.
-  // Convert only a satisfied external-context trigger to an unmistakable always-eligible
-  // Level sentinel, then relabel the public result back to the canonical method.
   const sentinel = sentinelForMethod(evolution.method);
   if (Array.isArray(raw)) return [evolution.species, "Level", sentinel, evolution.prevolution];
   return {
@@ -155,7 +165,9 @@ function matchingContextEntry(result, sourceMaster, runtime, party, speciesMaste
 }
 
 function publicParameter(entry) {
-  return entry.method === "HasInParty" ? normalizedDataId(entry.parameter) : Number(entry.parameter);
+  if (entry.method === "HasInParty") return normalizedDataId(entry.parameter);
+  if (HAPPINESS_TIME_CONTEXT_METHODS.has(entry.method)) return null;
+  return Number(entry.parameter);
 }
 
 function relabelContextualResult(result, sourceMaster, runtime, party, speciesMasters, hour) {
@@ -176,12 +188,12 @@ function relabelContextualResult(result, sourceMaster, runtime, party, speciesMa
 
 function deferredContextCandidate(sourceMaster, runtime) {
   for (const entry of contextualEntries(sourceMaster)) {
-    if (entry.method !== "HasInParty" && Number(runtime?.level) < Number(entry.parameter)) continue;
-    return {
-      to: entry.species,
-      method: entry.method,
-      parameter: publicParameter(entry),
-    };
+    if (entry.method !== "HasInParty"
+      && !HAPPINESS_TIME_CONTEXT_METHODS.has(entry.method)
+      && Number(runtime?.level) < Number(entry.parameter)) continue;
+    if (HAPPINESS_TIME_CONTEXT_METHODS.has(entry.method)
+      && Number(runtime?.happiness ?? 0) < DEFAULT_HAPPINESS_THRESHOLD) continue;
+    return { to: entry.species, method: entry.method, parameter: publicParameter(entry) };
   }
   return null;
 }
@@ -199,18 +211,12 @@ export function resolvePokemonLevelEvolutionWithPartyContext(runtime, options = 
     if (base?.levelEvolutionCandidate) return base;
     const deferred = deferredContextCandidate(sourceMaster, runtime);
     if (!deferred) return base;
-    // Battle EXP eligibility probing remembers only that a canonical level-up
-    // trigger needs external context. Terminal REWARD_GROWTH re-runs the actual
-    // party/time predicate and may still reject the evolution.
     return { ...base, levelEvolutionCandidate: deferred };
   }
 
   const hour = canonicalHour(options?.time_hour);
   const adaptedMasters = contextualSpeciesMasters(speciesMasters, runtime, party, hour);
-  const resolved = resolveBasePokemonLevelEvolution(runtime, {
-    ...options,
-    species_masters: adaptedMasters,
-  });
+  const resolved = resolveBasePokemonLevelEvolution(runtime, { ...options, species_masters: adaptedMasters });
   const relabeled = relabelContextualResult(resolved, sourceMaster, runtime, party, speciesMasters, hour);
   return {
     ...relabeled,
