@@ -591,6 +591,17 @@ export function completeSafariBattleReplacement(runtime, result = {}, {
   resumeCommandAfterResolution(battle, "player replacement presentation pending");
   result.phase = battle.phase;
   result.phaseTrace = structuredClone(battle.phase_trace ?? []);
+  const resolutionCheckpoint = battle.resolution_checkpoint;
+  if (resolutionCheckpoint?.committed === true) {
+    if (Number(resolutionCheckpoint.sequence) !== Number(battle.command_sequence ?? 0)) {
+      throw new Error("player replacement completion belongs to a different resolution checkpoint");
+    }
+    if (result && typeof result === "object") {
+      result.orchestratorCommandSequence = resolutionCheckpoint.sequence;
+    }
+    resolutionCheckpoint.phase = battle.phase;
+    resolutionCheckpoint.committedResult = structuredClone(result);
+  }
   return result;
 }
 

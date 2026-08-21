@@ -4,6 +4,7 @@ import {
   beginSafariBattleCommand,
   beginSafariBattleReturn,
   commitSafariBattleResolution,
+  completeSafariBattleReplacement,
   completeSafariBattleReturn,
   ensureSafariBattleOrchestrator,
 } from "../runtime/safari-battle-orchestrator.js";
@@ -121,5 +122,57 @@ assert.throws(
 );
 assert.deepEqual(state.variables.mapless.battle_return_checkpoint.operations, returned.operations,
   "cross-Battle rejection must preserve the original committed RETURN snapshot without replaying it");
+
+{
+  const replacementState = runtime();
+  const replacementBattle = replacementState.variables.mapless.battle;
+  replacementBattle.player_replacement_required = true;
+  ensureSafariBattleOrchestrator(replacementState);
+  beginSafariBattleCommand(replacementState, "move");
+  const replacementResolution = {
+    decision: 0,
+    playerReplacementRequired: true,
+    operations: [
+      { op: "use_move", actor: "foe", target: "player" },
+      { op: "faint", actor: "foe", target: "player" },
+    ],
+  };
+  const preReplacement = commitSafariBattleResolution(replacementState, replacementResolution, "move");
+  assert.equal(preReplacement.phase, SAFARI_BATTLE_PHASE.REPLACEMENT);
+  assert.equal(preReplacement.playerReplacementRequired, true);
+
+  let replacementCommits = 0;
+  const postReplacement = completeSafariBattleReplacement(replacementState, preReplacement, {
+    replacementCommit(current) {
+      replacementCommits += 1;
+      replacementBattle.player_replacement_required = false;
+      return {
+        ...current,
+        playerReplacementRequired: false,
+        playerReplacementApplied: true,
+        operations: [...(current.operations ?? []), { op: "send_out", actor: "player" }],
+      };
+    },
+  });
+  assert.equal(postReplacement.phase, SAFARI_BATTLE_PHASE.COMMAND);
+  assert.equal(postReplacement.playerReplacementRequired, false);
+  assert.equal(postReplacement.playerReplacementApplied, true);
+  assert.equal(replacementCommits, 1);
+
+  const replacementReplay = commitSafariBattleResolution(
+    replacementState,
+    structuredClone(replacementResolution),
+    "move",
+  );
+  assert.equal(replacementReplay.phase, SAFARI_BATTLE_PHASE.COMMAND);
+  assert.equal(replacementReplay.playerReplacementRequired, false,
+    "replay after player replacement must use the centrally refreshed post-replacement snapshot");
+  assert.equal(replacementReplay.playerReplacementApplied, true,
+    "replay after player replacement must preserve the applied replacement truth");
+  assert.equal(replacementReplay.operations.some((operation) => operation?.op === "send_out"), true,
+    "replay after player replacement must preserve the committed send_out operation");
+  assert.equal(replacementCommits, 1,
+    "player replacement replay must not execute the replacement owner twice");
+}
 
 console.log("Safari Battle RESULT replay identity smoke passed");
