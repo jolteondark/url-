@@ -1,6 +1,6 @@
 import { setMoney } from './bag-economy-mart-flow.js';
 
-function resolveBountyDepart(input = {}) {
+export function resolveVillageBountyDepart(input = {}) {
   const state = { ...(input.village || {}) };
   const quest = state.active_bounty || null;
   const operations = [];
@@ -51,7 +51,7 @@ function resolveBountyDepart(input = {}) {
 export function resolveVillageBountyMoneyIntegration(input = {}) {
   const moneyBefore = Number(input.money ?? 0);
   const maxMoney = Number(input.maxMoney ?? 9999999);
-  const depart = resolveBountyDepart(input);
+  const depart = resolveVillageBountyDepart(input);
   const rewardRequest = depart.operations.find((op) => op.op === 'request_add_money');
   const moneyOperations = [];
   let money = moneyBefore;
