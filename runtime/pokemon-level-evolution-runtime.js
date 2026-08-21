@@ -80,6 +80,8 @@ function levelEvolutionTarget(speciesMaster, runtime, moveMasters = {}) {
     "HoldItem",
     "HoldItemMale",
     "HoldItemFemale",
+    "HasMove",
+    "HasMoveType",
     "MaxHappiness",
     "Beauty",
   ]);
@@ -100,6 +102,29 @@ function levelEvolutionTarget(speciesMaster, runtime, moveMasters = {}) {
         && beauty >= requiredBeauty;
       if (!eligible && conditionMatches) {
         eligible = { target: evolution.species, method: evolution.method, parameter: requiredBeauty };
+      }
+      continue;
+    }
+
+    if (evolution.method === "HasMove") {
+      const requiredMove = normalizedDataId(evolution.parameter);
+      const knowsMove = requiredMove.length > 0
+        && (runtime?.moves ?? []).some((move) => normalizedDataId(moveId(move)) === requiredMove);
+      if (!eligible && knowsMove) {
+        eligible = { target: evolution.species, method: evolution.method, parameter: requiredMove };
+      }
+      continue;
+    }
+
+    if (evolution.method === "HasMoveType") {
+      const requiredType = normalizedTypeId(evolution.parameter);
+      const knowsMoveType = requiredType.length > 0
+        && (runtime?.moves ?? []).some((move) => {
+          const master = moveMasters?.[String(moveId(move) ?? "")];
+          return normalizedTypeId(master?.type ?? master?.type_id) === requiredType;
+        });
+      if (!eligible && knowsMoveType) {
+        eligible = { target: evolution.species, method: evolution.method, parameter: requiredType };
       }
       continue;
     }
