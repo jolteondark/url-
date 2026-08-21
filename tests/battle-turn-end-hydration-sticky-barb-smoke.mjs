@@ -3,6 +3,10 @@ import {
   BATTLE_TURN_END_STATUS_ITEM_EXTENSION_COVERAGE_CANONICAL,
   resolveTurnEndStatusItemExtensionCanonical,
 } from "../runtime/battle-core-turn-end-status-item-extension.js";
+import {
+  BATTLE_ABILITY_ITEM_SHARED_TURN_END_COVERAGE_CANONICAL,
+  resolveSharedBattleAbilityItemTurnEndCanonical,
+} from "../runtime/battle-ability-item-turn-end-shared.js";
 import { commitBattleAbilityItemTurnEndRuntime } from "../runtime/battle-ability-item-turn-end-runtime.js";
 
 const pokemon = (ability = null, heldItem = null, extra = {}) => ({
@@ -58,6 +62,18 @@ const pokemon = (ability = null, heldItem = null, extra = {}) => ({
 }
 
 {
+  const result = resolveSharedBattleAbilityItemTurnEndCanonical({
+    pokemon: pokemon("HYDRATION", "STICKYBARB", { hp: 80, max_hp: 160, status: "PARALYSIS" }),
+    context: { effectiveWeather: "Rain" },
+  });
+  assert.equal(result.triggered, true);
+  assert.equal(result.hpDelta, -20);
+  assert.equal(result.reason, "sticky_barb");
+  assert.equal(result.statusCureRequest.ability, "HYDRATION");
+  assert.equal(result.turnEndStatusItemExtension.triggered, true);
+}
+
+{
   const result = commitBattleAbilityItemTurnEndRuntime({
     pokemon: pokemon("HYDRATION", "STICKYBARB", { hp: 80, max_hp: 160, status: "PARALYSIS", status_count: 3 }),
     context: { effectiveWeather: "Rain" },
@@ -73,5 +89,11 @@ assert.ok(BATTLE_TURN_END_STATUS_ITEM_EXTENSION_COVERAGE_CANONICAL.abilityIds.in
 assert.ok(BATTLE_TURN_END_STATUS_ITEM_EXTENSION_COVERAGE_CANONICAL.itemIds.includes("STICKYBARB"));
 assert.equal(BATTLE_TURN_END_STATUS_ITEM_EXTENSION_COVERAGE_CANONICAL.classificationCounts.turnEndStatusCureAbilities, 1);
 assert.equal(BATTLE_TURN_END_STATUS_ITEM_EXTENSION_COVERAGE_CANONICAL.classificationCounts.turnEndDamageHeldItems, 1);
+assert.ok(BATTLE_ABILITY_ITEM_SHARED_TURN_END_COVERAGE_CANONICAL.abilityIds.includes("HYDRATION"));
+assert.ok(BATTLE_ABILITY_ITEM_SHARED_TURN_END_COVERAGE_CANONICAL.itemIds.includes("STICKYBARB"));
+assert.deepEqual(
+  BATTLE_ABILITY_ITEM_SHARED_TURN_END_COVERAGE_CANONICAL.classificationCounts.turnEndStatusItemExtension,
+  BATTLE_TURN_END_STATUS_ITEM_EXTENSION_COVERAGE_CANONICAL.classificationCounts,
+);
 
-console.log("battle turn-end Hydration/Sticky Barb smoke: PASS");
+console.log("battle turn-end Hydration/Sticky Barb shared smoke: PASS");
