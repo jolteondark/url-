@@ -126,6 +126,30 @@ function recordPlayerCriticalHits(battle, partyIndex, resolved) {
   battle.player_critical_hits_dealt[index] = Number(battle.player_critical_hits_dealt[index] ?? 0) + gained;
 }
 
+export function playerDirectDamageTakenInResolvedRound(resolved) {
+  const operations = resolved?.presentationOperations ?? resolved?.operations ?? [];
+  let total = 0;
+  for (const operation of operations) {
+    if (operation?.op !== "reduce_hp") continue;
+    if (operation?.actor !== "foe" || operation?.target !== "player") continue;
+    const explicit = Number(operation?.amount);
+    const derived = Number(operation?.hpBefore) - Number(operation?.hpAfter);
+    const amount = Number.isFinite(explicit) ? explicit : derived;
+    if (Number.isFinite(amount) && amount > 0) total += Math.trunc(amount);
+  }
+  return total;
+}
+
+export function recordSafariPlayerDirectDamageTaken(battle, partyIndex, resolved) {
+  const gained = playerDirectDamageTakenInResolvedRound(resolved);
+  if (gained <= 0) return 0;
+  if (!Array.isArray(battle.player_direct_damage_taken)) battle.player_direct_damage_taken = [];
+  const index = Number(partyIndex);
+  if (!Number.isInteger(index) || index < 0) return 0;
+  battle.player_direct_damage_taken[index] = Number(battle.player_direct_damage_taken[index] ?? 0) + gained;
+  return gained;
+}
+
 function seedFor(state, battle) {
   const turn = Math.max(1, Math.trunc(Number(battle?.turn ?? 1)));
   const base = battle.kind === "trainer"
@@ -212,6 +236,7 @@ function resolveTrainer(runtime, selectedMoveId, playerActionConsumedWithoutMove
     playerIdxBattler: 0,
   });
   recordPlayerCriticalHits(battle, playerIndex, resolved);
+  recordSafariPlayerDirectDamageTaken(battle, playerIndex, resolved);
   const next = resolved.nextRoundState;
   if (Array.isArray(next?.playerParty)) runtime.player.party = structuredClone(next.playerParty);
   else runtime.player.party[playerIndex] = structuredClone(resolved.player);
@@ -249,6 +274,7 @@ function applyWildResolved(runtime, resolved, playerIndex) {
   const state = stateOf(runtime);
   const battle = state.battle;
   recordPlayerCriticalHits(battle, playerIndex, resolved);
+  recordSafariPlayerDirectDamageTaken(battle, playerIndex, resolved);
   const handoff = resolved.battleContinuationHandoff;
   if (Array.isArray(handoff?.playerParty)) runtime.player.party = structuredClone(handoff.playerParty);
   else runtime.player.party[playerIndex] = structuredClone(resolved.player);

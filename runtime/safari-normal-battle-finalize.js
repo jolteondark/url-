@@ -220,9 +220,10 @@ function commitPendingLevelEvolutions(runtime, battle = {}) {
   return { operations, presentation, unsupportedMethods: [...unsupportedMethods], evolvedIndexes };
 }
 
-function commitAfterBattleCriticalEvolutions(runtime, battle = {}, skipIndexes = new Set()) {
+function commitAfterBattleEvolutions(runtime, battle = {}, skipIndexes = new Set()) {
   const party = Array.isArray(runtime?.player?.party) ? runtime.player.party : [];
   const criticalHits = Array.isArray(battle?.player_critical_hits_dealt) ? battle.player_critical_hits_dealt : [];
+  const directDamage = Array.isArray(battle?.player_direct_damage_taken) ? battle.player_direct_damage_taken : [];
   const operations = [];
   const presentation = [];
   const unsupportedMethods = new Set();
@@ -232,7 +233,8 @@ function commitAfterBattleCriticalEvolutions(runtime, battle = {}, skipIndexes =
     const pokemon = party[index];
     if (!pokemon) continue;
     const count = Math.max(0, Math.trunc(Number(criticalHits[index] ?? 0)));
-    if (count <= 0) continue;
+    const damage = Math.max(0, Math.trunc(Number(directDamage[index] ?? 0)));
+    if (count <= 0 && damage <= 0) continue;
 
     const candidate = structuredClone(pokemon);
     const natureId = candidate.nature_for_stats_id ?? candidate.nature_id ?? "HARDY";
@@ -244,6 +246,7 @@ function commitAfterBattleCriticalEvolutions(runtime, battle = {}, skipIndexes =
       nature_master: natureMaster,
       move_masters: SAFARI_MOVE_MASTERS,
       critical_hits_dealt: count,
+      direct_damage_taken: damage,
     });
     party[index] = resolved.pokemon;
     operations.push(...structuredClone(resolved.operations ?? []));
@@ -282,7 +285,7 @@ export function commitSafariNormalLevelEvolutionRewardGrowth(runtime, result = {
   // level, and only checks after-battle methods if that first check produced no
   // evolution. Preserve that ordering while both checks share REWARD_GROWTH.
   const pending = commitPendingLevelEvolutions(runtime, battle);
-  const afterBattle = commitAfterBattleCriticalEvolutions(runtime, battle, pending.evolvedIndexes);
+  const afterBattle = commitAfterBattleEvolutions(runtime, battle, pending.evolvedIndexes);
   const operations = [...pending.operations, ...afterBattle.operations];
   const presentation = [...pending.presentation, ...afterBattle.presentation];
   const unsupportedMethods = [...new Set([...pending.unsupportedMethods, ...afterBattle.unsupportedMethods])];
