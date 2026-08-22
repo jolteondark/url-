@@ -21,6 +21,7 @@ function runtime({ party, roll = 10, stat = "ATTACK", status = "POISON" }) {
   return {
     player: { party },
     bag: { slots: [], money: 0 },
+    storage_system: { boxes: [{ name:"Box 1", capacity:30, slots:[] }], currentBox:0 },
     variables: {
       mapless: {
         day: 1,
@@ -58,6 +59,7 @@ try {
     assert.equal(current.player.party[0].stats.ATTACK, 11);
     assert.equal(current.variables.mapless.board_consumed[0], true);
     assert.equal(result.persistenceRequested, true);
+    assert.equal(result.runEnd.finished, false);
   }
 
   {
@@ -70,13 +72,41 @@ try {
     assert.equal(current.player.party[0].stats.ATTACK, 11);
     assert.equal(current.player.party[1].mapless_bonus_stats.ATTACK, 0, "appraiser must not receive the target bonus");
     assert.equal(current.variables.mapless.board_consumed[0], true);
+    assert.equal(result.runEnd.finished, false);
   }
 
   {
     const current = runtime({ party:[pokemon("EEVEE", 7)], roll:95 });
+    current.bag.slots = [["POTION", 1]];
+    current.bag.money = 500;
+    const result = resolveSafariMushroomFieldInteraction(current, 0, "eat:0");
+    const state = current.variables.mapless;
+    assert.equal(result.result, "eat_damage");
+    assert.equal(result.runEnd.finished, true, "last usable Pokemon KO outside Battle must finish the run");
+    assert.equal(state.location, "home");
+    assert.equal(state.mapless_run_active, false);
+    assert.equal(state.mapless_carryover_pending, true);
+    assert.equal(current.player.party.length, 0, "defeated Party must be archived through the existing run-end owner");
+    assert.equal(current.storage_system.boxes[0].slots.filter(Boolean).length, 1);
+    assert.equal(current.storage_system.boxes[0].slots.find(Boolean)?.hp, 0);
+    assert.deepEqual(current.bag.slots, []);
+    assert.equal(current.bag.money, 0);
+    assert.deepEqual(state.board_events, []);
+    assert.deepEqual(state.board_consumed, []);
+    assert.equal(result.persistenceRequested, true);
+    assert.match(state.notice, /全滅/);
+    assert.ok(result.operations.some((operation) => operation.op === "request_save" && operation.reason === "mapless_run_end"));
+  }
+
+  {
+    const current = runtime({ party:[pokemon("EEVEE", 7), pokemon("TESTPOISON", 20)], roll:95 });
     const result = resolveSafariMushroomFieldInteraction(current, 0, "eat:0");
     assert.equal(result.result, "eat_damage");
-    assert.equal(current.player.party[0].hp, 0, "canonical flat 25 damage must be applied to the selected target");
+    assert.equal(current.player.party[0].hp, 0);
+    assert.equal(current.player.party[1].hp, 20);
+    assert.equal(result.runEnd.finished, false, "a usable reserve must prevent run end");
+    assert.equal(current.variables.mapless.location, "day_board");
+    assert.equal(current.variables.mapless.board_consumed[0], true);
   }
 
   {
@@ -86,9 +116,10 @@ try {
     assert.equal(result.result, "eat_heal");
     assert.equal(current.player.party[0].hp, 20);
     assert.equal(current.player.party[0].status, "NONE");
+    assert.equal(result.runEnd.finished, false);
   }
 
-  console.log("Safari Mushroom Field playable eat/appraisal routes: PASS");
+  console.log("Safari Mushroom Field playable eat/appraisal routes + party-wipe run end: PASS");
 } finally {
   if (originalPoison) Object.defineProperty(SAFARI_SPECIES_MASTERS, "TESTPOISON", originalPoison);
   else Reflect.deleteProperty(SAFARI_SPECIES_MASTERS, "TESTPOISON");
