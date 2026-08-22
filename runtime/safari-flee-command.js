@@ -185,7 +185,7 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
     };
     return commitSafariBattleResolution(runtime, result, "flee", { commandAttempt });
   } catch (error) {
-    abortSafariBattleCommand(runtime, `flee failed:${error?.message ?? error}`);
+    abortSafariBattleCommand(runtime, `flee failed:${error?.message ?? error}`, { commandAttempt });
     throw error;
   }
 }
