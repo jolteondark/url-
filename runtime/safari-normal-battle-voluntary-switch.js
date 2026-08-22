@@ -3,6 +3,7 @@ import { createBattleStatStageStateCanonical, resetBattleStatStagesForBattlerCan
 import {
   abortSafariBattleCommand,
   beginSafariBattleCommand,
+  captureSafariBattleCommandAttempt,
   commitSafariBattleResolution,
 } from "./safari-battle-orchestrator.js";
 import { resolveSafariNormalBattleOpponentResponse } from "./safari-normal-battle-round.js";
@@ -41,6 +42,7 @@ export function switchSafariNormalBattlePlayer(runtime, replacementPartyIndex, {
   }
 
   beginSafariBattleCommand(runtime, "switch");
+  const commandAttempt = captureSafariBattleCommandAttempt(runtime);
   try {
     const activePartyIndex = Number(battle.player_party_index ?? 0);
     const party = normalizedPartyForSwitch(runtime.player?.party, activePartyIndex);
@@ -79,7 +81,7 @@ export function switchSafariNormalBattlePlayer(runtime, replacementPartyIndex, {
         presentation: [],
         persistenceRequested: false,
       };
-      commitSafariBattleResolution(runtime, rejected, "switch");
+      commitSafariBattleResolution(runtime, rejected, "switch", { commandAttempt });
       return rejected;
     }
 
@@ -111,7 +113,7 @@ export function switchSafariNormalBattlePlayer(runtime, replacementPartyIndex, {
       presentation: [...(opponentResponse.presentation ?? [])],
       persistenceRequested: requestsSave(operations),
     };
-    commitSafariBattleResolution(runtime, result, "switch");
+    commitSafariBattleResolution(runtime, result, "switch", { commandAttempt });
     return result;
   } catch (error) {
     abortSafariBattleCommand(runtime, `switch failed:${error?.message ?? error}`);

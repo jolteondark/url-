@@ -46,4 +46,5 @@ for (const commandKind of ["move", "item", "capture", "flee", "switch"]) {
     `${commandKind} must be retryable immediately after central rollback`);
 }
 
+await import("./safari-battle-command-attempt-provenance-smoke.mjs");
 console.log("safari battle command abort rollback smoke: PASS");

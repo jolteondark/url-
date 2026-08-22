@@ -2,6 +2,7 @@ import { resolveBrowserWildBattleCommand } from "./browser-battle-wild-command-h
 import {
   abortSafariBattleCommand,
   beginSafariBattleCommand,
+  captureSafariBattleCommandAttempt,
   commitSafariBattleResolution,
 } from "./safari-battle-orchestrator.js";
 import { resolveSafariNormalWildOpponentResponse } from "./safari-normal-battle-round.js";
@@ -58,6 +59,7 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
   if (!state || !battle || battle.completed) throw new Error("active battle is required");
 
   beginSafariBattleCommand(runtime, "flee");
+  const commandAttempt = captureSafariBattleCommandAttempt(runtime);
   try {
     const playerPartyIndex = activePartyIndex(battle, runtime);
     const player = runtime?.player?.party?.[playerPartyIndex];
@@ -127,7 +129,7 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
           presentation: [presentation, ...(response.presentation ?? [])],
           persistenceRequested: Boolean(response.persistenceRequested),
         };
-        return commitSafariBattleResolution(runtime, result, "flee");
+        return commitSafariBattleResolution(runtime, result, "flee", { commandAttempt });
       }
       state.notice = blocked ? "この戦闘からは逃げられない！" : "逃げられなかった！";
       const operations = [baseOperation];
@@ -145,7 +147,7 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
         operations,
         presentation: [presentation],
       };
-      return commitSafariBattleResolution(runtime, result, "flee");
+      return commitSafariBattleResolution(runtime, result, "flee", { commandAttempt });
     }
 
     commitTerminalPlayer(runtime, command.terminalStateHandoff, playerPartyIndex);
@@ -181,7 +183,7 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
       presentation: [presentation],
       persistenceRequested: true,
     };
-    return commitSafariBattleResolution(runtime, result, "flee");
+    return commitSafariBattleResolution(runtime, result, "flee", { commandAttempt });
   } catch (error) {
     abortSafariBattleCommand(runtime, `flee failed:${error?.message ?? error}`);
     throw error;
