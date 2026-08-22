@@ -6,6 +6,7 @@ import {
   healSafariPartyPercent,
   inflictSafariOverworldStatus,
 } from "./safari-pokemon-healing.js";
+import { hasSafariUsablePartyType } from "./safari-pokemon-type-membership.js";
 
 function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
@@ -13,14 +14,6 @@ function stateOf(runtime) {
   return state;
 }
 function firstUsableIndex(runtime) { return (runtime.player?.party ?? []).findIndex((pokemon) => Number(pokemon?.hp ?? 0) > 0); }
-function hasType(runtime, typeId) {
-  const wanted = String(typeId).toUpperCase();
-  return (runtime.player?.party ?? []).some((pokemon) => {
-    if (!pokemon || Number(pokemon.hp ?? 0) <= 0 || pokemon.egg === true) return false;
-    const types = Array.isArray(pokemon.types) ? pokemon.types : Array.isArray(pokemon.type_ids) ? pokemon.type_ids : [];
-    return types.some((type) => String(type).toUpperCase() === wanted);
-  });
-}
 
 export function resolveSafariHotSpringInteraction(runtime, index, action) {
   const state = stateOf(runtime);
@@ -40,8 +33,8 @@ export function resolveSafariHotSpringInteraction(runtime, index, action) {
     event: preparedEvent,
     action,
     enter_roll: preparedEvent.normal_data.enter_roll,
-    has_water: hasType(runtime, "WATER"),
-    has_ice: hasType(runtime, "ICE"),
+    has_water: hasSafariUsablePartyType(runtime, "WATER"),
+    has_ice: hasSafariUsablePartyType(runtime, "ICE"),
   });
   const applied = [];
   if (owner.result && action === "safe") {

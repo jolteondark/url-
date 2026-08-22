@@ -3,6 +3,7 @@ import {
   prepareSafariWoundedPokemonCandidate,
   safariWoundedHealingInventory,
 } from "./safari-wounded-pokemon-integration.js";
+import { hasSafariUsablePartyType } from "./safari-pokemon-type-membership.js";
 
 const SUPPORTED = new Set([
   "street_performer",
@@ -22,15 +23,6 @@ function stateOf(runtime) {
 
 function scalingValue(day) {
   return Math.max(Math.floor((Math.max(1, Number(day) || 1) - 1) / 5), 0);
-}
-
-function hasUsableType(runtime, ...typeIds) {
-  const wanted = new Set(typeIds.map((typeId) => String(typeId).toUpperCase()));
-  return (runtime.player?.party ?? []).some((pokemon) => {
-    if (!pokemon || Number(pokemon.hp ?? 0) <= 0 || pokemon.egg === true) return false;
-    const types = Array.isArray(pokemon.types) ? pokemon.types : Array.isArray(pokemon.type_ids) ? pokemon.type_ids : [];
-    return types.some((type) => wanted.has(String(type).toUpperCase()));
-  });
 }
 
 function woundedDefinition(runtime, index) {
@@ -86,7 +78,7 @@ function definition(runtime, eventId, index) {
   }
   if (eventId === "hot_spring") {
     const actions = [];
-    if (hasUsableType(runtime, "WATER", "ICE")) actions.push({id:"safe",label:"安全に温泉を整える",meta:"みず/こおりタイプ · 全回復"});
+    if (hasSafariUsablePartyType(runtime, "WATER", "ICE")) actions.push({id:"safe",label:"安全に温泉を整える",meta:"みず/こおりタイプ · 全回復"});
     actions.push({id:"enter",label:"温泉に入る",meta:"結果は入ってから"},{id:"leave",label:"立ち去る",secondary:true});
     return { title:"温泉", message:"岩の割れ目から温泉が湧いています。", actions };
   }
