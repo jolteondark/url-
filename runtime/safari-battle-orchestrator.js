@@ -515,10 +515,14 @@ export function captureSafariBattleCommandAttempt(runtime) {
   return token;
 }
 
-export function abortSafariBattleCommand(runtime, reason = "command failed") {
+export function abortSafariBattleCommand(runtime, reason = "command failed", { commandAttempt = null } = {}) {
   const battle = stateOf(runtime).battle;
   if (!battle) return null;
   if (battle.phase !== SAFARI_BATTLE_PHASE.ACTION_1) return battle.phase;
+  const commandKind = battle.pending_command_kind;
+  if (battle.pending_command_attempt_required === true || commandAttempt != null) {
+    validateCommandAttempt(battle, commandAttempt, commandKind);
+  }
   rollbackSpeculativeAction(battle);
   battle.pending_command_kind = null;
   battle.pending_command_sequence = null;
