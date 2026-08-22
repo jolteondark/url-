@@ -431,6 +431,8 @@ export function ensureSafariBattleOrchestrator(runtime) {
       battle.resolution_checkpoint = null;
       battle.replacement_checkpoint = null;
       battle.presentation_checkpoint = null;
+    } else {
+      battle.completed_phase = SAFARI_BATTLE_PHASE.RESULT;
     }
     ensureBattleInstanceSequence(battle);
     tracePhase(battle, restoredResult ? SAFARI_BATTLE_PHASE.RESULT : SAFARI_BATTLE_PHASE.COMMAND, "initialize");
