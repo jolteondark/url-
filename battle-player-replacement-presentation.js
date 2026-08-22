@@ -71,7 +71,6 @@ function syncReplacementUi() {
   const replacementCommitToken = captureSafariBattleReplacementCommit(globalThis.__maplessSafariRuntime, "player");
 
   card.dataset.playerReplacementRequired = "true";
-  card.dataset.dpptMenu = "locked";
 
   let panel = byId("player-replacement-panel");
   if (!panel) {
