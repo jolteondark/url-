@@ -23,6 +23,7 @@ const ACTION_MARKERS = new Set([
 const issuedPresentationAckTokens = new WeakSet();
 const issuedCommandAttemptTokens = new WeakSet();
 const issuedReplacementCommitTokens = new WeakSet();
+const issuedReturnAttemptTokens = new WeakSet();
 let nextBattleInstanceSequence = 1;
 
 function stateOf(runtime) {
@@ -441,6 +442,23 @@ function returnCheckpointKey(battle) {
   ].join(":");
 }
 
+function validateReturnAttempt(state, token) {
+  if (!token || typeof token !== "object" || !issuedReturnAttemptTokens.has(token)) {
+    throw new Error("battle return requires an attempt token issued by the central orchestrator");
+  }
+  const checkpoint = state.pending_battle_return_checkpoint;
+  if (!checkpoint || checkpoint.committed !== false || token.checkpoint !== checkpoint) {
+    throw new Error("stale battle return attempt belongs to a different return checkpoint");
+  }
+  if (String(token.key) !== String(checkpoint.key)) {
+    throw new Error("stale battle return attempt belongs to a different return key");
+  }
+  if (Number(token.battleInstanceSequence) !== Number(checkpoint.battleInstanceSequence)) {
+    throw new Error("stale battle return attempt belongs to a different battle instance sequence");
+  }
+  return token;
+}
+
 function completedResultRecorded(battle) {
   if (battle.completed !== true) return false;
   if (battle.completed_phase === SAFARI_BATTLE_PHASE.RESULT) return true;
@@ -461,6 +479,7 @@ export function ensureSafariBattleOrchestrator(runtime) {
         throw new Error("fresh battle cannot initialize while RETURN persistence is pending");
       }
       state.pending_battle_return_checkpoint = null;
+      state.pending_battle_return_attempt_required = false;
       state.battle_return_checkpoint = null;
       battle.resolution_checkpoint = null;
       battle.replacement_checkpoint = null;
@@ -842,26 +861,54 @@ export function beginSafariBattleReturn(runtime) {
   tracePhase(battle, SAFARI_BATTLE_PHASE.RETURN, "return requested");
   state.pending_battle_return_checkpoint = {
     key: returnCheckpointKey(battle),
+    battleInstanceSequence: ensureBattleInstanceSequence(battle),
     committed: false,
     phaseTrace: structuredClone(battle.phase_trace ?? []),
   };
+  state.pending_battle_return_attempt_required = false;
   state.last_battle_phase_trace = structuredClone(battle.phase_trace ?? []);
   return battle.phase;
 }
 
-export function abortSafariBattleReturn(runtime, reason = "return failed") {
+export function captureSafariBattleReturnAttempt(runtime) {
+  const state = stateOf(runtime);
+  const battle = battleOf(runtime);
+  const phase = ensureSafariBattleOrchestrator(runtime);
+  if (phase !== SAFARI_BATTLE_PHASE.RETURN) {
+    throw new Error(`battle return attempt is unavailable during ${phase}`);
+  }
+  const checkpoint = state.pending_battle_return_checkpoint;
+  if (!checkpoint || checkpoint.committed !== false || checkpoint.phaseTrace?.at(-1)?.phase !== SAFARI_BATTLE_PHASE.RETURN) {
+    throw new Error("battle return attempt requires a pending RETURN checkpoint");
+  }
+  const token = Object.freeze({
+    battle,
+    checkpoint,
+    key: checkpoint.key,
+    battleInstanceSequence: Number(checkpoint.battleInstanceSequence),
+  });
+  issuedReturnAttemptTokens.add(token);
+  state.pending_battle_return_attempt_required = true;
+  return token;
+}
+
+export function abortSafariBattleReturn(runtime, reason = "return failed", { returnAttempt = null } = {}) {
   const state = stateOf(runtime);
   const battle = state.battle;
   if (!battle) return null;
   const phase = ensureSafariBattleOrchestrator(runtime);
   if (phase !== SAFARI_BATTLE_PHASE.RETURN) return phase;
+  if (state.pending_battle_return_attempt_required === true || returnAttempt != null) {
+    validateReturnAttempt(state, returnAttempt);
+  }
   state.pending_battle_return_checkpoint = null;
+  state.pending_battle_return_attempt_required = false;
   tracePhase(battle, SAFARI_BATTLE_PHASE.RESULT, reason);
   state.last_battle_phase_trace = structuredClone(battle.phase_trace ?? []);
   return battle.phase;
 }
 
-export function completeSafariBattleReturn(runtime, result = {}) {
+export function completeSafariBattleReturn(runtime, result = {}, { returnAttempt = null } = {}) {
   const state = stateOf(runtime);
   const battle = state.battle;
   if (battle) state.last_battle_phase_trace = structuredClone(battle.phase_trace ?? state.last_battle_phase_trace ?? []);
@@ -883,6 +930,9 @@ export function completeSafariBattleReturn(runtime, result = {}) {
   if (!pendingCheckpoint || pendingCheckpoint.committed !== false || pendingCheckpoint.phaseTrace?.at(-1)?.phase !== SAFARI_BATTLE_PHASE.RETURN) {
     throw new Error("battle return completion requires beginSafariBattleReturn from RESULT");
   }
+  if (state.pending_battle_return_attempt_required === true || returnAttempt != null) {
+    validateReturnAttempt(state, returnAttempt);
+  }
   const operations = Array.isArray(result.operations) ? [...result.operations] : [];
   if (!operations.some((operation) => operation?.op === "request_save")) {
     operations.push({ op: "request_save", reason: "battle return committed" });
@@ -899,5 +949,6 @@ export function completeSafariBattleReturn(runtime, result = {}) {
     phaseTrace: structuredClone(result.phaseTrace),
   };
   state.pending_battle_return_checkpoint = null;
+  state.pending_battle_return_attempt_required = false;
   return result;
 }

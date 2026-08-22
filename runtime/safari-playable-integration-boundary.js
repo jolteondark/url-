@@ -10,6 +10,7 @@ import {
   beginSafariBattleCommand,
   beginSafariBattleReturn,
   captureSafariBattleReplacementCommit,
+  captureSafariBattleReturnAttempt,
   commitSafariBattleResolution,
   completeSafariBattleReplacement,
   completeSafariBattleReturn,
@@ -371,6 +372,7 @@ export function returnSafariToDayBoard(runtime) {
   if (!battle.completed) throw new Error("completed boundary battle is required");
   const summary = { decision: battle.decision, captured: false, expGained: 0, reward: null };
   beginSafariBattleReturn(runtime);
+  const returnAttempt = captureSafariBattleReturnAttempt(runtime);
   try {
     let result;
     if (battle.decision === 1) {
@@ -392,9 +394,9 @@ export function returnSafariToDayBoard(runtime) {
       state.notice = "境界の試練に戻りました。";
       result = { runtime, target: "boundary_trial", summary, operations: [{ op: "return_to_boundary_trial", decision: summary.decision }] };
     }
-    return completeSafariBattleReturn(runtime, result);
+    return completeSafariBattleReturn(runtime, result, { returnAttempt });
   } catch (error) {
-    if (state.battle) abortSafariBattleReturn(runtime, "boundary return failed");
+    if (state.battle) abortSafariBattleReturn(runtime, "boundary return failed", { returnAttempt });
     throw error;
   }
 }
