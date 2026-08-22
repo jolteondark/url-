@@ -257,6 +257,46 @@ function phaseCount(battle, phase) {
   const state = runtime();
   const battle = state.variables.mapless.battle;
   ensureSafariBattleOrchestrator(state);
+  beginSafariBattleCommand(state, "item");
+  const unconsumed = {
+    decision: 0,
+    turnConsumed: false,
+    operations: [],
+  };
+  const rejected = commitSafariBattleResolution(state, unconsumed, "item");
+  assert.equal(rejected.phase, SAFARI_BATTLE_PHASE.COMMAND);
+  assert.equal(unconsumed.orchestratorBattleInstanceSequence ?? null, null,
+    "an unconsumed command must not be stamped with committed Battle identity");
+  assert.equal(unconsumed.orchestratorCommandSequence ?? null, null,
+    "an unconsumed command must not be stamped with committed command identity");
+  assert.equal(battle.resolution_checkpoint ?? null, null,
+    "an unconsumed command must not create a committed resolution checkpoint");
+
+  const battleInstanceSequence = battle.orchestrator_battle_instance_sequence;
+  beginSafariBattleCommand(state, "item");
+  const traceLength = battle.phase_trace.length;
+  const staleUnconsumed = {
+    decision: 0,
+    turnConsumed: false,
+    operations: [],
+    orchestratorBattleInstanceSequence: battleInstanceSequence,
+    orchestratorCommandSequence: 1,
+  };
+  assert.throws(
+    () => commitSafariBattleResolution(state, staleUnconsumed, "item"),
+    /stale battle resolution belongs to command sequence 1; current command sequence is 2/,
+    "a stale tagged unconsumed result must not roll back the current command generation",
+  );
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.ACTION_1,
+    "stale unconsumed input must leave the current command pending rather than rolling it back");
+  assert.equal(battle.phase_trace.length, traceLength,
+    "stale unconsumed input must not append COMMAND or CHECK phases");
+}
+
+{
+  const state = runtime();
+  const battle = state.variables.mapless.battle;
+  ensureSafariBattleOrchestrator(state);
   beginSafariBattleCommand(state, "move");
   const resolution = {
     decision: 0,
