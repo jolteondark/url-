@@ -103,6 +103,29 @@ function reserveCount(party, activeIndex) {
   return Math.max(0, (Array.isArray(party) ? party : []).filter((pokemon, index) => index !== Number(activeIndex) && Number(pokemon?.hp ?? 0) > 0).length);
 }
 
+function playerCriticalHitsInResolvedRound(resolved) {
+  const rounds = resolved?.battleRuntimeIntegration?.combatTrace?.rounds ?? [];
+  let count = 0;
+  for (const round of rounds) {
+    for (const action of round?.actions ?? []) {
+      if (Number(action?.battlerIndex) !== 0) continue;
+      if (action?.criticalResolution?.critical !== true) continue;
+      if (action?.moveSkipped === true || action?.lastMoveFailed === true || action?.accuracyHit === false) continue;
+      count += 1;
+    }
+  }
+  return count;
+}
+
+function recordPlayerCriticalHits(battle, partyIndex, resolved) {
+  const gained = playerCriticalHitsInResolvedRound(resolved);
+  if (gained <= 0) return;
+  if (!Array.isArray(battle.player_critical_hits_dealt)) battle.player_critical_hits_dealt = [];
+  const index = Number(partyIndex);
+  if (!Number.isInteger(index) || index < 0) return;
+  battle.player_critical_hits_dealt[index] = Number(battle.player_critical_hits_dealt[index] ?? 0) + gained;
+}
+
 function seedFor(state, battle) {
   const turn = Math.max(1, Math.trunc(Number(battle?.turn ?? 1)));
   const base = battle.kind === "trainer"
@@ -188,6 +211,7 @@ function resolveTrainer(runtime, selectedMoveId, playerActionConsumedWithoutMove
     playerPartyOrder: Array.isArray(battle.player_party_order) ? battle.player_party_order : null,
     playerIdxBattler: 0,
   });
+  recordPlayerCriticalHits(battle, playerIndex, resolved);
   const next = resolved.nextRoundState;
   if (Array.isArray(next?.playerParty)) runtime.player.party = structuredClone(next.playerParty);
   else runtime.player.party[playerIndex] = structuredClone(resolved.player);
@@ -224,6 +248,7 @@ function resolveTrainer(runtime, selectedMoveId, playerActionConsumedWithoutMove
 function applyWildResolved(runtime, resolved, playerIndex) {
   const state = stateOf(runtime);
   const battle = state.battle;
+  recordPlayerCriticalHits(battle, playerIndex, resolved);
   const handoff = resolved.battleContinuationHandoff;
   if (Array.isArray(handoff?.playerParty)) runtime.player.party = structuredClone(handoff.playerParty);
   else runtime.player.party[playerIndex] = structuredClone(resolved.player);
