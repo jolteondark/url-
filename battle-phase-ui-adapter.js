@@ -123,12 +123,19 @@ function setPendingReturnMenuLocked(locked) {
   }
 }
 
+function setPendingReturnDayBoardLocked(locked) {
+  const board = byId("board");
+  if (board) board.inert = locked;
+  setOwnerAwarePhaseInteractive(byId("enter-village"), !locked);
+}
+
 export function applySafariBattlePhaseUi() {
   const currentBattle = battle();
   if (!currentBattle) {
     releaseBattleCommandLocks();
     const returnCommitPending = pendingBattleReturnCommit();
     setPendingReturnMenuLocked(returnCommitPending);
+    setPendingReturnDayBoardLocked(returnCommitPending);
     if (returnCommitPending) {
       for (const id of ["new-run", "save-run", "continue-run"]) {
         setOwnerAwarePhaseInteractive(byId(id), false);
@@ -203,7 +210,7 @@ export function applySafariBattlePhaseUi() {
 
 function shouldAllowBattleClick(target, currentBattle = battle()) {
   if (!target?.closest) return true;
-  if (pendingBattleReturnCommit() && target.closest("#new-run,#save-run,#continue-run,#menu-party,#menu-bag,#menu-box")) return false;
+  if (pendingBattleReturnCommit() && target.closest("#new-run,#save-run,#continue-run,#menu-party,#menu-bag,#menu-box,#board button[data-board-index],#enter-village")) return false;
   if (!currentBattle) return true;
   const phase = phaseOf(currentBattle);
   if (target.closest("#new-run")) return false;
