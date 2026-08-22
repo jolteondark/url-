@@ -417,20 +417,25 @@ function completedResultRecorded(battle) {
 export function ensureSafariBattleOrchestrator(runtime) {
   const state = stateOf(runtime);
   const battle = battleOf(runtime);
-  ensureBattleInstanceSequence(battle);
   if (!battle.phase) {
     const restoredResult = completedResultRecorded(battle);
     if (battle.completed === true && !restoredResult) {
       throw new Error("completed battle cannot initialize RESULT without a recorded RESULT boundary");
     }
     if (!restoredResult) {
+      if (state.pending_battle_return_checkpoint?.committed === false) {
+        throw new Error("fresh battle cannot initialize while RETURN persistence is pending");
+      }
       state.pending_battle_return_checkpoint = null;
       state.battle_return_checkpoint = null;
       battle.resolution_checkpoint = null;
       battle.replacement_checkpoint = null;
       battle.presentation_checkpoint = null;
     }
+    ensureBattleInstanceSequence(battle);
     tracePhase(battle, restoredResult ? SAFARI_BATTLE_PHASE.RESULT : SAFARI_BATTLE_PHASE.COMMAND, "initialize");
+  } else {
+    ensureBattleInstanceSequence(battle);
   }
   if (!Array.isArray(battle.phase_trace)) battle.phase_trace = [];
   return battle.phase;
