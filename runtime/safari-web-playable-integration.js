@@ -17,6 +17,7 @@ import {
   beginSafariBattleCommand,
   beginSafariBattleReturn,
   captureSafariBattleCommandAttempt,
+  captureSafariBattleReplacementCommit,
   commitSafariBattleResolution,
   completeSafariBattleReplacement,
   completeSafariBattleReturn,
@@ -203,16 +204,18 @@ export async function resolveSafariBattleRound(runtime, selectedMoveId) {
   }
 }
 
-export async function replaceSafariBattlePlayer(runtime, replacementPartyIndex) {
+export async function replaceSafariBattlePlayer(runtime, replacementPartyIndex, { replacementCommitToken = null } = {}) {
   let result;
   if (needsFullBattleIntegration(runtime)) {
     const module = await full();
     if (typeof module.replaceSafariBattlePlayer !== "function") throw new Error("boundary player replacement owner is unavailable");
-    result = await module.replaceSafariBattlePlayer(runtime, replacementPartyIndex);
+    result = await module.replaceSafariBattlePlayer(runtime, replacementPartyIndex, { replacementCommitToken });
   } else {
+    const commitToken = replacementCommitToken ?? captureSafariBattleReplacementCommit(runtime, "player");
     result = prepareSafariNormalPlayerReplacement(runtime, replacementPartyIndex);
     if (result.result === "replacement_selected") {
       result = completeSafariBattleReplacement(runtime, result, {
+        replacementCommitToken: commitToken,
         replacementCommit: (current) => {
           const committed = replaceSafariNormalBattlePlayer(runtime, replacementPartyIndex);
           return {

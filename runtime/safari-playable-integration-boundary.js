@@ -9,6 +9,7 @@ import {
   abortSafariBattleReturn,
   beginSafariBattleCommand,
   beginSafariBattleReturn,
+  captureSafariBattleReplacementCommit,
   commitSafariBattleResolution,
   completeSafariBattleReplacement,
   completeSafariBattleReturn,
@@ -300,7 +301,7 @@ function commitBoundaryPlayerReplacement(runtime, prepared) {
   };
 }
 
-export function resolveSafariBoundaryPlayerReplacement(runtime, replacementPartyIndex = null) {
+export function resolveSafariBoundaryPlayerReplacement(runtime, replacementPartyIndex = null, { replacementCommitToken = null } = {}) {
   const state = stateOf(runtime);
   const battle = state.battle;
   if (battle?.origin !== "boundary_trial" || battle.completed) throw new Error("active boundary battle is required");
@@ -348,7 +349,9 @@ export function resolveSafariBoundaryPlayerReplacement(runtime, replacementParty
     playerPartyOrder: clone(continuation.partyOrder ?? battle.player_party_order ?? null),
   };
   if (battle.phase === SAFARI_BATTLE_PHASE.REPLACEMENT) {
+    const commitToken = replacementCommitToken ?? captureSafariBattleReplacementCommit(runtime, "player");
     return completeSafariBattleReplacement(runtime, prepared, {
+      replacementCommitToken: commitToken,
       replacementCommit: (current) => commitBoundaryPlayerReplacement(runtime, current),
     });
   }
