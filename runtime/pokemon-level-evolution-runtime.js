@@ -287,6 +287,9 @@ function canonicalEvolutionLevel(runtime, speciesMaster) {
 function canonicalEvolutionBlocker(runtime) {
   const stepsToHatch = Number(runtime?.steps_to_hatch ?? 0);
   if (Number.isInteger(stepsToHatch) && stepsToHatch > 0) return "EGG";
+  const shadow = runtime?.shadow === true;
+  const heartGauge = Number(runtime?.heart_gauge);
+  if (shadow && Number.isFinite(heartGauge) && heartGauge >= 0) return "SHADOW";
   const heldItem = Object.prototype.hasOwnProperty.call(runtime ?? {}, "held_item")
     ? runtime.held_item
     : runtime?.item;
