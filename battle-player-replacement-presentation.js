@@ -4,12 +4,12 @@ import {
   completeSafariBattlePresentationForSequence,
 } from "./runtime/safari-battle-presentation-ack.js";
 import { captureSafariBattleReplacementCommit } from "./runtime/safari-battle-orchestrator.js";
+import { claimSafariBattleReplacementSubmit } from "./runtime/safari-battle-replacement-submit-gate.js";
 import { replaceSafariBattlePlayer } from "./runtime/safari-web-playable-integration.js";
 
 const REPLACEMENT_PHASE = "REPLACEMENT";
 const byId = (id) => document.getElementById(id);
 const replacementCommitTokens = new WeakMap();
-let replacementSelecting = false;
 
 function battleState() {
   return globalThis.__maplessSafariRuntime?.variables?.mapless?.battle ?? null;
@@ -47,7 +47,7 @@ function replacementButton(option, replacementCommitToken) {
   const button = document.createElement("button");
   button.type = "button";
   button.dataset.playerReplacementPartyIndex = String(option.partyIndex);
-  button.disabled = replacementSelecting || !replacementActive();
+  button.disabled = !replacementActive();
   replacementCommitTokens.set(button, replacementCommitToken);
 
   const name = document.createElement("strong");
@@ -61,7 +61,6 @@ function replacementButton(option, replacementCommitToken) {
 function syncReplacementUi() {
   const battle = battleState();
   if (!replacementActive(battle)) {
-    replacementSelecting = false;
     clearReplacementUi();
     return;
   }
@@ -94,7 +93,7 @@ function syncReplacementUi() {
 }
 
 async function chooseReplacement(button) {
-  if (replacementSelecting || !replacementActive()) return;
+  if (!replacementActive()) return;
   const battle = battleState();
   const partyIndex = Number(button.dataset.playerReplacementPartyIndex);
   const legal = replacementOptions(battle)
@@ -103,13 +102,18 @@ async function chooseReplacement(button) {
   const replacementCommitToken = replacementCommitTokens.get(button);
   if (!replacementCommitToken) return;
 
-  replacementSelecting = true;
+  try {
+    claimSafariBattleReplacementSubmit(replacementCommitToken);
+  } catch (error) {
+    globalThis.__maplessLastError = error;
+    return;
+  }
+
   if (button instanceof HTMLElement) {
     button.blur();
     button.disabled = true;
     button.setAttribute("aria-busy", "true");
   }
-  syncReplacementUi();
   try {
     const runtime = globalThis.__maplessSafariRuntime;
     if (battle?.origin === "boundary_trial") {
@@ -126,14 +130,13 @@ async function chooseReplacement(button) {
   } catch (error) {
     globalThis.__maplessLastError = error;
   } finally {
-    replacementSelecting = false;
     queueMicrotask(syncReplacementUi);
   }
 }
 
 byId("battle-card")?.addEventListener("click", (event) => {
   const replacement = event.target.closest("button[data-player-replacement-party-index]");
-  if (!replacement || replacementSelecting || replacement.disabled || !replacementActive()) return;
+  if (!replacement || replacement.disabled || !replacementActive()) return;
   event.preventDefault();
   event.stopImmediatePropagation();
   void chooseReplacement(replacement);
