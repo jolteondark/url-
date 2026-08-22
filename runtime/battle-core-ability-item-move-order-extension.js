@@ -1,3 +1,5 @@
+import { RubyMT19937Random } from "./ruby-mt19937-random.js";
+
 function canonicalId(value) {
   if (value && typeof value === "object") {
     return String(value.id ?? value.ID ?? value.name ?? "").trim().toUpperCase();
@@ -125,5 +127,49 @@ export function resolveMoveOrderAbilityItemExtensionCanonical({
       ? Object.freeze({ numerator: 20, denominator: 100, roll: itemRoll, source: "QUICKCLAW" })
       : null,
     consumeRequest,
+  });
+}
+
+export function resolveSeededMoveOrderAbilityItemExtensionCanonical({
+  user = {},
+  move = {},
+  randomSeed = 0,
+  opposingHasUnnerve = false,
+} = {}) {
+  const seed = Number(randomSeed) & 0x7fffffff;
+  const rng = new RubyMT19937Random(seed);
+  const rolls = [];
+
+  const initial = resolveMoveOrderAbilityItemExtensionCanonical({ user, move, opposingHasUnnerve });
+  let abilityRandomRoll = null;
+  if (initial.abilityChanceRequest) {
+    abilityRandomRoll = rng.randInt(100);
+    rolls.push(Object.freeze({ source: "QUICKDRAW", limit: 100, value: abilityRandomRoll }));
+  }
+
+  const afterAbility = resolveMoveOrderAbilityItemExtensionCanonical({
+    user,
+    move,
+    abilityRandomRoll,
+    opposingHasUnnerve,
+  });
+  let itemRandomRoll = null;
+  if (afterAbility.itemChanceRequest) {
+    itemRandomRoll = rng.randInt(100);
+    rolls.push(Object.freeze({ source: "QUICKCLAW", limit: 100, value: itemRandomRoll }));
+  }
+
+  const resolved = resolveMoveOrderAbilityItemExtensionCanonical({
+    user,
+    move,
+    abilityRandomRoll,
+    itemRandomRoll,
+    opposingHasUnnerve,
+  });
+
+  return Object.freeze({
+    ...resolved,
+    moveOrderRandomSeed: seed,
+    seededMoveOrderRolls: Object.freeze(rolls),
   });
 }
