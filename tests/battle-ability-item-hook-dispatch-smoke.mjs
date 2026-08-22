@@ -23,6 +23,13 @@ assert.deepEqual(BATTLE_ABILITY_ITEM_HOOK_POINTS_CANONICAL, [
 assert.ok(BATTLE_ABILITY_ITEM_SHARED_HOOK_CONTRACT_CANONICAL.implementedCoverage.abilityCount >= 80);
 assert.ok(BATTLE_ABILITY_ITEM_SHARED_HOOK_CONTRACT_CANONICAL.implementedCoverage.itemCount >= 58);
 assert.equal(BATTLE_ABILITY_ITEM_SHARED_HOOK_CONTRACT_CANONICAL.implementedCoverage.classificationCounts.entryExtension.intimidateStatDropBlockers, 4);
+assert.ok(BATTLE_ABILITY_ITEM_SHARED_HOOK_CONTRACT_CANONICAL.implementedCoverage.abilityIds.includes("HYDRATION"));
+assert.ok(BATTLE_ABILITY_ITEM_SHARED_HOOK_CONTRACT_CANONICAL.implementedCoverage.abilityIds.includes("SHEDSKIN"));
+assert.ok(BATTLE_ABILITY_ITEM_SHARED_HOOK_CONTRACT_CANONICAL.implementedCoverage.itemIds.includes("STICKYBARB"));
+assert.equal(
+  BATTLE_ABILITY_ITEM_SHARED_HOOK_CONTRACT_CANONICAL.implementedCoverage.classificationCounts.turnEndSharedExtension.turnEndStatusItemExtension.turnEndStatusCureAbilities,
+  2,
+);
 assert.match(BATTLE_ABILITY_ITEM_SHARED_HOOK_CONTRACT_CANONICAL.pokemonRuntimeSource.ability, /^pokemon\.ability/);
 assert.match(BATTLE_ABILITY_ITEM_SHARED_HOOK_CONTRACT_CANONICAL.pokemonRuntimeSource.heldItem, /^pokemon\.held_item/);
 
@@ -120,6 +127,32 @@ assert.match(BATTLE_ABILITY_ITEM_SHARED_HOOK_CONTRACT_CANONICAL.pokemonRuntimeSo
   });
   assert.equal(result.boundary, "turn_end");
   assert.equal(result.hpDelta, 10);
+}
+
+{
+  const hydration = resolveBattleAbilityItemHookCanonical({
+    hook: "turn_end",
+    user: pokemon("HYDRATION", null, { status: "PARALYSIS" }),
+    context: { effectiveWeather: "Rain" },
+  });
+  assert.equal(hydration.statusCureRequest.ability, "HYDRATION");
+  assert.equal(hydration.statusCureRequest.status, "PARALYSIS");
+
+  const shedSkin = resolveBattleAbilityItemHookCanonical({
+    hook: "turn_end",
+    user: pokemon("SHEDSKIN", null, { status: "BURN" }),
+    context: { shedSkinRoll: 0.2 },
+  });
+  assert.equal(shedSkin.statusCureRequest.ability, "SHEDSKIN");
+  assert.equal(shedSkin.statusCureChanceRequest.numerator, 1);
+  assert.equal(shedSkin.statusCureChanceRequest.denominator, 3);
+
+  const stickyBarb = resolveBattleAbilityItemHookCanonical({
+    hook: "turn_end",
+    user: pokemon("NONE", "STICKYBARB", { hp: 80, max_hp: 160 }),
+  });
+  assert.equal(stickyBarb.hpDelta, -20);
+  assert.equal(stickyBarb.reason, "sticky_barb");
 }
 
 {
