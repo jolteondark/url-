@@ -116,7 +116,7 @@ export function switchSafariNormalBattlePlayer(runtime, replacementPartyIndex, {
     commitSafariBattleResolution(runtime, result, "switch", { commandAttempt });
     return result;
   } catch (error) {
-    abortSafariBattleCommand(runtime, `switch failed:${error?.message ?? error}`);
+    abortSafariBattleCommand(runtime, `switch failed:${error?.message ?? error}`, { commandAttempt });
     throw error;
   }
 }

@@ -198,7 +198,7 @@ export async function resolveSafariBattleRound(runtime, selectedMoveId) {
     publishRuntimeChanged();
     return result;
   } catch (error) {
-    if (normal) abortSafariBattleCommand(runtime, `move failed:${error?.message ?? error}`);
+    if (normal) abortSafariBattleCommand(runtime, `move failed:${error?.message ?? error}`, { commandAttempt });
     throw error;
   }
 }
@@ -239,7 +239,7 @@ export async function useSafariBattleItem(runtime, options = {}) {
     publishRuntimeChanged();
     return result;
   } catch (error) {
-    abortSafariBattleCommand(runtime, `item failed:${error?.message ?? error}`);
+    abortSafariBattleCommand(runtime, `item failed:${error?.message ?? error}`, { commandAttempt });
     throw error;
   }
 }
@@ -263,7 +263,7 @@ export async function attemptSafariCapture(runtime, options = {}) {
       publishRuntimeChanged();
       return result;
     } catch (error) {
-      abortSafariBattleCommand(runtime, `capture failed:${error?.message ?? error}`);
+      abortSafariBattleCommand(runtime, `capture failed:${error?.message ?? error}`, { commandAttempt });
       throw error;
     }
   }
