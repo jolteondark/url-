@@ -119,7 +119,7 @@ function releaseBattlePersistenceLocks() {
 
 function setPendingReturnMenuLocked(locked) {
   for (const id of RETURN_MUTATION_MENU_IDS) {
-    setInteractive(byId(id), !locked);
+    setOwnerAwarePhaseInteractive(byId(id), !locked);
   }
 }
 
