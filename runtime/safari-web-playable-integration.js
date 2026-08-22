@@ -16,6 +16,7 @@ import {
   abortSafariBattleReturn,
   beginSafariBattleCommand,
   beginSafariBattleReturn,
+  captureSafariBattleCommandAttempt,
   commitSafariBattleResolution,
   completeSafariBattleReplacement,
   completeSafariBattleReturn,
@@ -88,9 +89,9 @@ function publishRuntimeChanged() {
 }
 
 function beginNormalBattleCommand(runtime, kind) {
-  if (!stateOf(runtime).battle || needsFullBattleIntegration(runtime)) return false;
+  if (!stateOf(runtime).battle || needsFullBattleIntegration(runtime)) return null;
   beginSafariBattleCommand(runtime, kind);
-  return true;
+  return captureSafariBattleCommandAttempt(runtime);
 }
 
 function commitNormalRewardGrowth(runtime, current) {
@@ -139,9 +140,10 @@ function commitNormalTrainerReplacement(runtime, current) {
   return committed;
 }
 
-function commitNormalBattleCommand(runtime, result, kind) {
+function commitNormalBattleCommand(runtime, result, kind, commandAttempt = null) {
   if (!stateOf(runtime).battle || needsFullBattleIntegration(runtime)) return result;
   return commitSafariBattleResolution(runtime, result, kind, {
+    commandAttempt,
     replacementCommit: (current) => commitNormalTrainerReplacement(runtime, current),
     rewardGrowthCommit: (current) => commitNormalRewardGrowth(runtime, current),
   });
@@ -187,12 +189,12 @@ export async function prepareSafariBattleRuntime(runtime = globalThis.__maplessS
 
 export async function resolveSafariBattleRound(runtime, selectedMoveId) {
   const normal = !needsFullBattleIntegration(runtime);
-  if (normal) beginSafariBattleCommand(runtime, "move");
+  const commandAttempt = normal ? beginNormalBattleCommand(runtime, "move") : null;
   try {
     let result = normal
       ? resolveSafariNormalBattleRound(runtime, selectedMoveId)
       : await (await full()).resolveSafariBattleRound(runtime, selectedMoveId);
-    if (normal && stateOf(runtime).battle) result = commitNormalBattleCommand(runtime, result, "move");
+    if (normal && stateOf(runtime).battle) result = commitNormalBattleCommand(runtime, result, "move", commandAttempt);
     publishRuntimeChanged();
     return result;
   } catch (error) {
@@ -230,10 +232,10 @@ export async function replaceSafariBattlePlayer(runtime, replacementPartyIndex) 
 
 export async function useSafariBattleItem(runtime, options = {}) {
   if (needsFullBattleIntegration(runtime)) throw new Error("boundary battle item owner is unavailable");
-  beginSafariBattleCommand(runtime, "item");
+  const commandAttempt = beginNormalBattleCommand(runtime, "item");
   try {
     const result = useSafariNormalBattleItem(runtime, options);
-    if (stateOf(runtime).battle) commitNormalBattleCommand(runtime, result, "item");
+    if (stateOf(runtime).battle) commitNormalBattleCommand(runtime, result, "item", commandAttempt);
     publishRuntimeChanged();
     return result;
   } catch (error) {
@@ -245,11 +247,12 @@ export async function useSafariBattleItem(runtime, options = {}) {
 export async function attemptSafariCapture(runtime, options = {}) {
   if (needsFullBattleIntegration(runtime)) return (await full()).attemptSafariCapture(runtime, options);
   if (stateOf(runtime).battle) {
-    beginSafariBattleCommand(runtime, "capture");
+    const commandAttempt = beginNormalBattleCommand(runtime, "capture");
     try {
       const result = attemptSafariNormalCapture(runtime, options);
       if (stateOf(runtime).battle) {
         commitSafariBattleResolution(runtime, result, "capture", {
+          commandAttempt,
           rewardGrowthCommit: (current) => {
             let committed = current;
             if (result?.result === "caught") committed = commitSafariCapturedWildRewardGrowth(runtime, committed);
