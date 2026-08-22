@@ -9,7 +9,7 @@ import { resolveBattleSpeedCanonical } from "./battle-core-speed.js";
 import { applyBattleStatStageChangesCanonical, createBattleStatStageStateCanonical, resolveBattleStatStageChangesCanonical } from "./battle-core-stat-stages.js";
 import { buildRestStatusInputCanonical, isCanonicalFixedDamageFunction, resolveCanonicalFixedDamage } from "./battle-core-hp-function-effects.js";
 import { resolveBattleAbilityItemHookCanonical } from "./battle-ability-item-hook-dispatch.js";
-import { resolveMoveOrderAbilityItemExtensionCanonical } from "./battle-core-ability-item-move-order-extension.js";
+import { resolveMoveOrderAbilityItemExtensionCanonical, resolveSeededMoveOrderAbilityItemExtensionCanonical } from "./battle-core-ability-item-move-order-extension.js";
 
 function moveId(move) { return typeof move === "string" ? move : move?.id; }
 function requireMoveMaster(moveMasters, id) {
@@ -32,6 +32,10 @@ function browserCombatSeed() {
     const value = new Uint32Array(1); globalThis.crypto.getRandomValues(value); return value[0] & 0x7fffffff;
   }
   return Math.floor(Math.random() * 0x80000000) & 0x7fffffff;
+}
+function moveOrderSeed(priorityRandomSeed, battlerIndex) {
+  const seed = Number(priorityRandomSeed) & 0x7fffffff;
+  return (seed ^ 0x6d2b79f5 ^ Math.imul(Number(battlerIndex) + 1, 0x45d9f3b)) & 0x7fffffff;
 }
 function hasPpBearingMove(pokemon) { return (Array.isArray(pokemon?.moves) ? pokemon.moves : []).some((move) => Number(move?.pp ?? 0) > 0); }
 function resolveRoundMove({ pokemon, selectedMoveId, moveMasters, label, autoStruggle = false }) {
@@ -190,13 +194,15 @@ export function buildBrowserBattleActionInput({ actor, target, move, moveIndex, 
   return action;
 }
 
-export function buildBrowserBattlePriorityEntry({ action, pokemon, move, statStages, actionIndex, battlerIndex }) {
+export function buildBrowserBattlePriorityEntry({ action, pokemon, move, statStages, actionIndex, battlerIndex, moveOrderRandomSeed = null }) {
   const speedInput = action?.abilityItemActionBefore?.modifiers?.speedInput ?? {};
   const speedStage = Number(statStages?.[Number(battlerIndex)]?.SPEED ?? 0);
   const klutz = canonicalAbilityId(pokemon) === "KLUTZ";
   const moveOrderUser = klutz ? { ...pokemon, held_item: null, item: null, held_item_effect_suppressed: true } : pokemon;
-  const moveOrder = resolveMoveOrderAbilityItemExtensionCanonical({ user: moveOrderUser, move });
-  // Consumable/probabilistic move-first effects stay inert here until their RNG/consume request is committed live.
+  const moveOrder = moveOrderRandomSeed === null || moveOrderRandomSeed === undefined
+    ? resolveMoveOrderAbilityItemExtensionCanonical({ user: moveOrderUser, move })
+    : resolveSeededMoveOrderAbilityItemExtensionCanonical({ user: moveOrderUser, move, randomSeed: moveOrderRandomSeed });
+  // Consumable move-first effects stay inert until their permanent consume request is committed live.
   const liveMoveOrder = moveOrder.consumeRequest ? null : moveOrder;
   return {
     actionIndex: Number(actionIndex),
@@ -293,8 +299,8 @@ export function resolveBrowserBattleRound({ player, foe, playerParty = null, foe
     commandEntry(1, false, foeResolved, 0),
   ];
   const priorityEntries = [
-    ...(playerResolved ? [buildBrowserBattlePriorityEntry({ action: actions[0], pokemon: player, move: playerMove, statStages, actionIndex: 0, battlerIndex: 0 })] : []),
-    buildBrowserBattlePriorityEntry({ action: actions[1], pokemon: foe, move: foeMove, statStages, actionIndex: 1, battlerIndex: 1 }),
+    ...(playerResolved ? [buildBrowserBattlePriorityEntry({ action: actions[0], pokemon: player, move: playerMove, statStages, actionIndex: 0, battlerIndex: 0, moveOrderRandomSeed: moveOrderSeed(priorityRandomSeed, 0) })] : []),
+    buildBrowserBattlePriorityEntry({ action: actions[1], pokemon: foe, move: foeMove, statStages, actionIndex: 1, battlerIndex: 1, moveOrderRandomSeed: moveOrderSeed(priorityRandomSeed, 1) }),
   ];
   const round = { statStages, attackPhaseInput: { priorityRandomSeed: Number(priorityRandomSeed) & 0x7fffffff, battlers: [{ battlerIndex: 0, choiceKind: playerResolved ? "UseMove" : "None", fainted: player.hp <= 0, choseRageFunction: false }, { battlerIndex: 1, choiceKind: "UseMove", fainted: foe.hp <= 0, choseRageFunction: false }] }, commandEntries, priorityEntries, actions };
   const battleInput = { useAttackPhaseScheduler: true, useCanonicalAccuracyDamage: true, combatRandomSeed: Number(combatRandomSeed) & 0x7fffffff, rounds: [round] };
