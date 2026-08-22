@@ -13,6 +13,14 @@ function stateOf(runtime) {
   return state;
 }
 function firstUsableIndex(runtime) { return (runtime.player?.party ?? []).findIndex((pokemon) => Number(pokemon?.hp ?? 0) > 0); }
+function hasType(runtime, typeId) {
+  const wanted = String(typeId).toUpperCase();
+  return (runtime.player?.party ?? []).some((pokemon) => {
+    if (!pokemon || Number(pokemon.hp ?? 0) <= 0 || pokemon.egg === true) return false;
+    const types = Array.isArray(pokemon.types) ? pokemon.types : Array.isArray(pokemon.type_ids) ? pokemon.type_ids : [];
+    return types.some((type) => String(type).toUpperCase() === wanted);
+  });
+}
 
 export function resolveSafariHotSpringInteraction(runtime, index, action) {
   const state = stateOf(runtime);
@@ -28,9 +36,18 @@ export function resolveSafariHotSpringInteraction(runtime, index, action) {
   if (action === "enter" && !Number.isInteger(preparedEvent.normal_data.enter_roll)) {
     preparedEvent.normal_data.enter_roll = new RubyMT19937Random(Number(preparedEvent.normal_seed ?? 0) & 0x7fffffff).randInt(100);
   }
-  const owner = resolveHotSpring({ event: preparedEvent, action, enter_roll: preparedEvent.normal_data.enter_roll });
+  const owner = resolveHotSpring({
+    event: preparedEvent,
+    action,
+    enter_roll: preparedEvent.normal_data.enter_roll,
+    has_water: hasType(runtime, "WATER"),
+    has_ice: hasType(runtime, "ICE"),
+  });
   const applied = [];
-  if (owner.result && action === "enter") {
+  if (owner.result && action === "safe") {
+    healSafariPartyFull(runtime);
+    applied.push({ op: "runtime_full_heal_party" });
+  } else if (owner.result && action === "enter") {
     if (owner.outcome === "enter_half_heal") {
       healSafariPartyPercent(runtime, 50);
       applied.push({ op: "runtime_heal_party_percent", amount: 50, revive: false });
@@ -50,10 +67,11 @@ export function resolveSafariHotSpringInteraction(runtime, index, action) {
   state.board_events[index] = owner.event;
   state.board_consumed[index] = Boolean(owner.event.normal_resolved);
   state.last_operations = [...(owner.operations ?? []).map((operation) => structuredClone(operation)), ...applied];
-  state.notice = owner.outcome === "enter_half_heal" ? "温泉で休み、手持ちのHPが回復しました。"
-    : owner.outcome === "enter_full_heal" ? "温泉で十分に休み、手持ちが完全回復しました。"
-      : owner.outcome === "enter_burn" ? "熱湯が噴き出し、先頭のポケモンが傷とやけどを負いました。"
-        : "温泉を使わず立ち去りました。";
+  state.notice = owner.outcome === "safe_full_heal" ? "みず・こおりタイプの力で安全に温泉を整え、手持ちが完全回復しました。"
+    : owner.outcome === "enter_half_heal" ? "温泉で休み、手持ちのHPが回復しました。"
+      : owner.outcome === "enter_full_heal" ? "温泉で十分に休み、手持ちが完全回復しました。"
+        : owner.outcome === "enter_burn" ? "熱湯が噴き出し、先頭のポケモンが傷とやけどを負いました。"
+          : "温泉を使わず立ち去りました。";
   return { runtime, result: owner.outcome, completed: Boolean(owner.result), roll: preparedEvent.normal_data.enter_roll ?? null, operations: state.last_operations, notice: state.notice, persistenceRequested: Boolean(owner.result), owner };
 }
 
