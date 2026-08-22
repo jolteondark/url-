@@ -1,7 +1,6 @@
 const byId = (id) => document.getElementById(id);
 let syncQueued = false;
 let resolving = false;
-let lastOpenKey = "";
 let webModulePromise = null;
 let startupModulePromise = null;
 const ownerModules = new Map();
@@ -16,19 +15,6 @@ function activeNormalEvent() {
   return active?.runtime === runtime() ? active : null;
 }
 function closeNormalEventUi() { globalThis.__maplessNormalEventUi = null; }
-function enabledVisible(node) { return Boolean(node && !node.disabled && !node.hidden && node.getClientRects().length > 0); }
-function focusFirstEventAction(card) {
-  const target = [...card.querySelectorAll("button[data-normal-event-action]")].find(enabledVisible) ?? null;
-  if (target) target.focus({ preventScroll:true });
-}
-function focusBoardAction() {
-  const boardCard = byId("board-card");
-  if (!boardCard || boardCard.hidden) return;
-  const target = [...byId("board")?.querySelectorAll("button[data-board-index]") ?? []].find((button) => enabledVisible(button) && !button.classList.contains("consumed"))
-    ?? (enabledVisible(byId("enter-village")) ? byId("enter-village") : null);
-  boardCard.scrollIntoView({ behavior:"smooth", block:"start" });
-  requestAnimationFrame(() => { if (enabledVisible(target)) target.focus({ preventScroll:true }); });
-}
 
 function loadOwner(eventId) {
   if (!ownerModules.has(eventId)) {
@@ -120,10 +106,12 @@ async function sync() {
   const currentState = state();
   const active = activeNormalEvent();
   if (!card || !current || !currentState || !active) {
+    const wasVisible = Boolean(card && !card.hidden);
     if (card) card.hidden = true;
     if (!active) {
       updateHud();
       await restoreBoardAvailability();
+      if (wasVisible) window.dispatchEvent(new CustomEvent("safari-normal-event-closed"));
     }
     return;
   }
@@ -150,15 +138,7 @@ async function sync() {
   });
   byId("normal-event-actions").replaceChildren(...buttons);
   updateHud();
-
-  const openKey = `${active.eventId}:${active.boardIndex}`;
-  if (openKey !== lastOpenKey) {
-    lastOpenKey = openKey;
-    requestAnimationFrame(() => {
-      card.scrollIntoView({ behavior:"smooth", block:"start" });
-      requestAnimationFrame(() => focusFirstEventAction(card));
-    });
-  }
+  window.dispatchEvent(new CustomEvent("safari-normal-event-rendered"));
 }
 
 function scheduleSync() {
@@ -182,10 +162,7 @@ document.addEventListener("click", async (event) => {
       const { saveSafariPlayableRun } = await startupModule();
       saveSafariPlayableRun(window.localStorage, current);
     }
-    if (result.completed) {
-      closeNormalEventUi();
-      lastOpenKey = "";
-    }
+    if (result.completed) closeNormalEventUi();
     window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
   } catch (error) {
     globalThis.__maplessLastError = error;
@@ -194,7 +171,6 @@ document.addEventListener("click", async (event) => {
     resolving = false;
     updateHud();
     await sync();
-    if (!activeNormalEvent()) focusBoardAction();
   }
 });
 
