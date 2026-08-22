@@ -76,7 +76,8 @@ function settle(options={}){
    target=first(shop,'.shop-touch-item.selected:not(:disabled),.shop-touch-item:not(:disabled),#shop-quantity:not(:disabled),#shop-confirm:not(:disabled),#shop-cancel:not(:disabled)');
   }else if(visible(byId("village-card"))){
    const village=byId("village-card"); scrollTarget=village; block="start";
-   target=[byId("bounty-depart"),byId("bounty-accept"),byId("village-shop-select"),byId("leave-village")].find(enabled)??null;
+   target=[byId("bounty-depart"),byId("bounty-accept"),byId("village-shop-select"),byId("leave-village")].find(enabled)
+    ??first(village,'button:not(:disabled),select:not(:disabled),input:not(:disabled),[tabindex]:not([tabindex="-1"])');
   }else if(visible(byId("board-card"))){
    const board=byId("board-card"); scrollTarget=board; block="start";
    target=first(board,'.board-cell:not(:disabled):not(.consumed),#enter-village:not(:disabled)');
