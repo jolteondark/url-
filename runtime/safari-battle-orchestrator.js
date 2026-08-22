@@ -21,6 +21,7 @@ const ACTION_MARKERS = new Set([
 ]);
 
 const issuedPresentationAckTokens = new WeakSet();
+const issuedCommandAttemptTokens = new WeakSet();
 let nextBattleInstanceSequence = 1;
 
 function stateOf(runtime) {
@@ -120,10 +121,15 @@ function rollbackSpeculativeAction(battle) {
   }
 }
 
+function clearPendingCommandAttempt(battle) {
+  battle.pending_command_attempt_required = false;
+}
+
 function rejectUnconsumedCommand(battle, result, commandKind) {
   rollbackSpeculativeAction(battle);
   battle.pending_command_kind = null;
   battle.pending_command_sequence = null;
+  clearPendingCommandAttempt(battle);
   tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, `command not consumed:${commandKind}`);
   result.phase = battle.phase;
   result.phaseTrace = structuredClone(battle.phase_trace ?? []);
@@ -322,6 +328,27 @@ function validateResolutionAgainstPendingCommand(battle, result) {
   return { sequence, battleInstanceSequence };
 }
 
+function validateCommandAttempt(battle, token, commandKind) {
+  if (!token || typeof token !== "object" || !issuedCommandAttemptTokens.has(token)) {
+    throw new Error("battle resolution requires a command attempt token issued by the central orchestrator");
+  }
+  if (token.battle !== battle) {
+    throw new Error("stale battle command attempt belongs to a different battle instance");
+  }
+  const battleInstanceSequence = ensureBattleInstanceSequence(battle);
+  if (Number(token.battleInstanceSequence) !== battleInstanceSequence) {
+    throw new Error("stale battle command attempt belongs to a different battle instance sequence");
+  }
+  const pendingSequence = requirePendingCommandProvenance(battle, commandKind);
+  if (Number(token.sequence) !== pendingSequence) {
+    throw new Error(`stale battle command attempt belongs to command sequence ${token.sequence}; current command sequence is ${pendingSequence}`);
+  }
+  if (String(token.commandKind) !== String(commandKind)) {
+    throw new Error(`battle command attempt kind ${token.commandKind} does not match pending command ${commandKind}`);
+  }
+  return token;
+}
+
 function bindResolutionToPendingCommand(battle, result) {
   const { sequence, battleInstanceSequence } = validateResolutionAgainstPendingCommand(battle, result);
   if (result && typeof result === "object") {
@@ -357,6 +384,7 @@ function replayCommittedResolution(battle, result, commandKind) {
   const committedResult = structuredClone(checkpoint.committedResult);
   battle.pending_command_kind = null;
   battle.pending_command_sequence = null;
+  clearPendingCommandAttempt(battle);
   if (requestsPersistence(committedResult)) committedResult.persistenceRequested = true;
   committedResult.phase = battle.phase;
   committedResult.phaseTrace = structuredClone(battle.phase_trace ?? []);
@@ -436,6 +464,7 @@ export function ensureSafariBattleOrchestrator(runtime) {
       battle.resolution_checkpoint = null;
       battle.replacement_checkpoint = null;
       battle.presentation_checkpoint = null;
+      clearPendingCommandAttempt(battle);
     } else {
       battle.completed_phase = SAFARI_BATTLE_PHASE.RESULT;
     }
@@ -463,8 +492,27 @@ export function beginSafariBattleCommand(runtime, commandKind = "move") {
   battle.command_sequence = Number(battle.command_sequence ?? 0) + 1;
   battle.pending_command_sequence = battle.command_sequence;
   battle.pending_command_kind = commandKind;
+  clearPendingCommandAttempt(battle);
   tracePhase(battle, SAFARI_BATTLE_PHASE.ACTION_1, `command:${commandKind}`);
   return battle.phase;
+}
+
+export function captureSafariBattleCommandAttempt(runtime) {
+  const battle = battleOf(runtime);
+  if (battle.phase !== SAFARI_BATTLE_PHASE.ACTION_1) {
+    throw new Error(`battle command attempt is unavailable during ${battle.phase}`);
+  }
+  const commandKind = battle.pending_command_kind;
+  const sequence = requirePendingCommandProvenance(battle, commandKind);
+  const token = Object.freeze({
+    battle,
+    battleInstanceSequence: ensureBattleInstanceSequence(battle),
+    sequence,
+    commandKind,
+  });
+  issuedCommandAttemptTokens.add(token);
+  battle.pending_command_attempt_required = true;
+  return token;
 }
 
 export function abortSafariBattleCommand(runtime, reason = "command failed") {
@@ -474,12 +522,14 @@ export function abortSafariBattleCommand(runtime, reason = "command failed") {
   rollbackSpeculativeAction(battle);
   battle.pending_command_kind = null;
   battle.pending_command_sequence = null;
+  clearPendingCommandAttempt(battle);
   return tracePhase(battle, SAFARI_BATTLE_PHASE.COMMAND, reason);
 }
 
 export function commitSafariBattleResolution(runtime, result, commandKind = null, {
   rewardGrowthCommit = null,
   replacementCommit = null,
+  commandAttempt = null,
 } = {}) {
   const battle = battleOf(runtime);
   if (!battle.phase) ensureSafariBattleOrchestrator(runtime);
@@ -520,6 +570,9 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
     throw new Error(`fresh battle resolution requires ACTION_1; got ${battle.phase}`);
   }
   requirePendingCommandProvenance(battle, resolvedCommandKind);
+  if (battle.pending_command_attempt_required === true || commandAttempt != null) {
+    validateCommandAttempt(battle, commandAttempt, resolvedCommandKind);
+  }
 
   if (result?.turnConsumed === false) {
     validateResolutionAgainstPendingCommand(battle, result);
@@ -583,6 +636,7 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   resolutionCheckpoint.phase = battle.phase;
   battle.pending_command_kind = null;
   battle.pending_command_sequence = null;
+  clearPendingCommandAttempt(battle);
   if (requestsPersistence(result)) result.persistenceRequested = true;
   result.phase = battle.phase;
   result.phaseTrace = structuredClone(battle.phase_trace ?? []);
