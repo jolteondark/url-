@@ -37,12 +37,23 @@ function gameMenuTarget(menu,{upgradeFallback=false}={}){
  menuFallbackFocused=false;
  return null;
 }
+function battleFocusAllowed(active,battleCard,currentBattle){
+ if(!(active instanceof HTMLElement)||!battleCard?.contains(active)||!currentBattle)return false;
+ const phase=currentBattle.phase;
+ if(phase==="RESULT")return active===byId("return-board")&&enabled(active);
+ if(phase==="REPLACEMENT")return active.matches('.player-replacement-panel button:not(:disabled)')&&enabled(active);
+ if(phase!=="COMMAND")return false;
+ const mode=battleCard.dataset.dpptMenu;
+ if(mode==="fight")return active.matches('#moves button[data-move-id]:not(:disabled),#dppt-command-back:not(:disabled)')&&enabled(active);
+ if(mode==="bag")return active.matches('#dppt-battle-bag button:not(:disabled),#dppt-command-back:not(:disabled)')&&enabled(active);
+ return active.matches('#dppt-command-root button:not(:disabled)')&&enabled(active);
+}
 function clearBattleFocusOutsideInteractivePhase(){
  const s=runtime();
- const battle=byId("battle-card");
+ const battleCard=byId("battle-card");
  const active=document.activeElement;
- if(!(active instanceof HTMLElement)||!battle?.contains(active))return;
- if(visible(byId("game-menu"))||!s?.battle||!["COMMAND","REPLACEMENT","RESULT"].includes(s.battle.phase)||!enabled(active))active.blur();
+ if(!(active instanceof HTMLElement)||!battleCard?.contains(active))return;
+ if(visible(byId("game-menu"))||!battleFocusAllowed(active,battleCard,s?.battle))active.blur();
 }
 function settle(options={}){
  const upgradeMenuFallback=options?.upgradeMenuFallback===true;
