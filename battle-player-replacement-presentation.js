@@ -3,10 +3,12 @@ import {
   captureSafariBattlePresentationAckSequence,
   completeSafariBattlePresentationForSequence,
 } from "./runtime/safari-battle-presentation-ack.js";
+import { captureSafariBattleReplacementCommit } from "./runtime/safari-battle-orchestrator.js";
 import { replaceSafariBattlePlayer } from "./runtime/safari-web-playable-integration.js";
 
 const REPLACEMENT_PHASE = "REPLACEMENT";
 const byId = (id) => document.getElementById(id);
+const replacementCommitTokens = new WeakMap();
 
 function battleState() {
   return globalThis.__maplessSafariRuntime?.variables?.mapless?.battle ?? null;
@@ -39,12 +41,13 @@ function clearReplacementUi() {
   if (card) delete card.dataset.playerReplacementRequired;
 }
 
-function replacementButton(option) {
+function replacementButton(option, replacementCommitToken) {
   const pokemon = option?.pokemon ?? {};
   const button = document.createElement("button");
   button.type = "button";
   button.dataset.playerReplacementPartyIndex = String(option.partyIndex);
   button.disabled = !replacementActive();
+  replacementCommitTokens.set(button, replacementCommitToken);
 
   const name = document.createElement("strong");
   name.textContent = pokemon.nickname ?? pokemon.species ?? `Party ${Number(option.partyIndex) + 1}`;
@@ -65,6 +68,7 @@ function syncReplacementUi() {
   const card = byId("battle-card");
   const moves = byId("moves");
   if (!card || !moves) return;
+  const replacementCommitToken = captureSafariBattleReplacementCommit(globalThis.__maplessSafariRuntime, "player");
 
   card.dataset.playerReplacementRequired = "true";
   card.dataset.dpptMenu = "locked";
@@ -83,7 +87,7 @@ function syncReplacementUi() {
   heading.textContent = "次のポケモンを選んでください";
   const grid = document.createElement("div");
   grid.className = "move-grid player-replacement-options";
-  grid.replaceChildren(...options.map(replacementButton));
+  grid.replaceChildren(...options.map((option) => replacementButton(option, replacementCommitToken)));
   panel.replaceChildren(heading, grid);
   globalThis.__maplessApplyBattlePhaseUi?.();
 }
@@ -95,6 +99,8 @@ async function chooseReplacement(button) {
   const legal = replacementOptions(battle)
     .some((option) => Number(option?.partyIndex) === partyIndex);
   if (!legal) return;
+  const replacementCommitToken = replacementCommitTokens.get(button);
+  if (!replacementCommitToken) return;
 
   if (button instanceof HTMLElement) {
     button.blur();
@@ -105,9 +111,9 @@ async function chooseReplacement(button) {
   try {
     const runtime = globalThis.__maplessSafariRuntime;
     if (battle?.origin === "boundary_trial") {
-      resolveSafariBoundaryPlayerReplacement(runtime, partyIndex);
+      resolveSafariBoundaryPlayerReplacement(runtime, partyIndex, { replacementCommitToken });
     } else {
-      await replaceSafariBattlePlayer(runtime, partyIndex);
+      await replaceSafariBattlePlayer(runtime, partyIndex, { replacementCommitToken });
     }
     const presentationSequence = captureSafariBattlePresentationAckSequence(runtime);
     const phaseBeforeAck = battleState()?.phase ?? null;
