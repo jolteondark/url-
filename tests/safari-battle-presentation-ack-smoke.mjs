@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import {
   SAFARI_BATTLE_PHASE,
   beginSafariBattleCommand,
+  captureSafariBattleReplacementCommit,
   commitSafariBattleResolution,
   completeSafariBattleReplacement,
   ensureSafariBattleOrchestrator,
@@ -139,10 +140,12 @@ function acknowledgePresentation(state) {
   battle.player_replacement_required = true;
 
   let replacementCommits = 0;
+  const replacementCommitToken = captureSafariBattleReplacementCommit(state, "player");
   const result = completeSafariBattleReplacement(state, {
     playerReplacementRequired: true,
     operations: [],
   }, {
+    replacementCommitToken,
     replacementCommit: (current) => {
       replacementCommits += 1;
       battle.player_replacement_required = false;
@@ -252,6 +255,8 @@ function acknowledgePresentation(state) {
     "forced player replacement must not keep a local selecting readiness truth");
   assert.match(source, /presentation_checkpoint\?\.committed !== false/,
     "replacement selection must stop while the central replacement presentation checkpoint is pending");
+  assert.doesNotMatch(source, /replacement-submit-gate|claimSafariBattleReplacementSubmit/,
+    "forced replacement must not keep a second submit-capability truth outside the central replacement checkpoint");
 }
 
 await import("./safari-battle-dppt-presentation-ack-owners-smoke.mjs");
