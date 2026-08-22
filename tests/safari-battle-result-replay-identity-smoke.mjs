@@ -93,6 +93,26 @@ assert.equal(battle.phase_trace.length, returnTraceLength,
   "pre-clear RETURN rejection must not append a second phase transition");
 
 state.variables.mapless.battle = null;
+const pendingReturnCheckpoint = state.variables.mapless.pending_battle_return_checkpoint;
+const forgedNextBattle = {
+  turn: 1,
+  decision: 0,
+  completed: false,
+};
+state.variables.mapless.battle = forgedNextBattle;
+assert.throws(
+  () => ensureSafariBattleOrchestrator(state),
+  /RETURN persistence is pending/,
+  "the central orchestrator must not let a fresh Battle erase an uncommitted RETURN checkpoint",
+);
+assert.equal(state.variables.mapless.pending_battle_return_checkpoint, pendingReturnCheckpoint,
+  "rejected fresh Battle initialization must preserve the exact pending RETURN checkpoint");
+assert.equal(forgedNextBattle.phase ?? null, null,
+  "rejected fresh Battle initialization must not publish COMMAND");
+assert.equal(forgedNextBattle.orchestrator_battle_instance_sequence ?? null, null,
+  "rejected fresh Battle initialization must not allocate a Battle instance identity");
+
+state.variables.mapless.battle = null;
 const returned = completeSafariBattleReturn(state, {
   target: "day_board",
   operations: [{ op: "return_to_day_board" }],
