@@ -6,6 +6,7 @@ function enabled(n){return visible(n)&&!n.disabled}
 function first(root,sel){return root?[...root.querySelectorAll(sel)].find(enabled)??null:null}
 function current(root,sel){const active=document.activeElement;return active instanceof HTMLElement&&root?.contains(active)&&enabled(active)&&active.matches(sel)?active:null}
 function runtime(){return globalThis.__maplessSafariRuntime?.variables?.mapless??null}
+function normalEventActive(){const active=globalThis.__maplessNormalEventUi??null;return active?.runtime===globalThis.__maplessSafariRuntime}
 function stopScroll(){window.scrollTo({top:window.scrollY,left:window.scrollX,behavior:"auto"})}
 function commandTarget(battle){
  const mode=battle?.dataset?.dpptMenu;
@@ -58,8 +59,13 @@ function settle(options={}){
   menuFallbackFocused=false;
   const s=runtime();
   let target=null,scrollTarget=null,block="nearest";
+  const normalEvent=byId("normal-event-card");
   const battle=byId("battle-card");
-  if(s?.battle&&visible(battle)){
+  if(normalEventActive()&&visible(normalEvent)){
+   const sel='button[data-normal-event-action]:not(:disabled)';
+   scrollTarget=normalEvent; block="start";
+   target=current(normalEvent,sel)??first(normalEvent,sel);
+  }else if(s?.battle&&visible(battle)){
    const phase=s.battle.phase;
    scrollTarget=battle; block="start";
    if(phase==="COMMAND") target=commandTarget(battle);
@@ -91,7 +97,7 @@ function settleRenderedPane(paneId){
 function settlePartyPanel(){settleRenderedPane("menu-party-pane")}
 function settleBagPanel(){settleRenderedPane("menu-bag-pane")}
 function settleBoxPanel(){settleRenderedPane("menu-box-pane")}
-for(const name of ["safari-runtime-changed","safari-preview-start","safari-game-menu-opened","safari-game-menu-open-failed","safari-game-menu-closed","mapless-dppt-menu-changed","pageshow"])window.addEventListener(name,settle,{passive:true});
+for(const name of ["safari-runtime-changed","safari-preview-start","safari-game-menu-opened","safari-game-menu-open-failed","safari-game-menu-closed","safari-normal-event-rendered","safari-normal-event-closed","mapless-dppt-menu-changed","pageshow"])window.addEventListener(name,settle,{passive:true});
 window.addEventListener("safari-party-panel-rendered",settlePartyPanel,{passive:true});
 window.addEventListener("safari-storage-controls-rendered",settleBoxPanel,{passive:true});
 window.addEventListener("storage",settleBagPanel,{passive:true});
