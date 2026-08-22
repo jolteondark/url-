@@ -20,14 +20,24 @@ function moveFactCanonical(move, key) {
 }
 
 export const BATTLE_HIT_STAT_REACTION_COVERAGE_CANONICAL = Object.freeze({
-  abilityIds: Object.freeze(["JUSTIFIED", "STAMINA", "WEAKARMOR"]),
+  abilityIds: Object.freeze([
+    "JUSTIFIED",
+    "RATTLED",
+    "STAMINA",
+    "STEAMENGINE",
+    "WATERCOMPACTION",
+    "WEAKARMOR",
+  ]),
   itemIds: Object.freeze([]),
-  abilityCount: 3,
+  abilityCount: 6,
   itemCount: 0,
   classificationCounts: Object.freeze({
     physicalHitStatReactionAbilities: 1,
     anyHitStatReactionAbilities: 1,
-    typeHitStatReactionAbilities: 1,
+    typeHitStatReactionAbilities: 4,
+    waterHitStatReactionAbilities: 2,
+    fireOrWaterHitStatReactionAbilities: 1,
+    bugDarkGhostHitStatReactionAbilities: 1,
   }),
 });
 
@@ -51,6 +61,12 @@ export function resolveHitStatReactionCanonical({
     changes.push(Object.freeze({ subject: "target", stat: "DEFENSE", delta: 1 }));
   } else if (wasHit && ability === "JUSTIFIED" && type === "DARK") {
     changes.push(Object.freeze({ subject: "target", stat: "ATTACK", delta: 1 }));
+  } else if (wasHit && ability === "WATERCOMPACTION" && type === "WATER") {
+    changes.push(Object.freeze({ subject: "target", stat: "DEFENSE", delta: 2 }));
+  } else if (wasHit && ability === "STEAMENGINE" && (type === "FIRE" || type === "WATER")) {
+    changes.push(Object.freeze({ subject: "target", stat: "SPEED", delta: 6 }));
+  } else if (wasHit && ability === "RATTLED" && (type === "BUG" || type === "DARK" || type === "GHOST")) {
+    changes.push(Object.freeze({ subject: "target", stat: "SPEED", delta: 1 }));
   }
 
   return Object.freeze({
