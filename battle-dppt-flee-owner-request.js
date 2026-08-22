@@ -6,7 +6,7 @@ import {
   captureSafariBattlePresentationAckSequence,
   completeSafariBattlePresentationForSequence,
 } from "./runtime/safari-battle-presentation-ack.js";
-import { attemptSafariFlee } from "./runtime/safari-flee-command.js?v=20260818-1335";
+import { attemptSafariFlee } from "./runtime/safari-flee-command.js?v=20260822-2145";
 import { formatSafariBattlePresentationEvent } from "./battle-presentation-narration.js";
 
 const byId = (id) => document.getElementById(id);
