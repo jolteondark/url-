@@ -24,20 +24,26 @@ assert.match(adapterSource, /function setPendingReturnMenuLocked\(locked\)/,
   "central RETURN UI must own locking of Party/Bag/Box mutation surfaces after Battle clear");
 assert.match(adapterSource, /setInteractive\(byId\(id\), !locked\)/,
   "pending RETURN mutation menu lock must be released only when the central checkpoint is no longer pending");
+assert.match(adapterSource, /function setPendingReturnDayBoardLocked\(locked\)/,
+  "central RETURN UI must also own the Day Board mutation surface after Battle clear");
+assert.match(adapterSource, /if \(board\) board\.inert = locked/,
+  "pending RETURN must make the Day Board itself non-interactive until the save checkpoint commits");
+assert.match(adapterSource, /setOwnerAwarePhaseInteractive\(byId\("enter-village"\), !locked\)/,
+  "pending RETURN must block village entry without losing the Day Board owner's pre-existing disabled state");
 assert.match(adapterSource, /target\.closest\("#new-run"\)\) return false/,
   "capture-phase click guard must reject New Run throughout an active Battle");
 assert.match(adapterSource, /target\.closest\("#save-run,#continue-run"\)\) return phase === COMMAND_PHASE \|\| phase === RESULT_PHASE/,
   "capture-phase click guard must reject Save/Continue during ACTION/CHECK/replacement/growth/RETURN");
-assert.match(adapterSource, /pendingBattleReturnCommit\(\) && target\.closest\("#new-run,#save-run,#continue-run,#menu-party,#menu-bag,#menu-box"\)/,
-  "capture-phase click guard must reject runtime replacement, manual persistence, and Party/Bag/Box mutation while RETURN save is pending after Battle clear");
+assert.match(adapterSource, /pendingBattleReturnCommit\(\) && target\.closest\("#new-run,#save-run,#continue-run,#menu-party,#menu-bag,#menu-box,#board button\[data-board-index\],#enter-village"\)/,
+  "capture-phase click guard must reject runtime replacement, persistence, menus, Day Board cells, and village entry while RETURN save is pending after Battle clear");
 assert.match(adapterSource, /function releaseOwnerAwarePhaseLock\(element\)/,
   "Battle clear must have a distinct phase-lock release path");
 assert.match(adapterSource, /function releaseBattlePersistenceLocks\(\)/,
   "central phase UI must release persistence locks only after RETURN persistence has completed");
 assert.match(adapterSource, /function releaseBattleCommandLocks\(\)/,
   "central phase UI must release transient Bag/replacement locks once the Battle object clears");
-assert.match(adapterSource, /if \(!currentBattle\) \{\s*releaseBattleCommandLocks\(\);\s*const returnCommitPending = pendingBattleReturnCommit\(\);\s*setPendingReturnMenuLocked\(returnCommitPending\);\s*if \(returnCommitPending\) \{[\s\S]*?setOwnerAwarePhaseInteractive\(byId\(id\), false\);[\s\S]*?\} else \{\s*releaseBattlePersistenceLocks\(\);\s*\}\s*return;\s*\}/,
-  "Battle clear must keep persistence and Party/Bag/Box mutation surfaces locked through pending RETURN, then release only after commit completion");
+assert.match(adapterSource, /if \(!currentBattle\) \{\s*releaseBattleCommandLocks\(\);\s*const returnCommitPending = pendingBattleReturnCommit\(\);\s*setPendingReturnMenuLocked\(returnCommitPending\);\s*setPendingReturnDayBoardLocked\(returnCommitPending\);\s*if \(returnCommitPending\) \{[\s\S]*?setOwnerAwarePhaseInteractive\(byId\(id\), false\);[\s\S]*?\} else \{\s*releaseBattlePersistenceLocks\(\);\s*\}\s*return;\s*\}/,
+  "Battle clear must keep persistence, menu, and Day Board mutation surfaces locked through pending RETURN, then release only after commit completion");
 const releaseBlock = adapterSource.slice(
   adapterSource.indexOf("function releaseOwnerAwarePhaseLock"),
   adapterSource.indexOf("function releaseBattleCommandLocks"),
