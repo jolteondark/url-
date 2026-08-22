@@ -4,6 +4,7 @@ import { setMoney } from "./bag-economy-mart-flow.js";
 import { maplessCarryMoneyGain } from "./mapless-carry-class-rules.js";
 import { resolveDayBoardPlayableTurn } from "./mapless-day-board-playable-turn.js";
 import { markMaplessRunEnd } from "./mapless-run-end-lifecycle.js";
+import { resolvePokemonAfterBattleEvolution } from "./pokemon-after-battle-evolution.js";
 import { resolvePokemonLevelEvolutionWithLocationContext } from "./pokemon-level-evolution-location-context.js";
 import { resolvePokemonRuntimeMasters } from "./pokemon-runtime-masters.js";
 import { applyShedinjaAfterEvolution } from "./pokemon-shedinja-after-evolution.js";
@@ -168,6 +169,7 @@ function commitPendingLevelEvolutions(runtime, battle = {}) {
   const operations = [];
   const presentation = [];
   const unsupportedMethods = new Set();
+  const evolvedIndexes = new Set();
   const evolutionContext = evolutionContextOf(battle);
 
   for (let index = 0; index < party.length; index += 1) {
@@ -190,8 +192,62 @@ function commitPendingLevelEvolutions(runtime, battle = {}) {
     party[index] = resolved.pokemon;
     operations.push(...structuredClone(resolved.operations ?? []));
     for (const method of resolved.unsupportedMethods ?? []) {
-      if (method !== "Shedinja") unsupportedMethods.add(method);
+      if (method !== "Shedinja" && method !== "BattleDealCriticalHit") unsupportedMethods.add(method);
     }
+    if (resolved.evolved && resolved.evolution) {
+      evolvedIndexes.add(index);
+      const sourceSpeciesMaster = SAFARI_SPECIES_MASTERS[candidate.species];
+      const shedinja = applyShedinjaAfterEvolution({
+        sourcePokemon: candidate,
+        sourceSpeciesMaster,
+        speciesMasters: SAFARI_SPECIES_MASTERS,
+        natureMaster,
+        moveMasters: SAFARI_MOVE_MASTERS,
+        party,
+        bagSlots: runtime?.bag?.slots,
+      });
+      operations.push(...structuredClone(shedinja.operations ?? []));
+      presentation.push({
+        type: "evolution",
+        actor: "player",
+        from: resolved.evolution.from,
+        to: resolved.evolution.to,
+      });
+    }
+  }
+
+  if (unsupportedMethods.size > 0) operations.push({ op: "unsupported_evolution_methods", methods: [...unsupportedMethods] });
+  return { operations, presentation, unsupportedMethods: [...unsupportedMethods], evolvedIndexes };
+}
+
+function commitAfterBattleCriticalEvolutions(runtime, battle = {}, skipIndexes = new Set()) {
+  const party = Array.isArray(runtime?.player?.party) ? runtime.player.party : [];
+  const criticalHits = Array.isArray(battle?.player_critical_hits_dealt) ? battle.player_critical_hits_dealt : [];
+  const operations = [];
+  const presentation = [];
+  const unsupportedMethods = new Set();
+
+  for (let index = 0; index < party.length; index += 1) {
+    if (skipIndexes.has(index)) continue;
+    const pokemon = party[index];
+    if (!pokemon) continue;
+    const count = Math.max(0, Math.trunc(Number(criticalHits[index] ?? 0)));
+    if (count <= 0) continue;
+
+    const candidate = structuredClone(pokemon);
+    const natureId = candidate.nature_for_stats_id ?? candidate.nature_id ?? "HARDY";
+    const natureMaster = SAFARI_NATURE_MASTERS[natureId];
+    if (!natureMaster) throw new RangeError(`battle evolution nature is outside the Safari projection: ${natureId}`);
+
+    const resolved = resolvePokemonAfterBattleEvolution(candidate, {
+      species_masters: SAFARI_SPECIES_MASTERS,
+      nature_master: natureMaster,
+      move_masters: SAFARI_MOVE_MASTERS,
+      critical_hits_dealt: count,
+    });
+    party[index] = resolved.pokemon;
+    operations.push(...structuredClone(resolved.operations ?? []));
+    for (const method of resolved.unsupportedMethods ?? []) unsupportedMethods.add(method);
     if (resolved.evolved && resolved.evolution) {
       const sourceSpeciesMaster = SAFARI_SPECIES_MASTERS[candidate.species];
       const shedinja = applyShedinjaAfterEvolution({
@@ -222,12 +278,19 @@ export function commitSafariNormalLevelEvolutionRewardGrowth(runtime, result = {
   const battle = state.battle;
   if (!battle || Number(battle.decision) === 0) return result;
 
+  // Essentials checks level-up evolution first for a Pokémon that gained a
+  // level, and only checks after-battle methods if that first check produced no
+  // evolution. Preserve that ordering while both checks share REWARD_GROWTH.
   const pending = commitPendingLevelEvolutions(runtime, battle);
-  if (pending.operations.length === 0 && pending.presentation.length === 0 && pending.unsupportedMethods.length === 0) return result;
+  const afterBattle = commitAfterBattleCriticalEvolutions(runtime, battle, pending.evolvedIndexes);
+  const operations = [...pending.operations, ...afterBattle.operations];
+  const presentation = [...pending.presentation, ...afterBattle.presentation];
+  const unsupportedMethods = [...new Set([...pending.unsupportedMethods, ...afterBattle.unsupportedMethods])];
+  if (operations.length === 0 && presentation.length === 0 && unsupportedMethods.length === 0) return result;
 
-  battle.unsupported_evolution_methods = [...pending.unsupportedMethods];
-  battle.last_operations = [...pending.operations, ...(battle.last_operations ?? result.operations ?? [])];
-  battle.presentation = [...pending.presentation, ...(battle.presentation ?? result.presentation ?? [])];
+  battle.unsupported_evolution_methods = unsupportedMethods;
+  battle.last_operations = [...operations, ...(battle.last_operations ?? result.operations ?? [])];
+  battle.presentation = [...presentation, ...(battle.presentation ?? result.presentation ?? [])];
   state.last_operations = [...battle.last_operations];
   result.operations = [...battle.last_operations];
   result.presentation = [...battle.presentation];
