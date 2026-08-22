@@ -1,5 +1,6 @@
 import { resolveMushroomField } from "./mapless-normal-events-a1-flow.js";
 import { maplessCarryMoneyGain } from "./mapless-carry-class-rules.js";
+import { ensureMaplessRunLifecycleState, finishMaplessRun, maplessPartyAllFainted } from "./mapless-run-end-lifecycle.js";
 import { setMoney } from "./bag-economy-mart-flow.js";
 import { healSafariPokemonFull, inflictSafariOverworldStatus } from "./safari-pokemon-healing.js";
 import { safariPokemonTypes } from "./safari-pokemon-type-membership.js";
@@ -37,6 +38,23 @@ function applyMaplessBonus(pokemon, stat, amount) {
     patch.stats = { ...pokemon.stats, [key]: Math.max(1, Math.trunc(Number(pokemon.stats[key] ?? 0)) + delta) };
   }
   return updatePokemonRuntime(pokemon, patch);
+}
+function finishMushroomPartyWipe(runtime) {
+  const state = ensureMaplessRunLifecycleState(runtime);
+  if (!state.mapless_run_active || !maplessPartyAllFainted(party(runtime))) {
+    return { finished: false, overflow: false, operations: [] };
+  }
+  state.mapless_run_end_pending = true;
+  const finished = finishMaplessRun(runtime);
+  state.location = "home";
+  return {
+    ...finished,
+    operations: [
+      { op: "mark_run_end", reason: "party_wipe", source: "normal_event:mushroom_field" },
+      ...(finished.operations ?? []),
+      { op: "return_to_home", source: "normal_event:mushroom_field" },
+    ],
+  };
 }
 
 export function resolveSafariMushroomFieldInteraction(runtime, index, requestedAction) {
@@ -94,7 +112,8 @@ export function resolveSafariMushroomFieldInteraction(runtime, index, requestedA
   }
   state.board_events[index] = owner.event;
   state.board_consumed[index] = Boolean(owner.event.normal_resolved);
-  state.last_operations = [...(owner.operations ?? []).map((operation) => structuredClone(operation)), ...applied];
+  const eventOperations = [...(owner.operations ?? []).map((operation) => structuredClone(operation)), ...applied];
+  state.last_operations = eventOperations;
   const label = pokemonLabel(target);
   const stat = String(event.normal_data?.eat_stat ?? "能力");
   state.notice = owner.outcome === "sold"
@@ -110,7 +129,25 @@ export function resolveSafariMushroomFieldInteraction(runtime, index, requestedA
             : owner.outcome === "eat_damage"
               ? `${label}がキノコを食べ、25ダメージを受けました。`
               : "怪しいキノコ畑から離れました。";
-  return { runtime, result: owner.outcome, completed: Boolean(owner.result), operations: state.last_operations, notice: state.notice, persistenceRequested: Boolean(owner.result), owner };
+
+  const runEnd = owner.result && owner.outcome === "eat_damage"
+    ? finishMushroomPartyWipe(runtime)
+    : { finished: false, overflow: false, operations: [] };
+  if (runEnd.finished) {
+    state.notice = "キノコの影響で手持ちが全滅したため、今回のランは終了しました。";
+    state.last_operations = [...eventOperations, ...(runEnd.operations ?? [])];
+  }
+
+  return {
+    runtime,
+    result: owner.outcome,
+    completed: Boolean(owner.result),
+    operations: state.last_operations,
+    notice: state.notice,
+    persistenceRequested: Boolean(owner.result) || runEnd.finished,
+    owner,
+    runEnd,
+  };
 }
 
 export function interactiveSafariMushroomField(runtime, index) {
