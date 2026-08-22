@@ -8,7 +8,8 @@ import "./safari-day17-buried-item-day18-continued-run-smoke.mjs";
 import "./safari-day18-egg-shop-day19-continued-run-smoke.mjs";
 import "./safari-day19-shop-boundary20-continued-run-smoke.mjs";
 import assert from "node:assert/strict";
-import { createSafariPlayableRuntime, resolveSafariBattleRound, returnSafariToDayBoard } from "../runtime/safari-playable-integration.js";
+import { createSafariPlayableRuntime, resolveSafariBattleRound } from "../runtime/safari-playable-integration.js";
+import { returnSafariToDayBoard } from "../runtime/safari-web-playable-integration.js";
 import { startSafariBoundaryTrialBattle } from "../runtime/safari-boundary-trial-start.js";
 
 const runtime = createSafariPlayableRuntime();
@@ -70,12 +71,12 @@ for (let expectedIndex = 0; expectedIndex < 3; expectedIndex += 1) {
   }
 }
 
-const returned = returnSafariToDayBoard(runtime);
+const returned = await returnSafariToDayBoard(runtime);
 assert.equal(returned.target, "day_board");
 assert.equal(returned.phase, "RETURN");
 assert.equal(returned.persistenceRequested, true);
 assert.equal(returned.operations.filter((operation) => operation?.op === "request_save").length, 1,
-  "boundary RETURN must request persistence exactly once through the central owner");
+  "public web boundary RETURN must preserve the central request_save exactly once without wrapper duplication");
 assert.equal(returned.phaseTrace.at(-1)?.phase, "RETURN");
 assert.equal(state.day, 11);
 assert.equal(state.location, "day_board");

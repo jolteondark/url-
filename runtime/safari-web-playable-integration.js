@@ -291,12 +291,6 @@ export async function returnSafariToDayBoard(runtime) {
     throw error;
   }
   if (normalBattleReturn) completeSafariBattleReturn(runtime, result);
-  if (wasBoundary && result?.target === "day_board") {
-    const requestSave = { op: "request_save", reason: "boundary return committed" };
-    result.operations = [...(result.operations ?? []), requestSave];
-    result.persistenceRequested = true;
-    stateOf(runtime).last_operations = result.operations;
-  }
   globalThis.__maplessSafariRuntime = runtime;
   publishRuntimeChanged();
   return result;
