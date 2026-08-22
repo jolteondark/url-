@@ -3,7 +3,10 @@ import {
   SAFARI_BATTLE_PHASE,
   beginSafariBattleCommand,
   beginSafariBattleReturn,
+  captureSafariBattlePresentationAckSequence,
+  captureSafariBattleReplacementCommit,
   commitSafariBattleResolution,
+  completeSafariBattlePresentationForSequence,
   completeSafariBattleReplacement,
   completeSafariBattleReturn,
   ensureSafariBattleOrchestrator,
@@ -147,6 +150,7 @@ assert.deepEqual(state.variables.mapless.battle_return_checkpoint.operations, re
   const replacementState = runtime();
   const replacementBattle = replacementState.variables.mapless.battle;
   replacementBattle.player_replacement_required = true;
+  replacementBattle.presentation_ack_required = true;
   ensureSafariBattleOrchestrator(replacementState);
   beginSafariBattleCommand(replacementState, "move");
   const replacementResolution = {
@@ -160,9 +164,11 @@ assert.deepEqual(state.variables.mapless.battle_return_checkpoint.operations, re
   const preReplacement = commitSafariBattleResolution(replacementState, replacementResolution, "move");
   assert.equal(preReplacement.phase, SAFARI_BATTLE_PHASE.REPLACEMENT);
   assert.equal(preReplacement.playerReplacementRequired, true);
+  const replacementCommitToken = captureSafariBattleReplacementCommit(replacementState, "player");
 
   let replacementCommits = 0;
   const postReplacement = completeSafariBattleReplacement(replacementState, preReplacement, {
+    replacementCommitToken,
     replacementCommit(current) {
       replacementCommits += 1;
       replacementBattle.player_replacement_required = false;
@@ -174,10 +180,39 @@ assert.deepEqual(state.variables.mapless.battle_return_checkpoint.operations, re
       };
     },
   });
-  assert.equal(postReplacement.phase, SAFARI_BATTLE_PHASE.COMMAND);
+  assert.equal(postReplacement.phase, SAFARI_BATTLE_PHASE.REPLACEMENT,
+    "replacement presentation must keep COMMAND closed until acknowledgement");
   assert.equal(postReplacement.playerReplacementRequired, false);
   assert.equal(postReplacement.playerReplacementApplied, true);
   assert.equal(replacementCommits, 1);
+
+  const forgedDuplicate = {
+    ...structuredClone(preReplacement),
+    playerReplacementRequired: true,
+    playerReplacementApplied: false,
+    operations: [{ op: "forged_replacement_snapshot" }],
+  };
+  const duplicateReplay = completeSafariBattleReplacement(replacementState, forgedDuplicate, {
+    replacementCommitToken,
+    replacementCommit() {
+      replacementCommits += 1;
+      throw new Error("replacement must not replay");
+    },
+  });
+  assert.equal(duplicateReplay.playerReplacementRequired, false,
+    "duplicate replacement completion must replay the centrally committed post-replacement snapshot");
+  assert.equal(duplicateReplay.playerReplacementApplied, true,
+    "duplicate replacement completion must preserve the centrally committed replacement truth");
+  assert.equal(duplicateReplay.operations.some((operation) => operation?.op === "send_out"), true,
+    "duplicate replacement completion must preserve the committed switch operation");
+  assert.equal(duplicateReplay.operations.some((operation) => operation?.op === "forged_replacement_snapshot"), false,
+    "caller-supplied duplicate replacement data must not overwrite the central committed snapshot");
+  assert.equal(replacementCommits, 1,
+    "duplicate replacement completion must not execute the replacement owner twice");
+
+  const presentationToken = captureSafariBattlePresentationAckSequence(replacementState);
+  completeSafariBattlePresentationForSequence(replacementState, presentationToken);
+  assert.equal(replacementBattle.phase, SAFARI_BATTLE_PHASE.COMMAND);
 
   const replacementReplay = commitSafariBattleResolution(
     replacementState,
