@@ -14,8 +14,8 @@ import { materializeSeededAccuracyDamageCanonical } from "./battle-core-seeded-a
 import { materializeSeededSecondaryEffectsCanonical } from "./battle-core-seeded-secondary-effect.js";
 import { resolveBattleAbilityItemHookCanonical } from "./battle-ability-item-hook-dispatch.js";
 import { resolveFocusBandSurvivalCanonical } from "./battle-core-focus-band-survival-extension.js";
+import { applyBattleStatStageChangesWithAbilitiesCanonical } from "./battle-core-stat-stage-ability-commit.js";
 import {
-  applyBattleStatStageChangesCanonical,
   battleStatStageEffectSucceededCanonical,
   createBattleStatStageStateCanonical,
   injectBattleStatStagesIntoActionCanonical,
@@ -174,11 +174,18 @@ export function applyBattleAbilityItemActionAfterCanonical(action, inputStatStag
     ...(actionAfter?.koBoost?.statChanges ?? []),
   ];
   if (changes.length === 0) return { action: prepared, statStages };
-  const stageResolution = applyBattleStatStageChangesCanonical(
+  const modifiers = prepared.abilityItemActionBefore?.modifiers ?? {};
+  const stageResolution = applyBattleStatStageChangesWithAbilitiesCanonical(
     statStages,
     changes,
     prepared.battlerIndex,
     prepared.targetBattlerIndex,
+    {
+      userPokemon: actionAfterSourcePokemonCanonical(prepared, "user"),
+      targetPokemon: actionAfterSourcePokemonCanonical(prepared, "target"),
+      sourceKindBySubject: { user: "other", target: "other" },
+      moldBreaker: Boolean(modifiers.moldBreaker),
+    },
   );
   prepared.abilityItemActionAfterStatStageResolution = stageResolution;
   return { action: prepared, statStages: stageResolution.state };
@@ -211,11 +218,18 @@ function applyResolvedActionStagesCanonical(resolvedAction, inputStatStages) {
   let statStages = inputStatStages;
   const resolved = resolvedAction;
   if (battleStatStageEffectSucceededCanonical(resolved)) {
-    const stageResolution = applyBattleStatStageChangesCanonical(
+    const modifiers = resolved?.abilityItemActionBefore?.modifiers ?? {};
+    const stageResolution = applyBattleStatStageChangesWithAbilitiesCanonical(
       statStages,
       resolved.statStageEffectInput.changes,
       resolved.battlerIndex,
       resolved.targetBattlerIndex,
+      {
+        userPokemon: actionAfterSourcePokemonCanonical(resolved, "user"),
+        targetPokemon: actionAfterSourcePokemonCanonical(resolved, "target"),
+        sourceKindBySubject: { user: "self", target: "opposing_move" },
+        moldBreaker: Boolean(modifiers.moldBreaker),
+      },
     );
     statStages = stageResolution.state;
     resolved.statStageResolution = stageResolution;
