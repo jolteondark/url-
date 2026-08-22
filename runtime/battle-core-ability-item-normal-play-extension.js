@@ -67,11 +67,13 @@ const EXTENSION_ABILITY_IDS = Object.freeze([
   "DRAGONSMAW",
   "FILTER",
   "FLAREBOOST",
+  "FLUFFY",
   "MARVELSCALE",
   "MULTISCALE",
   "NEUROFORCE",
   "PRANKSTER",
   "PRISMARMOR",
+  "PURIFYINGSALT",
   "QUEENLYMAJESTY",
   "RIVALRY",
   "ROCKYPAYLOAD",
@@ -145,6 +147,15 @@ function genderId(pokemon) {
 
 function weatherId(context) {
   return String(context?.effectiveWeather ?? context?.weather ?? "");
+}
+
+function moveMakesContactCanonical(move, context, userAbility) {
+  const raw = typeof context?.contact === "boolean"
+    ? context.contact
+    : (typeof move?.contact === "boolean"
+      ? move.contact
+      : (typeof move?.makes_contact === "boolean" ? move.makes_contact : Boolean(move?.makesContact)));
+  return raw && userAbility !== "LONGREACH";
 }
 
 function pokemonAtFullHp(pokemon) {
@@ -253,6 +264,11 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
   )) finalDamageMultiplier *= 0.75;
   if (userAbility === "SNIPER" && critical) finalDamageMultiplier *= 1.5;
   if (targetAbility === "DRYSKIN" && moveType === "FIRE" && !moldBreaker) finalDamageMultiplier *= 1.25;
+  if (targetAbility === "FLUFFY" && !moldBreaker) {
+    if (moveMakesContactCanonical(move, context, userAbility)) finalDamageMultiplier *= 0.5;
+    if (moveType === "FIRE") finalDamageMultiplier *= 2;
+  }
+  if (targetAbility === "PURIFYINGSALT" && moveType === "GHOST" && !moldBreaker) finalDamageMultiplier *= 0.5;
   const fullHpReduction = FULL_HP_DAMAGE_REDUCTION_ABILITIES[targetAbility];
   if (pokemonAtFullHp(target)
     && fullHpReduction
@@ -327,6 +343,8 @@ export const BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL = Obje
     superEffectiveDamageBoostAbilities: 1,
     superEffectiveDefenseModifier: MOLD_BREAKER_SUPER_EFFECTIVE_REDUCTION_ABILITIES.size + UNBYPASSABLE_SUPER_EFFECTIVE_REDUCTION_ABILITIES.size,
     fullHpDamageReductionAbilities: Object.keys(FULL_HP_DAMAGE_REDUCTION_ABILITIES).length,
+    contactDamageModifierAbilities: 1,
+    typeDamageReductionAbilities: 1,
     criticalDamageModifier: 1,
     targetAccuracyHeldItems: 2,
     typeWeaknessAbilityModifier: 1,
