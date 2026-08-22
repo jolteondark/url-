@@ -22,8 +22,15 @@ assert.match(adapterSource, /setOwnerAwarePhaseInteractive\(byId\(id\), persiste
   "phase locking must preserve the persistence owner's pre-existing disabled state while Battle is active");
 assert.match(adapterSource, /function setPendingReturnMenuLocked\(locked\)/,
   "central RETURN UI must own locking of Party/Bag/Box mutation surfaces after Battle clear");
-assert.match(adapterSource, /setInteractive\(byId\(id\), !locked\)/,
-  "pending RETURN mutation menu lock must be released only when the central checkpoint is no longer pending");
+assert.match(adapterSource, /function setPendingReturnMenuLocked\(locked\) \{[\s\S]*?setOwnerAwarePhaseInteractive\(byId\(id\), !locked\);[\s\S]*?\}/,
+  "pending RETURN Party/Bag/Box lock must preserve each menu owner's pre-existing disabled state instead of blind enabling on release");
+assert.doesNotMatch(
+  adapterSource.slice(
+    adapterSource.indexOf("function setPendingReturnMenuLocked"),
+    adapterSource.indexOf("function setPendingReturnDayBoardLocked"),
+  ),
+  /setInteractive\(/,
+  "pending RETURN Party/Bag/Box lock must not bypass owner-aware disabled-state preservation");
 assert.match(adapterSource, /function setPendingReturnDayBoardLocked\(locked\)/,
   "central RETURN UI must also own the Day Board mutation surface after Battle clear");
 assert.match(adapterSource, /if \(board\) board\.inert = locked/,
