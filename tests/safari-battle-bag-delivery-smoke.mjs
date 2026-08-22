@@ -6,6 +6,7 @@ const loader = await readFile(new URL("../deferred-ui-loader.js", import.meta.ur
 const menu = await readFile(new URL("../game-menu-bridge.js", import.meta.url), "utf8");
 const narration = await readFile(new URL("../battle-presentation-narration.js", import.meta.url), "utf8");
 const fleeAdapter = await readFile(new URL("../battle-dppt-flee-owner-request.js", import.meta.url), "utf8");
+const playable = await readFile(new URL("../runtime/safari-web-playable-integration.js", import.meta.url), "utf8");
 
 assert.match(index, /deferred-ui-loader\.js\?v=20260820-0834/,
   "the public shell must request the refreshed deferred UI loader");
@@ -35,6 +36,13 @@ assert.match(narration, /case "battle_item":/,
   "the shared Battle narration must describe the item event before the foe response");
 assert.doesNotMatch(menu, /battle-menu-presentation\.js/,
   "the deleted stale Battle menu presentation import must not return");
+
+assert.match(playable,
+  /let result = useSafariNormalBattleItem\(runtime, options\);\s*if \(stateOf\(runtime\)\.battle\) result = commitNormalBattleCommand\(runtime, result, "item", commandAttempt\);/s,
+  "Battle Bag must return the central committed resolution rather than the stale pre-orchestrator result");
+assert.match(playable,
+  /let result = attemptSafariNormalCapture\(runtime, options\);[\s\S]*?result = commitSafariBattleResolution\(runtime, result, "capture", \{/,
+  "Capture must return the central committed RESULT/reward snapshot rather than the stale pre-orchestrator result");
 
 const fleeAdapterIndex = index.indexOf("battle-dppt-flee-owner-request.js?v=20260820-1034");
 const commandMenuIndex = index.indexOf("battle-dppt-command-menu.js?v=20260820-0934");

@@ -234,8 +234,8 @@ export async function useSafariBattleItem(runtime, options = {}) {
   if (needsFullBattleIntegration(runtime)) throw new Error("boundary battle item owner is unavailable");
   const commandAttempt = beginNormalBattleCommand(runtime, "item");
   try {
-    const result = useSafariNormalBattleItem(runtime, options);
-    if (stateOf(runtime).battle) commitNormalBattleCommand(runtime, result, "item", commandAttempt);
+    let result = useSafariNormalBattleItem(runtime, options);
+    if (stateOf(runtime).battle) result = commitNormalBattleCommand(runtime, result, "item", commandAttempt);
     publishRuntimeChanged();
     return result;
   } catch (error) {
@@ -249,9 +249,9 @@ export async function attemptSafariCapture(runtime, options = {}) {
   if (stateOf(runtime).battle) {
     const commandAttempt = beginNormalBattleCommand(runtime, "capture");
     try {
-      const result = attemptSafariNormalCapture(runtime, options);
+      let result = attemptSafariNormalCapture(runtime, options);
       if (stateOf(runtime).battle) {
-        commitSafariBattleResolution(runtime, result, "capture", {
+        result = commitSafariBattleResolution(runtime, result, "capture", {
           commandAttempt,
           rewardGrowthCommit: (current) => {
             let committed = current;
