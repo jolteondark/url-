@@ -5,8 +5,11 @@ import {
   resolveActionBeforeAbilityItemHookCanonical,
   resolveSurvivalAbilityItemHookCanonical,
   resolveSwitchInAbilityItemHookCanonical,
-  resolveTurnEndAbilityItemHookCanonical,
 } from "./battle-core-ability-item-modifiers.js";
+import {
+  BATTLE_ABILITY_ITEM_SHARED_TURN_END_COVERAGE_CANONICAL,
+  resolveSharedBattleAbilityItemTurnEndCanonical,
+} from "./battle-ability-item-turn-end-shared.js";
 import {
   BATTLE_ABILITY_ITEM_ENTRY_EXTENSION_COVERAGE_CANONICAL,
   resolveIntimidateEntryReactionCanonical,
@@ -125,6 +128,7 @@ function combinedCoverageCanonical() {
     ...(BATTLE_TYPE_IMMUNITY_AFTER_EFFECT_COVERAGE_CANONICAL.abilityIds ?? []),
     ...(BATTLE_KO_BOOST_ABILITY_COVERAGE_CANONICAL.abilityIds ?? []),
     ...(BATTLE_WONDER_GUARD_COVERAGE_CANONICAL.abilityIds ?? []),
+    ...(BATTLE_ABILITY_ITEM_SHARED_TURN_END_COVERAGE_CANONICAL.abilityIds ?? []),
     ...(BATTLE_HELD_ITEM_EFFECT_SUPPRESSION_COVERAGE_CANONICAL.abilityIds ?? []),
   ])].sort());
   const itemIds = Object.freeze([...new Set([
@@ -138,6 +142,7 @@ function combinedCoverageCanonical() {
     ...(BATTLE_HIT_REACTIVE_HELD_ITEM_COVERAGE_CANONICAL.itemIds ?? []),
     ...(BATTLE_CONTACT_REACTIVE_COVERAGE_CANONICAL.itemIds ?? []),
     ...(BATTLE_SHELL_BELL_COVERAGE_CANONICAL.itemIds ?? []),
+    ...(BATTLE_ABILITY_ITEM_SHARED_TURN_END_COVERAGE_CANONICAL.itemIds ?? []),
   ])].sort());
   return Object.freeze({
     abilityIds,
@@ -161,6 +166,7 @@ function combinedCoverageCanonical() {
       typeImmunityAfterEffectExtension: BATTLE_TYPE_IMMUNITY_AFTER_EFFECT_COVERAGE_CANONICAL.classificationCounts,
       koBoostAbilityExtension: BATTLE_KO_BOOST_ABILITY_COVERAGE_CANONICAL.classificationCounts,
       wonderGuardExtension: BATTLE_WONDER_GUARD_COVERAGE_CANONICAL.classificationCounts,
+      turnEndSharedExtension: BATTLE_ABILITY_ITEM_SHARED_TURN_END_COVERAGE_CANONICAL.classificationCounts,
     }),
   });
 }
@@ -403,7 +409,7 @@ export function resolveBattleAbilityItemHookCanonical({
     });
   }
   if (phase === "turn_end") {
-    return resolveTurnEndAbilityItemHookCanonical(runtimeUser, context);
+    return resolveSharedBattleAbilityItemTurnEndCanonical({ pokemon: runtimeUser, context });
   }
   return resolveSurvivalAbilityItemHookCanonical({
     target: runtimeTarget,
