@@ -4,7 +4,6 @@ import {
   completeSafariBattlePresentationForSequence,
 } from "./runtime/safari-battle-presentation-ack.js";
 import { captureSafariBattleReplacementCommit } from "./runtime/safari-battle-orchestrator.js";
-import { claimSafariBattleReplacementSubmit } from "./runtime/safari-battle-replacement-submit-gate.js";
 import { replaceSafariBattlePlayer } from "./runtime/safari-web-playable-integration.js";
 
 const REPLACEMENT_PHASE = "REPLACEMENT";
@@ -102,13 +101,6 @@ async function chooseReplacement(button) {
   if (!legal) return;
   const replacementCommitToken = replacementCommitTokens.get(button);
   if (!replacementCommitToken) return;
-
-  try {
-    claimSafariBattleReplacementSubmit(replacementCommitToken);
-  } catch (error) {
-    globalThis.__maplessLastError = error;
-    return;
-  }
 
   if (button instanceof HTMLElement) {
     button.blur();
