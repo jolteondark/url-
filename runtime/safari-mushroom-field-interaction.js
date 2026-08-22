@@ -1,6 +1,9 @@
 import { resolveMushroomField } from "./mapless-normal-events-a1-flow.js";
 import { maplessCarryMoneyGain } from "./mapless-carry-class-rules.js";
 import { setMoney } from "./bag-economy-mart-flow.js";
+import { healSafariPokemonFull, inflictSafariOverworldStatus } from "./safari-pokemon-healing.js";
+import { safariPokemonTypes } from "./safari-pokemon-type-membership.js";
+import { updatePokemonRuntime } from "./pokemon-runtime.js";
 
 function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
@@ -8,8 +11,35 @@ function stateOf(runtime) {
   return state;
 }
 function scalingValue(day) { return Math.max(Math.floor((Math.max(1, Number(day) || 1) - 1) / 5), 0); }
+function usable(pokemon) { return Boolean(pokemon) && Number(pokemon.hp ?? 0) > 0 && pokemon.egg !== true; }
+function party(runtime) { return runtime.player?.party ?? []; }
+function firstPoisonAppraiser(runtime) { return party(runtime).find((pokemon) => usable(pokemon) && safariPokemonTypes(pokemon).includes("POISON")) ?? null; }
+function parsedAction(action) {
+  const raw = String(action ?? "");
+  const match = /^(eat|poison):(\d+)$/.exec(raw);
+  return match ? { action: match[1], targetIndex: Number(match[2]) } : { action: raw, targetIndex: null };
+}
+function pokemonLabel(pokemon) { return String(pokemon?.nickname || pokemon?.species || "ポケモン"); }
+function applyFlatDamage(pokemon, amount) {
+  const hp = Math.max(0, Math.trunc(Number(pokemon?.hp ?? 0)) - Math.max(0, Math.trunc(Number(amount) || 0)));
+  return updatePokemonRuntime(pokemon, { hp });
+}
+function applyMaplessBonus(pokemon, stat, amount) {
+  const key = String(stat ?? "").toUpperCase();
+  const delta = Math.trunc(Number(amount) || 0);
+  const bonuses = { ...(pokemon.mapless_bonus_stats ?? {}) };
+  bonuses[key] = Math.max(0, Math.trunc(Number(bonuses[key] ?? 0)) + delta);
+  const patch = { mapless_bonus_stats: bonuses };
+  if (key === "HP" && Number.isInteger(pokemon.max_hp)) {
+    patch.max_hp = Math.max(1, pokemon.max_hp + delta);
+    patch.hp = Math.min(patch.max_hp, Math.max(0, Math.trunc(Number(pokemon.hp ?? 0)) + Math.max(delta, 0)));
+  } else if (pokemon.stats && Object.prototype.hasOwnProperty.call(pokemon.stats, key)) {
+    patch.stats = { ...pokemon.stats, [key]: Math.max(1, Math.trunc(Number(pokemon.stats[key] ?? 0)) + delta) };
+  }
+  return updatePokemonRuntime(pokemon, patch);
+}
 
-export function resolveSafariMushroomFieldInteraction(runtime, index, action) {
+export function resolveSafariMushroomFieldInteraction(runtime, index, requestedAction) {
   const state = stateOf(runtime);
   const event = state.board_events?.[index];
   if (!event || event.kind !== "normal_event" || event.normal_event_id !== "mushroom_field") throw new Error("mushroom_field board event is required");
@@ -19,10 +49,24 @@ export function resolveSafariMushroomFieldInteraction(runtime, index, action) {
 
   state.board_revealed[index] = true;
   state.board_visited[index] = true;
+  const parsed = parsedAction(requestedAction);
+  const target = parsed.targetIndex == null ? null : party(runtime)[parsed.targetIndex] ?? null;
+  if ((parsed.action === "eat" || parsed.action === "poison") && !usable(target)) {
+    state.notice = "そのポケモンにはキノコを食べさせられません。";
+    return { runtime, result: "target_unavailable", completed: false, operations: [], notice: state.notice, persistenceRequested: false };
+  }
+  const appraiser = parsed.action === "poison" ? firstPoisonAppraiser(runtime) : null;
   const scale = scalingValue(state.day);
-  const owner = resolveMushroomField({ event, action, scaling_value: scale });
+  const owner = resolveMushroomField({
+    event,
+    action: parsed.action,
+    scaling_value: scale,
+    has_poison: Boolean(firstPoisonAppraiser(runtime)),
+    appraiser_pokemon: appraiser,
+    target_pokemon: target,
+  });
   const applied = [];
-  if (owner.result && action === "sell") {
+  if (owner.result && parsed.action === "sell") {
     const requested = owner.operations.find((operation) => operation.op === "add_money")?.amount ?? 0;
     const carryClass = state.mapless_carry_class ?? "general";
     const adjusted = maplessCarryMoneyGain(requested, carryClass);
@@ -31,12 +75,41 @@ export function resolveSafariMushroomFieldInteraction(runtime, index, action) {
     runtime.bag.money = setMoney(before + adjusted, 9999999);
     applied.push({ op: "runtime_add_money", source: "normal_event:mushroom_field", requested, adjusted, carryClass, applied: runtime.bag.money - before });
   }
+  if (owner.result && parsed.targetIndex != null) {
+    for (const operation of owner.operations ?? []) {
+      if (operation.op === "add_bonus") {
+        party(runtime)[parsed.targetIndex] = applyMaplessBonus(party(runtime)[parsed.targetIndex], operation.stat, operation.amount);
+        applied.push({ op: "runtime_add_bonus", party_index: parsed.targetIndex, stat: operation.stat, amount: operation.amount });
+      } else if (operation.op === "heal_pokemon_full") {
+        party(runtime)[parsed.targetIndex] = healSafariPokemonFull(party(runtime)[parsed.targetIndex]);
+        applied.push({ op: "runtime_heal_pokemon_full", party_index: parsed.targetIndex });
+      } else if (operation.op === "inflict_status") {
+        party(runtime)[parsed.targetIndex] = inflictSafariOverworldStatus(party(runtime)[parsed.targetIndex], operation.status);
+        applied.push({ op: "runtime_inflict_status", party_index: parsed.targetIndex, status: operation.status });
+      } else if (operation.op === "damage_pokemon") {
+        party(runtime)[parsed.targetIndex] = applyFlatDamage(party(runtime)[parsed.targetIndex], operation.amount);
+        applied.push({ op: "runtime_damage_pokemon", party_index: parsed.targetIndex, amount: operation.amount });
+      }
+    }
+  }
   state.board_events[index] = owner.event;
   state.board_consumed[index] = Boolean(owner.event.normal_resolved);
   state.last_operations = [...(owner.operations ?? []).map((operation) => structuredClone(operation)), ...applied];
+  const label = pokemonLabel(target);
+  const stat = String(event.normal_data?.eat_stat ?? "能力");
   state.notice = owner.outcome === "sold"
     ? `怪しいキノコを売り、${applied[0]?.applied ?? 0}円を得ました。`
-    : "怪しいキノコ畑から離れました。";
+    : owner.outcome === "poison_appraised_bonus"
+      ? `どくタイプが安全なキノコを見分け、${label}の${stat}が1上がりました。`
+      : owner.outcome === "eat_bonus"
+        ? `${label}がキノコを食べ、${stat}が1上がりました。`
+        : owner.outcome === "eat_heal"
+          ? `${label}がキノコを食べ、全回復しました。`
+          : owner.outcome === "eat_status"
+            ? `${label}がキノコを食べ、状態異常になりました。`
+            : owner.outcome === "eat_damage"
+              ? `${label}がキノコを食べ、25ダメージを受けました。`
+              : "怪しいキノコ畑から離れました。";
   return { runtime, result: owner.outcome, completed: Boolean(owner.result), operations: state.last_operations, notice: state.notice, persistenceRequested: Boolean(owner.result), owner };
 }
 
