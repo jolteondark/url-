@@ -4,6 +4,7 @@ import {
   SAFARI_BATTLE_PHASE,
   abortSafariBattleCommand,
   beginSafariBattleCommand,
+  captureSafariBattleReplacementCommit,
   commitSafariBattleResolution,
   completeSafariBattleReplacement,
   ensureSafariBattleOrchestrator,
@@ -37,6 +38,24 @@ function reserveKoResult() {
       commits: [{ deferred: true, operations: [], battleExpInput: {} }],
     },
   };
+}
+
+function enterPlayerReplacement(rt) {
+  const battle = rt.variables.mapless.battle;
+  battle.player_replacement_required = true;
+  battle.player_party_index = 0;
+  ensureSafariBattleOrchestrator(rt);
+  beginSafariBattleCommand(rt, "move");
+  commitSafariBattleResolution(rt, {
+    decision: 0,
+    playerReplacementRequired: true,
+    operations: [
+      { op: "use_move", actor: "foe" },
+      { op: "faint", target: "player" },
+    ],
+  }, "move");
+  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.REPLACEMENT);
+  return battle;
 }
 
 {
@@ -171,20 +190,8 @@ function reserveKoResult() {
 
 {
   const rt = runtime();
-  const battle = rt.variables.mapless.battle;
-  battle.player_replacement_required = true;
-  battle.player_party_index = 0;
-  ensureSafariBattleOrchestrator(rt);
-  beginSafariBattleCommand(rt, "move");
-  commitSafariBattleResolution(rt, {
-    decision: 0,
-    playerReplacementRequired: true,
-    operations: [
-      { op: "use_move", actor: "foe" },
-      { op: "faint", target: "player" },
-    ],
-  }, "move");
-  assert.equal(battle.phase, SAFARI_BATTLE_PHASE.REPLACEMENT);
+  const battle = enterPlayerReplacement(rt);
+  const replacementCommitToken = captureSafariBattleReplacementCommit(rt, "player");
   let playerCommits = 0;
   const completed = completeSafariBattleReplacement(rt, {
     result: "replacement_selected",
@@ -192,6 +199,7 @@ function reserveKoResult() {
     playerReplacementApplied: false,
     operations: [{ op: "send_out", actor: "player" }],
   }, {
+    replacementCommitToken,
     replacementCommit(current) {
       playerCommits += 1;
       assert.equal(battle.phase, SAFARI_BATTLE_PHASE.REPLACEMENT,
@@ -220,20 +228,14 @@ function reserveKoResult() {
 
 {
   const rt = runtime();
-  const battle = rt.variables.mapless.battle;
-  battle.player_replacement_required = true;
-  ensureSafariBattleOrchestrator(rt);
-  beginSafariBattleCommand(rt, "move");
-  commitSafariBattleResolution(rt, {
-    decision: 0,
-    playerReplacementRequired: true,
-    operations: [{ op: "faint", target: "player" }],
-  }, "move");
+  const battle = enterPlayerReplacement(rt);
+  const replacementCommitToken = captureSafariBattleReplacementCommit(rt, "player");
   let attempts = 0;
   assert.throws(() => completeSafariBattleReplacement(rt, {
     result: "replacement_selected",
     playerReplacementRequired: true,
   }, {
+    replacementCommitToken,
     replacementCommit() {
       attempts += 1;
       throw new Error("player replacement exploded:test");
@@ -247,6 +249,7 @@ function reserveKoResult() {
     result: "replacement_selected",
     playerReplacementRequired: true,
   }, {
+    replacementCommitToken,
     replacementCommit() {
       attempts += 1;
       return { playerReplacementRequired: false, playerReplacementApplied: true };
@@ -254,6 +257,72 @@ function reserveKoResult() {
   }), /replacement checkpoint is incomplete and cannot be replayed/);
   assert.equal(attempts, 1,
     "partially failed player replacement must fail closed instead of mutating Party twice");
+}
+
+{
+  const rtA = runtime();
+  const battleA = enterPlayerReplacement(rtA);
+  const tokenA = captureSafariBattleReplacementCommit(rtA, "player");
+  const rtB = runtime();
+  const battleB = enterPlayerReplacement(rtB);
+  const tokenB = captureSafariBattleReplacementCommit(rtB, "player");
+  let commits = 0;
+
+  assert.equal(battleA.command_sequence, battleB.command_sequence,
+    "cross-Battle regression must reuse the same command sequence to prove Battle identity is required");
+  const traceLength = battleB.phase_trace.length;
+  assert.throws(() => completeSafariBattleReplacement(rtB, {
+    result: "replacement_selected",
+    playerReplacementRequired: true,
+  }, {
+    replacementCommitToken: tokenA,
+    replacementCommit() {
+      commits += 1;
+      battleB.player_replacement_required = false;
+      return { playerReplacementRequired: false, playerReplacementApplied: true };
+    },
+  }), /different battle instance/);
+  assert.equal(commits, 0,
+    "stale replacement capability must fail before the Party/switch owner mutates state");
+  assert.equal(battleB.phase, SAFARI_BATTLE_PHASE.REPLACEMENT);
+  assert.equal(battleB.replacement_checkpoint, null,
+    "stale replacement capability must not create a replacement commit checkpoint");
+  assert.equal(battleB.phase_trace.length, traceLength,
+    "stale replacement capability must not advance central phases");
+
+  const forged = {
+    battle: battleB,
+    battleInstanceSequence: battleB.orchestrator_battle_instance_sequence,
+    resolutionCheckpoint: battleB.resolution_checkpoint,
+    sequence: battleB.command_sequence,
+    side: "player",
+  };
+  assert.throws(() => completeSafariBattleReplacement(rtB, {
+    result: "replacement_selected",
+    playerReplacementRequired: true,
+  }, {
+    replacementCommitToken: forged,
+    replacementCommit() {
+      commits += 1;
+      return { playerReplacementRequired: false, playerReplacementApplied: true };
+    },
+  }), /token issued by the central orchestrator/);
+  assert.equal(commits, 0,
+    "field-equivalent ad-hoc capability must not bypass central issuance");
+
+  const completed = completeSafariBattleReplacement(rtB, {
+    result: "replacement_selected",
+    playerReplacementRequired: true,
+  }, {
+    replacementCommitToken: tokenB,
+    replacementCommit(current) {
+      commits += 1;
+      battleB.player_replacement_required = false;
+      return { ...current, playerReplacementRequired: false, playerReplacementApplied: true };
+    },
+  });
+  assert.equal(commits, 1);
+  assert.equal(completed.playerReplacementApplied, true);
 }
 
 console.log("safari central trainer/player replacement commit smoke: PASS");
