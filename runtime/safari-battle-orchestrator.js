@@ -784,6 +784,21 @@ export function completeSafariBattleReplacement(runtime, result = {}, {
     throw new Error(`battle replacement is unavailable during ${phase}`);
   }
   validateReplacementCommitToken(battle, replacementCommitToken, "player");
+  const committedReplacement = battle.replacement_checkpoint;
+  const committedResolution = battle.resolution_checkpoint;
+  if (
+    battle.player_replacement_required !== true &&
+    committedReplacement?.side === "player" &&
+    committedReplacement?.committed === true
+  ) {
+    if (!committedResolution?.committedResult) {
+      throw new Error("committed player replacement snapshot is missing");
+    }
+    const replay = structuredClone(committedResolution.committedResult);
+    replay.phase = battle.phase;
+    replay.phaseTrace = structuredClone(battle.phase_trace ?? []);
+    return replay;
+  }
   if (battle.player_replacement_required) {
     result = commitReplacementCheckpoint(battle, result, replacementCommit, "player replacement", "player");
   }
