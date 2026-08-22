@@ -99,8 +99,8 @@ function setOwnerAwarePhaseInteractive(element, enabled) {
 
 function releaseOwnerAwarePhaseLock(element) {
   if (!element) return;
-  element.inert = false;
   if (element.dataset.battlePhaseLocked !== "true") return;
+  element.inert = false;
   delete element.dataset.battlePhaseLocked;
   delete element.dataset.battleOwnerDisabled;
 }
