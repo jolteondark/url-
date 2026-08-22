@@ -25,6 +25,18 @@ function scalingValue(day) {
   return Math.max(Math.floor((Math.max(1, Number(day) || 1) - 1) / 5), 0);
 }
 
+function usableParty(runtime) {
+  return (runtime.player?.party ?? [])
+    .map((pokemon, index) => ({ pokemon, index }))
+    .filter(({ pokemon }) => Boolean(pokemon) && Number(pokemon.hp ?? 0) > 0 && pokemon.egg !== true);
+}
+
+function pokemonLabel(pokemon) {
+  const name = String(pokemon?.nickname || pokemon?.species || "ポケモン");
+  const level = Number(pokemon?.level);
+  return Number.isFinite(level) ? `${name} Lv.${level}` : name;
+}
+
 function woundedDefinition(runtime, index) {
   const state = stateOf(runtime);
   let candidate;
@@ -74,7 +86,25 @@ function definition(runtime, eventId, index) {
   if (eventId === "mushroom_field") {
     const nominal = 400 + scale * 120;
     const amount = maplessCarryMoneyGain(nominal, state.mapless_carry_class ?? "general");
-    return { title:"怪しいキノコ畑", message:`採取したキノコは${amount}円で売れそうです。`, actions:[{id:"sell",label:"採取して売る",meta:`+${amount}円`},{id:"leave",label:"立ち去る",secondary:true}] };
+    const targets = usableParty(runtime);
+    const poison = hasSafariUsablePartyType(runtime, "POISON");
+    const actions = [];
+    for (const { pokemon, index: partyIndex } of targets) {
+      actions.push({ id:`eat:${partyIndex}`, label:`${pokemonLabel(pokemon)}に食べさせる`, meta:"能力上昇・回復・状態異常・ダメージの可能性" });
+    }
+    if (poison) {
+      for (const { pokemon, index: partyIndex } of targets) {
+        actions.push({ id:`poison:${partyIndex}`, label:`鑑定して${pokemonLabel(pokemon)}に食べさせる`, meta:"どくタイプが安全判定 · 能力+1" });
+      }
+    }
+    actions.push({id:"sell",label:"採取して売る",meta:`+${amount}円`},{id:"leave",label:"立ち去る",secondary:true});
+    return {
+      title:"怪しいキノコ畑",
+      message: poison
+        ? `怪しいキノコが群生しています。どくタイプなら安全なものを見分けられそうです。売れば${amount}円です。`
+        : `怪しいキノコが群生しています。食べるか、${amount}円で売るか選べます。`,
+      actions,
+    };
   }
   if (eventId === "hot_spring") {
     const actions = [];
