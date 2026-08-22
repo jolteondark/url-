@@ -306,7 +306,7 @@ function resolveCommandKindForCommit(battle, result, commandKind) {
   return battle.pending_command_kind ?? "command";
 }
 
-function bindResolutionToPendingCommand(battle, result) {
+function validateResolutionAgainstPendingCommand(battle, result) {
   const sequence = resolutionCheckpointSequence(battle);
   const battleInstanceSequence = ensureBattleInstanceSequence(battle);
   const taggedBattle = resultBattleInstanceSequence(result);
@@ -319,6 +319,11 @@ function bindResolutionToPendingCommand(battle, result) {
   if (tagged != null && tagged !== sequence) {
     throw new Error(`stale battle resolution belongs to command sequence ${tagged}; current command sequence is ${sequence}`);
   }
+  return { sequence, battleInstanceSequence };
+}
+
+function bindResolutionToPendingCommand(battle, result) {
+  const { sequence, battleInstanceSequence } = validateResolutionAgainstPendingCommand(battle, result);
   if (result && typeof result === "object") {
     result.orchestratorBattleInstanceSequence = battleInstanceSequence;
     result.orchestratorCommandSequence = sequence;
@@ -516,10 +521,11 @@ export function commitSafariBattleResolution(runtime, result, commandKind = null
   }
   requirePendingCommandProvenance(battle, resolvedCommandKind);
 
-  bindResolutionToPendingCommand(battle, result);
   if (result?.turnConsumed === false) {
+    validateResolutionAgainstPendingCommand(battle, result);
     return rejectUnconsumedCommand(battle, result, resolvedCommandKind);
   }
+  bindResolutionToPendingCommand(battle, result);
 
   const resolutionCheckpoint = beginResolutionCheckpoint(battle, resolvedCommandKind);
   const terminalResolution = decision !== 0;
