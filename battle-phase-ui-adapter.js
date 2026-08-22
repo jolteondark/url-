@@ -150,7 +150,7 @@ export function applySafariBattlePhaseUi() {
   const commandAllowed = phase === COMMAND_PHASE;
   const replacementAllowed = phase === REPLACEMENT_PHASE;
   const resultReady = phase === RESULT_PHASE;
-  const persistenceAllowed = commandAllowed || resultReady;
+  const persistenceAllowed = commandAllowed;
 
   const turn = byId("turn");
   if (turn) turn.textContent = phaseLabel(currentBattle, phase, Number(currentBattle.turn ?? 1));
@@ -218,7 +218,7 @@ function shouldAllowBattleClick(target, currentBattle = battle()) {
   const phase = phaseOf(currentBattle);
   if (target.closest("#new-run")) return false;
   if (target.closest("#return-board")) return phase === RESULT_PHASE;
-  if (target.closest("#save-run,#continue-run")) return phase === COMMAND_PHASE || phase === RESULT_PHASE;
+  if (target.closest("#save-run,#continue-run")) return phase === COMMAND_PHASE;
   if (target.closest("#menu-party,#menu-bag,#menu-box")) return phase === COMMAND_PHASE;
   if (target.closest("button[data-player-replacement-party-index]")) return phase === REPLACEMENT_PHASE;
   if (target.closest("#moves button[data-move-id],#capture,#flee,button[data-bag-use-item]")) return phase === COMMAND_PHASE;
