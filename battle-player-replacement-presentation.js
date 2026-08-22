@@ -91,6 +91,7 @@ function syncReplacementUi() {
   grid.replaceChildren(...options.map((option) => replacementButton(option, replacementCommitToken)));
   panel.replaceChildren(heading, grid);
   globalThis.__maplessApplyBattlePhaseUi?.();
+  window.dispatchEvent(new CustomEvent("safari-player-replacement-rendered"));
 }
 
 async function chooseReplacement(button) {
