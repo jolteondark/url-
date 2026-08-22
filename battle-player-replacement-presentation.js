@@ -9,6 +9,7 @@ import { replaceSafariBattlePlayer } from "./runtime/safari-web-playable-integra
 const REPLACEMENT_PHASE = "REPLACEMENT";
 const byId = (id) => document.getElementById(id);
 const replacementCommitTokens = new WeakMap();
+let replacementSelecting = false;
 
 function battleState() {
   return globalThis.__maplessSafariRuntime?.variables?.mapless?.battle ?? null;
@@ -46,7 +47,7 @@ function replacementButton(option, replacementCommitToken) {
   const button = document.createElement("button");
   button.type = "button";
   button.dataset.playerReplacementPartyIndex = String(option.partyIndex);
-  button.disabled = !replacementActive();
+  button.disabled = replacementSelecting || !replacementActive();
   replacementCommitTokens.set(button, replacementCommitToken);
 
   const name = document.createElement("strong");
@@ -60,6 +61,7 @@ function replacementButton(option, replacementCommitToken) {
 function syncReplacementUi() {
   const battle = battleState();
   if (!replacementActive(battle)) {
+    replacementSelecting = false;
     clearReplacementUi();
     return;
   }
@@ -92,7 +94,7 @@ function syncReplacementUi() {
 }
 
 async function chooseReplacement(button) {
-  if (!replacementActive()) return;
+  if (replacementSelecting || !replacementActive()) return;
   const battle = battleState();
   const partyIndex = Number(button.dataset.playerReplacementPartyIndex);
   const legal = replacementOptions(battle)
@@ -101,6 +103,7 @@ async function chooseReplacement(button) {
   const replacementCommitToken = replacementCommitTokens.get(button);
   if (!replacementCommitToken) return;
 
+  replacementSelecting = true;
   if (button instanceof HTMLElement) {
     button.blur();
     button.disabled = true;
@@ -123,13 +126,14 @@ async function chooseReplacement(button) {
   } catch (error) {
     globalThis.__maplessLastError = error;
   } finally {
+    replacementSelecting = false;
     queueMicrotask(syncReplacementUi);
   }
 }
 
 byId("battle-card")?.addEventListener("click", (event) => {
   const replacement = event.target.closest("button[data-player-replacement-party-index]");
-  if (!replacement || replacement.disabled || !replacementActive()) return;
+  if (!replacement || replacementSelecting || replacement.disabled || !replacementActive()) return;
   event.preventDefault();
   event.stopImmediatePropagation();
   void chooseReplacement(replacement);
