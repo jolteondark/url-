@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createSafariPlayableRuntime } from "../runtime/safari-web-startup.js";
 import { activateSafariDayBoardCell } from "../runtime/safari-pokemon-center-command.js";
 import { resolveSafariHotSpringInteraction } from "../runtime/safari-hot-spring-interaction.js";
+import { openSafariNormalEventTouch } from "../runtime/safari-normal-event-touch-handoff.js";
 
 function runtimeFor(seed) {
   const runtime = createSafariPlayableRuntime();
@@ -39,6 +40,32 @@ assert.equal(burnResult.result, "enter_burn");
 assert.equal(burned.player.party[0].hp, 5);
 assert.equal(burned.player.party[0].status, "BURN");
 
+const safe = runtimeFor(12345);
+safe.player.party[0].types = ["WATER"];
+safe.player.party[0].status = "POISON";
+safe.player.party[0].moves[0].pp = 1;
+const originalDocumentForSafe = globalThis.document;
+globalThis.document = {};
+try {
+  const ready = openSafariNormalEventTouch(safe, 0);
+  assert.deepEqual(ready.availableActions, ["safe", "enter", "leave"]);
+} finally {
+  globalThis.__maplessNormalEventUi = null;
+  if (originalDocumentForSafe === undefined) delete globalThis.document;
+  else globalThis.document = originalDocumentForSafe;
+}
+const safeResult = resolveSafariHotSpringInteraction(safe, 0, "safe");
+assert.equal(safeResult.roll, null, "safe route must not consume the random enter roll");
+assert.equal(safeResult.result, "safe_full_heal");
+assert.equal(safe.player.party[0].hp, 28);
+assert.equal(safe.player.party[0].status, "NONE");
+assert.equal(safe.player.party[0].moves[0].pp, 35);
+assert.equal(safe.variables.mapless.board_consumed[0], true);
+
+const unsafe = runtimeFor(0);
+assert.equal(resolveSafariHotSpringInteraction(unsafe, 0, "safe").completed, false, "safe route must remain unavailable without a usable WATER/ICE party member");
+assert.equal(unsafe.variables.mapless.board_consumed[0], false);
+
 const originalConfirm = globalThis.confirm;
 try {
   globalThis.confirm = () => false;
@@ -53,4 +80,4 @@ try {
   else globalThis.confirm = originalConfirm;
 }
 
-console.log("Safari Hot Spring Board canonical Ruby-roll heal/full-heal/burn/leave vertical: ok");
+console.log("Safari Hot Spring Board canonical enter/safe/leave vertical: ok");
