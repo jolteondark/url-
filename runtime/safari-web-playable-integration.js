@@ -18,6 +18,7 @@ import {
   beginSafariBattleReturn,
   captureSafariBattleCommandAttempt,
   captureSafariBattleReplacementCommit,
+  captureSafariBattleReturnAttempt,
   commitSafariBattleResolution,
   completeSafariBattleReplacement,
   completeSafariBattleReturn,
@@ -276,7 +277,11 @@ export async function attemptSafariCapture(runtime, options = {}) {
 export async function returnSafariToDayBoard(runtime) {
   const wasBoundary = needsFullBattleIntegration(runtime);
   const normalBattleReturn = !wasBoundary && Boolean(stateOf(runtime).battle);
-  if (normalBattleReturn) beginSafariBattleReturn(runtime);
+  let returnAttempt = null;
+  if (normalBattleReturn) {
+    beginSafariBattleReturn(runtime);
+    returnAttempt = captureSafariBattleReturnAttempt(runtime);
+  }
   let result;
   try {
     if (wasBoundary) {
@@ -287,10 +292,10 @@ export async function returnSafariToDayBoard(runtime) {
       result = await (await full()).returnSafariToDayBoard(runtime);
     }
   } catch (error) {
-    if (normalBattleReturn) abortSafariBattleReturn(runtime, `return failed:${error?.message ?? error}`);
+    if (normalBattleReturn) abortSafariBattleReturn(runtime, `return failed:${error?.message ?? error}`, { returnAttempt });
     throw error;
   }
-  if (normalBattleReturn) completeSafariBattleReturn(runtime, result);
+  if (normalBattleReturn) completeSafariBattleReturn(runtime, result, { returnAttempt });
   globalThis.__maplessSafariRuntime = runtime;
   publishRuntimeChanged();
   return result;
