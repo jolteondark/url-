@@ -45,6 +45,11 @@ assert.match(adapterSource, /pendingBattleReturnCommit\(\) && target\.closest\("
   "capture-phase click guard must reject runtime replacement, persistence, menus, Day Board cells, and village entry while RETURN save is pending after Battle clear");
 assert.match(adapterSource, /function releaseOwnerAwarePhaseLock\(element\)/,
   "Battle clear must have a distinct phase-lock release path");
+assert.match(
+  adapterSource,
+  /function releaseOwnerAwarePhaseLock\(element\) \{\s*if \(!element\) return;\s*if \(element\.dataset\.battlePhaseLocked !== "true"\) return;\s*element\.inert = false;/,
+  "Battle clear must not clear another UI owner's inert state when the element was never Battle-phase locked",
+);
 assert.match(adapterSource, /function releaseBattlePersistenceLocks\(\)/,
   "central phase UI must release persistence locks only after RETURN persistence has completed");
 assert.match(adapterSource, /function releaseBattleCommandLocks\(\)/,
