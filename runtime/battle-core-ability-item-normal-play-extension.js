@@ -69,9 +69,11 @@ const EXTENSION_ABILITY_IDS = Object.freeze([
   "FLAREBOOST",
   "MARVELSCALE",
   "MULTISCALE",
+  "NEUROFORCE",
   "PRANKSTER",
   "PRISMARMOR",
   "QUEENLYMAJESTY",
+  "RIVALRY",
   "ROCKYPAYLOAD",
   "SANDFORCE",
   "SANDRUSH",
@@ -134,6 +136,13 @@ function speciesId(pokemon) {
   return id(pokemon?.species);
 }
 
+function genderId(pokemon) {
+  const value = pokemon?.gender;
+  if (value === 0 || ["M", "MALE"].includes(id(value))) return "MALE";
+  if (value === 1 || ["F", "FEMALE"].includes(id(value))) return "FEMALE";
+  return null;
+}
+
 function weatherId(context) {
   return String(context?.effectiveWeather ?? context?.weather ?? "");
 }
@@ -157,6 +166,8 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
   const targetItem = itemId(target);
   const userSpecies = speciesId(user);
   const targetSpecies = speciesId(target);
+  const userGender = genderId(user);
+  const targetGender = genderId(target);
   const category = moveCategory(move);
   const weather = weatherId(context);
   const moveType = id(move?.type);
@@ -230,10 +241,12 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
   if (userAbility === "FLAREBOOST" && category === "Special" && userStatus === "BURN") powerMultiplier *= 1.5;
   const abilityTypeBoost = ABILITY_TYPE_POWER_BOOSTS[userAbility];
   if (abilityTypeBoost?.type === moveType) powerMultiplier *= abilityTypeBoost.multiplier;
+  if (userAbility === "RIVALRY" && userGender && targetGender) powerMultiplier *= userGender === targetGender ? 1.25 : 0.75;
 
   let finalDamageMultiplier = 1;
   if (userAbility === "TINTEDLENS" && typeMod > 0 && typeMod < 1) finalDamageMultiplier *= 2;
   if (userItem === "EXPERTBELT" && typeMod > 1) finalDamageMultiplier *= 1.2;
+  if (userAbility === "NEUROFORCE" && typeMod > 1) finalDamageMultiplier *= 1.25;
   if (typeMod > 1 && (
     (MOLD_BREAKER_SUPER_EFFECTIVE_REDUCTION_ABILITIES.has(targetAbility) && !moldBreaker)
     || UNBYPASSABLE_SUPER_EFFECTIVE_REDUCTION_ABILITIES.has(targetAbility)
@@ -310,7 +323,8 @@ export const BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL = Obje
     typeBoostHeldItems: Object.keys(TYPE_BOOST_ITEMS).length,
     categoryBoostHeldItems: 2,
     speciesSpecificStatHeldItems: SPECIES_SPECIFIC_STAT_ITEMS.length,
-    superEffectiveOffenseModifier: 2,
+    superEffectiveOffenseModifier: 3,
+    superEffectiveDamageBoostAbilities: 1,
     superEffectiveDefenseModifier: MOLD_BREAKER_SUPER_EFFECTIVE_REDUCTION_ABILITIES.size + UNBYPASSABLE_SUPER_EFFECTIVE_REDUCTION_ABILITIES.size,
     fullHpDamageReductionAbilities: Object.keys(FULL_HP_DAMAGE_REDUCTION_ABILITIES).length,
     criticalDamageModifier: 1,
@@ -320,6 +334,7 @@ export const BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL = Obje
     lowHpAttackPenaltyAbilities: 1,
     statusPowerBoostAbilities: 2,
     typePowerBoostAbilities: Object.keys(ABILITY_TYPE_POWER_BOOSTS).length,
+    genderPowerModifierAbilities: 1,
     typeResistBerryHeldItems: BATTLE_TYPE_RESIST_BERRY_COVERAGE_CANONICAL.itemCount,
   }),
 });
