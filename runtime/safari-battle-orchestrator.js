@@ -22,6 +22,7 @@ const ACTION_MARKERS = new Set([
 
 const issuedPresentationAckTokens = new WeakSet();
 const issuedCommandAttemptTokens = new WeakSet();
+const issuedReplacementCommitTokens = new WeakSet();
 let nextBattleInstanceSequence = 1;
 
 function stateOf(runtime) {
@@ -709,9 +710,69 @@ export function completeSafariBattlePresentationForSequence(runtime, expectedSeq
   return completeSafariBattlePresentationCheckpoint(runtime);
 }
 
+export function captureSafariBattleReplacementCommit(runtime, side = "player") {
+  const battle = battleOf(runtime);
+  const phase = ensureSafariBattleOrchestrator(runtime);
+  if (phase !== SAFARI_BATTLE_PHASE.REPLACEMENT) {
+    throw new Error(`battle replacement commit capability is unavailable during ${phase}`);
+  }
+  if (String(side) !== "player") {
+    throw new Error(`manual replacement commit capability is unavailable for side ${side}`);
+  }
+  const checkpoint = battle.resolution_checkpoint;
+  if (!checkpoint || checkpoint.committed !== true) {
+    throw new Error("battle replacement commit capability requires a committed resolution checkpoint");
+  }
+  const battleInstanceSequence = ensureBattleInstanceSequence(battle);
+  const sequence = Number(checkpoint.sequence);
+  if (
+    Number(checkpoint.battleInstanceSequence) !== battleInstanceSequence ||
+    sequence !== Number(battle.command_sequence ?? 0)
+  ) {
+    throw new Error("battle replacement commit capability belongs to a stale resolution checkpoint");
+  }
+  const token = Object.freeze({
+    battle,
+    battleInstanceSequence,
+    resolutionCheckpoint: checkpoint,
+    sequence,
+    side: "player",
+  });
+  issuedReplacementCommitTokens.add(token);
+  return token;
+}
+
+function validateReplacementCommitToken(battle, token, side = "player") {
+  if (!token || typeof token !== "object" || !issuedReplacementCommitTokens.has(token)) {
+    throw new Error("battle replacement completion requires a token issued by the central orchestrator");
+  }
+  if (token.battle !== battle) {
+    throw new Error("stale battle replacement completion belongs to a different battle instance");
+  }
+  const battleInstanceSequence = ensureBattleInstanceSequence(battle);
+  if (Number(token.battleInstanceSequence) !== battleInstanceSequence) {
+    throw new Error("stale battle replacement completion belongs to a different battle instance sequence");
+  }
+  if (String(token.side) !== String(side)) {
+    throw new Error(`battle replacement completion side ${token.side} does not match ${side}`);
+  }
+  const checkpoint = battle.resolution_checkpoint;
+  if (!checkpoint || token.resolutionCheckpoint !== checkpoint || checkpoint.committed !== true) {
+    throw new Error("stale battle replacement completion belongs to a different resolution checkpoint");
+  }
+  if (
+    Number(token.sequence) !== Number(checkpoint.sequence) ||
+    Number(token.sequence) !== Number(battle.command_sequence ?? 0)
+  ) {
+    throw new Error("stale battle replacement completion belongs to a different command sequence");
+  }
+  return token;
+}
+
 export function completeSafariBattleReplacement(runtime, result = {}, {
   rewardGrowthCommit = null,
   replacementCommit = null,
+  replacementCommitToken = null,
 } = {}) {
   const battle = battleOf(runtime);
   const incompleteGrowth = incompleteRewardGrowthError(battle);
@@ -722,6 +783,7 @@ export function completeSafariBattleReplacement(runtime, result = {}, {
   if (phase !== SAFARI_BATTLE_PHASE.REPLACEMENT) {
     throw new Error(`battle replacement is unavailable during ${phase}`);
   }
+  validateReplacementCommitToken(battle, replacementCommitToken, "player");
   if (battle.player_replacement_required) {
     result = commitReplacementCheckpoint(battle, result, replacementCommit, "player replacement", "player");
   }
