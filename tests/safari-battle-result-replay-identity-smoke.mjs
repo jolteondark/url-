@@ -195,4 +195,20 @@ assert.deepEqual(state.variables.mapless.battle_return_checkpoint.operations, re
     "player replacement replay must not execute the replacement owner twice");
 }
 
+{
+  const restoredState = runtime();
+  const restoredBattle = restoredState.variables.mapless.battle;
+  restoredBattle.completed = true;
+  restoredBattle.decision = 1;
+  restoredBattle.phase_trace = [
+    { phase: SAFARI_BATTLE_PHASE.RESULT, turn: 1, reason: "saved result boundary", completed: true },
+  ];
+  delete restoredBattle.completed_phase;
+  assert.equal(ensureSafariBattleOrchestrator(restoredState), SAFARI_BATTLE_PHASE.RESULT,
+    "a saved completed Battle with RESULT trace evidence must restore at RESULT");
+  assert.equal(restoredBattle.completed_phase, SAFARI_BATTLE_PHASE.RESULT,
+    "restored RESULT must normalize completed_phase to the central RESULT boundary");
+  assert.equal(restoredBattle.completed, true);
+}
+
 console.log("Safari Battle RESULT replay identity smoke passed");
