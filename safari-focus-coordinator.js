@@ -42,7 +42,7 @@ function clearBattleFocusOutsideInteractivePhase(){
  const battle=byId("battle-card");
  const active=document.activeElement;
  if(!(active instanceof HTMLElement)||!battle?.contains(active))return;
- if(visible(byId("game-menu"))||!s?.battle||!["COMMAND","REPLACEMENT","RESULT"].includes(s.battle.phase))active.blur();
+ if(visible(byId("game-menu"))||!s?.battle||!["COMMAND","REPLACEMENT","RESULT"].includes(s.battle.phase)||!enabled(active))active.blur();
 }
 function settle(options={}){
  const upgradeMenuFallback=options?.upgradeMenuFallback===true;
