@@ -1,7 +1,9 @@
 import { resolvePokemonLevelEvolution } from "./pokemon-level-evolution-runtime.js";
 
 const BATTLE_CRITICAL_HIT_SENTINEL = -2147483600;
-const AFTER_BATTLE_METHOD = "BattleDealCriticalHit";
+const CRITICAL_AFTER_BATTLE_METHOD = "BattleDealCriticalHit";
+const DAMAGE_EVENT_METHOD = "EventAfterDamageTaken";
+const DAMAGE_READY_THRESHOLD = 49;
 
 function normalizeEvolution(entry) {
   if (Array.isArray(entry)) {
@@ -22,11 +24,11 @@ function normalizeEvolution(entry) {
   };
 }
 
-function criticalEvolutionEntries(speciesMaster) {
+function evolutionEntries(speciesMaster, method) {
   const entries = [];
   for (const raw of speciesMaster?.evolutions ?? []) {
     const evolution = normalizeEvolution(raw);
-    if (!evolution?.species || evolution.prevolution || evolution.method !== AFTER_BATTLE_METHOD) continue;
+    if (!evolution?.species || evolution.prevolution || evolution.method !== method) continue;
     const required = Number(evolution.parameter);
     if (!Number.isInteger(required) || required < 1) continue;
     entries.push({ ...evolution, parameter: required });
@@ -34,9 +36,9 @@ function criticalEvolutionEntries(speciesMaster) {
   return entries;
 }
 
-function publicCandidate(entry) {
+function publicCandidate(entry, method) {
   if (!entry) return null;
-  return { to: entry.species, method: AFTER_BATTLE_METHOD, parameter: entry.parameter };
+  return { to: entry.species, method, parameter: entry.parameter };
 }
 
 function syntheticEvolution(entry) {
@@ -66,13 +68,13 @@ function relabelResult(result, eligible) {
   if (Number(result?.evolution?.parameter) !== BATTLE_CRITICAL_HIT_SENTINEL) return result;
   const evolution = {
     ...result.evolution,
-    method: AFTER_BATTLE_METHOD,
+    method: CRITICAL_AFTER_BATTLE_METHOD,
     parameter: eligible.parameter,
   };
   const levelEvolutionCandidate = result.levelEvolutionCandidate
     ? {
         ...result.levelEvolutionCandidate,
-        method: AFTER_BATTLE_METHOD,
+        method: CRITICAL_AFTER_BATTLE_METHOD,
         parameter: eligible.parameter,
       }
     : null;
@@ -80,7 +82,7 @@ function relabelResult(result, eligible) {
     operation?.op === "level_evolution" && operation.to === eligible.species
       ? {
           ...operation,
-          method: AFTER_BATTLE_METHOD,
+          method: CRITICAL_AFTER_BATTLE_METHOD,
           parameter: eligible.parameter,
         }
       : operation
@@ -93,9 +95,41 @@ function relabelResult(result, eligible) {
   };
 }
 
+function applyDamageEventReadyState(runtime, sourceMaster, directDamageTaken) {
+  const entries = evolutionEntries(sourceMaster, DAMAGE_EVENT_METHOD);
+  const candidate = entries[0] ?? null;
+  const damage = Math.max(0, Math.trunc(Number(directDamageTaken) || 0));
+  if (!candidate || damage < DAMAGE_READY_THRESHOLD) {
+    return {
+      pokemon: runtime,
+      candidate: publicCandidate(candidate, DAMAGE_EVENT_METHOD),
+      operation: null,
+    };
+  }
+  if (runtime?.ready_to_evolve === true) {
+    return {
+      pokemon: runtime,
+      candidate: publicCandidate(candidate, DAMAGE_EVENT_METHOD),
+      operation: null,
+    };
+  }
+  return {
+    pokemon: { ...runtime, ready_to_evolve: true },
+    candidate: publicCandidate(candidate, DAMAGE_EVENT_METHOD),
+    operation: {
+      op: "set_ready_to_evolve",
+      method: DAMAGE_EVENT_METHOD,
+      value: true,
+      directDamageTaken: damage,
+      threshold: DAMAGE_READY_THRESHOLD,
+    },
+  };
+}
+
 export function resolvePokemonAfterBattleEvolution(runtime, {
   species_masters,
   critical_hits_dealt = 0,
+  direct_damage_taken = 0,
   ...options
 } = {}) {
   if (!species_masters || typeof species_masters !== "object" || Array.isArray(species_masters)) {
@@ -104,31 +138,46 @@ export function resolvePokemonAfterBattleEvolution(runtime, {
   const sourceMaster = species_masters[runtime?.species];
   if (!sourceMaster) throw new RangeError(`missing species master for ${runtime?.species ?? "unknown species"}`);
 
-  const entries = criticalEvolutionEntries(sourceMaster);
+  // v21.1 EventAfterDamageTaken is an after-battle side effect, not an immediate
+  // evolution. Reaching 49 direct HP damage only arms ready_to_evolve; the later
+  // event trigger still owns the actual species change.
+  const damageReady = applyDamageEventReadyState(runtime, sourceMaster, direct_damage_taken);
+  const preparedRuntime = damageReady.pokemon;
+
+  const entries = evolutionEntries(sourceMaster, CRITICAL_AFTER_BATTLE_METHOD);
   const count = Math.max(0, Math.trunc(Number(critical_hits_dealt) || 0));
   const eligible = entries.find((entry) => count >= entry.parameter) ?? null;
   const candidate = entries[0] ?? null;
 
   if (!eligible) {
     return {
-      pokemon: runtime,
+      pokemon: preparedRuntime,
       evolved: false,
       evolution: null,
-      afterBattleEvolutionCandidate: publicCandidate(candidate),
+      afterBattleEvolutionCandidate: publicCandidate(candidate, CRITICAL_AFTER_BATTLE_METHOD),
+      deferredEventEvolutionCandidate: damageReady.candidate,
       evolutionBlockedBy: null,
-      unsupportedMethods: [],
-      operations: [],
+      unsupportedMethods: damageReady.candidate ? [DAMAGE_EVENT_METHOD] : [],
+      operations: damageReady.operation ? [damageReady.operation] : [],
     };
   }
 
-  const resolved = resolvePokemonLevelEvolution(runtime, {
+  const resolved = resolvePokemonLevelEvolution(preparedRuntime, {
     ...options,
-    species_masters: adaptedSpeciesMasters(species_masters, runtime, eligible),
+    species_masters: adaptedSpeciesMasters(species_masters, preparedRuntime, eligible),
   });
   const relabeled = relabelResult(resolved, eligible);
   return {
     ...relabeled,
-    afterBattleEvolutionCandidate: publicCandidate(eligible),
-    unsupportedMethods: (relabeled.unsupportedMethods ?? []).filter((method) => method !== AFTER_BATTLE_METHOD),
+    afterBattleEvolutionCandidate: publicCandidate(eligible, CRITICAL_AFTER_BATTLE_METHOD),
+    deferredEventEvolutionCandidate: damageReady.candidate,
+    unsupportedMethods: [
+      ...(relabeled.unsupportedMethods ?? []).filter((method) => method !== CRITICAL_AFTER_BATTLE_METHOD),
+      ...(damageReady.candidate ? [DAMAGE_EVENT_METHOD] : []),
+    ],
+    operations: [
+      ...(damageReady.operation ? [damageReady.operation] : []),
+      ...(relabeled.operations ?? []),
+    ],
   };
 }
