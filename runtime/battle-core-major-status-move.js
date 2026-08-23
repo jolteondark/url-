@@ -34,12 +34,13 @@ export const MAJOR_STATUS_MOVE_EFFECT_SOURCES_V108 = Object.freeze({
   }),
 });
 
-// These v0.9.108 FunctionCodes combine one ordinary major-status additional
-// effect with another already-owned move mechanic. Keep the status token routed
+// These v0.9.108 FunctionCodes contain one ordinary major-status additional
+// effect plus another already-owned move mechanic. Keep the status token routed
 // through the same seeded secondary + status eligibility owners rather than
-// teaching Safari/UI about each move. Deliberately exclude multi-secondary
-// families (fang status+flinch, Tri Attack/Dire Claw random statuses) until their
-// shared multi-effect owner is handled as a separate contract.
+// teaching Safari/UI about each move. Fang moves are included here for their
+// major-status half; their independent flinch half stays with the transient
+// FlinchTarget owner. Random multi-status families (Tri Attack/Dire Claw) remain
+// outside this single-status projection contract.
 const SECONDARY_COMPOUND_MAJOR_STATUS_V108 = Object.freeze({
   DoublePowerIfTargetPoisonedPoisonTarget: "PoisonTarget",
   TwoTurnAttackInvulnerableInSkyParalyzeTarget: "ParalyzeTarget",
@@ -49,6 +50,9 @@ const SECONDARY_COMPOUND_MAJOR_STATUS_V108 = Object.freeze({
   HealUserByHalfOfDamageDoneBurnTarget: "BurnTarget",
   RemoveUserBindingAndEntryHazardsPoisonTarget: "PoisonTarget",
   RecoilThirdOfDamageDealtBurnTarget: "BurnTarget",
+  BurnTargetFlinchTarget: "BurnTarget",
+  FreezeTargetFlinchTarget: "FreezeTarget",
+  ParalyzeTargetFlinchTarget: "ParalyzeTarget",
 });
 
 // Kept for the existing Thunder Wave source-pin callers.
