@@ -34,6 +34,23 @@ export const MAJOR_STATUS_MOVE_EFFECT_SOURCES_V108 = Object.freeze({
   }),
 });
 
+// These v0.9.108 FunctionCodes combine one ordinary major-status additional
+// effect with another already-owned move mechanic. Keep the status token routed
+// through the same seeded secondary + status eligibility owners rather than
+// teaching Safari/UI about each move. Deliberately exclude multi-secondary
+// families (fang status+flinch, Tri Attack/Dire Claw random statuses) until their
+// shared multi-effect owner is handled as a separate contract.
+const SECONDARY_COMPOUND_MAJOR_STATUS_V108 = Object.freeze({
+  DoublePowerIfTargetPoisonedPoisonTarget: "PoisonTarget",
+  TwoTurnAttackInvulnerableInSkyParalyzeTarget: "ParalyzeTarget",
+  ParalyzeTargetAlwaysHitsInRainHitsTargetInSky: "ParalyzeTarget",
+  FreezeTargetAlwaysHitsInHail: "FreezeTarget",
+  FreezeTargetSuperEffectiveAgainstWater: "FreezeTarget",
+  HealUserByHalfOfDamageDoneBurnTarget: "BurnTarget",
+  RemoveUserBindingAndEntryHazardsPoisonTarget: "PoisonTarget",
+  RecoilThirdOfDamageDealtBurnTarget: "BurnTarget",
+});
+
 // Kept for the existing Thunder Wave source-pin callers.
 export const MAJOR_STATUS_MOVE_EFFECT_SOURCE_V108 = MAJOR_STATUS_MOVE_EFFECT_SOURCES_V108.ParalyzeTargetIfNotTypeImmune;
 
@@ -44,9 +61,17 @@ export function majorStatusMoveEffectSourceCanonical(move) {
 
 export function secondaryMajorStatusMoveEffectSourceCanonical(move) {
   if (!move || move.category === "Status" || Number(move.effect_chance ?? 0) <= 0) return null;
-  const source = MAJOR_STATUS_MOVE_EFFECT_SOURCES_V108[move.function_code] ?? null;
-  if (!source || source.functionCode === "ParalyzeTargetIfNotTypeImmune") return null;
-  return source;
+  const exact = MAJOR_STATUS_MOVE_EFFECT_SOURCES_V108[move.function_code] ?? null;
+  const statusFunctionCode = exact?.functionCode ?? SECONDARY_COMPOUND_MAJOR_STATUS_V108[move.function_code] ?? null;
+  if (!statusFunctionCode || statusFunctionCode === "ParalyzeTargetIfNotTypeImmune") return null;
+  const source = exact ?? MAJOR_STATUS_MOVE_EFFECT_SOURCES_V108[statusFunctionCode];
+  if (!source) return null;
+  if (exact) return source;
+  return Object.freeze({
+    ...source,
+    canonicalFunctionCode: String(move.function_code),
+    sourceOwner: `${source.sourceOwner} + compound v0.9.108 FunctionCode projection`,
+  });
 }
 
 function requireTargetTypes(targetTypes, functionCode) {
