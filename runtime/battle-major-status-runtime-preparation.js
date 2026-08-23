@@ -12,9 +12,16 @@ function pokemonTypes(pokemon) {
   return safariGeneralPokemonTypesV108(pokemon);
 }
 
+const FLINCH_SECONDARY_FUNCTION_CODES_V108 = new Set([
+  "FlinchTarget",
+  "BurnTargetFlinchTarget",
+  "FreezeTargetFlinchTarget",
+  "ParalyzeTargetFlinchTarget",
+]);
+
 function directFlinchSecondaryEffectInput(move) {
   if (!move || move.category === "Status") return null;
-  if (move.function_code !== "FlinchTarget") return null;
+  if (!FLINCH_SECONDARY_FUNCTION_CODES_V108.has(move.function_code)) return null;
   const effectChance = Number(move.effect_chance ?? 0);
   if (effectChance <= 0) return null;
   return {
@@ -77,10 +84,17 @@ export function prepareReflectedMajorStatusBattleInput({ battleInput = {}, pokem
         return effect ? { ...preparedAction, secondaryMajorStatusEffectResolution: effect } : preparedAction;
       }
       hasSecondaryEffect = true;
+      const existingSecondaryInputs = Array.isArray(preparedAction.secondaryEffectInputs)
+        ? preparedAction.secondaryEffectInputs
+        : [];
+      const statusSecondaryIndex = existingSecondaryInputs.length;
       return {
         ...preparedAction,
-        secondaryEffectInputs: [...(Array.isArray(preparedAction.secondaryEffectInputs) ? preparedAction.secondaryEffectInputs : []), effect.secondaryEffectInput],
-        battleStatusInput: effect.battleStatusInput,
+        secondaryEffectInputs: [...existingSecondaryInputs, effect.secondaryEffectInput],
+        battleStatusInput: {
+          ...effect.battleStatusInput,
+          secondaryEffectTargetIndex: statusSecondaryIndex,
+        },
         secondaryMajorStatusEffectResolution: effect,
       };
     }),
