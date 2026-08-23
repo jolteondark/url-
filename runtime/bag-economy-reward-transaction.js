@@ -12,7 +12,7 @@ export function resolveRewardTransaction(input={}){
   costCounts.set(id,(costCounts.get(id)??0)+qty);
  }
  for(const id of (input.items??[])){const m=meta[id];if(!m?.valid)continue;counts.set(id,(counts.get(id)??0)+1);}
- if(counts.size===0)return abort('empty',original,operations);
+ if(counts.size===0&&costCounts.size===0)return abort('empty',original,operations);
  for(const [id,qty] of costCounts){const m=meta[id], pocket=pockets[String(m.pocket)], available=pocket?quantity(pocket.slots,id):0, ok=available>=qty;operations.push({op:'preflight_cost_owned',item:id,quantity:qty,pocket:m.pocket,available,result:ok});if(!ok)return abort('not_enough_items',original,operations);}
  const consumed=[];
  for(const [id,qty] of costCounts){const m=meta[id], pocket=pockets[String(m.pocket)], removed=!!pocket&&remove(pocket.slots,id,qty);operations.push({op:'bag_remove_cost',item:id,quantity:qty,pocket:m.pocket,result:removed});if(!removed)return abort('cost_remove_failed',original,operations);consumed.push({item:id,quantity:qty});}
@@ -20,5 +20,5 @@ export function resolveRewardTransaction(input={}){
  for(const [id,qty] of entries){const m=meta[id], pocket=pockets[String(m.pocket)];const ok=!!pocket&&canAdd(pocket.slots,pocket.maxSlots,pocket.maxPerSlot,id,qty);operations.push({op:'preflight_can_add',item:id,quantity:qty,pocket:m.pocket,result:ok});if(!ok)return abort('no_room',original,operations);}
  const granted=[];
  for(const [id,qty] of entries){const m=meta[id], pocket=pockets[String(m.pocket)];const addAll=canAdd(pocket.slots,pocket.maxSlots,pocket.maxPerSlot,id,qty)&&add(pocket.slots,pocket.maxSlots,pocket.maxPerSlot,id,qty);operations.push({op:'bag_add_all',item:id,quantity:qty,pocket:m.pocket,result:addAll});if(!addAll)return abort('add_failed',original,operations);granted.push({item:id,quantity:qty});}
- return {result:'granted',success:true,pockets,granted,consumed,operations};
+ return {result:entries.length?'granted':'consumed',success:true,pockets,granted,consumed,operations};
 }
