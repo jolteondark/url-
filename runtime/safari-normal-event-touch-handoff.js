@@ -178,14 +178,14 @@ function definition(runtime, eventId, index) {
     if (hasSafariUsablePartyType(runtime, "BUG")) actions.push({ id:"bug", label:"むしタイプに安全に調べさせる", meta:"ハチミツ×2" });
     actions.push(
       { id:"bark", label:"樹皮の陰を探す", meta:"きのみ・小さな道具・空振り" },
-      { id:"shake", label:"木を揺らす", meta:"野生戦の補正接続待ち", disabled:true },
+      { id:"shake", label:"木を揺らす", meta:"むしタイプの野生戦になることがあります" },
       { id:"leave", label:"立ち去る", secondary:true },
     );
     return {
       title:"ハチミツの木",
       message: hasSafariUsablePartyType(runtime, "BUG")
         ? "甘い香りのする木です。むしタイプなら安全にハチミツを回収できそうです。"
-        : "甘い香りのする木です。樹皮の陰を調べることができます。",
+        : "甘い香りのする木です。樹皮の陰を調べたり、木を揺らしたりできます。",
       actions,
     };
   }

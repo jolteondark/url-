@@ -4,14 +4,20 @@ import { prepareSafariNormalEventV108 } from "../runtime/mapless-normal-event-v1
 import { createSafariPlayableRuntime } from "../runtime/safari-playable-integration.js";
 import { openSafariNormalEventTouch, supportsSafariNormalEventTouch } from "../runtime/safari-normal-event-touch-handoff.js";
 import { resolveSafariHoneyTreeInteraction } from "../runtime/safari-honey-tree-interaction.js";
+import {
+  beginSafariNormalEventBattleContinuation,
+  bindSafariNormalEventBattleContinuation,
+  completeSafariNormalEventBattleContinuation,
+} from "../runtime/safari-normal-event-battle-continuation.js";
+import { returnSafariToDayBoard } from "../runtime/safari-normal-battle-lifecycle.js";
 
-function installHoneyTree(runtime, barkRoll = 20) {
+function installHoneyTree(runtime, barkRoll = 20, shakeRoll = 40) {
   const state = runtime.variables.mapless;
   state.day = 18;
   state.location = "day_board";
   state.board_events = Array.from({ length:8 }, (_, slot) => ({ kind:"center", slot }));
   state.board_events[3] = prepareSafariNormalEventV108(
-    { kind:"normal_event", slot:3, normal_event_id:"honey_tree", normal_data:{ bark_roll:barkRoll, shake_roll:40 } },
+    { kind:"normal_event", slot:3, normal_event_id:"honey_tree", normal_data:{ bark_roll:barkRoll, shake_roll:shakeRoll } },
     { day:18, index:3, partyFull:false },
   );
   state.board_revealed = Array(8).fill(false);
@@ -27,6 +33,30 @@ function grantBug(runtime) {
   runtime.player.party[0].egg = false;
   runtime.player.party[0].hp = Math.max(1, Number(runtime.player.party[0].hp ?? 1));
 }
+function bindHoneyBattle(runtime, decision, returnTarget = "day_board") {
+  const state = runtime.variables.mapless;
+  const checkpoint = beginSafariNormalEventBattleContinuation(runtime, {
+    boardIndex:3,
+    eventId:"honey_tree",
+    actionId:"shake",
+    request:{ op:"start_wild_battle", type:"BUG", modifier:1, seed:0 },
+    payload:{ shake_roll:40 },
+  });
+  state.battle = {
+    kind:"wild",
+    board_index:3,
+    turn:2,
+    decision,
+    completed:true,
+    captured:decision === 4,
+    foe:{ species:"CATERPIE" },
+    return_target:returnTarget,
+    last_operations:[],
+    presentation:[],
+  };
+  bindSafariNormalEventBattleContinuation(runtime, checkpoint);
+  return checkpoint;
+}
 
 assert.equal(supportsSafariNormalEventTouch("honey_tree"), true);
 
@@ -35,7 +65,7 @@ assert.equal(supportsSafariNormalEventTouch("honey_tree"), true);
   const state = installHoneyTree(runtime);
   const ready = openSafariNormalEventTouch(runtime, 3);
   assert.equal(ready.result, "honey_tree_ready");
-  assert.deepEqual(ready.availableActions, ["bark", "leave"]);
+  assert.deepEqual(ready.availableActions, ["bark", "shake", "leave"]);
   assert.equal(state.board_consumed[3], false);
 }
 
@@ -44,7 +74,7 @@ assert.equal(supportsSafariNormalEventTouch("honey_tree"), true);
   const state = installHoneyTree(runtime);
   grantBug(runtime);
   const ready = openSafariNormalEventTouch(runtime, 3);
-  assert.deepEqual(ready.availableActions, ["bug", "bark", "leave"]);
+  assert.deepEqual(ready.availableActions, ["bug", "bark", "shake", "leave"]);
   const result = resolveSafariHoneyTreeInteraction(runtime, 3, "bug");
   assert.equal(result.result, "bug_safe_reward");
   assert.equal(result.completed, true);
@@ -99,11 +129,60 @@ assert.equal(supportsSafariNormalEventTouch("honey_tree"), true);
 
 {
   const runtime = createSafariPlayableRuntime();
-  const state = installHoneyTree(runtime);
-  const blocked = resolveSafariHoneyTreeInteraction(runtime, 3, "shake");
-  assert.equal(blocked.result, "battle_modifier_handoff_required");
+  const state = installHoneyTree(runtime, 20, 95);
+  const empty = await resolveSafariHoneyTreeInteraction(runtime, 3, "shake");
+  assert.equal(empty.result, "shake_empty");
+  assert.equal(empty.completed, true);
+  assert.equal(state.board_consumed[3], true);
+  assert.equal(state.battle, null);
+}
+
+{
+  const runtime = createSafariPlayableRuntime();
+  const state = installHoneyTree(runtime, 20, 40);
+  runtime.bag.slots = Array.from({ length:20 }, (_, index) => [`FILLER_${index}`, 99]);
+  const before = structuredClone(runtime.bag.slots);
+  const blocked = await resolveSafariHoneyTreeInteraction(runtime, 3, "shake");
+  assert.equal(blocked.result, "reward_bag_full");
   assert.equal(blocked.completed, false);
+  assert.equal(state.battle, null);
   assert.equal(state.board_consumed[3], false);
+  assert.deepEqual(runtime.bag.slots, before);
+}
+
+{
+  const runtime = createSafariPlayableRuntime();
+  const state = installHoneyTree(runtime, 20, 40);
+  const beforeHoney = quantity(runtime.bag.slots, "HONEY");
+  bindHoneyBattle(runtime, 1);
+  const returned = returnSafariToDayBoard(runtime);
+  assert.equal(returned.normalEventContinuation.result, "shake_guard");
+  assert.equal(state.board_consumed[3], true);
+  assert.equal(quantity(runtime.bag.slots, "HONEY"), beforeHoney + 1);
+  assert.ok(returned.operations.some((operation) => operation.op === "request_save" && operation.reason === "normal_event_post_battle"));
+  assert.equal(returned.operations.some((operation) => operation.op === "start_wild_battle"), false, "post-Battle continuation must not restart the encounter");
+
+  const replay = completeSafariNormalEventBattleContinuation(runtime, {
+    target:"day_board",
+    summary:{ decision:1, returnTarget:"day_board" },
+  });
+  assert.equal(replay.result, "shake_guard");
+  assert.equal(quantity(runtime.bag.slots, "HONEY"), beforeHoney + 1, "replay must not duplicate HONEY");
+}
+
+{
+  const runtime = createSafariPlayableRuntime();
+  const state = installHoneyTree(runtime, 20, 40);
+  const beforeHoney = quantity(runtime.bag.slots, "HONEY");
+  bindHoneyBattle(runtime, 2, "home");
+  const terminal = completeSafariNormalEventBattleContinuation(runtime, {
+    target:"home",
+    summary:{ decision:2, returnTarget:"home" },
+    operations:[{ op:"return_to_home" }],
+  });
+  assert.equal(terminal.result, "normal_event_battle_run_end");
+  assert.equal(state.board_consumed[3], false, "loss/run-end must not consume Honey Tree as a win");
+  assert.equal(quantity(runtime.bag.slots, "HONEY"), beforeHoney);
 }
 
 {
@@ -115,4 +194,4 @@ assert.equal(supportsSafariNormalEventTouch("honey_tree"), true);
   assert.equal(ready.availableActions.includes("bug"), false, "fainted Bug type must not unlock safe Honey Tree collection");
 }
 
-console.log("Safari Honey Tree Bug/bark/leave routes with blocked shake: PASS");
+console.log("Safari Honey Tree Bug/bark/shake/leave routes: PASS");
