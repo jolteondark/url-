@@ -14,6 +14,10 @@ function pokemonTypes(pokemon) {
 
 const FLINCH_SECONDARY_FUNCTION_CODES_V108 = new Set([
   "FlinchTarget",
+  "BurnFlinchTarget",
+  "FreezeFlinchTarget",
+  "ParalyzeFlinchTarget",
+  // Legacy aliases retained for older focused fixtures/serialized data.
   "BurnTargetFlinchTarget",
   "FreezeTargetFlinchTarget",
   "ParalyzeTargetFlinchTarget",
