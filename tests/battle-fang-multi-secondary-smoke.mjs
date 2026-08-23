@@ -1,16 +1,18 @@
 import assert from "node:assert/strict";
 import { SAFARI_MOVE_MASTERS } from "../runtime/safari-playable-data.js";
+import { safariGeneralSecondaryFunctionCodeV108 } from "../runtime/safari-general-move-secondary-function-facts.js";
 import { prepareReflectedMajorStatusBattleInput } from "../runtime/battle-major-status-runtime-preparation.js";
 import { materializeSeededSecondaryEffectsCanonical } from "../runtime/battle-core-seeded-secondary-effect.js";
 import { commitBattleSystemsStatusRuntime } from "../runtime/battle-status-runtime-integration.js";
 
 for (const move of [
-  { id: "FIREFANG", name: "Fire Fang", type: "FIRE", function_code: "BurnTargetFlinchTarget" },
-  { id: "ICEFANG", name: "Ice Fang", type: "ICE", function_code: "FreezeTargetFlinchTarget" },
-  { id: "THUNDERFANG", name: "Thunder Fang", type: "ELECTRIC", function_code: "ParalyzeTargetFlinchTarget" },
+  { id: "FIREFANG", name: "Fire Fang", type: "FIRE" },
+  { id: "ICEFANG", name: "Ice Fang", type: "ICE" },
+  { id: "THUNDERFANG", name: "Thunder Fang", type: "ELECTRIC" },
 ]) {
   SAFARI_MOVE_MASTERS[move.id] = Object.freeze({
     ...move,
+    function_code: safariGeneralSecondaryFunctionCodeV108(move.id),
     category: "Physical",
     power: 65,
     accuracy: 95,
@@ -49,10 +51,13 @@ const damagingTurn = { operations: [
 ] };
 
 for (const fixture of [
-  { moveId: "FIREFANG", expectedStatus: "BURN", statusFunction: "BurnTarget", canonicalFunction: "BurnTargetFlinchTarget" },
-  { moveId: "ICEFANG", expectedStatus: "FROZEN", statusFunction: "FreezeTarget", canonicalFunction: "FreezeTargetFlinchTarget" },
-  { moveId: "THUNDERFANG", expectedStatus: "PARALYSIS", statusFunction: "ParalyzeTarget", canonicalFunction: "ParalyzeTargetFlinchTarget" },
+  { moveId: "FIREFANG", expectedStatus: "BURN", statusFunction: "BurnTarget", canonicalFunction: "BurnFlinchTarget" },
+  { moveId: "ICEFANG", expectedStatus: "FROZEN", statusFunction: "FreezeTarget", canonicalFunction: "FreezeFlinchTarget" },
+  { moveId: "THUNDERFANG", expectedStatus: "PARALYSIS", statusFunction: "ParalyzeTarget", canonicalFunction: "ParalyzeFlinchTarget" },
 ]) {
+  assert.equal(SAFARI_MOVE_MASTERS[fixture.moveId].function_code, fixture.canonicalFunction,
+    `${fixture.moveId} fixture must use the generated v0.9.108 FunctionCode`);
+
   const prepared = prepareReflectedMajorStatusBattleInput({
     battleInput: actionFor(fixture.moveId),
     pokemon: pokemon(),
