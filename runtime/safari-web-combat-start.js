@@ -83,6 +83,10 @@ function setBattle(runtime, index, kind, opponent, operations, trainer = null, e
   };
   state.last_operations = lastOperations;
 }
+function wildEncounterExtraModifier(event) {
+  const value = Number(event?.modifier ?? 0);
+  return Number.isFinite(value) ? value : 0;
+}
 function startWild(runtime, event, index, operations) {
   const { encounterRuntime } = safariGeneralCombatModules("wild");
   const state = stateOf(runtime);
@@ -92,7 +96,7 @@ function startWild(runtime, event, index, operations) {
     day: state.day,
     requiredType: event.type,
     enemyRank: "NORMAL",
-    extraModifier: 0,
+    extraModifier: wildEncounterExtraModifier(event),
     speciesRoll,
     varianceRoll,
   });
