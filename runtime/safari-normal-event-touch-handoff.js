@@ -15,6 +15,7 @@ const SUPPORTED = new Set([
   "flooded_river",
   "burning_wagon",
   "meteor_fragment",
+  "honey_tree",
   "wounded_pokemon",
 ]);
 
@@ -169,6 +170,22 @@ function definition(runtime, eventId, index) {
       message: actions.some((action) => action.id.startsWith("rock:") || action.id === "steel")
         ? "熱を残した隕石のかけらがあります。手持ちのタイプを活かせば安全に調べられそうです。"
         : "熱を残した隕石のかけらがあります。砕くか、持ち帰るか選べます。",
+      actions,
+    };
+  }
+  if (eventId === "honey_tree") {
+    const actions = [];
+    if (hasSafariUsablePartyType(runtime, "BUG")) actions.push({ id:"bug", label:"むしタイプに安全に調べさせる", meta:"ハチミツ×2" });
+    actions.push(
+      { id:"bark", label:"樹皮の陰を探す", meta:"きのみ・小さな道具・空振り" },
+      { id:"shake", label:"木を揺らす", meta:"野生戦の補正接続待ち", disabled:true },
+      { id:"leave", label:"立ち去る", secondary:true },
+    );
+    return {
+      title:"ハチミツの木",
+      message: hasSafariUsablePartyType(runtime, "BUG")
+        ? "甘い香りのする木です。むしタイプなら安全にハチミツを回収できそうです。"
+        : "甘い香りのする木です。樹皮の陰を調べることができます。",
       actions,
     };
   }
