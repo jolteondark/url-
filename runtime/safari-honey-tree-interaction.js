@@ -132,13 +132,17 @@ export async function startSafariHoneyTreeShakeBattle(runtime, index) {
     };
   }
 
-  return activateSafariNormalEventWildBattle(runtime, index, {
+  const started = await activateSafariNormalEventWildBattle(runtime, index, {
     eventId:"honey_tree",
     actionId:"shake",
     battleEvent,
     request:structuredClone(battleEvent),
     payload:{ shake_roll:Number(event.normal_data?.shake_roll) },
   });
+  if (started.result === "normal_event_wild_battle_started" && state.battle) {
+    globalThis.__maplessNormalEventUi = null;
+  }
+  return started;
 }
 
 export function resolveSafariHoneyTreeInteraction(runtime, index, requestedAction) {
@@ -154,7 +158,7 @@ export function resolveSafariHoneyTreeInteraction(runtime, index, requestedActio
   const hasBug = hasSafariUsablePartyType(runtime, "BUG");
   const availableActions = [...(hasBug ? ["bug"] : []), "shake", "bark", "leave"];
   const action = String(requestedAction ?? "");
-  if (action === "shake") return { runtime, result:"async_battle_action_required", completed:false, operations:[], availableActions };
+  if (action === "shake") return startSafariHoneyTreeShakeBattle(runtime, index);
   if (!availableActions.includes(action)) return { runtime, result:"unsupported_action", completed:false, operations:[], availableActions };
 
   const rewards = rewardItemsFor(event, action);
