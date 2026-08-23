@@ -4,6 +4,7 @@ import {
   safariWoundedHealingInventory,
 } from "./safari-wounded-pokemon-integration.js";
 import { hasSafariUsablePartyType } from "./safari-pokemon-type-membership.js";
+import { safariMeteorFragmentRockChoices } from "./safari-meteor-fragment-interaction.js";
 
 const SUPPORTED = new Set([
   "street_performer",
@@ -13,6 +14,7 @@ const SUPPORTED = new Set([
   "traveling_cook",
   "flooded_river",
   "burning_wagon",
+  "meteor_fragment",
   "wounded_pokemon",
 ]);
 
@@ -144,6 +146,25 @@ function definition(runtime, eventId, index) {
       message: actions.some((action) => action.id === "water" || action.id === "fire")
         ? "炎上した荷馬車があります。手持ちのタイプを活かせば安全に救助できそうです。"
         : "炎上した荷馬車があります。危険を承知で救助するか選べます。",
+      actions,
+    };
+  }
+  if (eventId === "meteor_fragment") {
+    const actions = [];
+    for (const item of safariMeteorFragmentRockChoices(runtime, index)) {
+      actions.push({ id:`rock:${item}`, label:`いわタイプに${item}を選ばせる`, meta:"安全に欠片を選別 · 道具1個" });
+    }
+    if (hasSafariUsablePartyType(runtime, "STEEL")) actions.push({ id:"steel", label:"はがねタイプに加工させる", meta:"安全 · 道具2〜3個" });
+    actions.push(
+      { id:"smash", label:"その場で砕く", meta:"報酬または爆発ダメージ" },
+      { id:"carry", label:"慎重に持ち帰る", meta:"道具1個" },
+      { id:"leave", label:"触れずに立ち去る", secondary:true },
+    );
+    return {
+      title:"隕石のかけら",
+      message: actions.some((action) => action.id.startsWith("rock:") || action.id === "steel")
+        ? "熱を残した隕石のかけらがあります。手持ちのタイプを活かせば安全に調べられそうです。"
+        : "熱を残した隕石のかけらがあります。砕くか、持ち帰るか選べます。",
       actions,
     };
   }
