@@ -325,7 +325,10 @@ export function finalizeNormalBattle(runtime) {
   if (battle.decision === 1 && battle.kind === "wild") operations.push(...givePotion(runtime, battle));
   if (battle.decision === 1 && battle.kind === "trainer") operations.push(...givePotion(runtime, battle));
   if (battle.kind === "trainer") operations.push(...payTrainerPrize(runtime, battle));
-  operations.push(...completeBoardEvent(state, battle));
+  // A normal-event-origin Battle is nested inside the originating event. The
+  // event continuation owner, not the generic Day Board battle owner, commits
+  // that cell after the canonical post-battle branch succeeds.
+  if (battle.origin !== "normal_event") operations.push(...completeBoardEvent(state, battle));
   operations.push({ op: "request_save", reason: "battle_result" });
   // RESULT is the sole completion boundary. This owner commits the existing reward/Board
   // mechanics at REWARD_GROWTH; completion itself remains owned by the orchestrator.
