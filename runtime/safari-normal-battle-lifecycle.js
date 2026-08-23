@@ -6,6 +6,7 @@ import { resolveDayBoardPlayableTurn } from "./mapless-day-board-playable-turn.j
 import { finishMaplessRun } from "./mapless-run-end-lifecycle.js";
 import { RubyMT19937Random } from "./ruby-mt19937-random.js";
 import { SAFARI_SPECIES_MASTERS } from "./safari-playable-data.js";
+import { completeSafariNormalEventBattleContinuation } from "./safari-normal-event-battle-continuation.js";
 import { resolveSafariNormalBattleOpponentResponse, resolveSafariNormalWildOpponentResponse } from "./safari-normal-battle-round.js";
 
 function stateOf(runtime) {
@@ -106,6 +107,28 @@ function finalizeCaughtNormalWild(runtime) {
   return completionOperations;
 }
 
+function finalizeCaughtNormalEventWild(runtime) {
+  const state = stateOf(runtime);
+  const battle = state.battle;
+  const encounter = battle.encounter ?? {};
+  battle.return_target = "day_board";
+  battle.presentation = [
+    ...(battle.presentation ?? []),
+    {
+      type: "battle_result",
+      decision: 4,
+      captured: true,
+      expGained: 0,
+      reward: null,
+      moneyGained: 0,
+      returnTarget: "day_board",
+    },
+  ];
+  state.last_operations = [...(battle.last_operations ?? [])];
+  state.notice = `${encounter.species_name ?? battle.foe.species}を捕まえました。`;
+  return [];
+}
+
 export function commitSafariCapturedWildRewardGrowth(runtime, result = {}) {
   const state = stateOf(runtime);
   const battle = state.battle;
@@ -113,7 +136,8 @@ export function commitSafariCapturedWildRewardGrowth(runtime, result = {}) {
     throw new Error("captured wild battle is required for reward-growth commit");
   }
   if (!battle.capture_reward_growth_committed) {
-    finalizeCaughtNormalWild(runtime);
+    if (battle.origin === "normal_event") finalizeCaughtNormalEventWild(runtime);
+    else finalizeCaughtNormalWild(runtime);
     battle.capture_reward_growth_committed = true;
   }
   result.operations = [...(battle.last_operations ?? [])];
@@ -291,6 +315,18 @@ export function returnSafariToDayBoard(runtime) {
     returnTarget: target,
   };
 
+  let normalEventContinuation = null;
+  if (battle.origin === "normal_event") {
+    normalEventContinuation = completeSafariNormalEventBattleContinuation(runtime, {
+      target,
+      summary,
+      operations: [],
+    });
+    if (target !== "home" && normalEventContinuation?.terminal !== true) {
+      throw new Error("normal-event Battle return requires a registered terminal continuation owner");
+    }
+  }
+
   const runEnd = target === "home" ? finishMaplessRun(runtime) : { finished: false, operations: [] };
   state.battle = null;
   state.location = target;
@@ -299,10 +335,15 @@ export function returnSafariToDayBoard(runtime) {
     : target === "home"
       ? "手持ちが全滅したため、今回のランは終了しました。"
       : "Day Boardへ戻りました。";
+  if (normalEventContinuation?.notice) state.notice = normalEventContinuation.notice;
   const returnOperation = {
     op: target === "village" ? "return_to_village" : target === "home" ? "return_to_home" : "return_to_day_board",
   };
-  const operations = [...runEnd.operations, returnOperation];
+  const operations = [
+    ...runEnd.operations,
+    returnOperation,
+    ...(normalEventContinuation?.operations ?? []),
+  ];
   state.last_operations = operations;
 
   return {
@@ -313,5 +354,6 @@ export function returnSafariToDayBoard(runtime) {
     operations,
     persistenceRequested: requestsSave(operations),
     runEnd,
+    normalEventContinuation,
   };
 }
