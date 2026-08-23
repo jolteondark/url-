@@ -50,6 +50,42 @@ SAFARI_MOVE_MASTERS.ICEBEAM = Object.freeze({
   effect_chance: 10,
   function_code: "FreezeTarget",
 });
+SAFARI_MOVE_MASTERS.FREEZEDRY = Object.freeze({
+  id: "FREEZEDRY",
+  name: "Freeze-Dry",
+  category: "Special",
+  power: 70,
+  accuracy: 100,
+  total_pp: 20,
+  priority: 0,
+  type: "ICE",
+  effect_chance: 10,
+  function_code: "FreezeTargetSuperEffectiveAgainstWater",
+});
+SAFARI_MOVE_MASTERS.THUNDER = Object.freeze({
+  id: "THUNDER",
+  name: "Thunder",
+  category: "Special",
+  power: 110,
+  accuracy: 70,
+  total_pp: 10,
+  priority: 0,
+  type: "ELECTRIC",
+  effect_chance: 30,
+  function_code: "ParalyzeTargetAlwaysHitsInRainHitsTargetInSky",
+});
+SAFARI_MOVE_MASTERS.FLAREBLITZ = Object.freeze({
+  id: "FLAREBLITZ",
+  name: "Flare Blitz",
+  category: "Physical",
+  power: 120,
+  accuracy: 100,
+  total_pp: 15,
+  priority: 0,
+  type: "FIRE",
+  effect_chance: 10,
+  function_code: "RecoilThirdOfDamageDealtBurnTarget",
+});
 
 const pokemon = ({ species = "EEVEE", types = ["NORMAL"], status = "NONE" } = {}) => ({
   species,
@@ -226,5 +262,35 @@ const freezeImmune = prepareReflectedMajorStatusBattleInput({
 });
 assert.equal(freezeImmune.rounds[0].actions[0].battleStatusInput, undefined);
 assert.equal(freezeImmune.rounds[0].actions[0].secondaryMajorStatusEffectResolution?.reason, "type_immunity");
+
+// Compound v0.9.108 FunctionCodes that carry one ordinary major-status
+// additional effect must reuse the same seeded/status owner. The surrounding
+// move mechanic (weather hit rule, water effectiveness, recoil, etc.) remains
+// owned by its existing FunctionCode path.
+for (const fixture of [
+  { moveId: "FREEZEDRY", expectedStatus: "FROZEN", statusFunction: "FreezeTarget", canonicalFunction: "FreezeTargetSuperEffectiveAgainstWater" },
+  { moveId: "THUNDER", expectedStatus: "PARALYSIS", statusFunction: "ParalyzeTarget", canonicalFunction: "ParalyzeTargetAlwaysHitsInRainHitsTargetInSky" },
+  { moveId: "FLAREBLITZ", expectedStatus: "BURN", statusFunction: "BurnTarget", canonicalFunction: "RecoilThirdOfDamageDealtBurnTarget" },
+]) {
+  const compoundPrepared = prepareReflectedMajorStatusBattleInput({
+    battleInput: { ...actionFor(fixture.moveId, 100), combatRandomSeed: 19 },
+    pokemon: pokemon(),
+    reflectedBattlerIndex: 1,
+  });
+  const compoundAction = compoundPrepared.rounds[0].actions[0];
+  assert.equal(compoundAction.battleStatusInput?.newStatus, fixture.expectedStatus, `${fixture.moveId} must expose its embedded major status`);
+  assert.equal(compoundAction.secondaryEffectInputs?.[0]?.functionCode, fixture.statusFunction);
+  assert.equal(compoundAction.secondaryMajorStatusEffectResolution?.source?.canonicalFunctionCode, fixture.canonicalFunction);
+  compoundAction.secondaryEffectInputs[0].randomRoll = 0;
+  const compoundTriggered = materializeSeededSecondaryEffectsCanonical(compoundPrepared);
+  compoundTriggered.rounds[0].actions[0].accuracyResolution = { hit: true };
+  const compoundCommit = commitBattleSystemsStatusRuntime({
+    battleInput: compoundTriggered,
+    turn: damagingTurn,
+    pokemon: pokemon(),
+    reflectedBattlerIndex: 1,
+  });
+  assert.equal(compoundCommit.pokemon.status, fixture.expectedStatus, `${fixture.moveId} must commit through the shared status runtime`);
+}
 
 console.log("ordinary direct + damaging secondary major status owner smoke: ok");
