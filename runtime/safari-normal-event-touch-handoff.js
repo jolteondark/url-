@@ -5,6 +5,7 @@ import {
 } from "./safari-wounded-pokemon-integration.js";
 import { hasSafariUsablePartyType } from "./safari-pokemon-type-membership.js";
 import { safariMeteorFragmentRockChoices } from "./safari-meteor-fragment-interaction.js";
+import { safariLostPokemonBerryChoices } from "./safari-lost-pokemon-interaction.js";
 
 const SUPPORTED = new Set([
   "street_performer",
@@ -16,6 +17,7 @@ const SUPPORTED = new Set([
   "burning_wagon",
   "meteor_fragment",
   "honey_tree",
+  "lost_pokemon",
   "wounded_pokemon",
 ]);
 
@@ -188,6 +190,17 @@ function definition(runtime, eventId, index) {
         : "甘い香りのする木です。樹皮の陰を調べたり、木を揺らしたりできます。",
       actions,
     };
+  }
+  if (eventId === "lost_pokemon") {
+    const berries = safariLostPokemonBerryChoices(runtime);
+    const actions = berries.map((item) => ({ id:`berry:${item}`, label:`${item}を1個あげる`, meta:"きのみ消費とお礼は同時に確定" }));
+    if (berries.length === 0) actions.push({ id:"no_berry", label:"渡せるきのみがありません", disabled:true });
+    actions.push(
+      { id:"join", label:"仲間に誘う", meta:"応じれば未進化ポケモンが加入" },
+      { id:"search", label:"親を探す", meta:"お礼・親発見・野生戦の可能性" },
+      { id:"leave", label:"その場を離れる", secondary:true },
+    );
+    return { title:"迷子のポケモン", message:"不安そうなポケモンが一匹でうろついています。", actions };
   }
   if (eventId === "wounded_pokemon") return woundedDefinition(runtime, index);
   throw new RangeError(`unsupported normal-event touch id: ${eventId}`);
