@@ -25,6 +25,7 @@ function loadOwner(eventId) {
       fake_nurse:"./runtime/safari-fake-nurse-interaction.js",
       traveling_cook:"./runtime/safari-traveling-cook-interaction.js",
       flooded_river:"./runtime/safari-flooded-river-interaction.js",
+      burning_wagon:"./runtime/safari-burning-wagon-interaction.js",
       wounded_pokemon:"./runtime/safari-wounded-pokemon-integration.js",
       treasure_chest:"./runtime/safari-treasure-chest-interaction.js",
       miner:"./runtime/safari-miner-interaction.js",
@@ -48,6 +49,7 @@ async function resolveAction(current, active, actionId) {
       : owner.resolveSafariTravelingCookInteraction(current, active.boardIndex, "pay", actionId);
   }
   if (active.eventId === "flooded_river") return owner.resolveSafariFloodedRiverInteraction(current, active.boardIndex, actionId);
+  if (active.eventId === "burning_wagon") return owner.resolveSafariBurningWagonInteraction(current, active.boardIndex, actionId);
   if (active.eventId === "wounded_pokemon") {
     const input = actionId === "leave"
       ? { choice:"leave" }
