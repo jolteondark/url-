@@ -1,6 +1,7 @@
 import { resolveDayBoardCellDispatch } from "./mapless-day-board-cell-dispatch.js";
 import { resolveBrowserMaplessWildEncounter } from "./browser-mapless-wild-encounter-runtime.js";
 import { resolveBattleStartCore } from "./battle-core-start-handoff.js";
+import { createBattleStatStageStateCanonical } from "./battle-core-stat-stages.js";
 import { resolvePokemonRuntimeMasters } from "./pokemon-runtime-masters.js";
 import { nextSafariEncounterSpeciesIndex } from "./safari-encounter-randomization.js";
 import { ensureSafariGeneralCombatData, safariGeneralCombatModules, safariGeneralCombatReady } from "./safari-general-data-demand.js";
@@ -87,6 +88,9 @@ function wildEncounterExtraModifier(event) {
   const value = Number(event?.modifier ?? 0);
   return Number.isFinite(value) ? value : 0;
 }
+export function safariWildBattleInitialStatStages(event) {
+  return createBattleStatStageStateCanonical({ foe: event?.enemy_stages ?? {} });
+}
 function startWild(runtime, event, index, operations) {
   const { encounterRuntime } = safariGeneralCombatModules("wild");
   const state = stateOf(runtime);
@@ -113,6 +117,7 @@ function startWild(runtime, event, index, operations) {
   const encounter = encounterResolution.encounter;
   const opponent = materializePokemon({ species: encounter.species_id, level: encounter.level, status: "NONE", moves: encounter.move_ids });
   setBattle(runtime, index, "wild", opponent, operations, null, encounterResolution, generated);
+  state.battle.stat_stages = safariWildBattleInitialStatStages(event);
   state.notice = `野生の${encounter.species_name}が現れた！`;
 }
 function startTrainer(runtime, event, index, operations) {
