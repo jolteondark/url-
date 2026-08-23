@@ -13,6 +13,18 @@ function pockets(slots, maxSlots = 2, maxPerSlot = 99) {
 
 {
   const result = resolveRewardTransaction({
+    pockets: pockets([null], 1, 99),
+    itemMeta,
+    items: ['HONEY'],
+  });
+  assert.equal(result.success, true);
+  assert.deepEqual(result.consumed, []);
+  assert.deepEqual(result.granted, [{ item: 'HONEY', quantity: 1 }]);
+  assert.deepEqual(result.pockets['1'].slots, [['HONEY', 1]]);
+}
+
+{
+  const result = resolveRewardTransaction({
     pockets: pockets([['ORANBERRY', 1]], 1, 99),
     itemMeta,
     costs: [{ item: 'ORANBERRY', quantity: 1 }],
