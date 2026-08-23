@@ -1,12 +1,19 @@
 import { quantity, remove } from "./bag-economy-mart-flow.js";
+import { resolveRewardTransaction } from "./bag-economy-reward-transaction.js";
 import { resolveFloodedRiver } from "./mapless-normal-events-a1-flow.js";
 import { updatePokemonRuntime } from "./pokemon-runtime.js";
 import { RubyMT19937Random } from "./ruby-mt19937-random.js";
+import { hasSafariUsablePartyType, safariPokemonTypes } from "./safari-pokemon-type-membership.js";
 
 const LOW_ITEMS = Object.freeze([
   "POTION", "ANTIDOTE", "PARALYZEHEAL", "AWAKENING", "BURNHEAL", "ICEHEAL",
   "POKEBALL", "ORANBERRY", "PECHABERRY", "CHERIBERRY", "FRESHWATER", "SODAPOP",
 ]);
+const SAFARI_BAG_MAX_SLOTS = 20;
+const SAFARI_BAG_MAX_PER_SLOT = 99;
+const SAFARI_REWARD_ITEM_META = Object.freeze(Object.fromEntries(
+  LOW_ITEMS.map((itemId) => [itemId, Object.freeze({ valid: true, pocket: "general" })]),
+));
 
 function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
@@ -15,12 +22,17 @@ function stateOf(runtime) {
 }
 
 function hasType(runtime, typeId) {
+  return hasSafariUsablePartyType(runtime, typeId);
+}
+
+function firstUsablePokemonOfType(runtime, typeId) {
   const wanted = String(typeId).toUpperCase();
-  return (runtime.player?.party ?? []).some((pokemon) => {
-    if (!pokemon || Number(pokemon.hp ?? 0) <= 0 || pokemon.egg === true) return false;
-    const types = Array.isArray(pokemon.types) ? pokemon.types : Array.isArray(pokemon.type_ids) ? pokemon.type_ids : [];
-    return types.some((type) => String(type).toUpperCase() === wanted);
-  });
+  return (runtime.player?.party ?? []).find((pokemon) => (
+    pokemon
+    && Number(pokemon.hp ?? 0) > 0
+    && pokemon.egg !== true
+    && safariPokemonTypes(pokemon).includes(wanted)
+  )) ?? null;
 }
 
 function canonicalForceInput(runtime, event) {
@@ -34,6 +46,33 @@ function canonicalForceInput(runtime, event) {
     ? candidates[rng.randInt(candidates.length)]
     : null;
   return { forceRoll, lostItem };
+}
+
+function canonicalSpecialRewardItems(event, action) {
+  const key = action === "water" ? "water_reward_items" : "ice_reward_items";
+  const prepared = event.normal_data?.[key];
+  if (Array.isArray(prepared) && prepared.length > 0) return [...prepared];
+  // source-v0.9.108 leaves item-backed normal-event rewards to the item integration.
+  // Resolve that abstract reward deterministically from the same low-item projection
+  // already used by the Safari Flooded River item-loss path.
+  const seedSalt = action === "water" ? 0x51f15e : 0x1ce1ce;
+  const rng = new RubyMT19937Random((Number(event.normal_seed) ^ seedSalt) & 0x7fffffff);
+  const count = action === "water" ? 1 + rng.randInt(2) : 1;
+  return Array.from({ length: count }, () => LOW_ITEMS[rng.randInt(LOW_ITEMS.length)]);
+}
+
+function preflightSpecialReward(runtime, items) {
+  return resolveRewardTransaction({
+    pockets: {
+      general: {
+        slots: runtime.bag?.slots ?? [],
+        maxSlots: SAFARI_BAG_MAX_SLOTS,
+        maxPerSlot: SAFARI_BAG_MAX_PER_SLOT,
+      },
+    },
+    itemMeta: SAFARI_REWARD_ITEM_META,
+    items,
+  });
 }
 
 function applyPartyDamage(runtime, percent) {
@@ -57,12 +96,20 @@ export function resolveSafariFloodedRiverInteraction(runtime, index, action) {
 
   state.board_revealed[index] = true;
   state.board_visited[index] = true;
-  if (!["force", "leave"].includes(action)) {
-    return { runtime, result: "unsupported_action", completed: false, operations: [], availableActions: ["force", "leave"] };
+  const availableActions = [
+    ...(hasType(runtime, "WATER") ? ["water"] : []),
+    ...(hasType(runtime, "ICE") ? ["ice"] : []),
+    "force",
+    "leave",
+  ];
+  if (!availableActions.includes(action)) {
+    return { runtime, result: "unsupported_action", completed: false, operations: [], availableActions };
   }
 
   let preparedEvent = event;
   let lostItem = null;
+  let specialReward = null;
+  let chosenPokemon = null;
   if (action === "force") {
     const force = canonicalForceInput(runtime, event);
     lostItem = force.lostItem;
@@ -70,7 +117,29 @@ export function resolveSafariFloodedRiverInteraction(runtime, index, action) {
       ...event,
       normal_data: { ...(event.normal_data ?? {}), force_roll: force.forceRoll },
     };
+  } else if (action === "water" || action === "ice") {
+    chosenPokemon = firstUsablePokemonOfType(runtime, action === "water" ? "WATER" : "ICE");
+    const rewardItems = canonicalSpecialRewardItems(event, action);
+    specialReward = preflightSpecialReward(runtime, rewardItems);
+    if (!specialReward.success) {
+      state.notice = "バッグに報酬をすべて入れる空きがありません。川はまだ渡っていません。";
+      state.last_operations = specialReward.operations.map((operation) => structuredClone(operation));
+      return {
+        runtime,
+        result: "reward_bag_full",
+        completed: false,
+        operations: state.last_operations,
+        notice: state.notice,
+        persistenceRequested: false,
+        availableActions,
+      };
+    }
+    preparedEvent = {
+      ...event,
+      normal_data: { ...(event.normal_data ?? {}), [`${action}_reward_items`]: rewardItems },
+    };
   }
+
   const owner = resolveFloodedRiver({
     event: preparedEvent,
     action,
@@ -78,6 +147,10 @@ export function resolveSafariFloodedRiverInteraction(runtime, index, action) {
     lost_item: lostItem,
     has_water: hasType(runtime, "WATER"),
     has_ice: hasType(runtime, "ICE"),
+    chosen_pokemon: chosenPokemon,
+    reward_items: action === "water" || action === "ice"
+      ? preparedEvent.normal_data?.[`${action}_reward_items`]
+      : undefined,
   });
 
   const applied = [];
@@ -91,17 +164,29 @@ export function resolveSafariFloodedRiverInteraction(runtime, index, action) {
       applied.push({ op: "runtime_remove_item", item: operation.item, quantity: Number(operation.quantity ?? 1) });
     }
   }
+  if (specialReward?.success) {
+    runtime.bag.slots = specialReward.pockets.general.slots.filter(Boolean);
+    applied.push(...specialReward.granted.map((entry) => ({ op: "runtime_grant_item", item: entry.item, quantity: entry.quantity })));
+  }
 
   state.board_events[index] = owner.event;
   state.board_consumed[index] = Boolean(owner.event.normal_resolved);
-  state.last_operations = [...(owner.operations ?? []).map((operation) => structuredClone(operation)), ...applied];
+  state.last_operations = [
+    ...(owner.operations ?? []).map((operation) => structuredClone(operation)),
+    ...(specialReward?.operations ?? []).map((operation) => structuredClone(operation)),
+    ...applied,
+  ];
   state.notice = owner.outcome === "left"
     ? "川を渡らず引き返しました。"
-    : owner.outcome === "force_minor_damage"
-      ? "濁流から戻り、手持ち全員が少し傷つきました。"
-      : owner.outcome === "force_major_damage"
-        ? "濁流から戻り、手持ち全員が大きく傷つきました。"
-        : "濁流から戻りましたが、荷物を1つ流されました。";
+    : owner.outcome === "water_crossing"
+      ? "みずタイプの力で安全に川を渡り、流れ着いた道具を拾いました。"
+      : owner.outcome === "ice_crossing"
+        ? "こおりタイプの力で川面を凍らせて渡り、道具を拾いました。"
+        : owner.outcome === "force_minor_damage"
+          ? "濁流から戻り、手持ち全員が少し傷つきました。"
+          : owner.outcome === "force_major_damage"
+            ? "濁流から戻り、手持ち全員が大きく傷つきました。"
+            : "濁流から戻りましたが、荷物を1つ流されました。";
   return {
     runtime,
     result: owner.outcome,
@@ -121,16 +206,19 @@ export function interactiveSafariFloodedRiver(runtime, index) {
   const ice = hasType(runtime, "ICE");
   const promptFn = typeof globalThis.prompt === "function" ? globalThis.prompt.bind(globalThis) : null;
   const confirmFn = typeof globalThis.confirm === "function" ? globalThis.confirm.bind(globalThis) : null;
+  const availableActions = [...(water ? ["water"] : []), ...(ice ? ["ice"] : []), "force", "leave"];
 
   if (!promptFn && !confirmFn) {
     state.board_revealed[index] = true;
     state.board_visited[index] = true;
-    state.notice = "増水した川が進路を遮っています。強引に渡るか、引き返せます。";
+    state.notice = water || ice
+      ? "増水した川が進路を遮っています。手持ちのタイプを活かして安全に渡れそうです。"
+      : "増水した川が進路を遮っています。強引に渡るか、引き返せます。";
     return {
       runtime,
       result: "flooded_river_ready",
       boundary: "normal_event",
-      availableActions: ["force", "leave"],
+      availableActions,
       specialRoutes: { water, ice },
       notice: state.notice,
       operations: [],
@@ -138,22 +226,17 @@ export function interactiveSafariFloodedRiver(runtime, index) {
   }
 
   if (promptFn && (water || ice)) {
-    const choices = [
-      ...(water ? ["みずタイプに鎮めさせる（接続待ち）"] : []),
-      ...(ice ? ["こおりタイプに凍らせる（接続待ち）"] : []),
-      "強引に渡る",
-      "引き返す",
+    const actions = [
+      ...(water ? [{ id: "water", label: "みずタイプに流れを鎮めさせる" }] : []),
+      ...(ice ? [{ id: "ice", label: "こおりタイプに川面を凍らせる" }] : []),
+      { id: "force", label: "強引に渡る" },
+      { id: "leave", label: "引き返す" },
     ];
-    const selected = Number.parseInt(promptFn(`増水した川が進路を遮っている。\n${choices.map((choice, i) => `${i + 1}. ${choice}`).join("\n")}`, String(choices.length)), 10) - 1;
-    if (!Number.isInteger(selected) || selected < 0 || selected >= choices.length) {
+    const selected = Number.parseInt(promptFn(`増水した川が進路を遮っている。\n${actions.map((choice, i) => `${i + 1}. ${choice.label}`).join("\n")}`, String(actions.length)), 10) - 1;
+    if (!Number.isInteger(selected) || selected < 0 || selected >= actions.length) {
       return { runtime, result: "cancelled", boundary: "normal_event", operations: [] };
     }
-    const specialCount = Number(water) + Number(ice);
-    if (selected < specialCount) {
-      state.notice = "このタイプ専用ルートのcanonical報酬接続はまだ未完了です。";
-      return { runtime, result: "special_route_pending", boundary: "normal_event", notice: state.notice, operations: [] };
-    }
-    return { ...resolveSafariFloodedRiverInteraction(runtime, index, selected === specialCount ? "force" : "leave"), boundary: "normal_event" };
+    return { ...resolveSafariFloodedRiverInteraction(runtime, index, actions[selected].id), boundary: "normal_event" };
   }
 
   const force = confirmFn("増水した川が進路を遮っています。\n強引に渡りますか？\n（キャンセルで引き返す）");
