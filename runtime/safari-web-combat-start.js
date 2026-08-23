@@ -4,6 +4,11 @@ import { resolveBattleStartCore } from "./battle-core-start-handoff.js";
 import { resolvePokemonRuntimeMasters } from "./pokemon-runtime-masters.js";
 import { nextSafariEncounterSpeciesIndex } from "./safari-encounter-randomization.js";
 import { ensureSafariGeneralCombatData, safariGeneralCombatModules, safariGeneralCombatReady } from "./safari-general-data-demand.js";
+import {
+  beginSafariNormalEventBattleContinuation,
+  bindSafariNormalEventBattleContinuation,
+  rollbackSafariNormalEventBattleContinuation,
+} from "./safari-normal-event-battle-continuation.js";
 import { SAFARI_MOVE_MASTERS, SAFARI_NATURE_MASTERS, SAFARI_SPECIES_MASTERS, SAFARI_ZERO_STAT_VALUES } from "./safari-playable-data.js";
 
 function stateOf(runtime) {
@@ -113,6 +118,81 @@ function startTrainer(runtime, event, index, operations) {
   const party = trainer.party.map(materializePokemon);
   setBattle(runtime, index, "trainer", party[0], operations, trainer, null, null, party);
   state.notice = `${trainer.trainer_full_name}が勝負を仕掛けてきた！`;
+}
+
+export async function activateSafariNormalEventWildBattle(runtime, index, {
+  eventId,
+  actionId,
+  battleEvent,
+  request = null,
+  payload = null,
+} = {}) {
+  const state = stateOf(runtime);
+  const origin = state.board_events?.[index];
+  if (!origin || origin.kind !== "normal_event") throw new Error("originating normal_event board event is required");
+  if (String(origin.normal_event_id ?? "") !== String(eventId ?? "")) throw new Error("normal-event battle eventId does not match the originating cell");
+  if (!battleEvent || typeof battleEvent !== "object" || Array.isArray(battleEvent)) throw new TypeError("canonical wild battleEvent is required");
+  if (state.battle) return { runtime, result: "battle_active", boundary: "battle", notice: "戦闘を先に終えてください。", operations: [] };
+  if (state.pending_battle_return_checkpoint?.committed === false) {
+    return {
+      runtime,
+      result: "battle_return_pending",
+      boundary: "battle",
+      notice: "戦闘結果の保存を完了してください。",
+      operations: [],
+    };
+  }
+  if (state.shop) return { runtime, result: "shop_active", boundary: "shop", notice: "ショップを先に終了してください。", operations: [] };
+
+  const previousBattle = state.battle;
+  const previousNotice = state.notice;
+  const previousLastOperations = state.last_operations;
+  const hadEncounterSeed = Object.prototype.hasOwnProperty.call(state, "preview_encounter_seed");
+  const previousEncounterSeed = state.preview_encounter_seed;
+  const hadEncounterCounter = Object.prototype.hasOwnProperty.call(state, "preview_encounter_counter");
+  const previousEncounterCounter = state.preview_encounter_counter;
+  let checkpoint = null;
+
+  try {
+    checkpoint = beginSafariNormalEventBattleContinuation(runtime, {
+      boardIndex: index,
+      eventId,
+      actionId,
+      request,
+      payload,
+    });
+    globalThis.__maplessSafariRuntime = runtime;
+    if (!safariGeneralCombatReady("wild")) {
+      state.notice = "戦闘データを読み込んでいます…";
+      notifySafariRuntimeChanged();
+      await ensureSafariGeneralCombatData("wild");
+    }
+    startWild(runtime, { kind: "wild", ...structuredClone(battleEvent) }, index, []);
+    bindSafariNormalEventBattleContinuation(runtime, checkpoint);
+    globalThis.__maplessLastError = null;
+    notifySafariRuntimeChanged();
+    return {
+      runtime,
+      result: "normal_event_wild_battle_started",
+      boundary: "wild",
+      continuationKey: checkpoint.key,
+      notice: state.notice,
+      operations: state.battle?.last_operations ?? [],
+      presentation: state.battle?.presentation ?? [],
+    };
+  } catch (error) {
+    globalThis.__maplessLastError = error;
+    state.battle = previousBattle;
+    state.notice = previousNotice;
+    state.last_operations = previousLastOperations;
+    if (checkpoint && checkpoint.battle_started !== true) rollbackSafariNormalEventBattleContinuation(runtime, checkpoint);
+    if (hadEncounterSeed) state.preview_encounter_seed = previousEncounterSeed;
+    else delete state.preview_encounter_seed;
+    if (hadEncounterCounter) state.preview_encounter_counter = previousEncounterCounter;
+    else delete state.preview_encounter_counter;
+    notifySafariRuntimeChanged();
+    throw error;
+  }
 }
 
 export async function activateSafariWebCombatCell(runtime, index) {
