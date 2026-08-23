@@ -28,6 +28,7 @@ function loadOwner(eventId) {
       burning_wagon:"./runtime/safari-burning-wagon-interaction.js",
       meteor_fragment:"./runtime/safari-meteor-fragment-interaction.js",
       honey_tree:"./runtime/safari-honey-tree-interaction.js",
+      lost_pokemon:"./runtime/safari-lost-pokemon-interaction.js",
       wounded_pokemon:"./runtime/safari-wounded-pokemon-integration.js",
       treasure_chest:"./runtime/safari-treasure-chest-interaction.js",
       miner:"./runtime/safari-miner-interaction.js",
@@ -54,6 +55,7 @@ async function resolveAction(current, active, actionId) {
   if (active.eventId === "burning_wagon") return owner.resolveSafariBurningWagonInteraction(current, active.boardIndex, actionId);
   if (active.eventId === "meteor_fragment") return owner.resolveSafariMeteorFragmentInteraction(current, active.boardIndex, actionId);
   if (active.eventId === "honey_tree") return owner.resolveSafariHoneyTreeInteraction(current, active.boardIndex, actionId);
+  if (active.eventId === "lost_pokemon") return owner.resolveSafariLostPokemonInteraction(current, active.boardIndex, actionId);
   if (active.eventId === "wounded_pokemon") {
     const input = actionId === "leave"
       ? { choice:"leave" }
