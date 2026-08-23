@@ -12,6 +12,16 @@ function clone(value) {
   return value == null ? value : structuredClone(value);
 }
 
+function snapshotResult(result = {}) {
+  const { runtime: _runtime, ...snapshot } = result;
+  return clone(snapshot);
+}
+
+function replayResult(runtime, snapshot) {
+  if (!snapshot) return null;
+  return { runtime, ...clone(snapshot) };
+}
+
 function normalizedIdentity(input = {}) {
   const boardIndex = Number(input.boardIndex);
   if (!Number.isInteger(boardIndex) || boardIndex < 0) throw new TypeError("normal-event continuation boardIndex must be a non-negative integer");
@@ -120,7 +130,7 @@ export function completeSafariNormalEventBattleContinuation(runtime, battleRetur
   const checkpoint = pendingOf(state);
   if (!checkpoint) return null;
 
-  if (checkpoint.committed === true) return clone(checkpoint.committed_result ?? null);
+  if (checkpoint.committed === true) return replayResult(runtime, checkpoint.committed_result);
   if (checkpoint.resolving === true) {
     throw new Error(`normal-event continuation checkpoint is incomplete and cannot be replayed: ${checkpoint.key ?? "unknown"}`);
   }
@@ -141,7 +151,7 @@ export function completeSafariNormalEventBattleContinuation(runtime, battleRetur
       terminal: true,
     };
     checkpoint.resolving = true;
-    checkpoint.committed_result = clone(result);
+    checkpoint.committed_result = snapshotResult(result);
     checkpoint.committed = true;
     checkpoint.resolving = false;
     return result;
@@ -176,7 +186,7 @@ export function completeSafariNormalEventBattleContinuation(runtime, battleRetur
     if (!resolved || typeof resolved !== "object" || resolved.terminal !== true) {
       throw new Error("normal-event continuation resolver must return a terminal result");
     }
-    checkpoint.committed_result = clone(resolved);
+    checkpoint.committed_result = snapshotResult(resolved);
     checkpoint.committed = true;
     checkpoint.resolving = false;
     return resolved;
