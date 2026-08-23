@@ -112,7 +112,11 @@ function definition(runtime, eventId, index) {
   if (eventId === "hot_spring") {
     const actions = [];
     if (hasSafariUsablePartyType(runtime, "WATER", "ICE")) actions.push({id:"safe",label:"安全に温泉を整える",meta:"みず/こおりタイプ · 全回復"});
-    actions.push({id:"enter",label:"温泉に入る",meta:"結果は入ってから"},{id:"leave",label:"立ち去る",secondary:true});
+    actions.push(
+      {id:"enter",label:"温泉に入る",meta:"結果は入ってから"},
+      {id:"bottle",label:"温泉水を持ち帰る",meta:"道具1〜2個"},
+      {id:"leave",label:"立ち去る",secondary:true},
+    );
     return { title:"温泉", message:"岩の割れ目から温泉が湧いています。", actions };
   }
   if (eventId === "fake_nurse") {
