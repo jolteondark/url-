@@ -50,6 +50,11 @@ const SECONDARY_COMPOUND_MAJOR_STATUS_V108 = Object.freeze({
   HealUserByHalfOfDamageDoneBurnTarget: "BurnTarget",
   RemoveUserBindingAndEntryHazardsPoisonTarget: "PoisonTarget",
   RecoilThirdOfDamageDealtBurnTarget: "BurnTarget",
+  BurnFlinchTarget: "BurnTarget",
+  FreezeFlinchTarget: "FreezeTarget",
+  ParalyzeFlinchTarget: "ParalyzeTarget",
+  // Legacy aliases retained for older focused fixtures/serialized data. The
+  // canonical v0.9.108 PBS projection uses the shorter *FlinchTarget names.
   BurnTargetFlinchTarget: "BurnTarget",
   FreezeTargetFlinchTarget: "FreezeTarget",
   ParalyzeTargetFlinchTarget: "ParalyzeTarget",
