@@ -51,7 +51,8 @@ assert.equal(supportsSafariNormalEventTouch("burning_wagon"), true);
   assert.equal(result.persistenceRequested, true);
   assert.equal(state.board_consumed[3], true);
   const granted = result.operations.filter((operation) => operation.op === "runtime_grant_item");
-  assert.ok(granted.length >= 2 && granted.length <= 3, "Water rescue must grant 2-3 atomic reward entries");
+  const grantedQuantity = granted.reduce((sum, entry) => sum + Number(entry.quantity ?? 0), 0);
+  assert.ok(grantedQuantity >= 2 && grantedQuantity <= 3, "Water rescue must atomically grant 2-3 total items");
   for (const entry of granted) assert.ok(quantity(runtime.bag.slots, entry.item) >= Number(entry.quantity ?? 1));
 }
 
@@ -66,7 +67,7 @@ assert.equal(supportsSafariNormalEventTouch("burning_wagon"), true);
   assert.equal(result.completed, true);
   assert.equal(state.board_consumed[3], true);
   const granted = result.operations.filter((operation) => operation.op === "runtime_grant_item");
-  assert.equal(granted.length, 1, "Fire rescue must grant exactly one item");
+  assert.equal(granted.reduce((sum, entry) => sum + Number(entry.quantity ?? 0), 0), 1, "Fire rescue must grant exactly one item");
 }
 
 {
@@ -76,7 +77,7 @@ assert.equal(supportsSafariNormalEventTouch("burning_wagon"), true);
   const result = resolveSafariBurningWagonInteraction(runtime, 3, "manual");
   assert.equal(result.result, "manual_rescue_reward");
   assert.equal(Number(runtime.player.party[0].hp), hpBefore);
-  assert.equal(result.operations.filter((operation) => operation.op === "runtime_grant_item").length, 1);
+  assert.equal(result.operations.filter((operation) => operation.op === "runtime_grant_item").reduce((sum, entry) => sum + Number(entry.quantity ?? 0), 0), 1);
   assert.equal(state.board_consumed[3], true);
 }
 
