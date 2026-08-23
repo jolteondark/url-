@@ -15,6 +15,23 @@ function activeNormalEvent() {
   return active?.runtime === runtime() ? active : null;
 }
 function closeNormalEventUi() { globalThis.__maplessNormalEventUi = null; }
+function berryCount(current) {
+  return (current?.bag?.slots ?? [])
+    .filter((slot) => Array.isArray(slot) && /BERRY$/i.test(String(slot[0] ?? "")))
+    .reduce((sum, slot) => sum + Math.max(0, Math.trunc(Number(slot[1]) || 0)), 0);
+}
+function displayActionsFor(current, active) {
+  if (active.eventId !== "traveling_cook") return active.actions;
+  const count = berryCount(current);
+  return [
+    { id:"pay:heal", label:"回復料理をお金で頼む", meta:active.actions.find((action) => action.id === "heal")?.meta ?? "HP50%回復" },
+    { id:"pay:medicine", label:"薬膳料理をお金で頼む", meta:active.actions.find((action) => action.id === "medicine")?.meta ?? "状態異常回復" },
+    { id:"berries:heal", label:"きのみ3個で回復料理", meta:`所持きのみ ${count}個 · HP50%回復`, disabled:count < 3 },
+    { id:"berries:medicine", label:"きのみ3個で薬膳料理", meta:`所持きのみ ${count}個 · 状態異常回復`, disabled:count < 3 },
+    { id:"prototype", label:"試作品を食べてみる", meta:"回復・薬効・強化料理・混乱・ダメージのいずれか" },
+    { id:"leave", label:"立ち去る", secondary:true },
+  ];
+}
 
 function loadOwner(eventId) {
   if (!ownerModules.has(eventId)) {
@@ -47,9 +64,11 @@ async function resolveAction(current, active, actionId) {
   if (active.eventId === "hot_spring") return owner.resolveSafariHotSpringInteraction(current, active.boardIndex, actionId);
   if (active.eventId === "fake_nurse") return owner.resolveSafariFakeNurseInteraction(current, active.boardIndex, actionId);
   if (active.eventId === "traveling_cook") {
-    return actionId === "leave"
-      ? owner.resolveSafariTravelingCookInteraction(current, active.boardIndex, "leave")
-      : owner.resolveSafariTravelingCookInteraction(current, active.boardIndex, "pay", actionId);
+    if (actionId === "leave") return owner.resolveSafariTravelingCookInteraction(current, active.boardIndex, "leave");
+    if (actionId === "prototype") return owner.resolveSafariTravelingCookInteraction(current, active.boardIndex, "prototype");
+    if (String(actionId).startsWith("berries:")) return owner.resolveSafariTravelingCookInteraction(current, active.boardIndex, "berries", String(actionId).slice(8));
+    if (String(actionId).startsWith("pay:")) return owner.resolveSafariTravelingCookInteraction(current, active.boardIndex, "pay", String(actionId).slice(4));
+    return owner.resolveSafariTravelingCookInteraction(current, active.boardIndex, "pay", actionId);
   }
   if (active.eventId === "flooded_river") return owner.resolveSafariFloodedRiverInteraction(current, active.boardIndex, actionId);
   if (active.eventId === "burning_wagon") return owner.resolveSafariBurningWagonInteraction(current, active.boardIndex, actionId);
@@ -137,7 +156,8 @@ async function sync() {
   card.hidden = false;
   byId("normal-event-title").textContent = active.title;
   byId("normal-event-message").textContent = currentState.notice || active.message;
-  const buttons = active.actions.map((action) => {
+  const actions = displayActionsFor(current, active);
+  const buttons = actions.map((action) => {
     const button = document.createElement("button");
     button.type = "button";
     button.dataset.normalEventAction = action.id;
