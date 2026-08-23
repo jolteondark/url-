@@ -105,12 +105,21 @@ function lockBoard() {
   if (village) village.disabled = true;
 }
 
+async function ensurePendingContinuationOwner(currentState) {
+  const pending = currentState?.normal_event_battle_continuation;
+  if (!pending || pending.committed === true) return;
+  const eventId = String(pending.event_id ?? "");
+  if (!eventId) return;
+  await loadOwner(eventId);
+}
+
 async function sync() {
   syncQueued = false;
   const card = byId("normal-event-card");
   const current = runtime();
   const currentState = state();
   const active = activeNormalEvent();
+  if (currentState) await ensurePendingContinuationOwner(currentState);
   if (!card || !current || !currentState || !active) {
     const wasVisible = Boolean(card && !card.hidden);
     if (card) card.hidden = true;
