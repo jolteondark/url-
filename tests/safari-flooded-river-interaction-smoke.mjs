@@ -24,6 +24,13 @@ function installDay14River(runtime) {
   return state;
 }
 
+function grantType(runtime, typeId) {
+  assert.ok(runtime.player.party[0], "fixture requires a lead Pokemon");
+  runtime.player.party[0].types = [typeId];
+  runtime.player.party[0].egg = false;
+  runtime.player.party[0].hp = Math.max(1, Number(runtime.player.party[0].hp ?? 1));
+}
+
 {
   const runtime = createSafariPlayableRuntime();
   const state = installDay14River(runtime);
@@ -76,4 +83,72 @@ function installDay14River(runtime) {
     "opening the Safari river presentation without a decision must not consume the Board cell");
 }
 
-console.log("Safari flooded river canonical force/leave interaction: PASS");
+{
+  const runtime = createSafariPlayableRuntime();
+  const state = installDay14River(runtime);
+  grantType(runtime, "WATER");
+  const ready = interactiveSafariFloodedRiver(runtime, 2);
+  assert.deepEqual(ready.availableActions, ["water", "force", "leave"],
+    "a living Water-type Party member must expose the safe Water route");
+
+  const crossed = resolveSafariFloodedRiverInteraction(runtime, 2, "water");
+  assert.equal(crossed.result, "water_crossing");
+  assert.equal(crossed.completed, true);
+  assert.equal(crossed.persistenceRequested, true);
+  assert.equal(state.board_consumed[2], true);
+  const granted = crossed.operations.filter((operation) => operation.op === "runtime_grant_item");
+  assert.ok(granted.length >= 1 && granted.length <= 2,
+    "Water crossing must atomically grant the canonical 1-2 item reward");
+  for (const entry of granted) {
+    assert.ok(quantity(runtime.bag.slots, entry.item) >= Number(entry.quantity ?? 1),
+      `Water reward ${entry.item} must be committed to the Safari Bag`);
+  }
+}
+
+{
+  const runtime = createSafariPlayableRuntime();
+  const state = installDay14River(runtime);
+  grantType(runtime, "ICE");
+  const ready = interactiveSafariFloodedRiver(runtime, 2);
+  assert.deepEqual(ready.availableActions, ["ice", "force", "leave"],
+    "a living Ice-type Party member must expose the safe Ice route");
+
+  const crossed = resolveSafariFloodedRiverInteraction(runtime, 2, "ice");
+  assert.equal(crossed.result, "ice_crossing");
+  assert.equal(crossed.completed, true);
+  assert.equal(crossed.persistenceRequested, true);
+  assert.equal(state.board_consumed[2], true);
+  const granted = crossed.operations.filter((operation) => operation.op === "runtime_grant_item");
+  assert.equal(granted.length, 1, "Ice crossing must grant exactly one reward item");
+  assert.ok(quantity(runtime.bag.slots, granted[0].item) >= Number(granted[0].quantity ?? 1));
+}
+
+{
+  const runtime = createSafariPlayableRuntime();
+  const state = installDay14River(runtime);
+  grantType(runtime, "WATER");
+  runtime.bag.slots = Array.from({ length: 20 }, (_, index) => [`FILLER_${index}`, 99]);
+  const before = structuredClone(runtime.bag.slots);
+
+  const blocked = resolveSafariFloodedRiverInteraction(runtime, 2, "water");
+  assert.equal(blocked.result, "reward_bag_full");
+  assert.equal(blocked.completed, false);
+  assert.equal(blocked.persistenceRequested, false);
+  assert.deepEqual(runtime.bag.slots, before,
+    "a multi-item River reward must not partially mutate a full Safari Bag");
+  assert.equal(state.board_consumed[2], false,
+    "the River cell must remain available when the complete reward cannot be received");
+}
+
+{
+  const runtime = createSafariPlayableRuntime();
+  const state = installDay14River(runtime);
+  grantType(runtime, "WATER");
+  runtime.player.party[0].hp = 0;
+  const ready = interactiveSafariFloodedRiver(runtime, 2);
+  assert.deepEqual(ready.availableActions, ["force", "leave"],
+    "a fainted Water-type must not unlock the safe River route");
+  assert.equal(state.board_consumed[2], false);
+}
+
+console.log("Safari flooded river force/leave + Water/Ice special routes: PASS");

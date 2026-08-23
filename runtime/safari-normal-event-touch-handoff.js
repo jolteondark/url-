@@ -121,7 +121,17 @@ function definition(runtime, eventId, index) {
     return { title:"旅の料理人", message:`${price}円で料理を作ってくれます。`, actions:[{id:"heal",label:"回復料理",meta:`HP50%回復 · ${price}円`},{id:"medicine",label:"薬膳料理",meta:`状態異常回復 · ${price}円`},{id:"leave",label:"立ち去る",secondary:true}] };
   }
   if (eventId === "flooded_river") {
-    return { title:"増水した川", message:"濁流が進路を遮っています。", actions:[{id:"force",label:"強引に渡る",meta:"危険"},{id:"leave",label:"引き返す",secondary:true}] };
+    const actions = [];
+    if (hasSafariUsablePartyType(runtime, "WATER")) actions.push({id:"water",label:"みずタイプに流れを鎮めさせる",meta:"安全に渡る · 道具1〜2個"});
+    if (hasSafariUsablePartyType(runtime, "ICE")) actions.push({id:"ice",label:"こおりタイプに川面を凍らせる",meta:"安全に渡る · 道具1個"});
+    actions.push({id:"force",label:"強引に渡る",meta:"危険"},{id:"leave",label:"引き返す",secondary:true});
+    return {
+      title:"増水した川",
+      message: actions.some((action) => action.id === "water" || action.id === "ice")
+        ? "濁流が進路を遮っています。手持ちのタイプを活かせば安全に渡れそうです。"
+        : "濁流が進路を遮っています。",
+      actions,
+    };
   }
   if (eventId === "wounded_pokemon") return woundedDefinition(runtime, index);
   throw new RangeError(`unsupported normal-event touch id: ${eventId}`);
