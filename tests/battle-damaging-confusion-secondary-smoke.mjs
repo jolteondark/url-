@@ -30,7 +30,7 @@ function pokemon({ species, move, speed, hp = 500, attack = 50, defense = 100 } 
     species, level:20, hp, max_hp:hp, status:"NONE", status_count:0,
     ability_id:"NONE", item:null, types:["NORMAL"],
     stats:{ ATTACK:attack, DEFENSE:defense, SPECIAL_ATTACK:50, SPECIAL_DEFENSE:100, SPEED:speed },
-    moves:[{ id:move, pp:20, ppup:0 }],
+    moves:[{ id:move, pp:move === "DYNAMICPUNCH" ? 5 : 35, ppup:0 }],
   };
 }
 
