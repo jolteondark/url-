@@ -81,6 +81,29 @@ jobs:
           cp index.html *.css *.js runtime-source.json manifest.webmanifest dist/
           cp -R runtime dist/runtime
           cp -R assets dist/assets
+          BUILD_ID="$(TZ=Asia/Tokyo date +%Y%m%d-%H%M)-${GITHUB_SHA::7}"
+          python3 - "$BUILD_ID" <<'PY'
+          from pathlib import Path
+          import re
+          import sys
+
+          build_id = sys.argv[1]
+          path = Path("dist/index.html")
+          text = path.read_text(encoding="utf-8")
+          text = re.sub(
+              r"build [0-9]{8}-[0-9]{4}(?:-[0-9a-f]+)?",
+              f"build {build_id}",
+              text,
+          )
+          text = re.sub(
+              r"\?v=[0-9]{8}-[0-9]{4}(?:-[0-9a-f]+)?",
+              f"?v={build_id}",
+              text,
+          )
+          path.write_text(text, encoding="utf-8")
+          PY
+          grep -F "build ${BUILD_ID}" dist/index.html
+          grep -F "?v=${BUILD_ID}" dist/index.html
           test -f dist/species-sprite-atlas-bridge.js
           test -f dist/runtime/safari-species-sprite-atlas.js
           test -f dist/runtime/safari-species-form-front-atlas.js
