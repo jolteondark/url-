@@ -88,6 +88,10 @@ function wildEncounterExtraModifier(event) {
   const value = Number(event?.modifier ?? 0);
   return Number.isFinite(value) ? value : 0;
 }
+function trainerBattleExtraModifier(event) {
+  const value = Number(event?.modifier ?? 0);
+  return Number.isFinite(value) ? value : 0;
+}
 export function safariWildBattleInitialStatStages(event) {
   return createBattleStatStageStateCanonical({ foe: event?.enemy_stages ?? {} });
 }
@@ -123,10 +127,29 @@ function startWild(runtime, event, index, operations) {
 function startTrainer(runtime, event, index, operations) {
   const { trainerGenerator } = safariGeneralCombatModules("trainer");
   const state = stateOf(runtime);
-  const trainer = trainerGenerator.generateSafariDynamicTrainer({ day: state.day, seed: event.trainer_seed });
+  const trainer = trainerGenerator.generateSafariDynamicTrainer({
+    day: state.day,
+    seed: event.trainer_seed ?? event.seed,
+    extraModifier: trainerBattleExtraModifier(event),
+  });
   const party = trainer.party.map(materializePokemon);
   setBattle(runtime, index, "trainer", party[0], operations, trainer, null, null, party);
   state.notice = `${trainer.trainer_full_name}が勝負を仕掛けてきた！`;
+}
+
+function assertNormalEventBattleOrigin(state, index, eventId) {
+  const origin = state.board_events?.[index];
+  if (!origin || origin.kind !== "normal_event") throw new Error("originating normal_event board event is required");
+  if (String(origin.normal_event_id ?? "") !== String(eventId ?? "")) throw new Error("normal-event battle eventId does not match the originating cell");
+  return origin;
+}
+function assertNormalEventBattleAvailable(state) {
+  if (state.battle) return { result: "battle_active", boundary: "battle", notice: "戦闘を先に終えてください。" };
+  if (state.pending_battle_return_checkpoint?.committed === false) {
+    return { result: "battle_return_pending", boundary: "battle", notice: "戦闘結果の保存を完了してください。" };
+  }
+  if (state.shop) return { result: "shop_active", boundary: "shop", notice: "ショップを先に終了してください。" };
+  return null;
 }
 
 export async function activateSafariNormalEventWildBattle(runtime, index, {
@@ -137,21 +160,10 @@ export async function activateSafariNormalEventWildBattle(runtime, index, {
   payload = null,
 } = {}) {
   const state = stateOf(runtime);
-  const origin = state.board_events?.[index];
-  if (!origin || origin.kind !== "normal_event") throw new Error("originating normal_event board event is required");
-  if (String(origin.normal_event_id ?? "") !== String(eventId ?? "")) throw new Error("normal-event battle eventId does not match the originating cell");
+  assertNormalEventBattleOrigin(state, index, eventId);
   if (!battleEvent || typeof battleEvent !== "object" || Array.isArray(battleEvent)) throw new TypeError("canonical wild battleEvent is required");
-  if (state.battle) return { runtime, result: "battle_active", boundary: "battle", notice: "戦闘を先に終えてください。", operations: [] };
-  if (state.pending_battle_return_checkpoint?.committed === false) {
-    return {
-      runtime,
-      result: "battle_return_pending",
-      boundary: "battle",
-      notice: "戦闘結果の保存を完了してください。",
-      operations: [],
-    };
-  }
-  if (state.shop) return { runtime, result: "shop_active", boundary: "shop", notice: "ショップを先に終了してください。", operations: [] };
+  const blocked = assertNormalEventBattleAvailable(state);
+  if (blocked) return { runtime, ...blocked, operations: [] };
 
   const previousBattle = state.battle;
   const previousNotice = state.notice;
@@ -199,6 +211,69 @@ export async function activateSafariNormalEventWildBattle(runtime, index, {
     else delete state.preview_encounter_seed;
     if (hadEncounterCounter) state.preview_encounter_counter = previousEncounterCounter;
     else delete state.preview_encounter_counter;
+    notifySafariRuntimeChanged();
+    throw error;
+  }
+}
+
+export async function activateSafariNormalEventTrainerBattle(runtime, index, {
+  eventId,
+  actionId,
+  battleEvent,
+  request = null,
+  payload = null,
+} = {}) {
+  const state = stateOf(runtime);
+  assertNormalEventBattleOrigin(state, index, eventId);
+  if (!battleEvent || typeof battleEvent !== "object" || Array.isArray(battleEvent)) throw new TypeError("canonical trainer battleEvent is required");
+  const blocked = assertNormalEventBattleAvailable(state);
+  if (blocked) return { runtime, ...blocked, operations: [] };
+
+  // The shared dynamic-trainer owner currently models seed + scaling modifier.
+  // Fail closed rather than silently dropping canonical constraints owned elsewhere.
+  for (const unsupported of ["type", "extra_pokemon", "cannot_run", "strong_ai"]) {
+    if (battleEvent[unsupported]) throw new Error(`normal-event trainer Battle constraint is not yet owned by the shared trainer generator: ${unsupported}`);
+  }
+
+  const previousBattle = state.battle;
+  const previousNotice = state.notice;
+  const previousLastOperations = state.last_operations;
+  let checkpoint = null;
+
+  try {
+    checkpoint = beginSafariNormalEventBattleContinuation(runtime, {
+      boardIndex: index,
+      eventId,
+      actionId,
+      request,
+      payload,
+    });
+    globalThis.__maplessSafariRuntime = runtime;
+    if (!safariGeneralCombatReady("trainer")) {
+      state.notice = "戦闘データを読み込んでいます…";
+      notifySafariRuntimeChanged();
+      await ensureSafariGeneralCombatData("trainer");
+    }
+    startTrainer(runtime, { kind: "trainer", ...structuredClone(battleEvent) }, index, []);
+    bindSafariNormalEventBattleContinuation(runtime, checkpoint);
+    globalThis.__maplessLastError = null;
+    notifySafariRuntimeChanged();
+    return {
+      runtime,
+      result: "normal_event_trainer_battle_started",
+      boundary: "trainer",
+      continuationKey: checkpoint.key,
+      notice: state.notice,
+      operations: state.battle?.last_operations ?? [],
+      presentation: state.battle?.presentation ?? [],
+      trainer: state.battle?.trainer ?? null,
+    };
+  } catch (error) {
+    globalThis.__maplessLastError = error;
+    state.battle = previousBattle;
+    state.notice = previousNotice;
+    state.last_operations = previousLastOperations;
+    if (checkpoint && checkpoint.battle_started !== true) rollbackSafariNormalEventBattleContinuation(runtime, checkpoint);
     notifySafariRuntimeChanged();
     throw error;
   }
