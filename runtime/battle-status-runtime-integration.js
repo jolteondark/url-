@@ -1,4 +1,5 @@
 import { inflictStatus, cureStatus } from "./battle-status-pp-flow.js";
+import { canInflictMajorStatusCanonical } from "./battle-core-status-eligibility.js";
 import { updatePokemonRuntime } from "./pokemon-runtime.js";
 
 function hasAfterMoveRequest(action) {
@@ -14,6 +15,23 @@ function actionDealtDamage(turn, roundIndex, actionIndex) {
   });
 }
 
+function resolvedInflictInput(input, action, runtime) {
+  if (!input?.newStatusFromSecondaryChoice) return input;
+  const secondaryIndex = Number(input.secondaryEffectTargetIndex);
+  const secondary = Array.isArray(action?.secondaryEffectInputs) ? action.secondaryEffectInputs[secondaryIndex] : null;
+  const newStatus = secondary?.randomChoiceValue;
+  if (!newStatus) return null;
+  const eligibility = canInflictMajorStatusCanonical({
+    newStatus,
+    currentStatus: runtime?.status ?? "NONE",
+    fainted: Number(runtime?.hp ?? 0) <= 0,
+    targetTypes: input.targetTypes ?? [],
+    ...(input.eligibilityFacts ?? {}),
+  });
+  if (!eligibility.canInflict) return null;
+  return { ...input, newStatus, randomStatusEligibility: eligibility };
+}
+
 export function commitBattleSystemsStatusRuntime({ battleInput = {}, turn = {}, pokemon, reflectedBattlerIndex = null } = {}) {
   let runtime = pokemon;
   const commits = [];
@@ -25,20 +43,22 @@ export function commitBattleSystemsStatusRuntime({ battleInput = {}, turn = {}, 
 
   for (const [roundIndex, round] of (battleInput.rounds ?? []).entries()) {
     for (const [actionIndex, action] of (round.actions ?? []).entries()) {
-      const input = action?.battleStatusInput;
-      if (!input || !executed.has(`${roundIndex}:${actionIndex}`)) continue;
-      if (!Boolean(input.commitOnExecutedHit) && !hasAfterMoveRequest(action)) continue;
-      const targetBattlerIndex = Number(input.targetBattlerIndex ?? action.targetBattlerIndex);
+      const rawInput = action?.battleStatusInput;
+      if (!rawInput || !executed.has(`${roundIndex}:${actionIndex}`)) continue;
+      if (!Boolean(rawInput.commitOnExecutedHit) && !hasAfterMoveRequest(action)) continue;
+      const targetBattlerIndex = Number(rawInput.targetBattlerIndex ?? action.targetBattlerIndex);
       if (reflectedBattlerIndex !== null && reflectedBattlerIndex !== undefined && targetBattlerIndex !== Number(reflectedBattlerIndex)) continue;
-      if (input.requiresAccuracyHit !== false && action?.accuracyResolution?.hit !== true) continue;
+      if (rawInput.requiresAccuracyHit !== false && action?.accuracyResolution?.hit !== true) continue;
 
-      if (input.secondaryEffectTargetIndex !== undefined && input.secondaryEffectTargetIndex !== null) {
-        const secondaryIndex = Number(input.secondaryEffectTargetIndex);
+      if (rawInput.secondaryEffectTargetIndex !== undefined && rawInput.secondaryEffectTargetIndex !== null) {
+        const secondaryIndex = Number(rawInput.secondaryEffectTargetIndex);
         const secondary = Array.isArray(action.secondaryEffectInputs) ? action.secondaryEffectInputs[secondaryIndex] : null;
         if (!secondary?.triggered) continue;
-        if (input.requiresDamageDealt !== false && !actionDealtDamage(turn, roundIndex, actionIndex)) continue;
+        if (rawInput.requiresDamageDealt !== false && !actionDealtDamage(turn, roundIndex, actionIndex)) continue;
       }
 
+      const input = resolvedInflictInput(rawInput, action, runtime);
+      if (!input) continue;
       const currentState = {
         status: runtime.status ?? "NONE",
         statusCount: Number(runtime.status_count ?? 0),
@@ -64,4 +84,3 @@ export function commitBattleSystemsStatusRuntime({ battleInput = {}, turn = {}, 
   }
   return { pokemon: runtime, commits };
 }
-
