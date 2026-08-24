@@ -2,6 +2,7 @@ import { resolveStreetPerformer } from "./mapless-normal-events-a4-flow.js";
 import { updatePokemonRuntime } from "./pokemon-runtime.js";
 import { ensureSafariGeneralData } from "./safari-general-data-demand.js";
 import { grantSafariNormalEventPokemonExp } from "./safari-normal-event-exp-owner.js";
+import { registerSafariNormalEventBattleContinuation } from "./safari-normal-event-battle-continuation.js";
 import { safariPokemonTypes } from "./safari-pokemon-type-membership.js";
 import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
 import {
@@ -9,6 +10,7 @@ import {
   preflightSafariSmallItemReward,
   safariDeterministicSmallRewardItem,
 } from "./safari-small-item-reward.js";
+import { activateSafariNormalEventTrainerBattle } from "./safari-web-combat-start.js";
 
 const STREET_REWARD_SALT = 0x73747265;
 
@@ -58,6 +60,42 @@ function commitResolvedEvent(runtime, index, owner, appliedOperations) {
   ];
   return state;
 }
+
+registerSafariNormalEventBattleContinuation("street_performer", (runtime, continuation) => {
+  if (continuation.actionId !== "callout") throw new Error(`unsupported street_performer Battle continuation action: ${continuation.actionId}`);
+  const state = stateOf(runtime);
+  const index = Number(continuation.boardIndex);
+  const event = state.board_events?.[index];
+  if (!event || event.kind !== "normal_event" || event.normal_event_id !== "street_performer") throw new Error("street_performer continuation requires the originating board event");
+
+  const owner = resolveStreetPerformer({
+    event,
+    action:"callout",
+    current_day:Math.max(1, Math.trunc(Number(state.day) || 1)),
+    scaling_value:scalingValue(state.day),
+  });
+  const battleRequest = (owner.operations ?? []).find((operation) => operation?.op === "start_trainer_battle");
+  if (!battleRequest) throw new Error("street_performer fraud Battle continuation requires canonical trainer Battle request");
+
+  state.board_events[index] = owner.event;
+  state.board_visited[index] = true;
+  state.board_consumed[index] = Boolean(owner.event.normal_resolved);
+  state.last_operations = [
+    ...(owner.operations ?? []).filter((operation) => operation?.op !== "start_trainer_battle").map((operation) => structuredClone(operation)),
+    { op:"request_save", reason:"normal_event_post_trainer_battle" },
+  ];
+  state.notice = "詐欺を指摘し、勝負を終えました。大道芸人のもとを離れます。";
+  return {
+    runtime,
+    result:owner.outcome,
+    completed:true,
+    terminal:true,
+    operations:state.last_operations,
+    notice:state.notice,
+    persistenceRequested:true,
+    owner,
+  };
+});
 
 export async function safariStreetPerformerChoices(runtime) {
   await ensureSafariGeneralData();
@@ -154,9 +192,15 @@ export async function resolveSafariStreetPerformerInteraction(runtime, index, re
     const owner = resolveStreetPerformer({ event, action:"callout", current_day:day, scaling_value:scale });
     const trainerBattle = (owner.operations ?? []).find((operation) => operation?.op === "start_trainer_battle");
     if (trainerBattle) {
-      state.notice = "詐欺を指摘するとトレーナー戦になりますが、この通常イベントからの戦闘接続はまだ共通化されていません。";
-      state.last_operations = [{ op:"trainer_battle_handoff_required", request:structuredClone(trainerBattle) }];
-      return { runtime, result:"trainer_battle_handoff_required", completed:false, operations:state.last_operations, notice:state.notice, persistenceRequested:false, owner };
+      const started = await activateSafariNormalEventTrainerBattle(runtime, index, {
+        eventId:"street_performer",
+        actionId:"callout",
+        battleEvent:trainerBattle,
+        request:structuredClone(trainerBattle),
+        payload:{ canonicalOutcome:owner.outcome },
+      });
+      if (started.result === "normal_event_trainer_battle_started" && state.battle) globalThis.__maplessNormalEventUi = null;
+      return started;
     }
     commitResolvedEvent(runtime, index, owner, []);
     state.notice = "詐欺ではありませんでした。大道芸人のもとを離れました。";
