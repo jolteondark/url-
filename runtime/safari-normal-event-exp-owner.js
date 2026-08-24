@@ -1,4 +1,5 @@
 import { commitBattleSystemsExpRuntime } from "./battle-exp-runtime-integration.js";
+import { ensureSafariGeneralData } from "./safari-general-data-demand.js";
 import { maximumExpForGrowthRate } from "./pokemon-growth-rate.js";
 import { SAFARI_MOVE_MASTERS, SAFARI_NATURE_MASTERS, SAFARI_SPECIES_MASTERS } from "./safari-playable-data.js";
 
@@ -10,10 +11,6 @@ function asNonNegativeInteger(value, field) {
 
 function isEggPokemon(pokemon) {
   return pokemon?.egg === true || Number(pokemon?.steps_to_hatch ?? 0) > 0;
-}
-
-function moveId(move) {
-  return typeof move === "string" ? move : move?.id;
 }
 
 function levelMovesByLevel(speciesMaster) {
@@ -38,9 +35,20 @@ function explicitMoveDecisions(pokemon) {
   return Object.freeze(structuredClone(decisions));
 }
 
-function fixedExpInput(runtime, pokemon, amount) {
-  const speciesMaster = SAFARI_SPECIES_MASTERS[pokemon?.species];
-  if (!speciesMaster?.growth_rate) throw new RangeError(`normal-event EXP species is outside the Safari projection: ${pokemon?.species}`);
+async function ensureGrowthMaster(pokemon) {
+  let speciesMaster = SAFARI_SPECIES_MASTERS[pokemon?.species];
+  if (!Array.isArray(speciesMaster?.level_moves)) {
+    await ensureSafariGeneralData();
+    speciesMaster = SAFARI_SPECIES_MASTERS[pokemon?.species];
+  }
+  if (!speciesMaster?.growth_rate || !Array.isArray(speciesMaster?.level_moves)) {
+    throw new RangeError(`normal-event EXP species is outside the Safari growth projection: ${pokemon?.species}`);
+  }
+  return speciesMaster;
+}
+
+async function fixedExpInput(runtime, pokemon, amount) {
+  const speciesMaster = await ensureGrowthMaster(pokemon);
   const natureId = pokemon.nature_for_stats_id ?? pokemon.nature_id ?? "HARDY";
   const natureMaster = SAFARI_NATURE_MASTERS[natureId];
   if (!natureMaster) throw new RangeError(`normal-event EXP nature is outside the Safari projection: ${natureId}`);
@@ -50,9 +58,9 @@ function fixedExpInput(runtime, pokemon, amount) {
     growthRate,
     maximumExp: maximumExpForGrowthRate(growthRate),
     maxMoves: 4,
-    // The canonical EXP flow already exposes itemModifiedExp as an exact post-formula
-    // EXP override. Feed it a minimal positive base calculation, then let the existing
-    // level/move/evolution owner perform the only runtime mutation.
+    // Reuse the canonical EXP flow's exact post-formula override. The synthetic
+    // base calculation is intentionally minimal and has no Battle/trainer bonuses;
+    // itemModifiedExp becomes the exact normal-event award before growth commits.
     expContext: {
       defeatedLevel: 1,
       baseExp: 7,
@@ -88,8 +96,8 @@ function fixedExpInput(runtime, pokemon, amount) {
   };
 }
 
-function commitFixedExp(runtime, pokemon, amount) {
-  const battleExpInput = fixedExpInput(runtime, pokemon, amount);
+async function commitFixedExp(runtime, pokemon, amount) {
+  const battleExpInput = await fixedExpInput(runtime, pokemon, amount);
   const committed = commitBattleSystemsExpRuntime({
     pokemon,
     battleInput: {
@@ -109,7 +117,7 @@ function commitFixedExp(runtime, pokemon, amount) {
   };
 }
 
-export function grantSafariNormalEventPokemonExp(runtime, partyIndex, amount) {
+export async function grantSafariNormalEventPokemonExp(runtime, partyIndex, amount) {
   const exp = asNonNegativeInteger(amount, "normal-event EXP amount");
   const party = runtime?.player?.party;
   const index = Number(partyIndex);
@@ -120,7 +128,7 @@ export function grantSafariNormalEventPokemonExp(runtime, partyIndex, amount) {
     return { runtime, partyIndex: index, skipped: true, expGained: 0, operations: [] };
   }
 
-  const committed = commitFixedExp(runtime, pokemon, exp);
+  const committed = await commitFixedExp(runtime, pokemon, exp);
   party[index] = structuredClone(committed.pokemon);
   return {
     runtime,
@@ -132,7 +140,7 @@ export function grantSafariNormalEventPokemonExp(runtime, partyIndex, amount) {
   };
 }
 
-export function grantSafariNormalEventPartyExp(runtime, amount) {
+export async function grantSafariNormalEventPartyExp(runtime, amount) {
   const exp = asNonNegativeInteger(amount, "normal-event Party EXP amount");
   const party = runtime?.player?.party;
   if (!Array.isArray(party)) throw new TypeError("runtime player.party is required");
@@ -143,7 +151,7 @@ export function grantSafariNormalEventPartyExp(runtime, amount) {
   for (let index = 0; index < initialLength; index += 1) {
     const pokemon = party[index];
     if (!pokemon || isEggPokemon(pokemon)) continue;
-    const granted = grantSafariNormalEventPokemonExp(runtime, index, exp);
+    const granted = await grantSafariNormalEventPokemonExp(runtime, index, exp);
     recipients.push({ partyIndex: index, expGained: granted.expGained });
     operations.push(...granted.operations.map((operation) => ({
       ...structuredClone(operation),
