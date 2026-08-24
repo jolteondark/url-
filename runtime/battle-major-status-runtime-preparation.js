@@ -23,6 +23,10 @@ const FLINCH_SECONDARY_FUNCTION_CODES_V108 = new Set([
   "ParalyzeTargetFlinchTarget",
 ]);
 
+const RANDOM_MAJOR_STATUS_SECONDARY_FUNCTION_CODES_V108 = Object.freeze({
+  ParalyzeBurnOrFreezeTarget: Object.freeze(["PARALYSIS", "BURN", "FROZEN"]),
+});
+
 function directFlinchSecondaryEffectInput(move) {
   if (!move || move.category === "Status") return null;
   if (!FLINCH_SECONDARY_FUNCTION_CODES_V108.has(move.function_code)) return null;
@@ -33,6 +37,19 @@ function directFlinchSecondaryEffectInput(move) {
     effectChance,
     functionCode: "FlinchTarget",
     transientEffect: "flinch",
+  };
+}
+
+function randomMajorStatusSecondaryEffectInput(move) {
+  if (!move || move.category === "Status") return null;
+  const statuses = RANDOM_MAJOR_STATUS_SECONDARY_FUNCTION_CODES_V108[move.function_code] ?? null;
+  const effectChance = Number(move.effect_chance ?? 0);
+  if (!statuses || effectChance <= 0) return null;
+  return {
+    calcDamage: 1,
+    effectChance,
+    functionCode: String(move.function_code),
+    randomChoiceValues: [...statuses],
   };
 }
 
@@ -60,7 +77,8 @@ export function prepareReflectedMajorStatusBattleInput({ battleInput = {}, pokem
       if (Number(action.targetBattlerIndex) !== reflectedIndex) return preparedAction;
       const directSource = majorStatusMoveEffectSourceCanonical(move);
       const secondarySource = secondaryMajorStatusMoveEffectSourceCanonical(move);
-      if (!directSource && !secondarySource) return preparedAction;
+      const randomStatusInput = randomMajorStatusSecondaryEffectInput(move);
+      if (!directSource && !secondarySource && !randomStatusInput) return preparedAction;
       targetTypes ??= pokemonTypes(pokemon);
 
       if (directSource) {
@@ -78,15 +96,32 @@ export function prepareReflectedMajorStatusBattleInput({ battleInput = {}, pokem
         };
       }
 
-      const effect = resolveSecondaryMajorStatusMoveEffectCanonical({
-        move,
-        target: pokemon,
-        targetTypes,
-        targetBattlerIndex: reflectedIndex,
-      });
-      if (!effect?.battleStatusInput || !effect?.secondaryEffectInput) {
-        return effect ? { ...preparedAction, secondaryMajorStatusEffectResolution: effect } : preparedAction;
+      if (secondarySource) {
+        const effect = resolveSecondaryMajorStatusMoveEffectCanonical({
+          move,
+          target: pokemon,
+          targetTypes,
+          targetBattlerIndex: reflectedIndex,
+        });
+        if (!effect?.battleStatusInput || !effect?.secondaryEffectInput) {
+          return effect ? { ...preparedAction, secondaryMajorStatusEffectResolution: effect } : preparedAction;
+        }
+        hasSecondaryEffect = true;
+        const existingSecondaryInputs = Array.isArray(preparedAction.secondaryEffectInputs)
+          ? preparedAction.secondaryEffectInputs
+          : [];
+        const statusSecondaryIndex = existingSecondaryInputs.length;
+        return {
+          ...preparedAction,
+          secondaryEffectInputs: [...existingSecondaryInputs, effect.secondaryEffectInput],
+          battleStatusInput: {
+            ...effect.battleStatusInput,
+            secondaryEffectTargetIndex: statusSecondaryIndex,
+          },
+          secondaryMajorStatusEffectResolution: effect,
+        };
       }
+
       hasSecondaryEffect = true;
       const existingSecondaryInputs = Array.isArray(preparedAction.secondaryEffectInputs)
         ? preparedAction.secondaryEffectInputs
@@ -94,12 +129,24 @@ export function prepareReflectedMajorStatusBattleInput({ battleInput = {}, pokem
       const statusSecondaryIndex = existingSecondaryInputs.length;
       return {
         ...preparedAction,
-        secondaryEffectInputs: [...existingSecondaryInputs, effect.secondaryEffectInput],
+        secondaryEffectInputs: [...existingSecondaryInputs, randomStatusInput],
         battleStatusInput: {
-          ...effect.battleStatusInput,
+          kind: "inflict",
+          newStatusFromSecondaryChoice: true,
+          newStatusCount: 0,
+          targetBattlerIndex: reflectedIndex,
+          targetTypes: [...targetTypes],
+          requiresAccuracyHit: true,
+          commitOnExecutedHit: true,
           secondaryEffectTargetIndex: statusSecondaryIndex,
+          requiresDamageDealt: true,
         },
-        secondaryMajorStatusEffectResolution: effect,
+        randomMajorStatusEffectResolution: {
+          supported: true,
+          functionCode: String(move.function_code),
+          statuses: [...randomStatusInput.randomChoiceValues],
+          effectChance: Number(move.effect_chance ?? 0),
+        },
       };
     }),
   }));
