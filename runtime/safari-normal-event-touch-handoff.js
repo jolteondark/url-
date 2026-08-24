@@ -20,6 +20,7 @@ const SUPPORTED = new Set([
   "honey_tree",
   "lost_pokemon",
   "photographer",
+  "sleeping_giant",
   "wounded_pokemon",
 ]);
 
@@ -213,6 +214,18 @@ function definition(runtime, eventId, index) {
       { id:"leave", label:"撮影を断って立ち去る", secondary:true },
     );
     return { title:"写真家", message:`${requested}タイプのポケモンを撮影したいそうです。`, actions };
+  }
+  if (eventId === "sleeping_giant") {
+    const item = String(state.board_events?.[index]?.normal_data?.display_item ?? "道具");
+    return {
+      title:"眠る巨体",
+      message:`巨大なポケモンが${item}を抱えて眠っています。`,
+      actions:[
+        { id:"steal", label:"眠っている隙に盗む", meta:"成功なら道具獲得 · 失敗すると強敵戦" },
+        { id:"fight", label:"正面から挑む", meta:"強敵戦 · 勝利で道具獲得" },
+        { id:"leave", label:"刺激せず立ち去る", secondary:true },
+      ],
+    };
   }
   if (eventId === "wounded_pokemon") return woundedDefinition(runtime, index);
   throw new RangeError(`unsupported normal-event touch id: ${eventId}`);
