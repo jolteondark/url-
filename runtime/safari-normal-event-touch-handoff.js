@@ -6,6 +6,7 @@ import {
 import { hasSafariUsablePartyType } from "./safari-pokemon-type-membership.js";
 import { safariMeteorFragmentRockChoices } from "./safari-meteor-fragment-interaction.js";
 import { safariLostPokemonBerryChoices } from "./safari-lost-pokemon-interaction.js";
+import { safariPhotographerPartyChoices } from "./safari-photographer-interaction.js";
 
 const SUPPORTED = new Set([
   "street_performer",
@@ -18,6 +19,7 @@ const SUPPORTED = new Set([
   "meteor_fragment",
   "honey_tree",
   "lost_pokemon",
+  "photographer",
   "wounded_pokemon",
 ]);
 
@@ -201,6 +203,16 @@ function definition(runtime, eventId, index) {
       { id:"leave", label:"その場を離れる", secondary:true },
     );
     return { title:"迷子のポケモン", message:"不安そうなポケモンが一匹でうろついています。", actions };
+  }
+  if (eventId === "photographer") {
+    const requested = String(state.board_events?.[index]?.normal_data?.requested_type ?? "").toUpperCase();
+    const actions = safariPhotographerPartyChoices(runtime, state.board_events?.[index]);
+    if (actions.length === 0) actions.push({ id:"no_party_match", label:`${requested}タイプの手持ちがいません`, disabled:true });
+    actions.push(
+      { id:"wild", label:`${requested}タイプの野生ポケモンを探す`, meta:"野生戦 · 撮影成功で賞金＋道具" },
+      { id:"leave", label:"撮影を断って立ち去る", secondary:true },
+    );
+    return { title:"写真家", message:`${requested}タイプのポケモンを撮影したいそうです。`, actions };
   }
   if (eventId === "wounded_pokemon") return woundedDefinition(runtime, index);
   throw new RangeError(`unsupported normal-event touch id: ${eventId}`);
