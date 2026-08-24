@@ -20,7 +20,21 @@ function berryCount(current) {
     .filter((slot) => Array.isArray(slot) && /BERRY$/i.test(String(slot[0] ?? "")))
     .reduce((sum, slot) => sum + Math.max(0, Math.trunc(Number(slot[1]) || 0)), 0);
 }
-function displayActionsFor(current, active) {
+
+async function displayActionsFor(current, active) {
+  if (active.eventId === "street_performer") {
+    const owner = await loadOwner(active.eventId);
+    const scale = Math.max(Math.floor((Math.max(1, Number(state()?.day) || 1) - 1) / 5), 0);
+    const price = 300 + scale * 30;
+    const actions = await owner.safariStreetPerformerChoices(current);
+    if (actions.length === 0) actions.push({ id:"no_performer", label:"芸を披露できるポケモンがいません", disabled:true });
+    actions.push(
+      { id:"watch", label:"芸を見る", meta:`${price}円 · 手持ち10%回復` },
+      { id:"callout", label:"詐欺ではないか指摘する", meta:"本物ならそのまま終了 · 詐欺ならトレーナー戦" },
+      { id:"leave", label:"立ち去る", secondary:true },
+    );
+    return actions;
+  }
   if (active.eventId !== "traveling_cook") return active.actions;
   const count = berryCount(current);
   return [
@@ -162,7 +176,7 @@ async function sync() {
   card.hidden = false;
   byId("normal-event-title").textContent = active.title;
   byId("normal-event-message").textContent = currentState.notice || active.message;
-  const actions = displayActionsFor(current, active);
+  const actions = await displayActionsFor(current, active);
   const buttons = actions.map((action) => {
     const button = document.createElement("button");
     button.type = "button";
