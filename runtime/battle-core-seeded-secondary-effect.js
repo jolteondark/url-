@@ -15,6 +15,28 @@ export function resolveAdditionalEffectChanceCanonical(input = {}) {
   return chance;
 }
 
+function materializeRandomChoiceCount(target, rng, rolls, targetIndex) {
+  const specs = target.randomChoiceCountRanges;
+  const selected = target.randomChoiceValue;
+  const spec = specs && selected != null ? specs[String(selected)] : null;
+  if (!spec) return;
+  const base = Number(spec.base ?? 0);
+  const range = Number(spec.range ?? 0);
+  if (!Number.isInteger(base) || !Number.isInteger(range) || range <= 0) {
+    throw new RangeError("secondary effect random choice count range must use integer base and positive range");
+  }
+  let roll = target.randomChoiceCountRoll;
+  if (roll === undefined) {
+    roll = rng.randInt(range);
+    target.randomChoiceCountRoll = roll;
+    rolls.push({ kind: "secondary_effect_choice_count", targetIndex, limit: range, value: roll, sourceSymbol: "Battle::Battler#pbSleepDuration" });
+  }
+  if (!Number.isInteger(Number(roll)) || Number(roll) < 0 || Number(roll) >= range) {
+    throw new RangeError("secondary effect random choice count roll out of range");
+  }
+  target.randomChoiceCount = base + Number(roll);
+}
+
 function materializeSecondaryTarget(targetInput, rng, rolls, targetIndex) {
   const target = structuredClone(targetInput ?? {});
   const chance = target.chance === undefined ? resolveAdditionalEffectChanceCanonical(target) : Number(target.chance);
@@ -42,6 +64,7 @@ function materializeSecondaryTarget(targetInput, rng, rolls, targetIndex) {
       throw new RangeError("secondary effect random choice index out of range");
     }
     target.randomChoiceValue = target.randomChoiceValues[Number(choiceIndex)];
+    materializeRandomChoiceCount(target, rng, rolls, targetIndex);
   }
   return target;
 }
