@@ -29,7 +29,13 @@ function resolvedInflictInput(input, action, runtime) {
     ...(input.eligibilityFacts ?? {}),
   });
   if (!eligibility.canInflict) return null;
-  return { ...input, newStatus, randomStatusEligibility: eligibility };
+  const chosenCount = secondary?.randomChoiceCount;
+  return {
+    ...input,
+    newStatus,
+    newStatusCount: chosenCount === undefined ? Number(input.newStatusCount ?? 0) : Number(chosenCount),
+    randomStatusEligibility: eligibility,
+  };
 }
 
 export function commitBattleSystemsStatusRuntime({ battleInput = {}, turn = {}, pokemon, reflectedBattlerIndex = null } = {}) {

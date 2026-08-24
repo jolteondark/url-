@@ -24,7 +24,18 @@ const FLINCH_SECONDARY_FUNCTION_CODES_V108 = new Set([
 ]);
 
 const RANDOM_MAJOR_STATUS_SECONDARY_FUNCTION_CODES_V108 = Object.freeze({
-  ParalyzeBurnOrFreezeTarget: Object.freeze(["PARALYSIS", "BURN", "FROZEN"]),
+  ParalyzeBurnOrFreezeTarget: Object.freeze({
+    statuses: Object.freeze(["PARALYSIS", "BURN", "FROZEN"]),
+  }),
+  PoisonParalyzeOrSleepTarget: Object.freeze({
+    statuses: Object.freeze(["POISON", "PARALYSIS", "SLEEP"]),
+    // Essentials v21.1 Battle::Battler#pbSleepDuration uses 2 + pbRandom(3).
+    // Keep the count draw in the existing seeded secondary RNG stream rather
+    // than introducing a separate Safari/UI sleep-duration truth.
+    randomChoiceCountRanges: Object.freeze({
+      SLEEP: Object.freeze({ base: 2, range: 3 }),
+    }),
+  }),
 });
 
 function directFlinchSecondaryEffectInput(move) {
@@ -42,14 +53,15 @@ function directFlinchSecondaryEffectInput(move) {
 
 function randomMajorStatusSecondaryEffectInput(move) {
   if (!move || move.category === "Status") return null;
-  const statuses = RANDOM_MAJOR_STATUS_SECONDARY_FUNCTION_CODES_V108[move.function_code] ?? null;
+  const projection = RANDOM_MAJOR_STATUS_SECONDARY_FUNCTION_CODES_V108[move.function_code] ?? null;
   const effectChance = Number(move.effect_chance ?? 0);
-  if (!statuses || effectChance <= 0) return null;
+  if (!projection || effectChance <= 0) return null;
   return {
     calcDamage: 1,
     effectChance,
     functionCode: String(move.function_code),
-    randomChoiceValues: [...statuses],
+    randomChoiceValues: [...projection.statuses],
+    ...(projection.randomChoiceCountRanges ? { randomChoiceCountRanges: structuredClone(projection.randomChoiceCountRanges) } : {}),
   };
 }
 
