@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import {
   grantNormalEventHiddenEgg,
+  grantNormalEventPokemonFromEncounter,
+  materializeNormalEventEncounterPokemon,
   materializeNormalEventHiddenEgg,
 } from '../runtime/safari-normal-event-pokemon-grant.js';
 
@@ -10,6 +12,24 @@ function runtime({ party = [], boxes = [Array(30).fill(null)] } = {}) {
     storage_system:{ boxes:structuredClone(boxes), currentBox:0 },
     variables:{ mapless:{ day:12, mapless_carry_class:'general' } },
   };
+}
+
+{
+  const current = runtime();
+  const pokemon = await materializeNormalEventEncounterPokemon(current, { type:'NORMAL', modifier:-2, seed:771 });
+  assert.ok(pokemon.species);
+  assert.ok(pokemon.level >= 1);
+  assert.equal(pokemon.hp, pokemon.max_hp);
+  assert.equal(Object.hasOwn(pokemon, 'steps_to_hatch'), false);
+}
+
+{
+  const current = runtime();
+  const result = await grantNormalEventPokemonFromEncounter(current, { type:'NORMAL', modifier:-2, seed:771 });
+  assert.equal(result.success, true);
+  assert.equal(result.result, 'party');
+  assert.equal(current.player.party.length, 1);
+  assert.equal(Object.hasOwn(current.player.party[0], 'steps_to_hatch'), false);
 }
 
 {
