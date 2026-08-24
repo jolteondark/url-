@@ -17,35 +17,21 @@ function stateOf(runtime) {
   if (!state || typeof state !== "object" || Array.isArray(state)) throw new TypeError("runtime variables.mapless state is required");
   return state;
 }
-
-function scalingValue(day) {
-  return Math.max(Math.floor((Math.max(1, Number(day) || 1) - 1) / 5), 0);
-}
-
-function usablePokemon(pokemon) {
-  return Boolean(pokemon) && pokemon.egg !== true && Number(pokemon.hp ?? 0) > 0;
-}
-
+function scalingValue(day) { return Math.max(Math.floor((Math.max(1, Number(day) || 1) - 1) / 5), 0); }
+function usablePokemon(pokemon) { return Boolean(pokemon) && pokemon.egg !== true && Number(pokemon.hp ?? 0) > 0; }
 function pokemonLabel(pokemon) {
   const name = String(pokemon?.nickname || pokemon?.species || "ポケモン");
   const level = Number(pokemon?.level);
   return Number.isFinite(level) ? `${name} Lv.${level}` : name;
 }
-
-function moveId(move) {
-  return String(typeof move === "string" ? move : move?.id ?? move?.move ?? "").trim().toUpperCase();
-}
-
-async function sameTypeMove(pokemon, type) {
-  await ensureSafariGeneralData();
+function moveId(move) { return String(typeof move === "string" ? move : move?.id ?? move?.move ?? "").trim().toUpperCase(); }
+function sameTypeMove(pokemon, type) {
   const wanted = String(type ?? "").trim().toUpperCase();
   return (pokemon?.moves ?? []).some((move) => {
     const id = moveId(move);
-    const master = SAFARI_MOVE_MASTERS[id];
-    return id && String(master?.type ?? "").trim().toUpperCase() === wanted;
+    return id && String(SAFARI_MOVE_MASTERS[id]?.type ?? "").trim().toUpperCase() === wanted;
   });
 }
-
 function healPartyTenPercent(runtime) {
   runtime.player ??= { party: [] };
   runtime.player.party = (runtime.player.party ?? []).map((pokemon) => {
@@ -55,14 +41,12 @@ function healPartyTenPercent(runtime) {
     return updatePokemonRuntime(pokemon, { hp: Math.min(maxHp, Math.trunc(Number(pokemon.hp ?? 0)) + amount) });
   });
 }
-
 function addMoney(runtime, amount) {
   const value = Math.max(0, Math.trunc(Number(amount) || 0));
   runtime.bag ??= { slots: [], money: 0 };
   runtime.bag.money = Math.max(0, Math.trunc(Number(runtime.bag.money ?? 0))) + value;
   return { op:"runtime_add_money", amount:value };
 }
-
 function commitResolvedEvent(runtime, index, owner, appliedOperations) {
   const state = stateOf(runtime);
   state.board_events[index] = owner.event;
@@ -75,7 +59,8 @@ function commitResolvedEvent(runtime, index, owner, appliedOperations) {
   return state;
 }
 
-export function safariStreetPerformerChoices(runtime) {
+export async function safariStreetPerformerChoices(runtime) {
+  await ensureSafariGeneralData();
   const actions = [];
   for (const [partyIndex, pokemon] of (runtime?.player?.party ?? []).entries()) {
     if (!usablePokemon(pokemon)) continue;
@@ -93,12 +78,10 @@ export function safariStreetPerformerChoices(runtime) {
 export async function resolveSafariStreetPerformerInteraction(runtime, index, requestedAction) {
   const state = stateOf(runtime);
   const event = state.board_events?.[index];
-  if (!event || event.kind !== "normal_event" || event.normal_event_id !== "street_performer") {
-    throw new Error("street_performer board event is required");
-  }
-  if (state.battle && !state.battle.completed) return { runtime, result: "battle_active", operations: [] };
-  if (state.shop) return { runtime, result: "shop_active", operations: [] };
-  if (state.board_consumed?.[index]) return { runtime, result: "already_consumed", operations: [] };
+  if (!event || event.kind !== "normal_event" || event.normal_event_id !== "street_performer") throw new Error("street_performer board event is required");
+  if (state.battle && !state.battle.completed) return { runtime, result:"battle_active", operations:[] };
+  if (state.shop) return { runtime, result:"shop_active", operations:[] };
+  if (state.board_consumed?.[index]) return { runtime, result:"already_consumed", operations:[] };
 
   state.board_revealed[index] = true;
   state.board_visited[index] = true;
@@ -108,26 +91,16 @@ export async function resolveSafariStreetPerformerInteraction(runtime, index, re
   const raw = String(requestedAction ?? "");
 
   if (raw.startsWith("perform:")) {
+    await ensureSafariGeneralData();
     const [, indexText, typeText] = raw.split(":");
     const partyIndex = Number(indexText);
     const pokemon = runtime.player?.party?.[partyIndex];
     const type = String(typeText ?? "").trim().toUpperCase();
     const types = safariPokemonTypes(pokemon);
-    if (!Number.isInteger(partyIndex) || !usablePokemon(pokemon) || !types.includes(type)) {
-      return { runtime, result:"pokemon_unavailable", completed:false, operations:[], persistenceRequested:false };
-    }
+    if (!Number.isInteger(partyIndex) || !usablePokemon(pokemon) || !types.includes(type)) return { runtime, result:"pokemon_unavailable", completed:false, operations:[], persistenceRequested:false };
 
-    const hasSameTypeMove = await sameTypeMove(pokemon, type);
-    const owner = resolveStreetPerformer({
-      event,
-      action:"perform",
-      current_day:day,
-      scaling_value:scale,
-      chosen_pokemon:pokemon,
-      pokemon_types:types,
-      used_type:type,
-      same_type_move:hasSameTypeMove,
-    });
+    const hasSameTypeMove = sameTypeMove(pokemon, type);
+    const owner = resolveStreetPerformer({ event, action:"perform", current_day:day, scaling_value:scale, chosen_pokemon:pokemon, pokemon_types:types, used_type:type, same_type_move:hasSameTypeMove });
     const moneyOperation = (owner.operations ?? []).find((operation) => operation?.op === "add_money");
     const expOperation = (owner.operations ?? []).find((operation) => operation?.op === "gain_small_exp");
     if (!moneyOperation || !expOperation) throw new Error("street_performer perform canonical rewards are unresolved");
@@ -181,8 +154,6 @@ export async function resolveSafariStreetPerformerInteraction(runtime, index, re
     const owner = resolveStreetPerformer({ event, action:"callout", current_day:day, scaling_value:scale });
     const trainerBattle = (owner.operations ?? []).find((operation) => operation?.op === "start_trainer_battle");
     if (trainerBattle) {
-      // There is currently no shared normal-event trainer-Battle continuation.
-      // Keep the canonical event unconsumed rather than creating a second Battle owner here.
       state.notice = "詐欺を指摘するとトレーナー戦になりますが、この通常イベントからの戦闘接続はまだ共通化されていません。";
       state.last_operations = [{ op:"trainer_battle_handoff_required", request:structuredClone(trainerBattle) }];
       return { runtime, result:"trainer_battle_handoff_required", completed:false, operations:state.last_operations, notice:state.notice, persistenceRequested:false, owner };
@@ -199,14 +170,8 @@ export async function resolveSafariStreetPerformerInteraction(runtime, index, re
     return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
   }
 
-  return {
-    runtime,
-    result:"unsupported_action",
-    completed:false,
-    availableActions:[...safariStreetPerformerChoices(runtime).map((entry) => entry.id), "watch", "callout", "leave"],
-    operations:[],
-    persistenceRequested:false,
-  };
+  const choices = await safariStreetPerformerChoices(runtime);
+  return { runtime, result:"unsupported_action", completed:false, availableActions:[...choices.map((entry) => entry.id), "watch", "callout", "leave"], operations:[], persistenceRequested:false };
 }
 
 export function interactiveSafariStreetPerformer(runtime, index) {
