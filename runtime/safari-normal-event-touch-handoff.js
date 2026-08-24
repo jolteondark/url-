@@ -20,6 +20,7 @@ const SUPPORTED = new Set([
   "honey_tree",
   "lost_pokemon",
   "photographer",
+  "pokemon_nest",
   "sleeping_giant",
   "wounded_pokemon",
 ]);
@@ -214,6 +215,18 @@ function definition(runtime, eventId, index) {
       { id:"leave", label:"撮影を断って立ち去る", secondary:true },
     );
     return { title:"写真家", message:`${requested}タイプのポケモンを撮影したいそうです。`, actions };
+  }
+  if (eventId === "pokemon_nest") {
+    const type = String(state.board_events?.[index]?.normal_data?.type ?? "").toUpperCase();
+    return {
+      title:"ポケモンの巣",
+      message:`${type}タイプのポケモンが使っている巣があります。`,
+      actions:[
+        { id:"observe", label:"静かに観察する", meta:"手持ち全員がEXP獲得" },
+        { id:"search", label:"巣の周りを調べる", meta:"道具・野生戦・空振りの可能性" },
+        { id:"egg", label:"タマゴを保護する", meta:"強めの野生戦 · 勝利後にタマゴ獲得" },
+      ],
+    };
   }
   if (eventId === "sleeping_giant") {
     const item = String(state.board_events?.[index]?.normal_data?.display_item ?? "道具");
