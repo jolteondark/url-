@@ -23,6 +23,12 @@ const FLINCH_SECONDARY_FUNCTION_CODES_V108 = new Set([
   "ParalyzeTargetFlinchTarget",
 ]);
 
+const CONFUSION_SECONDARY_FUNCTION_CODES_V108 = new Set([
+  "ConfuseTarget",
+  "CrashDamageIfFailsConfuseTarget",
+  "ConfuseTargetAlwaysHitsInRainHitsTargetInSky",
+]);
+
 const RANDOM_MAJOR_STATUS_SECONDARY_FUNCTION_CODES_V108 = Object.freeze({
   ParalyzeBurnOrFreezeTarget: Object.freeze({
     statuses: Object.freeze(["PARALYSIS", "BURN", "FROZEN"]),
@@ -48,6 +54,23 @@ function directFlinchSecondaryEffectInput(move) {
     effectChance,
     functionCode: "FlinchTarget",
     transientEffect: "flinch",
+  };
+}
+
+function directConfusionSecondaryEffectInput(move) {
+  if (!move || move.category === "Status") return null;
+  if (!CONFUSION_SECONDARY_FUNCTION_CODES_V108.has(move.function_code)) return null;
+  const effectChance = Number(move.effect_chance ?? 0);
+  if (effectChance <= 0) return null;
+  return {
+    calcDamage: 1,
+    effectChance,
+    functionCode: String(move.function_code),
+    transientEffect: "confusion",
+    // Essentials v21.1 Battle::Battler#pbConfusionDuration is 2 + pbRandom(4).
+    // A four-value seeded choice is the same draw while reusing the existing
+    // secondary-effect RNG stream rather than creating a Safari/UI RNG truth.
+    randomChoiceValues: [2, 3, 4, 5],
   };
 }
 
@@ -77,12 +100,20 @@ export function prepareReflectedMajorStatusBattleInput({ battleInput = {}, pokem
       if (!action || action.kind !== "move") return action;
       const move = SAFARI_MOVE_MASTERS[action.moveId];
       const flinchInput = directFlinchSecondaryEffectInput(move);
+      const confusionInput = directConfusionSecondaryEffectInput(move);
       let preparedAction = action;
       if (flinchInput) {
         hasSecondaryEffect = true;
         preparedAction = {
           ...preparedAction,
           secondaryEffectInputs: [...(Array.isArray(preparedAction.secondaryEffectInputs) ? preparedAction.secondaryEffectInputs : []), flinchInput],
+        };
+      }
+      if (confusionInput) {
+        hasSecondaryEffect = true;
+        preparedAction = {
+          ...preparedAction,
+          secondaryEffectInputs: [...(Array.isArray(preparedAction.secondaryEffectInputs) ? preparedAction.secondaryEffectInputs : []), confusionInput],
         };
       }
 
