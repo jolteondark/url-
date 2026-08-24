@@ -54,59 +54,38 @@ function pokemon(moveId="STREETFIRE") {
   result.hp = 20;
   return result;
 }
-
 function event(fraudRoll=80) {
-  return {
-    kind:"normal_event",
-    normal_event_id:"street_performer",
-    normal_seed:822,
-    normal_resolved:false,
-    normal_data:{ fraud_roll:fraudRoll },
-  };
+  return { kind:"normal_event", normal_event_id:"street_performer", normal_seed:822, normal_resolved:false, normal_data:{ fraud_roll:fraudRoll } };
 }
-
 function runtime(sourceEvent, mon=pokemon()) {
   return {
     player:{ party:[mon] },
     bag:{ slots:[], money:2000 },
-    variables:{ mapless:{
-      day:3,
-      location:"day_board",
-      board_events:[structuredClone(sourceEvent)],
-      board_revealed:[false],
-      board_visited:[false],
-      board_consumed:[false],
-      battle:null,
-      shop:null,
-      last_operations:[],
-      notice:"",
-    } },
+    variables:{ mapless:{ day:3, location:"day_board", board_events:[structuredClone(sourceEvent)], board_revealed:[false], board_visited:[false], board_consumed:[false], battle:null, shop:null, last_operations:[], notice:"" } },
   };
 }
 
 {
   const current = runtime(event());
-  const choices = safariStreetPerformerChoices(current).map((entry) => entry.id);
+  const choices = (await safariStreetPerformerChoices(current)).map((entry) => entry.id);
   assert.deepEqual(choices, ["perform:0:FIRE", "perform:0:NORMAL"]);
   const beforeExp = current.player.party[0].exp;
   const beforeMoney = current.bag.money;
   const result = await resolveSafariStreetPerformerInteraction(current, 0, "perform:0:FIRE");
   assert.equal(result.result, "performance_type_move_bonus");
   assert.equal(current.variables.mapless.board_consumed[0], true);
-  assert.equal(current.bag.money, beforeMoney + 1050, "day 3 scale 0 canonical prize is 700 x 1.5");
-  assert.equal(current.player.party[0].exp, beforeExp + 53, "day 3 canonical event EXP is 35 + day*6");
-  assert.equal(current.bag.slots.reduce((sum, slot) => sum + Number(slot?.[1] ?? 0), 0), 1, "same-type move bonus grants exactly one small item");
+  assert.equal(current.bag.money, beforeMoney + 1050);
+  assert.equal(current.player.party[0].exp, beforeExp + 53);
+  assert.equal(current.bag.slots.reduce((sum, slot) => sum + Number(slot?.[1] ?? 0), 0), 1);
 }
-
 {
   const current = runtime(event(), pokemon("STREETWATER"));
   const beforeMoney = current.bag.money;
   const result = await resolveSafariStreetPerformerInteraction(current, 0, "perform:0:FIRE");
   assert.equal(result.result, "performance");
   assert.equal(current.bag.money, beforeMoney + 700);
-  assert.equal(current.bag.slots.length, 0, "no same-type move means no item bonus");
+  assert.equal(current.bag.slots.length, 0);
 }
-
 {
   const current = runtime(event());
   current.player.party[0].hp = 10;
@@ -118,14 +97,12 @@ function runtime(sourceEvent, mon=pokemon()) {
   assert.equal(current.variables.mapless.mapless_exp_show_battles, 1);
   assert.equal(current.variables.mapless.board_consumed[0], true);
 }
-
 {
   const current = runtime(event(80));
   const result = await resolveSafariStreetPerformerInteraction(current, 0, "callout");
   assert.equal(result.result, "false_accusation");
   assert.equal(current.variables.mapless.board_consumed[0], true);
 }
-
 {
   const current = runtime(event(10));
   const original = structuredClone(current.variables.mapless.board_events[0]);
@@ -133,10 +110,9 @@ function runtime(sourceEvent, mon=pokemon()) {
   assert.equal(result.result, "trainer_battle_handoff_required");
   assert.equal(result.completed, false);
   assert.equal(current.variables.mapless.board_consumed[0], false);
-  assert.deepEqual(current.variables.mapless.board_events[0], original, "missing shared trainer handoff must fail closed without consuming the event");
+  assert.deepEqual(current.variables.mapless.board_events[0], original);
   assert.equal(result.operations[0].request.op, "start_trainer_battle");
 }
-
 {
   const current = runtime(event());
   const result = await resolveSafariStreetPerformerInteraction(current, 0, "leave");
