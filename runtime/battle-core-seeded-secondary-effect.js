@@ -31,6 +31,18 @@ function materializeSecondaryTarget(targetInput, rng, rolls, targetIndex) {
     rolls.push({ kind: "secondary_effect", targetIndex, limit: 100, value, sourceSymbol: "Battle::Battler#pbProcessMoveHit", sourceBodySha256: PROCESS_MOVE_HIT_BODY_SHA256 });
   }
   target.triggered = Number(value) < chance;
+  if (target.triggered && Array.isArray(target.randomChoiceValues) && target.randomChoiceValues.length > 0) {
+    let choiceIndex = target.randomChoiceIndex;
+    if (choiceIndex === undefined) {
+      choiceIndex = rng.randInt(target.randomChoiceValues.length);
+      target.randomChoiceIndex = choiceIndex;
+      rolls.push({ kind: "secondary_effect_choice", targetIndex, limit: target.randomChoiceValues.length, value: choiceIndex, sourceSymbol: "Battle::Move random additional-effect choice" });
+    }
+    if (!Number.isInteger(Number(choiceIndex)) || Number(choiceIndex) < 0 || Number(choiceIndex) >= target.randomChoiceValues.length) {
+      throw new RangeError("secondary effect random choice index out of range");
+    }
+    target.randomChoiceValue = target.randomChoiceValues[Number(choiceIndex)];
+  }
   return target;
 }
 
