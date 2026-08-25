@@ -2,6 +2,10 @@ import { resolveDayBoardCellDispatch } from "./mapless-day-board-cell-dispatch.j
 import { resolveBrowserMaplessWildEncounter } from "./browser-mapless-wild-encounter-runtime.js";
 import { resolveBattleStartCore } from "./battle-core-start-handoff.js";
 import { createBattleStatStageStateCanonical } from "./battle-core-stat-stages.js";
+import {
+  planMaplessNormalEventExtraTrainerEncounter,
+  selectMaplessNormalEventExtraTrainerType,
+} from "./mapless-normal-event-extra-trainer-pokemon.js";
 import { resolvePokemonRuntimeMasters } from "./pokemon-runtime-masters.js";
 import { nextSafariEncounterSpeciesIndex } from "./safari-encounter-randomization.js";
 import { ensureSafariGeneralCombatData, safariGeneralCombatModules, safariGeneralCombatReady } from "./safari-general-data-demand.js";
@@ -125,15 +129,61 @@ function startWild(runtime, event, index, operations) {
   state.notice = `野生の${encounter.species_name}が現れた！`;
 }
 function startTrainer(runtime, event, index, operations) {
-  const { trainerGenerator } = safariGeneralCombatModules("trainer");
+  const needsExtraPokemon = event?.extra_pokemon === true;
+  const modules = safariGeneralCombatModules(needsExtraPokemon ? "both" : "trainer");
   const state = stateOf(runtime);
-  const trainer = trainerGenerator.generateSafariDynamicTrainer({
+  const trainerSeed = event.trainer_seed ?? event.seed;
+  const extraModifier = trainerBattleExtraModifier(event);
+  const trainer = modules.trainerGenerator.generateSafariDynamicTrainer({
     day: state.day,
-    seed: event.trainer_seed ?? event.seed,
-    extraModifier: trainerBattleExtraModifier(event),
+    seed: trainerSeed,
+    extraModifier,
   });
   const party = trainer.party.map(materializePokemon);
-  setBattle(runtime, index, "trainer", party[0], operations, trainer, null, null, party);
+  const extraOperations = [];
+  let extraPokemon = null;
+
+  // Canonical v0.9.108 generates the ordinary trainer first. Only afterwards,
+  // if capacity remains, it samples TYPE_IDS from the shared/global RNG and
+  // creates one separate GENERAL encounter under srand(event seed + 1).
+  if (needsExtraPokemon && party.length < 6) {
+    const selectedType = selectMaplessNormalEventExtraTrainerType(runtime, event.type ?? null);
+    const plan = planMaplessNormalEventExtraTrainerEncounter({
+      day: state.day,
+      requiredType: selectedType.type,
+      extraModifier,
+      seed: trainerSeed,
+    });
+    const generated = modules.encounterRuntime.resolveSafariGeneralEncounter({
+      day: state.day,
+      requiredType: selectedType.type,
+      enemyRank: "NORMAL",
+      extraModifier,
+      speciesIndex: plan.speciesIndex,
+      varianceIndex: plan.varianceIndex,
+    });
+    extraPokemon = materializePokemon({
+      species: generated.species_id,
+      level: generated.resolved_level,
+      status: "NONE",
+      moves: generated.move_ids,
+    });
+    party.push(extraPokemon);
+    extraOperations.push({
+      op: "append_normal_event_trainer_extra_pokemon",
+      type: selectedType.type,
+      type_index: selectedType.typeIndex,
+      type_rng: selectedType.borrowedSharedRunRng ? "shared_run" : "explicit",
+      encounter_seed: plan.encounterSeed,
+      variance_index: plan.varianceIndex,
+      species_index: plan.speciesIndex,
+      species: generated.species_id,
+      level: generated.resolved_level,
+    });
+  }
+
+  setBattle(runtime, index, "trainer", party[0], [...operations, ...extraOperations], trainer, null, null, party);
+  if (extraPokemon) state.battle.normal_event_extra_pokemon = structuredClone(extraOperations[0]);
   state.notice = `${trainer.trainer_full_name}が勝負を仕掛けてきた！`;
 }
 
@@ -229,15 +279,22 @@ export async function activateSafariNormalEventTrainerBattle(runtime, index, {
   const blocked = assertNormalEventBattleAvailable(state);
   if (blocked) return { runtime, ...blocked, operations: [] };
 
-  // The shared dynamic-trainer owner currently models seed + scaling modifier.
-  // Fail closed rather than silently dropping canonical constraints owned elsewhere.
-  for (const unsupported of ["type", "extra_pokemon", "cannot_run", "strong_ai"]) {
+  // extra_pokemon is now owned as a distinct post-generator append boundary.
+  // Other constraints remain fail-closed until their canonical owners exist.
+  for (const unsupported of ["cannot_run", "strong_ai"]) {
     if (battleEvent[unsupported]) throw new Error(`normal-event trainer Battle constraint is not yet owned by the shared trainer generator: ${unsupported}`);
+  }
+  if (battleEvent.type && battleEvent.extra_pokemon !== true) {
+    throw new Error("normal-event trainer Battle type constraint is only owned for extra_pokemon append");
   }
 
   const previousBattle = state.battle;
   const previousNotice = state.notice;
   const previousLastOperations = state.last_operations;
+  const hadEncounterSeed = Object.prototype.hasOwnProperty.call(state, "preview_encounter_seed");
+  const previousEncounterSeed = state.preview_encounter_seed;
+  const hadEncounterCounter = Object.prototype.hasOwnProperty.call(state, "preview_encounter_counter");
+  const previousEncounterCounter = state.preview_encounter_counter;
   let checkpoint = null;
 
   try {
@@ -249,10 +306,11 @@ export async function activateSafariNormalEventTrainerBattle(runtime, index, {
       payload,
     });
     globalThis.__maplessSafariRuntime = runtime;
-    if (!safariGeneralCombatReady("trainer")) {
+    const combatKind = battleEvent.extra_pokemon === true ? "both" : "trainer";
+    if (!safariGeneralCombatReady(combatKind)) {
       state.notice = "戦闘データを読み込んでいます…";
       notifySafariRuntimeChanged();
-      await ensureSafariGeneralCombatData("trainer");
+      await ensureSafariGeneralCombatData(combatKind);
     }
     startTrainer(runtime, { kind: "trainer", ...structuredClone(battleEvent) }, index, []);
     bindSafariNormalEventBattleContinuation(runtime, checkpoint);
@@ -274,6 +332,10 @@ export async function activateSafariNormalEventTrainerBattle(runtime, index, {
     state.notice = previousNotice;
     state.last_operations = previousLastOperations;
     if (checkpoint && checkpoint.battle_started !== true) rollbackSafariNormalEventBattleContinuation(runtime, checkpoint);
+    if (hadEncounterSeed) state.preview_encounter_seed = previousEncounterSeed;
+    else delete state.preview_encounter_seed;
+    if (hadEncounterCounter) state.preview_encounter_counter = previousEncounterCounter;
+    else delete state.preview_encounter_counter;
     notifySafariRuntimeChanged();
     throw error;
   }
