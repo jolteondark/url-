@@ -8,6 +8,7 @@ const root = path.resolve(here, "..");
 const adapter = fs.readFileSync(path.join(root, "runtime", "safari-trainer-camp-interaction.js"), "utf8");
 const touch = fs.readFileSync(path.join(root, "trainer-camp-touch-presentation.js"), "utf8");
 const chain = fs.readFileSync(path.join(root, "lost-bag-touch-presentation.js"), "utf8");
+const entry = fs.readFileSync(path.join(root, "index.html"), "utf8");
 
 assert.match(adapter, /resolveTrainerCamp/,
   "Trainer Camp Safari adapter must delegate event semantics to the canonical owner");
@@ -44,5 +45,7 @@ assert.match(touch, /saveSafariPlayableRun/,
   "touch completion must use existing Safari persistence");
 assert.match(chain, /trainer-camp-touch-presentation\.js\?v=/,
   "the live touch module chain must load the fresh Trainer Camp presentation owner");
+assert.match(entry, /lost-bag-touch-presentation\.js\?v=20260825-2355/,
+  "the HTML entry must refresh the post-#854 loader so Safari cannot retain the pre-Trainer-Camp module");
 
 console.log("Safari Trainer Camp canonical-owner hookup smoke passed");
