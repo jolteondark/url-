@@ -63,6 +63,7 @@ function loadOwner(eventId) {
       photographer:"./runtime/safari-photographer-interaction.js",
       pokemon_nest:"./runtime/safari-pokemon-nest-interaction.js",
       sleeping_giant:"./runtime/safari-sleeping-giant-interaction.js",
+      berry_thief:"./runtime/safari-berry-thief-interaction.js",
       wounded_pokemon:"./runtime/safari-wounded-pokemon-integration.js",
       treasure_chest:"./runtime/safari-treasure-chest-interaction.js",
       miner:"./runtime/safari-miner-interaction.js",
@@ -95,6 +96,7 @@ async function resolveAction(current, active, actionId) {
   if (active.eventId === "photographer") return owner.resolveSafariPhotographerInteraction(current, active.boardIndex, actionId);
   if (active.eventId === "pokemon_nest") return owner.resolveSafariPokemonNestInteraction(current, active.boardIndex, actionId);
   if (active.eventId === "sleeping_giant") return owner.resolveSafariSleepingGiantInteraction(current, active.boardIndex, actionId);
+  if (active.eventId === "berry_thief") return owner.resolveSafariBerryThiefInteraction(current, active.boardIndex, actionId);
   if (active.eventId === "wounded_pokemon") {
     const input = actionId === "leave"
       ? { choice:"leave" }
