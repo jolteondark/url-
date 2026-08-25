@@ -7,7 +7,7 @@ import { resolveSafariWishingFountainInteraction, safariWishingFountainPresentat
 function runtimeWith({ money=1000, smallRoll=10, largeRoll=0, reachRoll=0, day=1, slots=[] }={}) {
   return {
     bag:{ money, slots:structuredClone(slots) },
-    player:{ party:[{ species:"EEVEE", hp:10, totalhp:20, status:null }] },
+    player:{ party:[{ species:"EEVEE", hp:10, max_hp:20, totalhp:20, status:"PARALYSIS", status_count:3, moves:[] }] },
     variables:{ mapless:{
       day, location:"day_board", preview_encounter_seed:1234, preview_encounter_counter:0,
       board_events:[{ kind:"normal_event", normal_event_id:"wishing_fountain", normal_seed:7, normal_data:{ small_roll:smallRoll, large_roll:largeRoll, reach_roll:reachRoll, bonus_stat:"ATTACK" } }],
@@ -71,14 +71,24 @@ assert.equal(largeNothing.bag.money, 800);
 assert.equal(largeNothing.variables.mapless.preview_encounter_counter, 0,
   "large nothing must not consume shared reward RNG");
 
-for (const [largeRoll, expected] of [[50, "pokemon_bonus_owner_pending"], [70, "full_heal_owner_pending"]]) {
-  const pending = runtimeWith({ money:9999, largeRoll });
-  const result = resolveSafariWishingFountainInteraction(pending, 0, "large_wish");
-  assert.equal(result.completed, false);
-  assert.equal(result.result, expected);
-  assert.equal(pending.variables.mapless.board_consumed[0], false);
-  assert.equal(pending.bag.money, 9999, "blocked large-wish outcomes must not spend money");
-}
+const bonusPending = runtimeWith({ money:9999, largeRoll:50 });
+const bonusPendingResult = resolveSafariWishingFountainInteraction(bonusPending, 0, "large_wish");
+assert.equal(bonusPendingResult.completed, false);
+assert.equal(bonusPendingResult.result, "pokemon_bonus_owner_pending");
+assert.equal(bonusPending.variables.mapless.board_consumed[0], false);
+assert.equal(bonusPending.bag.money, 9999, "blocked bonus outcome must not spend money");
+
+const fullHeal = runtimeWith({ money:9999, largeRoll:70 });
+const fullHealResult = resolveSafariWishingFountainInteraction(fullHeal, 0, "large_wish");
+assert.equal(fullHealResult.completed, true);
+assert.equal(fullHealResult.result, "large_full_heal");
+assert.equal(fullHeal.bag.money, 8799);
+assert.equal(fullHeal.variables.mapless.board_consumed[0], true);
+assert.equal(fullHeal.player.party[0].hp, 20);
+assert.equal(fullHeal.player.party[0].status, "NONE");
+assert.equal(fullHeal.player.party[0].status_count, 0);
+assert.ok(fullHealResult.operations.some((operation) => operation.op === "runtime_heal_party_full"));
+assert.ok(fullHealResult.operations.some((operation) => operation.op === "request_save"));
 
 const reachMoney = runtimeWith({ money:100, reachRoll:10, day:11 });
 const reachMoneyResult = resolveSafariWishingFountainInteraction(reachMoney, 0, "reach");
@@ -126,4 +136,4 @@ assert.match(touch, /data-normal-event-action/);
 assert.match(chain, /wishing-fountain-touch-presentation\.js\?v=20260826-0130/);
 assert.match(html, /lost-bag-touch-presentation\.js\?v=20260826-0130/);
 
-console.log("Safari Wishing Fountain safe large/reach reward hookup smoke passed");
+console.log("Safari Wishing Fountain full-heal hookup smoke passed");
