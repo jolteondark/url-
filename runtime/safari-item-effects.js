@@ -35,10 +35,94 @@ const ITEM_EFFECTS = Object.freeze({
     amount: null,
     source: "original_game_fallback",
   }),
+  ANTIDOTE: Object.freeze({
+    id: "ANTIDOTE",
+    nameJa: "どくけし",
+    kind: "cure_status",
+    statuses: Object.freeze(["POISON"]),
+    source: "original_game_fallback",
+  }),
+  PARALYZEHEAL: Object.freeze({
+    id: "PARALYZEHEAL",
+    nameJa: "まひなおし",
+    kind: "cure_status",
+    statuses: Object.freeze(["PARALYSIS"]),
+    source: "original_game_fallback",
+  }),
+  AWAKENING: Object.freeze({
+    id: "AWAKENING",
+    nameJa: "ねむけざまし",
+    kind: "cure_status",
+    statuses: Object.freeze(["SLEEP"]),
+    source: "original_game_fallback",
+  }),
+  BURNHEAL: Object.freeze({
+    id: "BURNHEAL",
+    nameJa: "やけどなおし",
+    kind: "cure_status",
+    statuses: Object.freeze(["BURN"]),
+    source: "original_game_fallback",
+  }),
+  ICEHEAL: Object.freeze({
+    id: "ICEHEAL",
+    nameJa: "こおりなおし",
+    kind: "cure_status",
+    statuses: Object.freeze(["FROZEN"]),
+    source: "original_game_fallback",
+  }),
+  FULLHEAL: Object.freeze({
+    id: "FULLHEAL",
+    nameJa: "なんでもなおし",
+    kind: "cure_all_status",
+    cureConfusion: true,
+    source: "original_game_fallback",
+  }),
+  FULLRESTORE: Object.freeze({
+    id: "FULLRESTORE",
+    nameJa: "かいふくのくすり",
+    kind: "full_restore",
+    healMode: "full",
+    cureConfusion: true,
+    source: "original_game_fallback",
+  }),
+  REVIVE: Object.freeze({
+    id: "REVIVE",
+    nameJa: "げんきのかけら",
+    kind: "revive",
+    healMode: "half",
+    source: "original_game_fallback",
+  }),
+  MAXREVIVE: Object.freeze({
+    id: "MAXREVIVE",
+    nameJa: "げんきのかたまり",
+    kind: "revive",
+    healMode: "full",
+    source: "original_game_fallback",
+  }),
+});
+
+const STATUS_ALIASES = Object.freeze({
+  POISON: "POISON",
+  POISONED: "POISON",
+  TOXIC: "POISON",
+  BURN: "BURN",
+  BURNED: "BURN",
+  PARALYSIS: "PARALYSIS",
+  PARALYZED: "PARALYSIS",
+  SLEEP: "SLEEP",
+  ASLEEP: "SLEEP",
+  FROZEN: "FROZEN",
+  FREEZE: "FROZEN",
 });
 
 export function normalizeSafariItemId(itemId) {
   return String(itemId ?? "").trim().toUpperCase();
+}
+
+export function normalizeSafariPokemonStatus(status) {
+  const id = String(status ?? "").trim().toUpperCase();
+  if (!id || id === "NONE" || id === "OK") return null;
+  return STATUS_ALIASES[id] ?? id;
 }
 
 export function getSafariItemEffect(itemId) {
@@ -60,12 +144,133 @@ function hpSnapshot(pokemon) {
   return { hp, maxHp };
 }
 
+function statusSnapshot(pokemon) {
+  return {
+    rawStatus: pokemon?.status ?? null,
+    status: normalizeSafariPokemonStatus(pokemon?.status),
+    confused: pokemon?.mapless_overworld_confusion === true,
+  };
+}
+
+function baseResult(effect, pokemon) {
+  const { hp: hpBefore, maxHp } = hpSnapshot(pokemon);
+  const { rawStatus: statusBeforeRaw, status: statusBefore, confused: confusionBefore } = statusSnapshot(pokemon);
+  return {
+    supported: true,
+    effect,
+    hpBefore,
+    hpAfter: hpBefore,
+    maxHp,
+    healedAmount: 0,
+    statusBefore,
+    statusBeforeRaw,
+    statusAfter: statusBefore,
+    statusCured: false,
+    confusionBefore,
+    confusionAfter: confusionBefore,
+    confusionCured: false,
+    pokemonPatch: {},
+  };
+}
+
+function resolveHealHp(base) {
+  if (base.hpBefore <= 0) return { ...base, usable: false, reason: "fainted_target" };
+  if (base.hpBefore >= base.maxHp) return { ...base, usable: false, reason: "no_effect" };
+  const hpAfter = base.effect.healMode === "full"
+    ? base.maxHp
+    : Math.min(base.maxHp, base.hpBefore + Math.max(0, Math.trunc(Number(base.effect.amount ?? 0))));
+  return {
+    ...base,
+    usable: hpAfter > base.hpBefore,
+    reason: hpAfter > base.hpBefore ? "used" : "no_effect",
+    hpAfter,
+    healedAmount: hpAfter - base.hpBefore,
+    pokemonPatch: hpAfter > base.hpBefore ? { hp: hpAfter } : {},
+  };
+}
+
+function resolveCureStatus(base) {
+  if (base.hpBefore <= 0) return { ...base, usable: false, reason: "fainted_target" };
+  if (!base.statusBefore || !base.effect.statuses.includes(base.statusBefore)) {
+    return { ...base, usable: false, reason: "no_effect" };
+  }
+  return {
+    ...base,
+    usable: true,
+    reason: "used",
+    statusAfter: null,
+    statusCured: true,
+    pokemonPatch: { status: null, status_count: 0 },
+  };
+}
+
+function resolveCureAllStatus(base) {
+  if (base.hpBefore <= 0) return { ...base, usable: false, reason: "fainted_target" };
+  const cureStatus = Boolean(base.statusBefore);
+  const cureConfusion = base.effect.cureConfusion === true && base.confusionBefore;
+  if (!cureStatus && !cureConfusion) return { ...base, usable: false, reason: "no_effect" };
+  const pokemonPatch = {};
+  if (cureStatus) {
+    pokemonPatch.status = null;
+    pokemonPatch.status_count = 0;
+  }
+  if (cureConfusion) pokemonPatch.mapless_overworld_confusion = false;
+  return {
+    ...base,
+    usable: true,
+    reason: "used",
+    statusAfter: cureStatus ? null : base.statusBefore,
+    statusCured: cureStatus,
+    confusionAfter: cureConfusion ? false : base.confusionBefore,
+    confusionCured: cureConfusion,
+    pokemonPatch,
+  };
+}
+
+function resolveFullRestore(base) {
+  if (base.hpBefore <= 0) return { ...base, usable: false, reason: "fainted_target" };
+  const healHp = base.hpBefore < base.maxHp;
+  const cureStatus = Boolean(base.statusBefore);
+  const cureConfusion = base.effect.cureConfusion === true && base.confusionBefore;
+  if (!healHp && !cureStatus && !cureConfusion) return { ...base, usable: false, reason: "no_effect" };
+  const pokemonPatch = {};
+  if (healHp) pokemonPatch.hp = base.maxHp;
+  if (cureStatus) {
+    pokemonPatch.status = null;
+    pokemonPatch.status_count = 0;
+  }
+  if (cureConfusion) pokemonPatch.mapless_overworld_confusion = false;
+  return {
+    ...base,
+    usable: true,
+    reason: "used",
+    hpAfter: healHp ? base.maxHp : base.hpBefore,
+    healedAmount: healHp ? base.maxHp - base.hpBefore : 0,
+    statusAfter: cureStatus ? null : base.statusBefore,
+    statusCured: cureStatus,
+    confusionAfter: cureConfusion ? false : base.confusionBefore,
+    confusionCured: cureConfusion,
+    pokemonPatch,
+  };
+}
+
+function resolveRevive(base) {
+  if (base.hpBefore > 0) return { ...base, usable: false, reason: "not_fainted" };
+  const hpAfter = base.effect.healMode === "full"
+    ? base.maxHp
+    : Math.max(1, Math.floor(base.maxHp / 2));
+  return {
+    ...base,
+    usable: true,
+    reason: "used",
+    hpAfter,
+    healedAmount: hpAfter,
+    pokemonPatch: { hp: hpAfter },
+  };
+}
+
 export function canSafariItemTargetPokemon(pokemon, itemId) {
-  const effect = getSafariItemEffect(itemId);
-  if (!effect || !pokemon || Number(pokemon.steps_to_hatch ?? 0) > 0) return false;
-  if (effect.kind !== "heal_hp") return false;
-  const { hp, maxHp } = hpSnapshot(pokemon);
-  return hp > 0 && hp < maxHp;
+  return resolveSafariPartyItemEffect(pokemon, itemId).usable === true;
 }
 
 export function resolveSafariPartyItemEffect(pokemon, itemId) {
@@ -74,29 +279,12 @@ export function resolveSafariPartyItemEffect(pokemon, itemId) {
   if (!pokemon || Number(pokemon.steps_to_hatch ?? 0) > 0) {
     return { supported: true, usable: false, reason: "invalid_target", effect };
   }
-  if (effect.kind !== "heal_hp") {
-    return { supported: true, usable: false, reason: "unsupported_effect", effect };
-  }
 
-  const { hp: hpBefore, maxHp } = hpSnapshot(pokemon);
-  if (hpBefore <= 0) {
-    return { supported: true, usable: false, reason: "fainted_target", effect, hpBefore, maxHp };
-  }
-  if (hpBefore >= maxHp) {
-    return { supported: true, usable: false, reason: "no_effect", effect, hpBefore, maxHp };
-  }
-
-  const hpAfter = effect.healMode === "full"
-    ? maxHp
-    : Math.min(maxHp, hpBefore + Math.max(0, Math.trunc(Number(effect.amount ?? 0))));
-  return {
-    supported: true,
-    usable: hpAfter > hpBefore,
-    reason: hpAfter > hpBefore ? "used" : "no_effect",
-    effect,
-    hpBefore,
-    hpAfter,
-    maxHp,
-    healedAmount: hpAfter - hpBefore,
-  };
+  const base = baseResult(effect, pokemon);
+  if (effect.kind === "heal_hp") return resolveHealHp(base);
+  if (effect.kind === "cure_status") return resolveCureStatus(base);
+  if (effect.kind === "cure_all_status") return resolveCureAllStatus(base);
+  if (effect.kind === "full_restore") return resolveFullRestore(base);
+  if (effect.kind === "revive") return resolveRevive(base);
+  return { ...base, usable: false, reason: "unsupported_effect" };
 }
