@@ -1,7 +1,8 @@
 import {
   resolveSafariWishingFountainInteraction,
+  safariWishingFountainBonusCandidates,
   safariWishingFountainPresentation,
-} from "./runtime/safari-wishing-fountain-interaction.js?v=20260826-0130";
+} from "./runtime/safari-wishing-fountain-final-routes.js?v=20260826-0245";
 import { saveSafariPlayableRun } from "./runtime/safari-web-startup.js";
 
 let resolving = false;
@@ -47,6 +48,22 @@ function openFountain(index) {
   return setUi(index);
 }
 
+function bonusSelectionOptions(current, index, action) {
+  if (action !== "large_wish") return {};
+  const event = fountainAt(index);
+  const roll = Number(event?.normal_data?.large_roll ?? 0);
+  if (!(roll >= 45 && roll < 65)) return {};
+  const candidates = safariWishingFountainBonusCandidates(current);
+  if (!candidates.length) return { pokemonIndex:NaN };
+  const promptFn = typeof globalThis.prompt === "function" ? globalThis.prompt.bind(globalThis) : null;
+  if (!promptFn) return { pokemonIndex:candidates[0].index };
+  const lines = candidates.map((entry) => `${entry.index + 1}: ${entry.species}${entry.fainted ? " (ひんし)" : ""}`);
+  const raw = promptFn(`泉の力を受けるポケモンを選んでください。\n${lines.join("\n")}\nキャンセルすると強化せず願いを終えます。`, String(candidates[0].index + 1));
+  if (raw == null) return { pokemonIndex:NaN };
+  const chosen = Number(raw) - 1;
+  return { pokemonIndex:candidates.some((entry) => entry.index === chosen) ? chosen : NaN };
+}
+
 document.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-board-index]");
   if (!button || button.disabled) return;
@@ -63,7 +80,7 @@ document.addEventListener("click", (event) => {
   }
 }, { capture:true });
 
-document.addEventListener("click", (event) => {
+document.addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-normal-event-action]");
   const active = activeUi();
   const current = runtime();
@@ -74,14 +91,19 @@ document.addEventListener("click", (event) => {
   resolving = true;
   button.disabled = true;
   try {
-    const result = resolveSafariWishingFountainInteraction(current, active.boardIndex, action);
+    const result = await resolveSafariWishingFountainInteraction(
+      current,
+      active.boardIndex,
+      action,
+      bonusSelectionOptions(current, active.boardIndex, action),
+    );
     if (result.persistenceRequested || result.operations?.some((operation) => operation.op === "request_save")) {
       saveSafariPlayableRun(window.localStorage, current);
     }
-    if (result.completed) globalThis.__maplessNormalEventUi = null;
+    if (result.completed || result.result === "normal_event_wild_battle_started") globalThis.__maplessNormalEventUi = null;
     else setUi(active.boardIndex);
     publish("safari-runtime-changed");
-    if (!result.completed) publish("safari-normal-event-ui");
+    if (!result.completed && result.result !== "normal_event_wild_battle_started") publish("safari-normal-event-ui");
   } catch (error) {
     globalThis.__maplessLastError = error;
     const currentState = state();
