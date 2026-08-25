@@ -1,3 +1,4 @@
+import "./item-collector-touch-presentation.js?v=20260825-2355";
 import "./trainer-camp-touch-presentation.js?v=20260825-2330";
 import "./berry-juice-shop-touch-presentation.js?v=20260825-2300";
 import { safariLostBagWarning } from "./runtime/safari-lost-bag-interaction.js";
