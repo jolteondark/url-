@@ -12,6 +12,7 @@ export function resolveItemCollector(input = {}) {
     grade: Number(x.grade || 0),
   })).filter((x) => x.id && x.qty > 0) : [];
   const pools = Array.isArray(input.grade_candidates) ? input.grade_candidates.map((g) => Array.isArray(g) ? [...g] : []) : [];
+  const randomInt = typeof input.random_int === 'function' ? input.random_int : null;
 
   const pending = (outcome) => ({ event, operations, result: false, outcome });
   const finish = (outcome) => {
@@ -34,7 +35,7 @@ export function resolveItemCollector(input = {}) {
   const source = entries.find((x) => x.id === selected);
   if (!source) return pending('selected_item_unavailable');
 
-  const upgradeRoll = Number(input.upgrade_roll ?? 100);
+  const upgradeRoll = randomInt ? randomInt(100) : Number(input.upgrade_roll ?? 100);
   const upgraded = upgradeRoll < 25;
   const targetGrade = upgraded ? Math.min(source.grade + 1, Math.max(pools.length - 1, source.grade)) : source.grade;
   operations.push({ op: 'upgrade_roll', value: upgradeRoll, upgraded, source_grade: source.grade, target_grade: targetGrade });
@@ -48,7 +49,9 @@ export function resolveItemCollector(input = {}) {
   }
   if (!candidates.length) return pending('no_alternative_item');
 
-  const rewardIndex = Math.max(0, Number(input.reward_index || 0)) % candidates.length;
+  const rewardIndex = randomInt
+    ? randomInt(candidates.length)
+    : Math.max(0, Number(input.reward_index || 0)) % candidates.length;
   const reward = candidates[rewardIndex];
   operations.push({ op: 'select_reward', item: reward, grade: candidateGrade, index: rewardIndex });
 
