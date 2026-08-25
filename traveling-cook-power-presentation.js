@@ -54,11 +54,14 @@ window.addEventListener("safari-normal-event-rendered", installPowerChoices, { p
 window.addEventListener("safari-runtime-changed", () => queueMicrotask(installPowerChoices), { passive:true });
 
 document.addEventListener("click", async (event) => {
-  const target = event.target.closest('button[data-traveling-cook-power="true"]');
+  const target = event.target.closest('button[data-traveling-cook-power="true"], button[data-normal-event-action="prototype"]');
   if (!target || resolvingPowerMeal) return;
   const active = activeCook();
   const current = runtime();
   if (!active || !current) return;
+  const actionId = String(target.dataset.normalEventAction ?? "");
+  const isPowerButton = target.dataset.travelingCookPower === "true";
+  if (!isPowerButton && actionId !== "prototype") return;
 
   event.preventDefault();
   event.stopImmediatePropagation();
@@ -66,9 +69,13 @@ document.addEventListener("click", async (event) => {
   for (const choice of document.querySelectorAll("#normal-event-actions button")) choice.disabled = true;
   try {
     const owner = await import(OWNER_URL);
-    const actionId = String(target.dataset.normalEventAction ?? "");
-    const action = actionId.startsWith("berries:") ? "berries" : "pay";
-    const result = await owner.resolveSafariTravelingCookInteraction(current, active.boardIndex, action, "power");
+    let result;
+    if (actionId === "prototype") {
+      result = await owner.resolveSafariTravelingCookInteraction(current, active.boardIndex, "prototype");
+    } else {
+      const action = actionId.startsWith("berries:") ? "berries" : "pay";
+      result = await owner.resolveSafariTravelingCookInteraction(current, active.boardIndex, action, "power");
+    }
     if (result.persistenceRequested || result.operations?.some((operation) => operation?.op === "request_save")) {
       const startup = await import("./runtime/safari-web-startup.js");
       startup.saveSafariPlayableRun(window.localStorage, current);
