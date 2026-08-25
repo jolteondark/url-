@@ -17,11 +17,15 @@ assert.match(touch, /"pay:power"/,
   "paid power meal must be visible in the normal-event action surface");
 assert.match(touch, /"berries:power"/,
   "berry-paid power meal must be visible in the normal-event action surface");
+assert.match(touch, /button\[data-normal-event-action=\\?"prototype\\?"\]/,
+  "prototype choice must be intercepted by the fresh Traveling Cook touch adapter");
+assert.match(touch, /resolveSafariTravelingCookInteraction\(current, active\.boardIndex, "prototype"\)/,
+  "prototype must dispatch through the post-#842 owner so prototype power cannot use a stale Safari module");
 assert.match(touch, /stopImmediatePropagation\(\)/,
-  "power clicks must not fall through to the older generic normal-event click handler");
+  "power/prototype clicks must not fall through to the older generic normal-event click handler");
 assert.match(touch, /resolveSafariTravelingCookInteraction\(current, active\.boardIndex, action, "power"\)/,
   "touch adapter must dispatch directly to the post-#842 canonical power route");
 assert.match(touch, /saveSafariPlayableRun/,
   "completed power meal must use the existing Safari persistence owner");
 
-console.log("Traveling Cook power touch/cache wiring smoke passed");
+console.log("Traveling Cook power/prototype touch/cache wiring smoke passed");
