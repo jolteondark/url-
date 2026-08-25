@@ -1,6 +1,7 @@
 import { resolveLostBag } from "./mapless-lost-bag-flow.js";
 import {
   MAPLESS_NORMAL_EVENT_MID_REWARD_ITEMS,
+  maplessNormalEventMediumRewardPool,
   resolveMaplessNormalEventMediumReward,
 } from "./mapless-normal-event-medium-reward.js";
 import { MAPLESS_NORMAL_EVENT_SMALL_REWARD_ITEMS } from "./mapless-normal-event-small-reward.js";
@@ -30,6 +31,12 @@ function dayOf(state) { return Math.max(1, Math.trunc(Number(state.day) || 1)); 
 function bagSlots(runtime) { return runtime.bag?.slots ?? []; }
 function rewardPockets(runtime) {
   return { general:{ slots:bagSlots(runtime), maxSlots:SAFARI_BAG_MAX_SLOTS, maxPerSlot:SAFARI_BAG_MAX_PER_SLOT } };
+}
+function canGuaranteeSingleMediumReward(runtime) {
+  const slots = bagSlots(runtime).filter(Boolean);
+  if (slots.length < SAFARI_BAG_MAX_SLOTS) return true;
+  const pool = maplessNormalEventMediumRewardPool(dayOf(stateOf(runtime)), MEDIUM_ITEM_META);
+  return pool.every((item) => slots.some((slot) => String(slot?.[0] ?? "") === item && Number(slot?.[1] ?? 0) < SAFARI_BAG_MAX_PER_SLOT));
 }
 function resolveMediumReward(runtime, count, randomInt) {
   return resolveMaplessNormalEventMediumReward({
@@ -158,6 +165,10 @@ export async function resolveSafariLostBagInteraction(runtime, index, requestedA
         notice:state.notice,
         persistenceRequested:false,
       };
+    }
+    if (!canGuaranteeSingleMediumReward(runtime)) {
+      state.notice = "罠の戦闘後報酬を受け取れるよう、バッグを1枠以上空けてから袋を開けてください。";
+      return { runtime, result:"reward_bag_full", completed:false, availableActions, operations:[], notice:state.notice, persistenceRequested:false };
     }
     const preview = resolveLostBag({
       event,
