@@ -100,7 +100,7 @@ function runtimeFor() {
       actionId: "callout",
       battleEvent: { op: "start_trainer_battle", modifier: 2, seed: 9, type: "FIRE" },
     }),
-    /constraint is not yet owned by the shared trainer generator: type/,
+    /type constraint is only owned for extra_pokemon append/,
   );
   assert.equal(runtime.variables.mapless.battle, null);
   assert.equal(runtime.variables.mapless.board_consumed[0], false);
