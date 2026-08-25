@@ -2,7 +2,9 @@ import { shouldFreezeCanonicalBattleSprite } from "./battle-sprite-phase-gate.js
 import { resolveInlineCanonicalBattleSprite } from "./runtime/safari-canonical-battle-sprite-inline.js";
 import { resolveSafariCanonicalBugBattleSprite } from "./runtime/safari-canonical-battle-sprite-bug.js";
 import { resolveSafariCanonicalFileBattleSprite } from "./runtime/safari-canonical-battle-sprite-assets.js";
-import { applySafariDay1Front96Sprite } from "./runtime/safari-day1-front-96-atlas.js?v=20260820-1334";
+import { applySafariDay1Front96Sprite } from "./runtime/safari-day1-front-96-atlas.js?v=20260825-1042";
+import { applySafariDay1Back96Sprite } from "./runtime/safari-day1-back-96-atlas.js?v=20260825-1042";
+import { applySafariSpeciesFormFrontSprite } from "./runtime/safari-species-form-front-atlas.js?v=20260825-1042";
 
 let scheduled = false;
 const pendingLoads = new Map();
@@ -105,7 +107,7 @@ function imageMatchesSpecies(image, species) {
   );
 }
 
-function ensureAtlasFallback(combatant, species, symbol) {
+function ensureAtlasFallback(combatant, species, form, side, symbol) {
   let fallback = combatant.querySelector(".canonical-battle-atlas-fallback");
   if (!fallback) {
     fallback = document.createElement("span");
@@ -113,10 +115,24 @@ function ensureAtlasFallback(combatant, species, symbol) {
     fallback.setAttribute("aria-hidden", "true");
     combatant.append(fallback);
   }
-  const ok = applySafariDay1Front96Sprite(fallback, species, { size: 96 });
+
+  const preferredApplied = side === "player"
+    ? applySafariDay1Back96Sprite(fallback, species, { size: 96 })
+    : applySafariDay1Front96Sprite(fallback, species, { size: 96 });
+  const broadApplied = preferredApplied
+    ? false
+    : applySafariSpeciesFormFrontSprite(fallback, species, {
+        form,
+        family: side === "player" ? "back-fallback-front" : "front",
+        size: 96,
+      });
+  const ok = preferredApplied || broadApplied;
   setHidden(fallback, !ok);
   if (ok) {
     fallback.dataset.spriteSpecies = species;
+    fallback.dataset.battleSpriteFallback = preferredApplied
+      ? side === "player" ? "canonical-back-96" : "canonical-front-96"
+      : side === "player" ? "species-form-front-for-back" : "species-form-front";
     setHidden(symbol, true);
   }
   return ok;
@@ -140,7 +156,7 @@ function commitLoadedImage(combatant, candidate, symbol, legacy, key) {
   clearAtlasFallback(combatant);
 }
 
-function showBestFallback(combatant, species, image, symbol, legacy) {
+function showBestFallback(combatant, species, form, side, image, symbol, legacy) {
   const hasCurrentSpeciesImage = imageMatchesSpecies(image, species);
   setHidden(image, !hasCurrentSpeciesImage);
   setHidden(legacy, true);
@@ -149,10 +165,10 @@ function showBestFallback(combatant, species, image, symbol, legacy) {
     setHidden(symbol, true);
     return;
   }
-  if (!ensureAtlasFallback(combatant, species, symbol)) setHidden(symbol, false);
+  if (!ensureAtlasFallback(combatant, species, form, side, symbol)) setHidden(symbol, false);
 }
 
-function beginAssetLoad(combatant, currentImage, asset, species, symbol, legacy) {
+function beginAssetLoad(combatant, currentImage, asset, species, form, side, symbol, legacy) {
   const key = `${asset.side}:${asset.species}:${asset.form}:${asset.sha256 ?? asset.src}`;
   if (currentImage?.dataset.assetKey === key && imageMatchesSpecies(currentImage, species)) {
     delete combatant.dataset.pendingSpriteKey;
@@ -167,7 +183,7 @@ function beginAssetLoad(combatant, currentImage, asset, species, symbol, legacy)
 
   combatant.dataset.pendingSpriteKey = key;
   combatant.dataset.spriteLoading = "true";
-  showBestFallback(combatant, species, currentImage, symbol, legacy);
+  showBestFallback(combatant, species, form, side, currentImage, symbol, legacy);
 
   const candidate = imageForAsset(asset);
   pendingLoads.set(combatant.id, candidate);
@@ -178,7 +194,7 @@ function beginAssetLoad(combatant, currentImage, asset, species, symbol, legacy)
     delete combatant.dataset.pendingSpriteKey;
     delete combatant.dataset.spriteLoading;
     pendingLoads.delete(combatant.id);
-    showBestFallback(combatant, species, combatant.querySelector(".canonical-battle-sprite"), symbol, legacy);
+    showBestFallback(combatant, species, form, side, combatant.querySelector(".canonical-battle-sprite"), symbol, legacy);
   }, { once: true });
   candidate.src = asset.src;
   if (candidate.complete && candidate.naturalWidth > 0) commitLoadedImage(combatant, candidate, symbol, legacy, key);
@@ -200,10 +216,10 @@ function renderSide({ side, battlerIndex, nameId, combatantId }) {
     delete combatant.dataset.pendingSpriteKey;
     delete combatant.dataset.spriteLoading;
     pendingLoads.delete(combatant.id);
-    showBestFallback(combatant, species, image, symbol, legacy);
+    showBestFallback(combatant, species, form, side, image, symbol, legacy);
     return;
   }
-  beginAssetLoad(combatant, image, asset, species, symbol, legacy);
+  beginAssetLoad(combatant, image, asset, species, form, side, symbol, legacy);
 }
 
 function hasVisibleSprite(combatant) {
@@ -247,3 +263,5 @@ window.addEventListener("pageshow", schedule, { passive: true });
 window.addEventListener("safari-runtime-changed", schedule, { passive: true });
 window.addEventListener("safari-preview-start", schedule, { passive: true });
 window.addEventListener("safari-day1-front-96-atlas-state", schedule, { passive: true });
+window.addEventListener("safari-day1-back-96-atlas-state", schedule, { passive: true });
+window.addEventListener("safari-species-form-front-atlas-state", schedule, { passive: true });
