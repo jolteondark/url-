@@ -16,7 +16,7 @@ export function resolveWishingFountain(input={}){
   const price=1200+Number(input.scaling_value||0)*200;operations.push({op:'spend_money',amount:price,result:input.spend_result!==false});if(input.spend_result===false)return out(event,operations,false,'payment_failed');
   const roll=Number(data.large_roll||0);operations.push({op:'large_roll',value:roll});
   if(roll<45){operations.push({op:'grant_random',tier:'large',quantity:1,result:input.reward_result!==false});return finish(event,operations,'large_reward');}
-  if(roll<65){operations.push({op:'choose_pokemon',allow_egg:true,result:input.chosen_pokemon||null});if(input.chosen_pokemon)operations.push({op:'add_bonus',pokemon:input.chosen_pokemon,stat:data.bonus_stat,amount:1,result:input.bonus_result!==false});return finish(event,operations,input.chosen_pokemon?'large_bonus':'large_bonus_skipped');}
+  if(roll<65){operations.push({op:'choose_pokemon',allow_fainted:true,allow_egg:false,result:input.chosen_pokemon||null});if(input.chosen_pokemon)operations.push({op:'add_bonus',pokemon:input.chosen_pokemon,stat:data.bonus_stat,amount:1,result:input.bonus_result!==false});return finish(event,operations,input.chosen_pokemon?'large_bonus':'large_bonus_skipped');}
   if(roll<85){operations.push({op:'full_heal_party',result:input.heal_result!==false});return finish(event,operations,'large_full_heal');}
   if(roll<95){operations.push({op:'grant_random',tier:'large',quantity:1,result:input.reward_result!==false});return finish(event,operations,'large_old_offering');}
   return finish(event,operations,'large_nothing');
