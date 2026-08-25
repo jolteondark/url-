@@ -1,5 +1,20 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { resolveOldStatue } from "../runtime/mapless-old-statue-flow.js";
+
+const canonical = resolveOldStatue({
+  event:{ kind:"normal_event", normal_event_id:"old_statue", normal_seed:71, normal_data:{ break_roll:12 } },
+  choice:"break",
+  battle_success:false,
+});
+const guardian = canonical.operations.find((operation) => operation?.op === "start_wild_battle");
+assert.deepEqual(guardian, {
+  op:"start_wild_battle",
+  type:"ROCK",
+  modifier:2,
+  cannot_run:true,
+  seed:71,
+});
 
 const runtimeSource = fs.readFileSync(new URL("../runtime/safari-old-statue-pray-battle.js", import.meta.url), "utf8");
 const touchSource = fs.readFileSync(new URL("../old-statue-touch-presentation.js", import.meta.url), "utf8");
