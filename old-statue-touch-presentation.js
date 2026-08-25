@@ -1,7 +1,7 @@
 import {
   resolveSafariOldStatueInteraction,
   safariOldStatuePresentation,
-} from "./runtime/safari-old-statue-break-safe.js?v=20260826-0445";
+} from "./runtime/safari-old-statue-pray-bag-safe.js?v=20260826-0545";
 import { saveSafariPlayableRun } from "./runtime/safari-web-startup.js";
 
 let resolving = false;
