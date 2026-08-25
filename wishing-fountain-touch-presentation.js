@@ -1,7 +1,7 @@
 import {
   resolveSafariWishingFountainInteraction,
   safariWishingFountainPresentation,
-} from "./runtime/safari-wishing-fountain-interaction.js?v=20260826-0030";
+} from "./runtime/safari-wishing-fountain-interaction.js?v=20260826-0130";
 import { saveSafariPlayableRun } from "./runtime/safari-web-startup.js";
 
 let resolving = false;
