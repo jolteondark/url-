@@ -3,10 +3,11 @@ import {
   resolveSafariLostBagInteraction,
   safariLostBagWarning,
 } from "../runtime/safari-lost-bag-interaction.js";
+import { returnSafariToDayBoard } from "../runtime/safari-normal-battle-lifecycle.js";
 
 function runtimeFor({ trap=false, waitRoll=90, types=[] } = {}) {
   return {
-    player:{ party:[{ species:"EEVEE", hp:20, egg:false, types }] },
+    player:{ party:[{ species:"EEVEE", level:12, hp:20, max_hp:20, status:"NONE", moves:["TACKLE"], egg:false, types }] },
     variables:{ mapless:{
       day:1,
       location:"day_board",
@@ -66,12 +67,30 @@ function runtimeFor({ trap=false, waitRoll=90, types=[] } = {}) {
 {
   const runtime = runtimeFor({ trap:true, types:["DARK"] });
   assert.equal(safariLostBagWarning(runtime, 0), true);
-  const result = await resolveSafariLostBagInteraction(runtime, 0, "wait");
-  assert.equal(result.result, "extra_pokemon_trainer_owner_required");
-  assert.equal(result.blockedBy, "#846");
-  assert.equal(result.completed, false);
-  assert.equal(runtime.variables.mapless.board_consumed[0], false, "blocked trapped wait must not consume the event");
-  assert.equal(runtime.variables.mapless.preview_encounter_counter, 0, "blocked trapped wait must consume no RNG");
+  const started = await resolveSafariLostBagInteraction(runtime, 0, "wait");
+  assert.equal(started.result, "normal_event_trainer_battle_started");
+  assert.equal(started.boundary, "trainer");
+  assert.equal(runtime.variables.mapless.board_consumed[0], false, "trapped wait must remain unresolved until Battle continuation commits");
+  assert.ok(runtime.variables.mapless.battle);
+  assert.equal(
+    runtime.variables.mapless.battle.trainer_party.length,
+    started.trainer.party.length + 1,
+    "trapped wait must append exactly one separate GENERAL Pokemon after ordinary trainer generation",
+  );
+  assert.ok(runtime.variables.mapless.battle.last_operations.some((operation) => operation.op === "append_normal_event_trainer_extra_pokemon"));
+  assert.equal(runtime.variables.mapless.preview_encounter_counter, 1,
+    "missing explicit type must consume exactly one shared/global TYPE_IDS sample before Battle");
+
+  runtime.variables.mapless.battle.completed = true;
+  runtime.variables.mapless.battle.decision = 1;
+  runtime.variables.mapless.battle.return_target = "day_board";
+  const returned = returnSafariToDayBoard(runtime);
+  assert.equal(returned.normalEventContinuation.result, "trap_wait_won");
+  assert.equal(runtime.variables.mapless.board_consumed[0], true);
+  assert.equal(runtime.bag.money, 800, "Day 1 trapped-wait win must grant canonical 800 yen");
+  assert.equal(returned.normalEventContinuation.reward.selectedItems.length, 1);
+  assert.ok(runtime.variables.mapless.preview_encounter_counter > 1,
+    "post-Battle medium reward must continue the shared run RNG after the type sample");
 }
 
 {
