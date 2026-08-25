@@ -1,7 +1,9 @@
 import {
   resolveSafariOldStatueInteraction,
+  safariOldStatueBonusCandidates,
+  safariOldStatuePrayNeedsPokemon,
   safariOldStatuePresentation,
-} from "./runtime/safari-old-statue-pray-bag-safe.js?v=20260826-0545";
+} from "./runtime/safari-old-statue-pray-bonus.js?v=20260826-0645";
 import { saveSafariPlayableRun } from "./runtime/safari-web-startup.js";
 
 let resolving = false;
@@ -45,6 +47,18 @@ function openStatue(index) {
   currentState.board_visited[index] = true;
   return setUi(index);
 }
+function praySelectionOptions(current, index, action) {
+  if (action !== "pray" || !safariOldStatuePrayNeedsPokemon(current, index)) return {};
+  const candidates = safariOldStatueBonusCandidates(current);
+  if (!candidates.length) return { pokemonIndex:NaN };
+  const promptFn = typeof globalThis.prompt === "function" ? globalThis.prompt.bind(globalThis) : null;
+  if (!promptFn) return { pokemonIndex:candidates[0].index };
+  const lines = candidates.map((entry) => `${entry.index + 1}: ${entry.species}${entry.fainted ? " (ひんし)" : ""}`);
+  const raw = promptFn(`石像の加護を受けるポケモンを選んでください。\n${lines.join("\n")}\nキャンセルするとイベントは消費しません。`, String(candidates[0].index + 1));
+  if (raw == null) return { pokemonIndex:NaN };
+  const chosen = Number(raw) - 1;
+  return { pokemonIndex:candidates.some((entry) => entry.index === chosen) ? chosen : NaN };
+}
 
 document.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-board-index]");
@@ -73,7 +87,12 @@ document.addEventListener("click", async (event) => {
   resolving = true;
   button.disabled = true;
   try {
-    const result = await resolveSafariOldStatueInteraction(current, active.boardIndex, action);
+    const result = await resolveSafariOldStatueInteraction(
+      current,
+      active.boardIndex,
+      action,
+      praySelectionOptions(current, active.boardIndex, action),
+    );
     if (result.persistenceRequested || result.operations?.some((operation) => operation.op === "request_save")) {
       saveSafariPlayableRun(window.localStorage, current);
     }
