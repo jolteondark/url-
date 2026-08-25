@@ -6,8 +6,19 @@ import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..");
 const presentation = fs.readFileSync(path.join(root, "normal-event-touch-presentation.js"), "utf8");
+const handoff = fs.readFileSync(path.join(root, "runtime", "safari-normal-event-touch-handoff.js"), "utf8");
 const adapter = fs.readFileSync(path.join(root, "runtime", "safari-berry-thief-interaction.js"), "utf8");
 
+assert.match(
+  handoff,
+  /SUPPORTED = new Set\(\[[\s\S]*?"berry_thief"/,
+  "Berry Thief must be accepted by the Safari Day Board normal-event touch handoff",
+);
+assert.match(
+  handoff,
+  /eventId === "berry_thief"[\s\S]*?safariBerryThiefBerryChoices\(runtime\)[\s\S]*?id:`bait:\$\{item\}`[\s\S]*?id:"chase"[\s\S]*?id:"leave"/,
+  "Berry Thief Day Board handoff must expose bait/chase/leave actions",
+);
 assert.match(
   presentation,
   /berry_thief:\"\.\/runtime\/safari-berry-thief-interaction\.js\"/,
