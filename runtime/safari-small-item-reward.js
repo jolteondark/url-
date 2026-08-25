@@ -1,10 +1,11 @@
 import { resolveRewardTransaction } from "./bag-economy-reward-transaction.js";
 import { RubyMT19937Random } from "./ruby-mt19937-random.js";
+import {
+  MAPLESS_NORMAL_EVENT_SMALL_REWARD_ITEMS,
+  pickMaplessNormalEventSmallRewards,
+} from "./mapless-normal-event-small-reward.js";
 
-export const SAFARI_SMALL_REWARD_ITEMS = Object.freeze([
-  "POTION", "ANTIDOTE", "PARALYZEHEAL", "AWAKENING", "BURNHEAL", "ICEHEAL",
-  "POKEBALL", "ORANBERRY", "PECHABERRY", "CHERIBERRY", "FRESHWATER", "SODAPOP",
-]);
+export const SAFARI_SMALL_REWARD_ITEMS = MAPLESS_NORMAL_EVENT_SMALL_REWARD_ITEMS;
 
 const SAFARI_BAG_MAX_SLOTS = 20;
 const SAFARI_BAG_MAX_PER_SLOT = 99;
@@ -14,7 +15,11 @@ const ITEM_META = Object.freeze(Object.fromEntries(
 
 export function safariDeterministicSmallRewardItem(seed, salt = 0) {
   const rng = new RubyMT19937Random((Number(seed ?? 0) ^ Number(salt ?? 0)) & 0x7fffffff);
-  return SAFARI_SMALL_REWARD_ITEMS[rng.randInt(SAFARI_SMALL_REWARD_ITEMS.length)];
+  return pickMaplessNormalEventSmallRewards({
+    count:1,
+    itemMeta:ITEM_META,
+    randomInt:(max) => rng.randInt(max),
+  }).items[0] ?? null;
 }
 
 export function preflightSafariSmallItemReward(runtime, item) {
