@@ -214,6 +214,87 @@ function withTransientFlinch(action) {
   };
 }
 
+function currentConfusionTurns(action) {
+  if (action?.tryUseMoveResolution) {
+    const resolvedTurns = Number(action.tryUseMoveResolution.confusionTurns ?? 0);
+    if (Number.isInteger(resolvedTurns) && resolvedTurns > 0) return resolvedTurns;
+  }
+  const inputTurns = Number(action?.useMoveInput?.tryUseMoveInput?.confusionTurns ?? 0);
+  return Number.isInteger(inputTurns) && inputTurns > 0 ? inputTurns : 0;
+}
+
+function triggeredTransientConfusionEffect(action) {
+  return (Array.isArray(action?.secondaryEffectInputs) ? action.secondaryEffectInputs : []).find((effect) =>
+    effect?.transientEffect === "confusion" && effect?.triggered === true
+  ) ?? null;
+}
+
+function targetOwnTempoBlocksConfusion(action) {
+  const modifiers = action?.abilityItemActionBefore?.modifiers ?? {};
+  if (Boolean(modifiers.moldBreaker)) return false;
+  const ability = String(modifiers.targetAbility ?? "").toUpperCase();
+  return ability === "OWNTEMPO";
+}
+
+function withTransientConfusion(action, turns) {
+  if (!action || action.kind !== "move") return action;
+  const count = Number(turns);
+  if (!Number.isInteger(count) || count <= 0) return action;
+  const useMoveInput = action.useMoveInput ?? {};
+  return {
+    ...action,
+    useMoveInput: {
+      ...useMoveInput,
+      tryUseMoveInput: {
+        ...(useMoveInput.tryUseMoveInput ?? {}),
+        confusionTurns: count,
+      },
+    },
+  };
+}
+
+function applyResolvedTransientConfusionCanonical(action, actions, battlerActionIndex, acted) {
+  const effect = triggeredTransientConfusionEffect(action);
+  if (!effect) return action;
+  const targetBattlerIndex = Number(action?.targetBattlerIndex);
+  const targetActionIndex = battlerActionIndex.get(targetBattlerIndex);
+  const targetHadActed = targetActionIndex === undefined ? false : acted.has(targetActionIndex);
+  const duration = Number(effect.randomChoiceValue ?? 0);
+  const existingTurns = targetActionIndex === undefined ? 0 : currentConfusionTurns(actions[targetActionIndex]);
+  let applied = false;
+  let reason = null;
+  if (action?.accuracyResolution?.hit !== true) {
+    reason = "missed";
+  } else if (Number(action?.hpReductionResolution?.amount ?? 0) <= 0) {
+    reason = "no_damage";
+  } else if (Number(action?.hpAfter ?? 0) <= 0) {
+    reason = "target_fainted";
+  } else if (!Number.isInteger(duration) || duration < 2 || duration > 5) {
+    reason = "invalid_duration";
+  } else if (existingTurns > 0) {
+    reason = "already_confused";
+  } else if (targetOwnTempoBlocksConfusion(action)) {
+    reason = "own_tempo";
+  } else {
+    applied = true;
+    if (targetActionIndex !== undefined && !targetHadActed) {
+      actions[targetActionIndex] = withTransientConfusion(actions[targetActionIndex], duration);
+    }
+  }
+  return {
+    ...action,
+    transientConfusionEffectResolution: {
+      applied,
+      reason,
+      targetBattlerIndex,
+      targetActionIndex: targetActionIndex ?? null,
+      targetHadActed,
+      turns: applied ? duration : 0,
+      functionCode: String(effect.functionCode ?? action.functionCode ?? ""),
+    },
+  };
+}
+
 function applyResolvedActionStagesCanonical(resolvedAction, inputStatStages) {
   let statStages = inputStatStages;
   const resolved = resolvedAction;
@@ -258,8 +339,9 @@ function resolveRoundActionsCanonical(round) {
     statStages = resolved.statStages;
     actions[actionIndex] = resolved.action;
     acted.add(actionIndex);
-    if (!triggeredDirectFlinch(resolved.action)) continue;
-    const targetActionIndex = battlerActionIndex.get(Number(resolved.action.targetBattlerIndex));
+    actions[actionIndex] = applyResolvedTransientConfusionCanonical(actions[actionIndex], actions, battlerActionIndex, acted);
+    if (!triggeredDirectFlinch(actions[actionIndex])) continue;
+    const targetActionIndex = battlerActionIndex.get(Number(actions[actionIndex].targetBattlerIndex));
     if (targetActionIndex === undefined || acted.has(targetActionIndex)) continue;
     actions[targetActionIndex] = withTransientFlinch(actions[targetActionIndex]);
   }
