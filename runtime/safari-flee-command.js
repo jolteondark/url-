@@ -5,6 +5,7 @@ import {
   captureSafariBattleCommandAttempt,
   commitSafariBattleResolution,
 } from "./safari-battle-orchestrator.js";
+import { safariBattleCanRun } from "./safari-battle-run-constraint.js";
 import { resolveSafariNormalWildOpponentResponse } from "./safari-normal-battle-round.js";
 
 function browserRunSeed() {
@@ -65,7 +66,6 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
     const player = runtime?.player?.party?.[playerPartyIndex];
     const foe = battle.foe;
     const trainerBattle = battle.kind === "trainer";
-    const facilityBlocked = battle.origin === "village_bounty";
     const command = resolveBrowserWildBattleCommand({
       command: "run",
       player,
@@ -76,7 +76,7 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
       reflectedPartyIndex: playerPartyIndex,
       runInput: {
         internalBattle: true,
-        canRun: battle.kind === "wild" && !facilityBlocked,
+        canRun: safariBattleCanRun(runtime),
         duringBattle: false,
         runCommand: Number(battle.run_command ?? 0),
         moreTypeEffects: false,
