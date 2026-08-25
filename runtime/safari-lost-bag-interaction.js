@@ -93,7 +93,7 @@ function trapWarning(runtime, event) {
 }
 
 registerSafariNormalEventBattleContinuation("lost_bag", (runtime, continuation) => {
-  if (continuation.actionId !== "open") throw new Error(`unsupported lost_bag Battle continuation action: ${continuation.actionId}`);
+  if (!["open", "wait"].includes(continuation.actionId)) throw new Error(`unsupported lost_bag Battle continuation action: ${continuation.actionId}`);
   const state = stateOf(runtime);
   const index = Number(continuation.boardIndex);
   const event = state.board_events?.[index];
@@ -103,23 +103,45 @@ registerSafariNormalEventBattleContinuation("lost_bag", (runtime, continuation) 
   if (success && !reward?.success) throw new Error("lost_bag post-battle medium reward no longer fits in Bag");
   const owner = resolveLostBag({
     event,
-    choice:"open",
+    choice:continuation.actionId,
     has_dark_or_psychic:trapWarning(runtime, event),
     current_day:dayOf(state),
     scaling_value:scalingValue(state.day),
     battle_result:continuation.battleReturn,
     battle_success:success,
     grant_random_result:reward?.success ?? false,
+    add_money_result:true,
   });
   const applied = [];
   if (reward) {
     applied.push(...reward.operations.map((operation) => structuredClone(operation)));
     applied.push(...applyMediumReward(runtime, reward));
   }
+  const moneyOperation = success && continuation.actionId === "wait"
+    ? (owner.operations ?? []).find((operation) => operation?.op === "add_money") ?? null
+    : null;
+  if (moneyOperation) applied.push(addMoney(runtime, moneyOperation.amount));
   commit(runtime, index, owner, applied);
   const itemText = reward?.selectedItems?.length ? ` ${reward.selectedItems.join("・")}を受け取りました。` : "";
-  state.notice = success ? `罠を仕掛けたトレーナーに勝ちました。${itemText}`.trim() : "罠を仕掛けたトレーナーとの勝負を終えました。";
-  return { runtime, result:owner.outcome, completed:true, terminal:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner, reward };
+  state.notice = success
+    ? continuation.actionId === "wait"
+      ? `待ち伏せの一団に勝ち、${moneyOperation?.amount ?? 0}円${itemText ? `と${itemText.trim()}` : ""}を受け取りました。`
+      : `罠を仕掛けたトレーナーに勝ちました。${itemText}`.trim()
+    : continuation.actionId === "wait"
+      ? "待ち伏せの一団との勝負を終えました。"
+      : "罠を仕掛けたトレーナーとの勝負を終えました。";
+  return {
+    runtime,
+    result:owner.outcome,
+    completed:true,
+    terminal:true,
+    operations:state.last_operations,
+    notice:state.notice,
+    persistenceRequested:true,
+    owner,
+    reward,
+    moneyAdded:moneyOperation?.amount ?? 0,
+  };
 });
 
 export function safariLostBagWarning(runtime, index) {
@@ -153,37 +175,25 @@ export async function resolveSafariLostBagInteraction(runtime, index, requestedA
   }
 
   if (event.normal_data?.trap === true) {
-    if (action === "wait") {
-      state.notice = "罠を警戒して待つルートは、追加ポケモン付きトレーナー戦の共有Battle owner接続待ちです。袋はまだ消費していません。";
-      return {
-        runtime,
-        result:"extra_pokemon_trainer_owner_required",
-        completed:false,
-        blockedBy:"#846",
-        availableActions,
-        operations:[{ op:"lost_bag_wait_trap_blocked", blocker:"extra_pokemon:true" }],
-        notice:state.notice,
-        persistenceRequested:false,
-      };
-    }
     if (!canGuaranteeSingleMediumReward(runtime)) {
-      state.notice = "罠の戦闘後報酬を受け取れるよう、バッグを1枠以上空けてから袋を開けてください。";
+      state.notice = "罠の戦闘後報酬を受け取れるよう、バッグを1枠以上空けてから挑んでください。";
       return { runtime, result:"reward_bag_full", completed:false, availableActions, operations:[], notice:state.notice, persistenceRequested:false };
     }
     const preview = resolveLostBag({
       event,
-      choice:"open",
+      choice:action,
       has_dark_or_psychic:warned,
       current_day:day,
       scaling_value:scale,
       battle_success:false,
       grant_random_result:false,
+      add_money_result:false,
     });
     const battleEvent = trainerRequest(preview);
-    if (!battleEvent) throw new Error("lost_bag trapped open route did not request trainer Battle");
+    if (!battleEvent) throw new Error(`lost_bag trapped ${action} route did not request trainer Battle`);
     const started = await activateSafariNormalEventTrainerBattle(runtime, index, {
       eventId:"lost_bag",
-      actionId:"open",
+      actionId:action,
       battleEvent,
       request:structuredClone(battleEvent),
       payload:{ trap:true },
