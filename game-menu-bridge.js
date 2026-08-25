@@ -4,6 +4,11 @@ import {
   completeSafariBattlePresentationForSequence,
 } from "./runtime/safari-battle-presentation-ack.js";
 import { useSafariBagItemOnPartyPokemon } from "./runtime/safari-bag-item-use.js";
+import {
+  canSafariItemTargetPokemon,
+  getSafariItemDisplayName,
+  isSafariPartyItemSupported,
+} from "./runtime/safari-item-effects.js";
 import { formatSafariBattlePresentationEvent } from "./battle-presentation-narration.js";
 
 const byId = (id) => document.getElementById(id);
@@ -29,16 +34,16 @@ function bagSlots(runtime) {
   return [...totals].sort((a, b) => String(a[0]).localeCompare(String(b[0])));
 }
 
-function potionTargetSelect(runtime) {
+function itemTargetSelect(runtime, itemId) {
   const select = document.createElement("select");
   select.className = "bag-target-select";
-  select.setAttribute("aria-label", "キズぐすりを使うポケモン");
+  select.setAttribute("aria-label", `${getSafariItemDisplayName(itemId)}を使うポケモン`);
   let firstUsable = null;
   for (const [index, pokemon] of (runtime?.player?.party ?? []).entries()) {
     if (!pokemon) continue;
     const hp = Number(pokemon.hp ?? 0);
     const maxHp = Number(pokemon.max_hp ?? hp);
-    const usable = Number(pokemon.steps_to_hatch ?? 0) <= 0 && hp > 0 && hp < maxHp;
+    const usable = canSafariItemTargetPokemon(pokemon, itemId);
     const option = document.createElement("option");
     option.value = String(index);
     option.textContent = `${pokemon.nickname ?? pokemon.species}  HP ${hp}/${maxHp}`;
@@ -142,13 +147,13 @@ function renderBag() {
       const row = document.createElement("article");
       row.className = "bag-slot";
       const name = document.createElement("strong");
-      name.textContent = id === "POTION" ? "キズぐすり" : id;
+      name.textContent = getSafariItemDisplayName(id);
       const amount = document.createElement("span");
       amount.textContent = "×" + qty;
       row.append(name, amount);
 
-      if (id === "POTION") {
-        const { select, hasTarget } = potionTargetSelect(runtime);
+      if (isSafariPartyItemSupported(id)) {
+        const { select, hasTarget } = itemTargetSelect(runtime, id);
         const use = document.createElement("button");
         use.type = "button";
         use.dataset.bagUseItem = id;
