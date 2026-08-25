@@ -7,6 +7,7 @@ import { hasSafariUsablePartyType } from "./safari-pokemon-type-membership.js";
 import { safariMeteorFragmentRockChoices } from "./safari-meteor-fragment-interaction.js";
 import { safariLostPokemonBerryChoices } from "./safari-lost-pokemon-interaction.js";
 import { safariPhotographerPartyChoices } from "./safari-photographer-interaction.js";
+import { safariBerryThiefBerryChoices } from "./safari-berry-thief-interaction.js";
 
 const SUPPORTED = new Set([
   "street_performer",
@@ -22,6 +23,7 @@ const SUPPORTED = new Set([
   "photographer",
   "pokemon_nest",
   "sleeping_giant",
+  "berry_thief",
   "wounded_pokemon",
 ]);
 
@@ -238,6 +240,23 @@ function definition(runtime, eventId, index) {
         { id:"fight", label:"正面から挑む", meta:"強敵戦 · 勝利で道具獲得" },
         { id:"leave", label:"刺激せず立ち去る", secondary:true },
       ],
+    };
+  }
+  if (eventId === "berry_thief") {
+    const berries = safariBerryThiefBerryChoices(runtime);
+    const stolen = [...(state.board_events?.[index]?.normal_data?.stolen ?? [])];
+    const actions = berries.map((item) => ({ id:`bait:${item}`, label:`${item}を1個渡して誘き寄せる`, meta:"きのみを消費して野生戦" }));
+    if (berries.length === 0) actions.push({ id:"no_berry", label:"誘き寄せに使えるきのみがありません", disabled:true });
+    actions.push(
+      { id:"chase", label:"追いかける", meta:"野生戦 · 勝てば盗品を取り戻す" },
+      { id:"leave", label:"見逃す", secondary:true },
+    );
+    return {
+      title:"きのみ泥棒",
+      message: stolen.length > 0
+        ? `ポケモンに${stolen.join("・")}を盗まれました。どうしますか？`
+        : "道具を狙うポケモンが現れました。どうしますか？",
+      actions,
     };
   }
   if (eventId === "wounded_pokemon") return woundedDefinition(runtime, index);
