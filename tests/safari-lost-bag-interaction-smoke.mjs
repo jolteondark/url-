@@ -74,4 +74,14 @@ function runtimeFor({ trap=false, waitRoll=90, types=[] } = {}) {
   assert.equal(runtime.variables.mapless.preview_encounter_counter, 0, "blocked trapped wait must consume no RNG");
 }
 
+{
+  const runtime = runtimeFor({ trap:true });
+  runtime.bag.slots = Array.from({ length:20 }, (_, index) => [`FULL${index}`, 99]);
+  const result = await resolveSafariLostBagInteraction(runtime, 0, "open");
+  assert.equal(result.result, "reward_bag_full");
+  assert.equal(result.completed, false);
+  assert.equal(runtime.variables.mapless.battle, null, "trapped open must not start a Battle that cannot pay its possible win reward");
+  assert.equal(runtime.variables.mapless.board_consumed[0], false);
+}
+
 console.log("Safari Lost Bag interaction smoke passed");
