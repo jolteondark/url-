@@ -39,9 +39,34 @@ const base = {
 const first = resolveCanonicalItemCollectorV108(base);
 const replay = resolveCanonicalItemCollectorV108(base);
 assert.deepEqual(replay, first, "same normal_seed must replay the same two action draws");
-assert.equal(first.operations.filter((op) => op.op === "upgrade_roll").length, 1);
+assert.equal(first.operations.find((op) => op.op === "upgrade_roll").value, 64,
+  "seed 41 must preserve the recovered no-upgrade first draw");
 assert.equal(first.operations.filter((op) => op.op === "select_reward").length, 1);
 assert.equal(first.result, true);
+
+const fallback = resolveCanonicalItemCollectorV108({
+  event: { normal_seed: 3, normal_resolved: false, normal_data: {} },
+  choice: "ball",
+  selected_item: "POKEBALL",
+  item_exists: (id) => id === "POKEBALL" || id === "PREMIERBALL",
+  quantity_of: (id) => id === "POKEBALL" ? 1 : 0,
+});
+assert.equal(fallback.operations.find((op) => op.op === "upgrade_roll").value, 24,
+  "seed 3 must exercise the canonical 25% upgrade branch");
+assert.ok(fallback.operations.some((op) => op.op === "candidate_fallback" && op.grade === 0));
+assert.equal(fallback.operations.find((op) => op.op === "select_reward").item, "PREMIERBALL");
+
+const capped = resolveCanonicalItemCollectorV108({
+  event: { normal_seed: 3, normal_resolved: false, normal_data: {} },
+  choice: "ball",
+  selected_item: "FASTBALL",
+  item_exists: () => true,
+  quantity_of: (id) => id === "FASTBALL" ? 1 : 0,
+});
+const cappedUpgrade = capped.operations.find((op) => op.op === "upgrade_roll");
+assert.equal(cappedUpgrade.upgraded, true);
+assert.equal(cappedUpgrade.source_grade, 3);
+assert.equal(cappedUpgrade.target_grade, 3, "final grade upgrade must cap at grade 3");
 
 const noItems = resolveCanonicalItemCollectorV108({
   ...base,
