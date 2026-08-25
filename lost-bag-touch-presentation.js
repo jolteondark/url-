@@ -1,3 +1,4 @@
+import "./old-statue-touch-presentation.js?v=20260826-0345";
 import "./wishing-fountain-touch-presentation.js?v=20260826-0245";
 import "./item-collector-touch-presentation.js?v=20260825-2355";
 import "./trainer-camp-touch-presentation.js?v=20260825-2330";
