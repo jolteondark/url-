@@ -9,7 +9,7 @@ import {
   resolveMaplessNormalEventLargeReward,
 } from "./mapless-normal-event-large-reward.js";
 import { borrowSafariSharedRunRandomInt, ensureSafariEncounterSeed } from "./safari-encounter-randomization.js";
-import { healSafariPartyPercent } from "./safari-pokemon-healing.js";
+import { healSafariPartyFull, healSafariPartyPercent } from "./safari-pokemon-healing.js";
 
 const SAFARI_BAG_MAX_SLOTS = 20;
 const SAFARI_BAG_MAX_PER_SLOT = 99;
@@ -91,7 +91,7 @@ export function safariWishingFountainPresentation(runtime, index) {
     message:"静かな泉があります。願いを捧げるか、泉へ手を伸ばせます。",
     actions:[
       { id:"small_wish", label:"200円で小さな願い", meta:"回復・小さな道具・何も起きない、のいずれか" },
-      { id:"large_wish", label:`${largePrice}円で大きな願い`, meta:"大きな道具など。個体強化/全回復結果は共有owner接続待ち" },
+      { id:"large_wish", label:`${largePrice}円で大きな願い`, meta:"大きな道具など。個体強化結果のみ共有owner接続待ち" },
       { id:"reach", label:"泉へ手を伸ばす", meta:"お金/大きな道具結果は接続済み。戦闘/状態異常結果は共有owner接続待ち" },
       { id:"leave", label:"立ち去る", secondary:true },
     ],
@@ -126,11 +126,9 @@ export function resolveSafariWishingFountainInteraction(runtime, index, requeste
       return { runtime, result:owner.outcome, completed:false, operations:owner.operations ?? [], notice:state.notice, persistenceRequested:false, owner };
     }
     const roll = Number(event.normal_data?.large_roll ?? 0);
-    if ((roll >= 45 && roll < 85)) {
-      state.notice = roll < 65
-        ? "この大きな願いは個体強化の共有owner接続待ちです。お金もイベントも消費していません。"
-        : "この大きな願いは全回復の共有owner接続待ちです。お金もイベントも消費していません。";
-      return { runtime, result:roll < 65 ? "pokemon_bonus_owner_pending" : "full_heal_owner_pending", completed:false, operations:[], notice:state.notice, persistenceRequested:false };
+    if (roll >= 45 && roll < 65) {
+      state.notice = "この大きな願いは個体強化の共有owner接続待ちです。お金もイベントも消費していません。";
+      return { runtime, result:"pokemon_bonus_owner_pending", completed:false, operations:[], notice:state.notice, persistenceRequested:false };
     }
     let reward = null;
     if (roll < 45 || (roll >= 85 && roll < 95)) {
@@ -144,14 +142,20 @@ export function resolveSafariWishingFountainInteraction(runtime, index, requeste
     runtime.bag ??= { slots:[], money:0 };
     runtime.bag.money = money - price;
     const applied = [{ op:"runtime_spend_money", amount:price }];
+    if (roll >= 65 && roll < 85) {
+      healSafariPartyFull(runtime);
+      applied.push({ op:"runtime_heal_party_full" });
+    }
     if (reward) {
       applied.push(...(reward.operations ?? []).map((operation) => structuredClone(operation)));
       applied.push(...applyReward(runtime, reward));
     }
     commit(runtime, index, owner, applied);
-    state.notice = reward
-      ? `${price}円を捧げると、${reward.selectedItems?.join("・") ?? "道具"}を授かりました。`
-      : `${price}円を捧げましたが、泉は静かなままでした。`;
+    state.notice = roll >= 65 && roll < 85
+      ? `${price}円を捧げると、手持ちが全回復しました。`
+      : reward
+        ? `${price}円を捧げると、${reward.selectedItems?.join("・") ?? "道具"}を授かりました。`
+        : `${price}円を捧げましたが、泉は静かなままでした。`;
     return { runtime, result:owner.outcome, completed:true, reward, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
   }
 
