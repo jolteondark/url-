@@ -1,4 +1,5 @@
-import { applySafariDay1Back96Sprite } from "./runtime/safari-day1-back-96-atlas.js?v=20260821-1903";
+import { applySafariDay1Back96Sprite } from "./runtime/safari-day1-back-96-atlas.js?v=20260825-1042";
+import { applySafariSpeciesFormFrontSprite } from "./runtime/safari-species-form-front-atlas.js?v=20260825-1042";
 
 let scheduled = false;
 
@@ -28,6 +29,8 @@ function render() {
   if (!card || card.hidden || !combatant) return;
   const pokemon = playerPokemon();
   const species = typeof pokemon?.species === "string" ? pokemon.species.trim() : "";
+  const rawForm = Number(pokemon?.form ?? 0);
+  const form = Number.isInteger(rawForm) && rawForm >= 0 ? rawForm : 0;
   if (!species) return;
 
   const exact = combatant.querySelector(".canonical-battle-sprite");
@@ -41,10 +44,18 @@ function render() {
     combatant.append(fallback);
   }
 
-  const applied = applySafariDay1Back96Sprite(fallback, species, { size: 96 });
-  if (!applied) return;
+  const backApplied = applySafariDay1Back96Sprite(fallback, species, { size: 96 });
+  const broadApplied = backApplied
+    ? false
+    : applySafariSpeciesFormFrontSprite(fallback, species, {
+        form,
+        family: "back-fallback-front",
+        size: 96,
+      });
+  if (!backApplied && !broadApplied) return;
   fallback.hidden = false;
   fallback.dataset.spriteSpecies = species;
+  fallback.dataset.battleSpriteFallback = backApplied ? "canonical-back-96" : "species-form-front-for-back";
   const symbol = combatant.querySelector(".text-mon");
   if (symbol) symbol.hidden = true;
 }
@@ -72,3 +83,4 @@ window.addEventListener("safari-runtime-changed", schedule, { passive: true });
 window.addEventListener("safari-preview-start", schedule, { passive: true });
 window.addEventListener("safari-day1-front-96-atlas-state", schedule, { passive: true });
 window.addEventListener("safari-day1-back-96-atlas-state", schedule, { passive: true });
+window.addEventListener("safari-species-form-front-atlas-state", schedule, { passive: true });
