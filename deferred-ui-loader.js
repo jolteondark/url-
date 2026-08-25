@@ -36,8 +36,8 @@ async function loadBoardPresentation() {
 async function loadBattleUi() {
   loadStyle("./battle-core-safety.css");
   await Promise.all([
-    loadModule("./canonical-battle-sprite-bridge.js?v=20260820-1334"),
-    loadModule("./canonical-battle-back-atlas-patch.js?v=20260821-1903"),
+    loadModule("./canonical-battle-sprite-bridge.js?v=20260825-1042"),
+    loadModule("./canonical-battle-back-atlas-patch.js?v=20260825-1042"),
   ]);
 }
 
