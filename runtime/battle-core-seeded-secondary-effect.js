@@ -101,105 +101,15 @@ function materializeAction(action, rng) {
   return prepared;
 }
 
-function currentConfusionTurns(action) {
-  const turns = Number(action?.useMoveInput?.tryUseMoveInput?.confusionTurns ?? 0);
-  return Number.isInteger(turns) && turns > 0 ? turns : 0;
-}
-
-function withConfusionTurns(action, turns) {
-  if (!action || action.kind !== "move") return action;
-  const count = Number(turns);
-  if (!Number.isInteger(count) || count <= 0) return action;
-  const useMoveInput = action.useMoveInput ?? {};
-  return {
-    ...action,
-    useMoveInput: {
-      ...useMoveInput,
-      tryUseMoveInput: {
-        ...(useMoveInput.tryUseMoveInput ?? {}),
-        confusionTurns: count,
-      },
-    },
-  };
-}
-
-function triggeredConfusionEffect(action) {
-  return (Array.isArray(action?.secondaryEffectInputs) ? action.secondaryEffectInputs : []).find((effect) =>
-    effect?.transientEffect === "confusion" && effect?.triggered === true
-  ) ?? null;
-}
-
-function targetOwnTempoBlocksConfusion(action) {
-  if (action?.moldBreaker === true) return false;
-  const ability = String(action?.abilityItemActionBefore?.modifiers?.targetAbility ?? "").toUpperCase();
-  return ability === "OWNTEMPO";
-}
-
-function materializeRoundTransientConfusion(roundInput, rng) {
+function materializeRoundSecondaryEffects(roundInput, rng) {
   const round = { ...roundInput };
   const actions = (Array.isArray(round.actions) ? round.actions : []).map((action) => materializeAction(action, rng));
-  const order = Array.isArray(round.priorityOrder)
-    ? round.priorityOrder.map(Number).filter((index) => Number.isInteger(index) && index >= 0 && index < actions.length)
-    : actions.map((_, index) => index);
-  const actionIndexByBattler = new Map();
-  const confusionTurnsByBattler = new Map();
-  for (let actionIndex = 0; actionIndex < actions.length; actionIndex += 1) {
-    const action = actions[actionIndex];
-    const battlerIndex = Number(action?.battlerIndex);
-    if (!Number.isInteger(battlerIndex)) continue;
-    actionIndexByBattler.set(battlerIndex, actionIndex);
-    confusionTurnsByBattler.set(battlerIndex, currentConfusionTurns(action));
-  }
-  const acted = new Set();
-  for (const actionIndex of order) {
-    const action = actions[actionIndex];
-    if (!action || action.kind !== "move") {
-      acted.add(actionIndex);
-      continue;
-    }
-    const effect = triggeredConfusionEffect(action);
-    if (effect) {
-      const targetBattlerIndex = Number(action.targetBattlerIndex);
-      const targetActionIndex = actionIndexByBattler.get(targetBattlerIndex);
-      const targetHadActed = targetActionIndex === undefined ? false : acted.has(targetActionIndex);
-      const existingTurns = Number(confusionTurnsByBattler.get(targetBattlerIndex) ?? 0);
-      const duration = Number(effect.randomChoiceValue ?? 0);
-      let applied = false;
-      let reason = null;
-      if (!Number.isInteger(duration) || duration < 2 || duration > 5) {
-        reason = "invalid_duration";
-      } else if (existingTurns > 0) {
-        reason = "already_confused";
-      } else if (targetOwnTempoBlocksConfusion(action)) {
-        reason = "own_tempo";
-      } else {
-        applied = true;
-        confusionTurnsByBattler.set(targetBattlerIndex, duration);
-        if (targetActionIndex !== undefined && !targetHadActed) {
-          actions[targetActionIndex] = withConfusionTurns(actions[targetActionIndex], duration);
-        }
-      }
-      actions[actionIndex] = {
-        ...action,
-        transientConfusionEffectResolution: {
-          applied,
-          reason,
-          targetBattlerIndex,
-          targetActionIndex: targetActionIndex ?? null,
-          targetHadActed,
-          turns: applied ? duration : 0,
-          functionCode: String(effect.functionCode ?? action.functionCode ?? ""),
-        },
-      };
-    }
-    acted.add(actionIndex);
-  }
   return { ...round, actions };
 }
 
 export function materializeSeededSecondaryEffectsCanonical(input = {}) {
   const seed = Number(input.secondaryEffectRandomSeed ?? 0) & 0x7fffffff;
   const rng = new RubyMT19937Random(seed);
-  const rounds = (Array.isArray(input.rounds) ? input.rounds : []).map((round) => materializeRoundTransientConfusion(round, rng));
+  const rounds = (Array.isArray(input.rounds) ? input.rounds : []).map((round) => materializeRoundSecondaryEffects(round, rng));
   return { ...input, rounds, secondaryEffectRandomSeed: seed };
 }
