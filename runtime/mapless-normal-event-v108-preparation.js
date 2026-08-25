@@ -1,4 +1,5 @@
 import { RubyMT19937Random } from "./ruby-mt19937-random.js";
+import { canonicalBerryEntriesFromBagSlots } from "./mapless-v108-berry-catalog.js";
 
 export const MAPLESS_V108_NORMAL_EVENT_WEIGHTS = Object.freeze({
   flooded_river: 6, burning_wagon: 6, mushroom_field: 6, hot_spring: 6,
@@ -55,11 +56,23 @@ function assignMissing(data, key, produce) {
   if (data[key] === undefined || data[key] === null) data[key] = produce();
 }
 function pick(rng, values) { return values[rng.randInt(values.length)]; }
+function fixedStolenBerries(rng, bagSlots) {
+  const berries = canonicalBerryEntriesFromBagSlots(bagSlots);
+  if (berries.length === 0) return [];
+  const count = 1 + rng.randInt(3);
+  const result = [];
+  for (let i = 0; i < count; i += 1) {
+    const choices = berries.filter(([id, qty]) => qty > result.filter((picked) => picked === id).length);
+    if (choices.length === 0) break;
+    result.push(choices[rng.randInt(choices.length)][0]);
+  }
+  return result;
+}
 
-// Canonical source-v0.9.108 MaplessNormalEvents.prepare_fixed_data fields that do not
-// depend on GameData item-price/pool lookups. Item-backed fields remain owned by their
-// existing item/event integrations instead of being guessed here.
-export function prepareCanonicalClassicNormalDataV108(id, normalData, { normalSeed, day }) {
+// Canonical source-v0.9.108 MaplessNormalEvents.prepare_fixed_data fields.
+// Item-backed Berry Thief data is hydrated from the existing runtime Bag plus the
+// generated v0.9.108 berry reference; this module never mutates Bag state.
+export function prepareCanonicalClassicNormalDataV108(id, normalData, { normalSeed, day, bagSlots = [] }) {
   const data = { ...(normalData ?? {}) };
   const rng = new RubyMT19937Random(Number(normalSeed) & 0x7fffffff);
   switch (id) {
@@ -88,7 +101,11 @@ export function prepareCanonicalClassicNormalDataV108(id, normalData, { normalSe
       assignMissing(data, "search_roll", () => rng.randInt(100));
       assignMissing(data, "type", () => pick(rng, CANONICAL_TYPE_IDS));
       break;
-    case "berry_thief": assignMissing(data, "thief_roll", () => rng.randInt(100)); break;
+    case "berry_thief":
+      assignMissing(data, "thief_roll", () => rng.randInt(100));
+      assignMissing(data, "stolen", () => fixedStolenBerries(rng, bagSlots));
+      assignMissing(data, "type", () => pick(rng, ["NORMAL", "DARK", "GRASS"]));
+      break;
     case "photographer": assignMissing(data, "requested_type", () => pick(rng, CANONICAL_TYPE_IDS)); break;
     case "traveling_cook": assignMissing(data, "prototype_roll", () => rng.randInt(100)); break;
     case "street_performer": assignMissing(data, "fraud_roll", () => rng.randInt(100)); break;
@@ -135,7 +152,7 @@ export function prepareCanonicalClassicNormalDataV108(id, normalData, { normalSe
   return data;
 }
 
-export function prepareSafariNormalEventV108(event, { day, index, partyFull = false } = {}) {
+export function prepareSafariNormalEventV108(event, { day, index, partyFull = false, bagSlots = [] } = {}) {
   if (!event || event.kind !== "normal_event") return event;
   if (!Number.isInteger(day) || day < 1) throw new RangeError("day must be >= 1");
   if (!Number.isInteger(index) || index < 0 || index > 7) throw new RangeError("index must be 0..7");
@@ -148,7 +165,7 @@ export function prepareSafariNormalEventV108(event, { day, index, partyFull = fa
   const normalEventId = event.normal_event_id && weights[event.normal_event_id]
     ? event.normal_event_id
     : weightedEvent(weights, selectionSeed % total);
-  const normalData = prepareCanonicalClassicNormalDataV108(normalEventId, event.normal_data, { normalSeed, day });
+  const normalData = prepareCanonicalClassicNormalDataV108(normalEventId, event.normal_data, { normalSeed, day, bagSlots });
 
   if (normalEventId === "machine_gacha") {
     normalData.machine_stock ??= shuffledMachineStock(selectionSeed);
@@ -170,8 +187,9 @@ export function hydrateSafariNormalEventCells(runtime) {
   const state = runtime?.variables?.mapless;
   if (!state || !Array.isArray(state.board_events)) return runtime;
   const partyFull = Array.isArray(runtime?.player?.party) && runtime.player.party.filter(Boolean).length >= 6;
+  const bagSlots = runtime?.bag?.slots ?? [];
   state.board_events = state.board_events.map((event, index) => prepareSafariNormalEventV108(event, {
-    day: Math.max(1, Math.trunc(Number(state.day) || 1)), index, partyFull,
+    day: Math.max(1, Math.trunc(Number(state.day) || 1)), index, partyFull, bagSlots,
   }));
   return runtime;
 }
