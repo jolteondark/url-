@@ -8,6 +8,7 @@ const root = path.resolve(here, "..");
 const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const preview = fs.readFileSync(path.join(root, "preview.js"), "utf8");
 const stamp = "20260825-0815";
+const berryThiefStamp = "20260825-2000";
 
 assert.match(
   html,
@@ -30,7 +31,6 @@ for (const modulePath of [
   "safari-playable-integration.js",
   "safari-pokemon-center-command.js",
   "safari-normal-event-touch-handoff.js",
-  "safari-berry-thief-interaction.js",
 ]) {
   const escaped = modulePath.replaceAll(".", "\\.");
   assert.match(
@@ -42,8 +42,14 @@ for (const modulePath of [
 
 assert.match(
   html,
+  new RegExp(`"\\./runtime/safari-berry-thief-interaction\\.js": "\\./runtime/safari-berry-thief-interaction\\.js\\?v=${berryThiefStamp}"`),
+  "Berry Thief must use a post-#839 cache key so Safari cannot retain the pre-shared-reward adapter",
+);
+
+assert.match(
+  html,
   new RegExp(`canonical browser integration / v0\\.9\\.108 · build ${stamp}`),
-  "visible Safari runtime build marker must match the cache-bust stamp",
+  "visible Safari runtime build marker must match the base playable build stamp",
 );
 
 console.log("Safari playable module cache-bust smoke passed");
