@@ -1,11 +1,11 @@
 function cloneEvent(event={}){return {...event,normal_data:{...(event.normal_data||{})}};}
 function finish(event,ops,outcome){event.normal_resolved=true;ops.push({op:'finish_event'});return {event,operations:ops,result:true,outcome};}
 function unresolved(event,ops,outcome){return {event,operations:ops,result:false,outcome};}
-function applyOutcome(event,ops,{roll,good_limit,neutral_limit,effect_index=0,selected_pokemon=null,grant_result=true,low_item=null,scaling_value=0,type_id=null}={}){
+function applyOutcome(event,ops,{roll,good_limit,neutral_limit,effect_index=0,selected_pokemon=null,grant_result=true,low_item=null,scaling_value=0,type_id=null,status=null}={}){
   ops.push({op:'statue_outcome_roll',roll,good_limit,neutral_limit,effect_index});
   if(roll<good_limit){
     if(effect_index===0) ops.push({op:'full_heal_party'});
-    else if(effect_index===1){ops.push({op:'choose_pokemon',allow_egg:true,result:selected_pokemon}); if(selected_pokemon)ops.push({op:'add_bonus',pokemon:selected_pokemon,stat:null,amount:1,result:grant_result!==false});}
+    else if(effect_index===1){ops.push({op:'choose_pokemon',allow_fainted:true,allow_egg:false,result:selected_pokemon}); if(selected_pokemon)ops.push({op:'add_bonus',pokemon:selected_pokemon,stat:null,amount:1,result:grant_result!==false});}
     else if(effect_index===2) ops.push({op:'grant_random',tier:'medium',count:1});
     else if(effect_index===3) ops.push({op:'grant_statue_treasure',candidates:['NUGGET','STARPIECE','COMETSHARD'],result:grant_result!==false});
     else if(effect_index===4) ops.push({op:'reveal_random_board_cell'});
@@ -18,7 +18,7 @@ function applyOutcome(event,ops,{roll,good_limit,neutral_limit,effect_index=0,se
     else ops.push({op:'statue_no_effect'});
     return;
   }
-  if(effect_index===0) ops.push({op:'inflict_status',target:'active_party_0',status:'CALLER_RESOLVED_RANDOM_STATUS'});
+  if(effect_index===0) ops.push({op:'inflict_status',target:'active_party_0',status:status||'CALLER_RESOLVED_RANDOM_STATUS'});
   else if(effect_index===1) ops.push({op:'damage_party',percent:10});
   else if(low_item) ops.push({op:'remove_item',item:low_item,quantity:1});
   else ops.push({op:'statue_bad_wind_no_item'});
