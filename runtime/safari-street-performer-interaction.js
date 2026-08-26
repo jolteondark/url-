@@ -7,12 +7,13 @@ import { healSafariPartyPercent } from "./safari-pokemon-healing.js";
 import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
 import {
   applySafariSmallItemReward,
-  preflightSafariSmallItemReward,
-  safariDeterministicSmallRewardItem,
+  preflightSafariSharedSmallItemReward,
 } from "./safari-small-item-reward.js";
+import {
+  borrowSafariSharedRunRandomInt,
+  ensureSafariEncounterSeed,
+} from "./safari-encounter-randomization.js";
 import { activateSafariNormalEventTrainerBattle } from "./safari-web-combat-start.js";
-
-const STREET_REWARD_SALT = 0x73747265;
 
 function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
@@ -39,6 +40,21 @@ function addMoney(runtime, amount) {
   runtime.bag ??= { slots: [], money: 0 };
   runtime.bag.money = Math.max(0, Math.trunc(Number(runtime.bag.money ?? 0))) + value;
   return { op:"runtime_add_money", amount:value };
+}
+function sharedSmallReward(runtime) {
+  const state = stateOf(runtime);
+  ensureSafariEncounterSeed(state);
+  const counter = state.preview_encounter_counter;
+  const reward = preflightSafariSharedSmallItemReward(
+    runtime,
+    (limit) => borrowSafariSharedRunRandomInt(runtime, limit),
+    1,
+  );
+  if (!reward.success) state.preview_encounter_counter = counter;
+  return { reward, counter };
+}
+function rollbackSharedSmallReward(runtime, counter) {
+  if (Number.isInteger(counter) && counter >= 0) stateOf(runtime).preview_encounter_counter = counter;
 }
 function commitResolvedEvent(runtime, index, owner, appliedOperations) {
   const state = stateOf(runtime);
@@ -136,16 +152,25 @@ export async function resolveSafariStreetPerformerInteraction(runtime, index, re
 
     let reward = null;
     let rewardItem = null;
+    let rewardCounter = null;
     if (hasSameTypeMove) {
-      rewardItem = safariDeterministicSmallRewardItem(event.normal_seed, STREET_REWARD_SALT);
-      reward = preflightSafariSmallItemReward(runtime, rewardItem);
+      const projected = sharedSmallReward(runtime);
+      reward = projected.reward;
+      rewardCounter = projected.counter;
+      rewardItem = reward.selectedItems?.[0] ?? null;
       if (!reward.success) {
         state.notice = "芸の追加報酬を受け取る空きがありません。バッグを空けてから挑戦してください。";
         return { runtime, result:"reward_bag_full", completed:false, operations:reward.operations.map((operation) => structuredClone(operation)), notice:state.notice, persistenceRequested:false };
       }
     }
 
-    const exp = await grantSafariNormalEventPokemonExp(runtime, partyIndex, Number(expOperation.amount));
+    let exp;
+    try {
+      exp = await grantSafariNormalEventPokemonExp(runtime, partyIndex, Number(expOperation.amount));
+    } catch (error) {
+      if (hasSameTypeMove) rollbackSharedSmallReward(runtime, rewardCounter);
+      throw error;
+    }
     const appliedOperations = [addMoney(runtime, Number(moneyOperation.amount))];
     appliedOperations.push(...exp.operations.map((operation) => ({ ...structuredClone(operation), scope:"street_performer" })));
     if (reward) {
