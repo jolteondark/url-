@@ -1,20 +1,13 @@
-import { resolveRewardTransaction } from "./bag-economy-reward-transaction.js";
 import { resolveHoneyTree } from "./mapless-normal-events-a2-flow.js";
-import { RubyMT19937Random } from "./ruby-mt19937-random.js";
+import {
+  resolveHoneyTreeActionRewardV108,
+  resolveHoneyTreeHoneyGrantV108,
+} from "./mapless-honey-tree-v108.js";
+import { hasMaplessV108ItemMetadata } from "./mapless-v108-item-metadata.js";
+import { borrowSafariSharedRunRandomInt } from "./safari-encounter-randomization.js";
 import { registerSafariNormalEventBattleContinuation } from "./safari-normal-event-battle-continuation.js";
 import { hasSafariUsablePartyType, safariPokemonTypes } from "./safari-pokemon-type-membership.js";
 import { activateSafariNormalEventWildBattle } from "./safari-web-combat-start.js";
-
-const LOW_ITEMS = Object.freeze([
-  "POTION", "ANTIDOTE", "PARALYZEHEAL", "AWAKENING", "BURNHEAL", "ICEHEAL",
-  "POKEBALL", "ORANBERRY", "PECHABERRY", "CHERIBERRY", "FRESHWATER", "SODAPOP",
-]);
-const BERRIES = Object.freeze(["ORANBERRY", "PECHABERRY", "CHERIBERRY"]);
-const SAFARI_BAG_MAX_SLOTS = 20;
-const SAFARI_BAG_MAX_PER_SLOT = 99;
-const ITEM_META = Object.freeze(Object.fromEntries(
-  ["HONEY", ...LOW_ITEMS].map((itemId) => [itemId, Object.freeze({ valid:true, pocket:"general" })]),
-));
 
 function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
@@ -25,29 +18,24 @@ function usable(pokemon) { return Boolean(pokemon) && Number(pokemon.hp ?? 0) > 
 function firstUsableBug(runtime) {
   return (runtime.player?.party ?? []).find((pokemon) => usable(pokemon) && safariPokemonTypes(pokemon).includes("BUG")) ?? null;
 }
-function deterministicItem(event, salt, pool = LOW_ITEMS) {
-  const rng = new RubyMT19937Random((Number(event.normal_seed) ^ salt) & 0x7fffffff);
-  return pool[rng.randInt(pool.length)];
-}
-function rewardItemsFor(event, action) {
-  if (action === "bug") return ["HONEY", "HONEY"];
-  if (action !== "bark") return [];
-  const roll = Number(event.normal_data?.bark_roll);
-  if (!Number.isFinite(roll)) throw new Error("honey_tree bark_roll unresolved");
-  if (roll < 50) return [deterministicItem(event, 0xb33, BERRIES)];
-  if (roll < 75) return [deterministicItem(event, 0x5a11)];
-  return [];
-}
-function preflightReward(runtime, items) {
-  if (items.length === 0) return null;
-  return resolveRewardTransaction({
-    pockets:{ general:{ slots:runtime.bag?.slots ?? [], maxSlots:SAFARI_BAG_MAX_SLOTS, maxPerSlot:SAFARI_BAG_MAX_PER_SLOT } },
-    itemMeta:ITEM_META,
-    items,
+function rewardProjection(runtime, event, action) {
+  return resolveHoneyTreeActionRewardV108({
+    event,
+    action,
+    slots:runtime.bag?.slots ?? [],
+    sharedRandomInt:(limit) => borrowSafariSharedRunRandomInt(runtime, limit),
   });
 }
+function preflightHoney(runtime, count = 1) {
+  return resolveHoneyTreeHoneyGrantV108({ slots:runtime.bag?.slots ?? [], count });
+}
 function shakeProjection(event, battleSuccess = false) {
-  return resolveHoneyTree({ event, action:"shake", battle_success:Boolean(battleSuccess), honey_exists:true });
+  return resolveHoneyTree({
+    event,
+    action:"shake",
+    battle_success:Boolean(battleSuccess),
+    honey_exists:hasMaplessV108ItemMetadata("HONEY"),
+  });
 }
 function shakeBattleOperation(owner) {
   return (owner.operations ?? []).find((operation) => operation?.op === "start_wild_battle") ?? null;
@@ -70,8 +58,7 @@ registerSafariNormalEventBattleContinuation("honey_tree", (runtime, continuation
   if (!event || event.kind !== "normal_event" || event.normal_event_id !== "honey_tree") throw new Error("honey_tree continuation requires the originating board event");
 
   const success = battleSucceeded(continuation.battleReturn);
-  const rewards = success ? ["HONEY"] : [];
-  const reward = preflightReward(runtime, rewards);
+  const reward = success && hasMaplessV108ItemMetadata("HONEY") ? preflightHoney(runtime, 1) : null;
   if (reward && !reward.success) throw new Error("honey_tree post-battle reward no longer fits in Bag");
 
   const owner = shakeProjection(event, success);
@@ -117,9 +104,7 @@ export async function startSafariHoneyTreeShakeBattle(runtime, index) {
     return { runtime, result:owner.outcome, completed:Boolean(owner.result), operations:state.last_operations, notice:state.notice, persistenceRequested:Boolean(owner.result), owner };
   }
 
-  // A successful Battle can award one HONEY. Reserve capacity before Battle start so
-  // the exactly-once continuation cannot become stranded on a full Bag at RESULT.
-  const reward = preflightReward(runtime, ["HONEY"]);
+  const reward = hasMaplessV108ItemMetadata("HONEY") ? preflightHoney(runtime, 1) : null;
   if (reward && !reward.success) {
     state.notice = "戦闘後のハチミツを受け取る空きがありません。バッグを空けてから木を揺らしてください。";
     return {
@@ -161,8 +146,8 @@ export function resolveSafariHoneyTreeInteraction(runtime, index, requestedActio
   if (action === "shake") return startSafariHoneyTreeShakeBattle(runtime, index);
   if (!availableActions.includes(action)) return { runtime, result:"unsupported_action", completed:false, operations:[], availableActions };
 
-  const rewards = rewardItemsFor(event, action);
-  const reward = preflightReward(runtime, rewards);
+  const projected = rewardProjection(runtime, event, action);
+  const reward = projected.reward;
   if (reward && !reward.success) {
     state.notice = "バッグにハチミツの木の報酬をすべて入れる空きがありません。木にはまだ手を付けていません。";
     state.last_operations = reward.operations.map((operation) => structuredClone(operation));
@@ -174,9 +159,9 @@ export function resolveSafariHoneyTreeInteraction(runtime, index, requestedActio
     action,
     has_bug:hasBug,
     chosen_pokemon:action === "bug" ? firstUsableBug(runtime) : null,
-    honey_exists:true,
-    honey_count:2,
-    reward_items:action === "bark" && Number(event.normal_data?.bark_roll) < 50 ? rewards : undefined,
+    honey_exists:hasMaplessV108ItemMetadata("HONEY"),
+    honey_count:projected.honeyCount,
+    reward_items:action === "bark" && Number(event.normal_data?.bark_roll) < 50 ? projected.selectedItems : undefined,
   });
 
   const applied = applyReward(runtime, reward);
