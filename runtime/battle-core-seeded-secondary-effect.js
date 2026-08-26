@@ -101,15 +101,25 @@ function materializeAction(action, rng) {
   return prepared;
 }
 
-function materializeRoundSecondaryEffects(roundInput, rng) {
+export function createSeededSecondaryEffectMaterializerCanonical(seedInput = 0) {
+  const seed = Number(seedInput ?? 0) & 0x7fffffff;
+  const rng = new RubyMT19937Random(seed);
+  return Object.freeze({
+    seed,
+    materializeAction(action) {
+      return materializeAction(action, rng);
+    },
+  });
+}
+
+function materializeRoundSecondaryEffects(roundInput, materializer) {
   const round = { ...roundInput };
-  const actions = (Array.isArray(round.actions) ? round.actions : []).map((action) => materializeAction(action, rng));
+  const actions = (Array.isArray(round.actions) ? round.actions : []).map((action) => materializer.materializeAction(action));
   return { ...round, actions };
 }
 
 export function materializeSeededSecondaryEffectsCanonical(input = {}) {
-  const seed = Number(input.secondaryEffectRandomSeed ?? 0) & 0x7fffffff;
-  const rng = new RubyMT19937Random(seed);
-  const rounds = (Array.isArray(input.rounds) ? input.rounds : []).map((round) => materializeRoundSecondaryEffects(round, rng));
-  return { ...input, rounds, secondaryEffectRandomSeed: seed };
+  const materializer = createSeededSecondaryEffectMaterializerCanonical(input.secondaryEffectRandomSeed ?? 0);
+  const rounds = (Array.isArray(input.rounds) ? input.rounds : []).map((round) => materializeRoundSecondaryEffects(round, materializer));
+  return { ...input, rounds, secondaryEffectRandomSeed: materializer.seed };
 }
