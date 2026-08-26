@@ -1,6 +1,7 @@
 import { resolveRewardTransaction } from "./bag-economy-reward-transaction.js";
 import { resolveHotSpring } from "./mapless-normal-events-a1-flow.js";
 import { RubyMT19937Random } from "./ruby-mt19937-random.js";
+import { resolveMaplessV108HotSpringBottleReward } from "./mapless-v108-event-local-item-reward.js";
 import {
   damageSafariPokemonPercent,
   healSafariPartyFull,
@@ -9,15 +10,8 @@ import {
 } from "./safari-pokemon-healing.js";
 import { hasSafariUsablePartyType } from "./safari-pokemon-type-membership.js";
 
-const LOW_ITEMS = Object.freeze([
-  "POTION", "ANTIDOTE", "PARALYZEHEAL", "AWAKENING", "BURNHEAL", "ICEHEAL",
-  "POKEBALL", "ORANBERRY", "PECHABERRY", "CHERIBERRY", "FRESHWATER", "SODAPOP",
-]);
 const SAFARI_BAG_MAX_SLOTS = 20;
 const SAFARI_BAG_MAX_PER_SLOT = 99;
-const SAFARI_REWARD_ITEM_META = Object.freeze(Object.fromEntries(
-  LOW_ITEMS.map((itemId) => [itemId, Object.freeze({ valid:true, pocket:"general" })]),
-));
 
 function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
@@ -28,14 +22,13 @@ function firstUsableIndex(runtime) { return (runtime.player?.party ?? []).findIn
 function bottleRewardItems(event) {
   const prepared = event.normal_data?.bottle_reward_items;
   if (Array.isArray(prepared) && prepared.length >= 1 && prepared.length <= 2) return [...prepared];
-  const rng = new RubyMT19937Random((Number(event.normal_seed) ^ 0xb0771e) & 0x7fffffff);
-  const count = 1 + rng.randInt(2);
-  return Array.from({ length:count }, () => LOW_ITEMS[rng.randInt(LOW_ITEMS.length)]);
+  return resolveMaplessV108HotSpringBottleReward(event.normal_seed);
 }
 function preflightBottleReward(runtime, items) {
+  const itemMeta = Object.fromEntries(items.map((itemId) => [itemId, { valid:true, pocket:"general" }]));
   return resolveRewardTransaction({
     pockets:{ general:{ slots:runtime.bag?.slots ?? [], maxSlots:SAFARI_BAG_MAX_SLOTS, maxPerSlot:SAFARI_BAG_MAX_PER_SLOT } },
-    itemMeta:SAFARI_REWARD_ITEM_META,
+    itemMeta,
     items,
   });
 }
