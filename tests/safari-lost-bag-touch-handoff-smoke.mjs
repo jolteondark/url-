@@ -12,6 +12,8 @@ assert.ok(sidecarPos >= 0, "Safari page must load Lost Bag touch sidecar");
 assert.ok(genericPos > sidecarPos, "Lost Bag sidecar must register before generic normal-event presentation");
 assert.match(index, /lost-bag-touch-presentation\.js\?v=20260826-1935/,
   "Safari entry must refresh the Lost Bag loader after trapped-wait owner versioning");
+assert.match(index, /"\.\/runtime\/safari-lost-bag-interaction\.js": "\.\/runtime\/safari-lost-bag-interaction\.js\?v=20260826-1905"/,
+  "generic normal-event dispatch must resolve Lost Bag to the same fresh trapped-wait owner URL");
 assert.match(sidecar, /normal_event_id === "lost_bag"/);
 assert.match(sidecar, /data-board-index/);
 assert.match(sidecar, /id:"open"/);
