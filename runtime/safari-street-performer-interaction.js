@@ -8,11 +8,9 @@ import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
 import {
   applySafariSmallItemReward,
   preflightSafariSmallItemReward,
-  safariDeterministicSmallRewardItem,
+  safariSharedRunSmallRewardItem,
 } from "./safari-small-item-reward.js";
 import { activateSafariNormalEventTrainerBattle } from "./safari-web-combat-start.js";
-
-const STREET_REWARD_SALT = 0x73747265;
 
 function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
@@ -137,12 +135,8 @@ export async function resolveSafariStreetPerformerInteraction(runtime, index, re
     let reward = null;
     let rewardItem = null;
     if (hasSameTypeMove) {
-      rewardItem = safariDeterministicSmallRewardItem(event.normal_seed, STREET_REWARD_SALT);
+      rewardItem = safariSharedRunSmallRewardItem(runtime);
       reward = preflightSafariSmallItemReward(runtime, rewardItem);
-      if (!reward.success) {
-        state.notice = "芸の追加報酬を受け取る空きがありません。バッグを空けてから挑戦してください。";
-        return { runtime, result:"reward_bag_full", completed:false, operations:reward.operations.map((operation) => structuredClone(operation)), notice:state.notice, persistenceRequested:false };
-      }
     }
 
     const exp = await grantSafariNormalEventPokemonExp(runtime, partyIndex, Number(expOperation.amount));
@@ -150,12 +144,14 @@ export async function resolveSafariStreetPerformerInteraction(runtime, index, re
     appliedOperations.push(...exp.operations.map((operation) => ({ ...structuredClone(operation), scope:"street_performer" })));
     if (reward) {
       appliedOperations.push(...reward.operations.map((operation) => structuredClone(operation)));
-      appliedOperations.push(...applySafariSmallItemReward(runtime, reward));
+      if (reward.success) appliedOperations.push(...applySafariSmallItemReward(runtime, reward));
     }
     commitResolvedEvent(runtime, index, owner, appliedOperations);
-    state.notice = hasSameTypeMove
+    state.notice = hasSameTypeMove && reward?.success
       ? `${pokemonLabel(runtime.player.party[partyIndex])}が${type}芸を披露し、${moneyOperation.amount}円・EXP ${exp.expGained}・${rewardItem}を受け取りました。`
-      : `${pokemonLabel(runtime.player.party[partyIndex])}が${type}芸を披露し、${moneyOperation.amount}円とEXP ${exp.expGained}を受け取りました。`;
+      : hasSameTypeMove
+        ? `${pokemonLabel(runtime.player.party[partyIndex])}が${type}芸を披露し、${moneyOperation.amount}円とEXP ${exp.expGained}を受け取りました。記念品はバッグに入りませんでした。`
+        : `${pokemonLabel(runtime.player.party[partyIndex])}が${type}芸を披露し、${moneyOperation.amount}円とEXP ${exp.expGained}を受け取りました。`;
     return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
   }
 
