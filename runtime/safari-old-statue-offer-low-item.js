@@ -79,6 +79,11 @@ function commit(runtime, index, owner, applied) {
   ];
   return state;
 }
+function combinedCosts(offeredItem, selectedLowItem) {
+  if (!selectedLowItem) return [{ item:offeredItem, quantity:1 }];
+  if (String(selectedLowItem) === String(offeredItem)) return [{ item:offeredItem, quantity:2 }];
+  return [{ item:offeredItem, quantity:1 }, { item:selectedLowItem, quantity:1 }];
+}
 
 export { safariOldStatueBonusCandidates, safariOldStatueOfferEntries, safariOldStatuePrayNeedsPokemon };
 
@@ -133,8 +138,7 @@ export async function resolveSafariOldStatueInteraction(runtime, index, requeste
     selectedIndex = selected.index;
   }
 
-  const costs = [{ item:offeredItem, quantity:1 }];
-  if (selectedLowItem) costs.push({ item:selectedLowItem, quantity:1 });
+  const costs = combinedCosts(offeredItem, selectedLowItem);
   const transaction = resolveRewardTransaction({
     pockets:pockets(runtime),
     itemMeta:itemMeta(costs.map((entry) => entry.item)),
