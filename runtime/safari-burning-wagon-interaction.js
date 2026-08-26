@@ -1,22 +1,18 @@
 import { resolveRewardTransaction } from "./bag-economy-reward-transaction.js";
 import { resolveBurningWagon } from "./mapless-normal-events-a1-flow.js";
+import {
+  resolveMaplessV108BurningWagonFireChoices,
+  resolveMaplessV108BurningWagonWaterReward,
+} from "./mapless-v108-event-local-item-reward.js";
 import { ensureMaplessRunLifecycleState, finishMaplessRun, maplessPartyAllFainted } from "./mapless-run-end-lifecycle.js";
 import { updatePokemonRuntime } from "./pokemon-runtime.js";
-import { RubyMT19937Random } from "./ruby-mt19937-random.js";
 import { borrowSafariSharedRunRandomInt, ensureSafariEncounterSeed } from "./safari-encounter-randomization.js";
 import { inflictSafariOverworldStatus } from "./safari-pokemon-healing.js";
 import { hasSafariUsablePartyType, safariPokemonTypes } from "./safari-pokemon-type-membership.js";
 import { applySafariSmallItemReward, preflightSafariSharedSmallItemReward } from "./safari-small-item-reward.js";
 
-const LOW_ITEMS = Object.freeze([
-  "POTION", "ANTIDOTE", "PARALYZEHEAL", "AWAKENING", "BURNHEAL", "ICEHEAL",
-  "POKEBALL", "ORANBERRY", "PECHABERRY", "CHERIBERRY", "FRESHWATER", "SODAPOP",
-]);
 const SAFARI_BAG_MAX_SLOTS = 20;
 const SAFARI_BAG_MAX_PER_SLOT = 99;
-const SAFARI_REWARD_ITEM_META = Object.freeze(Object.fromEntries(
-  LOW_ITEMS.map((itemId) => [itemId, Object.freeze({ valid:true, pocket:"general" })]),
-));
 
 function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
@@ -31,23 +27,22 @@ function firstUsableOfType(runtime, typeId) {
   return party(runtime).find((pokemon) => usable(pokemon) && safariPokemonTypes(pokemon).includes(wanted)) ?? null;
 }
 function firstUsableIndex(runtime) { return party(runtime).findIndex((pokemon) => usable(pokemon)); }
-function deterministicItems(event, salt, count) {
-  const rng = new RubyMT19937Random((Number(event.normal_seed) ^ salt) & 0x7fffffff);
-  return Array.from({ length:count }, () => LOW_ITEMS[rng.randInt(LOW_ITEMS.length)]);
-}
-function rewardPlan(event, action) {
-  if (action === "water") {
-    const rng = new RubyMT19937Random((Number(event.normal_seed) ^ 0xb17a5e) & 0x7fffffff);
-    return deterministicItems(event, 0xb17a5e, 2 + rng.randInt(2));
+function rewardPlan(state, event, action) {
+  if (action === "water") return resolveMaplessV108BurningWagonWaterReward(event.normal_seed, state.day);
+  if (action === "fire") {
+    const prepared = event.normal_data?.fire_choices;
+    return Array.isArray(prepared) && prepared.length > 0
+      ? [...prepared]
+      : resolveMaplessV108BurningWagonFireChoices(event.normal_seed);
   }
-  if (action === "fire") return deterministicItems(event, 0xf1ae11, 1);
   return [];
 }
 function preflightReward(runtime, items) {
   if (items.length === 0) return null;
+  const itemMeta = Object.fromEntries(items.map((itemId) => [itemId, { valid:true, pocket:"general" }]));
   return resolveRewardTransaction({
     pockets:{ general:{ slots:runtime.bag?.slots ?? [], maxSlots:SAFARI_BAG_MAX_SLOTS, maxPerSlot:SAFARI_BAG_MAX_PER_SLOT } },
-    itemMeta:SAFARI_REWARD_ITEM_META,
+    itemMeta,
     items,
   });
 }
@@ -116,8 +111,9 @@ export function resolveSafariBurningWagonInteraction(runtime, index, action) {
     }
   }
 
-  const rewardItems = rewardPlan(event, action);
-  const reward = preflightReward(runtime, rewardItems);
+  const rewardItems = rewardPlan(state, event, action);
+  const grantedRewardItems = action === "fire" ? rewardItems.slice(0, 1) : rewardItems;
+  const reward = preflightReward(runtime, grantedRewardItems);
   if (reward && !reward.success) {
     state.notice = "バッグに救助報酬をすべて入れる空きがありません。荷馬車にはまだ手を付けていません。";
     state.last_operations = reward.operations.map((operation) => structuredClone(operation));
@@ -134,7 +130,7 @@ export function resolveSafariBurningWagonInteraction(runtime, index, action) {
     has_fire:hasType(runtime, "FIRE"),
     chosen_pokemon:action === "water" ? firstUsableOfType(runtime, "WATER") : action === "fire" ? firstUsableOfType(runtime, "FIRE") : null,
     reward_items:action === "water" ? rewardItems : undefined,
-    fire_choice:action === "fire" ? rewardItems[0] : undefined,
+    fire_choice:action === "fire" ? grantedRewardItems[0] : undefined,
   });
 
   const applied = [];
