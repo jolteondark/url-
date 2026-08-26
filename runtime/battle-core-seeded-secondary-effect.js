@@ -69,8 +69,9 @@ function materializeSecondaryTarget(targetInput, rng, rolls, targetIndex) {
   return target;
 }
 
-function secondaryTargetWithResolvedDamage(targetInput, calculatedDamage) {
+function secondaryTargetWithResolvedDamage(targetInput, calculatedDamage, accuracyHit) {
   const target = targetInput ?? {};
+  if (accuracyHit === false) return { ...target, calcDamage: 0 };
   if (target.calcDamage !== undefined) return target;
   return { ...target, calcDamage: Number(calculatedDamage ?? 0) };
 }
@@ -92,7 +93,11 @@ function materializeAction(action, rng) {
   }
   const rolls = [];
   prepared.secondaryEffectInputs = prepared.secondaryEffectInputs.map((target, index) => materializeSecondaryTarget(
-    secondaryTargetWithResolvedDamage(secondaryTargetWithActionFacts(target, prepared), prepared.calculatedDamage),
+    secondaryTargetWithResolvedDamage(
+      secondaryTargetWithActionFacts(target, prepared),
+      prepared.calculatedDamage,
+      prepared?.accuracyResolution?.hit,
+    ),
     rng,
     rolls,
     index,
