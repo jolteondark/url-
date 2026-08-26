@@ -3,8 +3,10 @@ import { resolveBurningWagon } from "./mapless-normal-events-a1-flow.js";
 import { ensureMaplessRunLifecycleState, finishMaplessRun, maplessPartyAllFainted } from "./mapless-run-end-lifecycle.js";
 import { updatePokemonRuntime } from "./pokemon-runtime.js";
 import { RubyMT19937Random } from "./ruby-mt19937-random.js";
+import { borrowSafariSharedRunRandomInt, ensureSafariEncounterSeed } from "./safari-encounter-randomization.js";
 import { inflictSafariOverworldStatus } from "./safari-pokemon-healing.js";
 import { hasSafariUsablePartyType, safariPokemonTypes } from "./safari-pokemon-type-membership.js";
+import { applySafariSmallItemReward, preflightSafariSharedSmallItemReward } from "./safari-small-item-reward.js";
 
 const LOW_ITEMS = Object.freeze([
   "POTION", "ANTIDOTE", "PARALYZEHEAL", "AWAKENING", "BURNHEAL", "ICEHEAL",
@@ -39,10 +41,6 @@ function rewardPlan(event, action) {
     return deterministicItems(event, 0xb17a5e, 2 + rng.randInt(2));
   }
   if (action === "fire") return deterministicItems(event, 0xf1ae11, 1);
-  if (action === "manual") {
-    const roll = Number(event.normal_data?.manual_roll);
-    if (Number.isInteger(roll) && roll >= 60 && roll < 85) return deterministicItems(event, 0x6a4e55, 1);
-  }
   return [];
 }
 function preflightReward(runtime, items) {
@@ -52,6 +50,18 @@ function preflightReward(runtime, items) {
     itemMeta:SAFARI_REWARD_ITEM_META,
     items,
   });
+}
+function preflightManualSharedReward(runtime) {
+  const state = stateOf(runtime);
+  ensureSafariEncounterSeed(state);
+  const counter = state.preview_encounter_counter;
+  const reward = preflightSafariSharedSmallItemReward(
+    runtime,
+    (limit) => borrowSafariSharedRunRandomInt(runtime, limit),
+    1,
+  );
+  if (!reward.success) state.preview_encounter_counter = counter;
+  return { reward, counter };
 }
 function applyFlatDamage(runtime, index, amount) {
   const pokemon = party(runtime)[index];
@@ -94,6 +104,18 @@ export function resolveSafariBurningWagonInteraction(runtime, index, action) {
   ];
   if (!availableActions.includes(action)) return { runtime, result:"unsupported_action", completed:false, operations:[], availableActions };
 
+  const manualRoll = Number(event.normal_data?.manual_roll);
+  const usesSharedManualReward = action === "manual" && Number.isInteger(manualRoll) && manualRoll >= 60 && manualRoll < 85;
+  let manualSharedReward = null;
+  if (usesSharedManualReward) {
+    manualSharedReward = preflightManualSharedReward(runtime).reward;
+    if (!manualSharedReward.success) {
+      state.notice = "バッグに救助報酬を入れる空きがありません。荷馬車にはまだ手を付けていません。";
+      state.last_operations = manualSharedReward.operations.map((operation) => structuredClone(operation));
+      return { runtime, result:"reward_bag_full", completed:false, operations:state.last_operations, notice:state.notice, persistenceRequested:false, availableActions };
+    }
+  }
+
   const rewardItems = rewardPlan(event, action);
   const reward = preflightReward(runtime, rewardItems);
   if (reward && !reward.success) {
@@ -125,6 +147,9 @@ export function resolveSafariBurningWagonInteraction(runtime, index, action) {
       applied.push({ op:"runtime_inflict_status", party_index:targetIndex, status:operation.status });
     }
   }
+  if (manualSharedReward?.success) {
+    applied.push(...applySafariSmallItemReward(runtime, manualSharedReward));
+  }
   if (reward?.success) {
     runtime.bag.slots = reward.pockets.general.slots.filter(Boolean);
     applied.push(...reward.granted.map((entry) => ({ op:"runtime_grant_item", item:entry.item, quantity:entry.quantity })));
@@ -134,6 +159,7 @@ export function resolveSafariBurningWagonInteraction(runtime, index, action) {
   state.board_consumed[index] = Boolean(owner.event.normal_resolved);
   const eventOperations = [
     ...(owner.operations ?? []).map((operation) => structuredClone(operation)),
+    ...(manualSharedReward?.operations ?? []).map((operation) => structuredClone(operation)),
     ...(reward?.operations ?? []).map((operation) => structuredClone(operation)),
     ...applied,
   ];
