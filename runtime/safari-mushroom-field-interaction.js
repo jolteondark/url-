@@ -4,7 +4,8 @@ import { ensureMaplessRunLifecycleState, finishMaplessRun, maplessPartyAllFainte
 import { setMoney } from "./bag-economy-mart-flow.js";
 import { healSafariPokemonFull, inflictSafariOverworldStatus } from "./safari-pokemon-healing.js";
 import { safariPokemonTypes } from "./safari-pokemon-type-membership.js";
-import { updatePokemonRuntime } from "./pokemon-runtime.js";
+import { addPokemonRuntimeMaplessBonusStat, updatePokemonRuntime } from "./pokemon-runtime.js";
+import { SAFARI_NATURE_MASTERS, SAFARI_SPECIES_MASTERS } from "./safari-playable-data.js";
 
 function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
@@ -25,19 +26,15 @@ function applyFlatDamage(pokemon, amount) {
   const hp = Math.max(0, Math.trunc(Number(pokemon?.hp ?? 0)) - Math.max(0, Math.trunc(Number(amount) || 0)));
   return updatePokemonRuntime(pokemon, { hp });
 }
-function applyMaplessBonus(pokemon, stat, amount) {
-  const key = String(stat ?? "").toUpperCase();
-  const delta = Math.trunc(Number(amount) || 0);
-  const bonuses = { ...(pokemon.mapless_bonus_stats ?? {}) };
-  bonuses[key] = Math.max(0, Math.trunc(Number(bonuses[key] ?? 0)) + delta);
-  const patch = { mapless_bonus_stats: bonuses };
-  if (key === "HP" && Number.isInteger(pokemon.max_hp)) {
-    patch.max_hp = Math.max(1, pokemon.max_hp + delta);
-    patch.hp = Math.min(patch.max_hp, Math.max(0, Math.trunc(Number(pokemon.hp ?? 0)) + Math.max(delta, 0)));
-  } else if (pokemon.stats && Object.prototype.hasOwnProperty.call(pokemon.stats, key)) {
-    patch.stats = { ...pokemon.stats, [key]: Math.max(1, Math.trunc(Number(pokemon.stats[key] ?? 0)) + delta) };
-  }
-  return updatePokemonRuntime(pokemon, patch);
+function applyPermanentBonus(pokemon, stat, amount) {
+  const speciesMaster = SAFARI_SPECIES_MASTERS[pokemon?.species];
+  if (!speciesMaster) return null;
+  const natureId = pokemon?.nature_for_stats_id ?? pokemon?.nature_id ?? null;
+  const natureMaster = natureId ? SAFARI_NATURE_MASTERS[natureId] : null;
+  return addPokemonRuntimeMaplessBonusStat(pokemon, stat, amount, {
+    base_stats: speciesMaster.base_stats,
+    nature_stat_changes: natureMaster?.stat_changes ?? [],
+  });
 }
 function finishMushroomPartyWipe(runtime) {
   const state = ensureMaplessRunLifecycleState(runtime);
@@ -96,8 +93,13 @@ export function resolveSafariMushroomFieldInteraction(runtime, index, requestedA
   if (owner.result && parsed.targetIndex != null) {
     for (const operation of owner.operations ?? []) {
       if (operation.op === "add_bonus") {
-        party(runtime)[parsed.targetIndex] = applyMaplessBonus(party(runtime)[parsed.targetIndex], operation.stat, operation.amount);
-        applied.push({ op: "runtime_add_bonus", party_index: parsed.targetIndex, stat: operation.stat, amount: operation.amount });
+        const next = applyPermanentBonus(party(runtime)[parsed.targetIndex], operation.stat, operation.amount);
+        if (!next) {
+          state.notice = "ポケモンの能力上昇を安全に反映できませんでした。";
+          return { runtime, result: "bonus_apply_failed", completed: false, operations: [], notice: state.notice, persistenceRequested: false };
+        }
+        party(runtime)[parsed.targetIndex] = next;
+        applied.push({ op: "runtime_add_mapless_bonus_stat", party_index: parsed.targetIndex, stat: operation.stat, amount: operation.amount });
       } else if (operation.op === "heal_pokemon_full") {
         party(runtime)[parsed.targetIndex] = healSafariPokemonFull(party(runtime)[parsed.targetIndex]);
         applied.push({ op: "runtime_heal_pokemon_full", party_index: parsed.targetIndex });
