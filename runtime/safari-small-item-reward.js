@@ -4,6 +4,7 @@ import {
   MAPLESS_NORMAL_EVENT_SMALL_REWARD_ITEMS,
   pickMaplessNormalEventSmallRewards,
 } from "./mapless-normal-event-small-reward.js";
+import { borrowSafariSharedRunRandomInt } from "./safari-encounter-randomization.js";
 
 export const SAFARI_SMALL_REWARD_ITEMS = MAPLESS_NORMAL_EVENT_SMALL_REWARD_ITEMS;
 
@@ -19,6 +20,14 @@ export function safariDeterministicSmallRewardItem(seed, salt = 0) {
     count:1,
     itemMeta:ITEM_META,
     randomInt:(max) => rng.randInt(max),
+  }).items[0] ?? null;
+}
+
+export function safariSharedRunSmallRewardItem(runtime) {
+  return pickMaplessNormalEventSmallRewards({
+    count:1,
+    itemMeta:ITEM_META,
+    randomInt:(max) => borrowSafariSharedRunRandomInt(runtime, max),
   }).items[0] ?? null;
 }
 
