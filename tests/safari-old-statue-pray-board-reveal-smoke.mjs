@@ -25,6 +25,7 @@ assert.equal(canonical.event.normal_resolved, true);
 const runtimeSource = fs.readFileSync(new URL("../runtime/safari-old-statue-pray-board-reveal.js", import.meta.url), "utf8");
 const touchSource = fs.readFileSync(new URL("../old-statue-touch-presentation.js", import.meta.url), "utf8");
 const loaderSource = fs.readFileSync(new URL("../lost-bag-touch-presentation.js", import.meta.url), "utf8");
+const htmlSource = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
 
 assert.match(runtimeSource, /resolved\.branch === "good" && resolved\.effectIndex === 4/);
 assert.match(runtimeSource, /index === currentIndex/);
@@ -36,5 +37,6 @@ assert.match(runtimeSource, /runtime_reveal_board_cell/);
 assert.match(runtimeSource, /request_save/);
 assert.match(touchSource, /safari-old-statue-pray-board-reveal\.js\?v=20260826-1005/);
 assert.match(loaderSource, /old-statue-touch-presentation\.js\?v=20260826-1005/);
+assert.match(htmlSource, /lost-bag-touch-presentation\.js\?v=20260826-1005/);
 
 console.log("safari old statue pray board reveal smoke: ok");
