@@ -2,9 +2,10 @@ import {
   resolveSafariOldStatueInteraction,
   safariOldStatueBonusCandidates,
   safariOldStatueOfferEntries,
+  safariOldStatueOfferNeedsPokemon,
   safariOldStatuePrayNeedsPokemon,
   safariOldStatuePresentation,
-} from "./runtime/safari-old-statue-offer-low-item.js?v=20260826-1810";
+} from "./runtime/safari-old-statue-offer-bonus.js?v=20260826-1825";
 import { saveSafariPlayableRun } from "./runtime/safari-web-startup.js";
 
 let resolving = false;
@@ -48,8 +49,11 @@ function openStatue(index) {
   currentState.board_visited[index] = true;
   return setUi(index);
 }
-function praySelectionOptions(current, index, action) {
-  if (action !== "pray" || !safariOldStatuePrayNeedsPokemon(current, index)) return {};
+function pokemonSelectionOptions(current, index, action) {
+  const needsPokemon = action === "pray"
+    ? safariOldStatuePrayNeedsPokemon(current, index)
+    : action === "offer" && safariOldStatueOfferNeedsPokemon(current, index);
+  if (!needsPokemon) return {};
   const candidates = safariOldStatueBonusCandidates(current);
   if (!candidates.length) return { pokemonIndex:NaN };
   const promptFn = typeof globalThis.prompt === "function" ? globalThis.prompt.bind(globalThis) : null;
@@ -74,8 +78,8 @@ function offerSelectionOptions(current, index, action) {
 }
 function actionSelectionOptions(current, index, action) {
   return {
-    ...praySelectionOptions(current, index, action),
     ...offerSelectionOptions(current, index, action),
+    ...pokemonSelectionOptions(current, index, action),
   };
 }
 
