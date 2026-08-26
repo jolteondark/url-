@@ -81,6 +81,14 @@ function finishPartyWipe(runtime) {
   };
 }
 
+export function safariBurningWagonFireChoices(runtime, index) {
+  const state = stateOf(runtime);
+  const event = state.board_events?.[index];
+  if (!event || event.kind !== "normal_event" || event.normal_event_id !== "burning_wagon") throw new Error("burning_wagon board event is required");
+  if (!hasType(runtime, "FIRE")) return [];
+  return rewardPlan(state, event, "fire");
+}
+
 export function resolveSafariBurningWagonInteraction(runtime, index, action) {
   const state = stateOf(runtime);
   const event = state.board_events?.[index];
@@ -91,16 +99,38 @@ export function resolveSafariBurningWagonInteraction(runtime, index, action) {
 
   state.board_revealed[index] = true;
   state.board_visited[index] = true;
+  const rawAction = String(action ?? "");
+  const fireChoiceToken = rawAction.startsWith("fire:") ? rawAction.slice(5) : null;
+  const canonicalAction = fireChoiceToken == null ? rawAction : "fire";
   const availableActions = [
     ...(hasType(runtime, "WATER") ? ["water"] : []),
     ...(hasType(runtime, "FIRE") ? ["fire"] : []),
     "manual",
     "leave",
   ];
-  if (!availableActions.includes(action)) return { runtime, result:"unsupported_action", completed:false, operations:[], availableActions };
+  if (!availableActions.includes(canonicalAction)) return { runtime, result:"unsupported_action", completed:false, operations:[], availableActions };
+
+  const rewardItems = rewardPlan(state, event, canonicalAction);
+  if (canonicalAction === "fire" && fireChoiceToken == null) {
+    state.notice = "ほのおタイプで救助できます。お礼の道具を1つ選ぶか、受け取らずに救助してください。";
+    return {
+      runtime,
+      result:"fire_choice_required",
+      completed:false,
+      operations:[],
+      notice:state.notice,
+      persistenceRequested:false,
+      availableActions,
+      fireChoices:rewardItems,
+    };
+  }
+  const selectedFireChoice = canonicalAction === "fire" && fireChoiceToken !== "none" ? fireChoiceToken : null;
+  if (selectedFireChoice != null && !rewardItems.includes(selectedFireChoice)) {
+    return { runtime, result:"unsupported_fire_choice", completed:false, operations:[], availableActions, fireChoices:rewardItems };
+  }
 
   const manualRoll = Number(event.normal_data?.manual_roll);
-  const usesSharedManualReward = action === "manual" && Number.isInteger(manualRoll) && manualRoll >= 60 && manualRoll < 85;
+  const usesSharedManualReward = canonicalAction === "manual" && Number.isInteger(manualRoll) && manualRoll >= 60 && manualRoll < 85;
   let manualSharedReward = null;
   if (usesSharedManualReward) {
     manualSharedReward = preflightManualSharedReward(runtime).reward;
@@ -111,8 +141,9 @@ export function resolveSafariBurningWagonInteraction(runtime, index, action) {
     }
   }
 
-  const rewardItems = rewardPlan(state, event, action);
-  const grantedRewardItems = action === "fire" ? rewardItems.slice(0, 1) : rewardItems;
+  const grantedRewardItems = selectedFireChoice == null
+    ? (canonicalAction === "fire" ? [] : rewardItems)
+    : [selectedFireChoice];
   const reward = preflightReward(runtime, grantedRewardItems);
   if (reward && !reward.success) {
     state.notice = "バッグに救助報酬をすべて入れる空きがありません。荷馬車にはまだ手を付けていません。";
@@ -120,17 +151,17 @@ export function resolveSafariBurningWagonInteraction(runtime, index, action) {
     return { runtime, result:"reward_bag_full", completed:false, operations:state.last_operations, notice:state.notice, persistenceRequested:false, availableActions };
   }
 
-  const preparedEvent = action === "fire" && rewardItems.length > 0
+  const preparedEvent = canonicalAction === "fire" && rewardItems.length > 0
     ? { ...event, normal_data:{ ...(event.normal_data ?? {}), fire_choices:[...rewardItems] } }
     : event;
   const owner = resolveBurningWagon({
     event:preparedEvent,
-    action,
+    action:canonicalAction,
     has_water:hasType(runtime, "WATER"),
     has_fire:hasType(runtime, "FIRE"),
-    chosen_pokemon:action === "water" ? firstUsableOfType(runtime, "WATER") : action === "fire" ? firstUsableOfType(runtime, "FIRE") : null,
-    reward_items:action === "water" ? rewardItems : undefined,
-    fire_choice:action === "fire" ? grantedRewardItems[0] : undefined,
+    chosen_pokemon:canonicalAction === "water" ? firstUsableOfType(runtime, "WATER") : canonicalAction === "fire" ? firstUsableOfType(runtime, "FIRE") : null,
+    reward_items:canonicalAction === "water" ? rewardItems : undefined,
+    fire_choice:canonicalAction === "fire" ? selectedFireChoice : undefined,
   });
 
   const applied = [];
