@@ -4,7 +4,7 @@ import {
   safariOldStatueOfferEntries,
   safariOldStatuePrayNeedsPokemon,
   safariOldStatuePresentation,
-} from "./runtime/safari-old-statue-offer-power-meal.js?v=20260826-1340";
+} from "./runtime/safari-old-statue-offer-medium-reward.js?v=20260826-1400";
 import { saveSafariPlayableRun } from "./runtime/safari-web-startup.js";
 
 let resolving = false;
