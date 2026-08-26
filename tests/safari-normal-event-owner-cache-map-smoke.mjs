@@ -13,9 +13,20 @@ for (const specifier of ownerSpecifiers) {
   const escaped = specifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   assert.match(
     index,
-    new RegExp(`"${escaped}"\\s*:\\s*"${escaped}\\?v=20260827-0100"`),
-    `Safari import map must pin ${specifier}`,
+    new RegExp(`"${escaped}"\\s*:\\s*"${escaped}\\?v=[^"]+"`),
+    `Safari import map must pin ${specifier} to a versioned URL`,
   );
 }
 
-console.log(`ok - pinned ${ownerSpecifiers.length} generic normal-event Safari owners`);
+assert.match(
+  index,
+  /"\.\/runtime\/safari-honey-tree-interaction\.js"\s*:\s*"\.\/runtime\/safari-honey-tree-interaction\.js\?v=20260827-0305"/,
+  "Honey Tree must fetch the post-#904 canonical reward/RNG owner generation",
+);
+assert.doesNotMatch(
+  index,
+  /"\.\/runtime\/safari-honey-tree-interaction\.js"\s*:\s*"\.\/runtime\/safari-honey-tree-interaction\.js\?v=20260827-0100"/,
+  "Honey Tree must not stay pinned to the pre-#904 owner generation",
+);
+
+console.log(`ok - pinned ${ownerSpecifiers.length} generic normal-event Safari owners; Honey Tree is post-#904`);
