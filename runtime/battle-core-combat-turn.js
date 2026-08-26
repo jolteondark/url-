@@ -11,7 +11,7 @@ import { resolveUseMovePostHitCanonical } from "./battle-core-use-move-post-hit.
 import { resolveUseMoveInstructCanonical } from "./battle-core-use-move-instruct.js";
 import { resolveUseMoveDancerCanonical } from "./battle-core-use-move-dancer.js";
 import { materializeSeededAccuracyDamageCanonical } from "./battle-core-seeded-accuracy-damage.js";
-import { materializeSeededSecondaryEffectsCanonical } from "./battle-core-seeded-secondary-effect.js";
+import { createSeededSecondaryEffectMaterializerCanonical } from "./battle-core-seeded-secondary-effect.js";
 import { resolveBattleAbilityItemHookCanonical } from "./battle-ability-item-hook-dispatch.js";
 import { resolveFocusBandSurvivalCanonical } from "./battle-core-focus-band-survival-extension.js";
 import { applyBattleStatStageChangesWithAbilitiesCanonical } from "./battle-core-stat-stage-ability-commit.js";
@@ -77,7 +77,7 @@ export function applyBattleAbilityItemSurvivalCanonical(action) {
   return prepared;
 }
 
-function resolveCombatActionCanonical(action) {
+function resolveCombatActionCanonical(action, secondaryEffectMaterializer = null) {
   if (action?.kind !== "move") return action;
   const tried = resolveTryUseMoveInputCanonical(action);
   const preflighted = resolveUseMovePreflightCanonical(tried.action);
@@ -100,7 +100,10 @@ function resolveCombatActionCanonical(action) {
   const damageResolved = resolveAccuracyDamageVerticalCanonical(hitLooped);
   const survived = applyBattleAbilityItemSurvivalCanonical(damageResolved);
   const hpResolved = resolveHpFaintActionCanonical(survived);
-  const postHitResolved = resolveUseMovePostHitCanonical(hpResolved);
+  const secondaryResolved = secondaryEffectMaterializer
+    ? secondaryEffectMaterializer.materializeAction(hpResolved)
+    : hpResolved;
+  const postHitResolved = resolveUseMovePostHitCanonical(secondaryResolved);
   const instructed = resolveUseMoveInstructCanonical(postHitResolved);
   if (instructed.instructResolution?.terminated) return instructed;
   return resolveUseMoveDancerCanonical(instructed);
@@ -319,7 +322,7 @@ function applyResolvedActionStagesCanonical(resolvedAction, inputStatStages) {
   return { action: actionAfter.action, statStages: actionAfter.statStages };
 }
 
-function resolveRoundActionsCanonical(round) {
+function resolveRoundActionsCanonical(round, secondaryEffectMaterializer = null) {
   const actions = (Array.isArray(round?.actions) ? round.actions : []).map((action) => structuredClone(action));
   let statStages = createBattleStatStageStateCanonical(round?.statStages);
   if (actions.length === 0) return { actions, statStages };
@@ -335,7 +338,7 @@ function resolveRoundActionsCanonical(round) {
   for (const actionIndex of order) {
     if (acted.has(actionIndex)) continue;
     const staged = injectBattleStatStagesIntoActionCanonical(actions[actionIndex], statStages);
-    const resolved = applyResolvedActionStagesCanonical(resolveCombatActionCanonical(staged), statStages);
+    const resolved = applyResolvedActionStagesCanonical(resolveCombatActionCanonical(staged, secondaryEffectMaterializer), statStages);
     statStages = resolved.statStages;
     actions[actionIndex] = resolved.action;
     acted.add(actionIndex);
@@ -348,7 +351,7 @@ function resolveRoundActionsCanonical(round) {
   for (let actionIndex = 0; actionIndex < actions.length; actionIndex += 1) {
     if (acted.has(actionIndex)) continue;
     const staged = injectBattleStatStagesIntoActionCanonical(actions[actionIndex], statStages);
-    const resolved = applyResolvedActionStagesCanonical(resolveCombatActionCanonical(staged), statStages);
+    const resolved = applyResolvedActionStagesCanonical(resolveCombatActionCanonical(staged, secondaryEffectMaterializer), statStages);
     statStages = resolved.statStages;
     actions[actionIndex] = resolved.action;
   }
@@ -356,13 +359,19 @@ function resolveRoundActionsCanonical(round) {
 }
 
 export function prepareCombatTurnInputCanonical(input = {}) {
-  let seeded = input.combatRandomSeed === undefined ? input : materializeSeededAccuracyDamageCanonical(input);
-  seeded = seeded.secondaryEffectRandomSeed === undefined ? seeded : materializeSeededSecondaryEffectsCanonical(seeded);
+  const seeded = input.combatRandomSeed === undefined ? input : materializeSeededAccuracyDamageCanonical(input);
+  const secondaryEffectMaterializer = seeded.secondaryEffectRandomSeed === undefined
+    ? null
+    : createSeededSecondaryEffectMaterializerCanonical(seeded.secondaryEffectRandomSeed);
   const rounds = (Array.isArray(seeded.rounds) ? seeded.rounds : []).map((round) => {
-    const resolved = resolveRoundActionsCanonical(round);
+    const resolved = resolveRoundActionsCanonical(round, secondaryEffectMaterializer);
     return { ...round, actions: resolved.actions, statStages: resolved.statStages };
   });
-  return { ...seeded, rounds };
+  return {
+    ...seeded,
+    ...(secondaryEffectMaterializer ? { secondaryEffectRandomSeed: secondaryEffectMaterializer.seed } : {}),
+    rounds,
+  };
 }
 
 export function resolveCombatTurnVerticalSlice(input = {}) {
