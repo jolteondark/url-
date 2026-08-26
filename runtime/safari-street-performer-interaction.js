@@ -1,9 +1,9 @@
 import { resolveStreetPerformer } from "./mapless-normal-events-a4-flow.js";
-import { updatePokemonRuntime } from "./pokemon-runtime.js";
 import { ensureSafariGeneralData } from "./safari-general-data-demand.js";
 import { grantSafariNormalEventPokemonExp } from "./safari-normal-event-exp-owner.js";
 import { registerSafariNormalEventBattleContinuation } from "./safari-normal-event-battle-continuation.js";
 import { safariPokemonTypes } from "./safari-pokemon-type-membership.js";
+import { healSafariPartyPercent } from "./safari-pokemon-healing.js";
 import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
 import {
   applySafariSmallItemReward,
@@ -32,15 +32,6 @@ function sameTypeMove(pokemon, type) {
   return (pokemon?.moves ?? []).some((move) => {
     const id = moveId(move);
     return id && String(SAFARI_MOVE_MASTERS[id]?.type ?? "").trim().toUpperCase() === wanted;
-  });
-}
-function healPartyTenPercent(runtime) {
-  runtime.player ??= { party: [] };
-  runtime.player.party = (runtime.player.party ?? []).map((pokemon) => {
-    if (!pokemon || Number(pokemon.hp ?? 0) <= 0) return pokemon;
-    const maxHp = Math.max(1, Math.trunc(Number(pokemon.max_hp ?? pokemon.hp ?? 1)));
-    const amount = Math.max(1, Math.ceil(maxHp * 0.10));
-    return updatePokemonRuntime(pokemon, { hp: Math.min(maxHp, Math.trunc(Number(pokemon.hp ?? 0)) + amount) });
   });
 }
 function addMoney(runtime, amount) {
@@ -177,7 +168,7 @@ export async function resolveSafariStreetPerformerInteraction(runtime, index, re
     }
     runtime.bag ??= { slots: [], money: 0 };
     runtime.bag.money = Math.max(0, Math.trunc(Number(runtime.bag.money ?? 0)) - viewingPrice);
-    healPartyTenPercent(runtime);
+    healSafariPartyPercent(runtime, 10);
     state.mapless_exp_show_battles = 1;
     commitResolvedEvent(runtime, index, owner, [
       { op:"runtime_spend_money", amount:viewingPrice },
