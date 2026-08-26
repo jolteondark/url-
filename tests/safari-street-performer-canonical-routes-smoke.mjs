@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { minimumExpForLevel } from "../runtime/pokemon-growth-rate.js";
 import { resolvePokemonRuntimeMasters } from "../runtime/pokemon-runtime-masters.js";
 import {
@@ -9,6 +10,12 @@ import {
   SAFARI_MOVE_MASTERS,
   SAFARI_SPECIES_MASTERS,
 } from "../runtime/safari-playable-data.js";
+
+const source = fs.readFileSync(new URL("../runtime/safari-street-performer-interaction.js", import.meta.url), "utf8");
+assert.match(source, /import \{ healSafariPartyPercent \} from "\.\/safari-pokemon-healing\.js";/);
+assert.match(source, /healSafariPartyPercent\(runtime, 10\)/);
+assert.doesNotMatch(source, /function healPartyTenPercent\(/);
+assert.doesNotMatch(source, /updatePokemonRuntime/);
 
 const zeroStats = { HP:0, ATTACK:0, DEFENSE:0, SPECIAL_ATTACK:0, SPECIAL_DEFENSE:0, SPEED:0 };
 const species = {
