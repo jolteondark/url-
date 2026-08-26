@@ -15,9 +15,14 @@ assert.match(sidecar, /data-board-index/);
 assert.match(sidecar, /id:"open"/);
 assert.match(sidecar, /id:"wait"/);
 assert.match(sidecar, /id:"leave"/);
+assert.match(sidecar, /safari-lost-bag-interaction\.js\?v=20260826-1905/,
+  "Lost Bag touch sidecar must fetch the completed trapped-wait runtime owner with a fresh Safari cache key");
 assert.match(generic, /lost_bag:"\.\/runtime\/safari-lost-bag-interaction\.js"/);
 assert.match(generic, /active\.eventId === "lost_bag"/);
-assert.match(owner, /blockedBy:"#846"/);
+assert.doesNotMatch(owner, /blockedBy:"#846"/,
+  "completed trapped-wait route must not regress to the old #846 placeholder");
+assert.match(owner, /\["open", "wait"\]\.includes\(continuation\.actionId\)/,
+  "Lost Bag Battle continuation must retain both trapped open and trapped wait actions");
 assert.match(owner, /new RubyMT19937Random\(Number\(event\.normal_seed/);
 assert.match(owner, /borrowSafariSharedRunRandomInt/);
 
