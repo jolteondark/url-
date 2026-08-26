@@ -3,7 +3,7 @@ import {
   safariOldStatueBonusCandidates,
   safariOldStatuePrayNeedsPokemon,
   safariOldStatuePresentation,
-} from "./runtime/safari-old-statue-pray-battle.js?v=20260826-0830";
+} from "./runtime/safari-old-statue-pray-board-reveal.js?v=20260826-1005";
 import { saveSafariPlayableRun } from "./runtime/safari-web-startup.js";
 
 let resolving = false;
