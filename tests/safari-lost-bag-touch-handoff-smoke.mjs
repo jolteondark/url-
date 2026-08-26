@@ -10,6 +10,8 @@ const sidecarPos = index.indexOf("lost-bag-touch-presentation.js");
 const genericPos = index.indexOf("normal-event-touch-presentation.js?v=");
 assert.ok(sidecarPos >= 0, "Safari page must load Lost Bag touch sidecar");
 assert.ok(genericPos > sidecarPos, "Lost Bag sidecar must register before generic normal-event presentation");
+assert.match(index, /lost-bag-touch-presentation\.js\?v=20260826-1935/,
+  "Safari entry must refresh the Lost Bag loader after trapped-wait owner versioning");
 assert.match(sidecar, /normal_event_id === "lost_bag"/);
 assert.match(sidecar, /data-board-index/);
 assert.match(sidecar, /id:"open"/);
