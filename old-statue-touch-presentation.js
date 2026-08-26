@@ -1,9 +1,10 @@
 import {
   resolveSafariOldStatueInteraction,
   safariOldStatueBonusCandidates,
+  safariOldStatueOfferEntries,
   safariOldStatuePrayNeedsPokemon,
   safariOldStatuePresentation,
-} from "./runtime/safari-old-statue-pray-board-reveal.js?v=20260826-1005";
+} from "./runtime/safari-old-statue-offer-simple.js?v=20260826-1105";
 import { saveSafariPlayableRun } from "./runtime/safari-web-startup.js";
 
 let resolving = false;
@@ -59,6 +60,24 @@ function praySelectionOptions(current, index, action) {
   const chosen = Number(raw) - 1;
   return { pokemonIndex:candidates.some((entry) => entry.index === chosen) ? chosen : NaN };
 }
+function offerSelectionOptions(current, index, action) {
+  if (action !== "offer") return {};
+  const entries = safariOldStatueOfferEntries(current, index);
+  if (!entries.length) return { offeredItem:"" };
+  const promptFn = typeof globalThis.prompt === "function" ? globalThis.prompt.bind(globalThis) : null;
+  if (!promptFn) return { offeredItem:entries[0].id };
+  const lines = entries.map((entry, entryIndex) => `${entryIndex + 1}: ${entry.id} ×${entry.qty}`);
+  const raw = promptFn(`石像に供える道具を1個選んでください。\n${lines.join("\n")}\nキャンセルすると道具もイベントも消費しません。`, "1");
+  if (raw == null) return { offeredItem:"" };
+  const chosen = Number(raw) - 1;
+  return { offeredItem:Number.isInteger(chosen) && entries[chosen] ? entries[chosen].id : "" };
+}
+function actionSelectionOptions(current, index, action) {
+  return {
+    ...praySelectionOptions(current, index, action),
+    ...offerSelectionOptions(current, index, action),
+  };
+}
 
 document.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-board-index]");
@@ -91,7 +110,7 @@ document.addEventListener("click", async (event) => {
       current,
       active.boardIndex,
       action,
-      praySelectionOptions(current, active.boardIndex, action),
+      actionSelectionOptions(current, active.boardIndex, action),
     );
     if (result.persistenceRequested || result.operations?.some((operation) => operation.op === "request_save")) {
       saveSafariPlayableRun(window.localStorage, current);
