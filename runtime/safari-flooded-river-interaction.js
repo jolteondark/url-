@@ -1,6 +1,7 @@
 import { quantity, remove } from "./bag-economy-mart-flow.js";
 import { resolveRewardTransaction } from "./bag-economy-reward-transaction.js";
 import { resolveFloodedRiver } from "./mapless-normal-events-a1-flow.js";
+import { resolveMaplessV108FloodedRiverReward } from "./mapless-v108-event-local-item-reward.js";
 import { updatePokemonRuntime } from "./pokemon-runtime.js";
 import { RubyMT19937Random } from "./ruby-mt19937-random.js";
 import { hasSafariUsablePartyType, safariPokemonTypes } from "./safari-pokemon-type-membership.js";
@@ -11,9 +12,6 @@ const LOW_ITEMS = Object.freeze([
 ]);
 const SAFARI_BAG_MAX_SLOTS = 20;
 const SAFARI_BAG_MAX_PER_SLOT = 99;
-const SAFARI_REWARD_ITEM_META = Object.freeze(Object.fromEntries(
-  LOW_ITEMS.map((itemId) => [itemId, Object.freeze({ valid: true, pocket: "general" })]),
-));
 
 function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
@@ -52,16 +50,11 @@ function canonicalSpecialRewardItems(event, action) {
   const key = action === "water" ? "water_reward_items" : "ice_reward_items";
   const prepared = event.normal_data?.[key];
   if (Array.isArray(prepared) && prepared.length > 0) return [...prepared];
-  // source-v0.9.108 leaves item-backed normal-event rewards to the item integration.
-  // Resolve that abstract reward deterministically from the same low-item projection
-  // already used by the Safari Flooded River item-loss path.
-  const seedSalt = action === "water" ? 0x51f15e : 0x1ce1ce;
-  const rng = new RubyMT19937Random((Number(event.normal_seed) ^ seedSalt) & 0x7fffffff);
-  const count = action === "water" ? 1 + rng.randInt(2) : 1;
-  return Array.from({ length: count }, () => LOW_ITEMS[rng.randInt(LOW_ITEMS.length)]);
+  return resolveMaplessV108FloodedRiverReward(event.normal_seed, action);
 }
 
 function preflightSpecialReward(runtime, items) {
+  const itemMeta = Object.fromEntries(items.map((itemId) => [itemId, { valid: true, pocket: "general" }]));
   return resolveRewardTransaction({
     pockets: {
       general: {
@@ -70,7 +63,7 @@ function preflightSpecialReward(runtime, items) {
         maxPerSlot: SAFARI_BAG_MAX_PER_SLOT,
       },
     },
-    itemMeta: SAFARI_REWARD_ITEM_META,
+    itemMeta,
     items,
   });
 }
