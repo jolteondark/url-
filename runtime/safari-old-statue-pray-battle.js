@@ -44,6 +44,14 @@ function prayOutcome(event) {
     neutralLimit:80,
   });
 }
+function offerOutcome(event) {
+  return resolveMaplessOldStatueOutcomeV108({
+    normalSeed:Number(event.normal_seed),
+    roll:Number(event.normal_data?.offer_roll ?? 0),
+    goodLimit:75,
+    neutralLimit:95,
+  });
+}
 function battleOperation(owner) {
   return (owner.operations ?? []).find((operation) => operation?.op === "start_wild_battle") ?? null;
 }
@@ -136,7 +144,26 @@ registerSafariNormalEventBattleContinuation("old_statue", (runtime, continuation
     return { runtime, result:owner.outcome, completed:true, terminal:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
   }
 
-  if (continuation.actionId !== "pray") throw new Error("old_statue continuation only owns pray/break Battle here");
+  if (continuation.actionId === "offer") {
+    const resolved = offerOutcome(event);
+    if (!(resolved.branch === "neutral" && resolved.effectIndex === 0)) throw new Error("old_statue offer continuation requires neutral Battle outcome");
+    const type = String(continuation.payload?.battle_type ?? "");
+    const offeredItem = String(continuation.payload?.offered_item ?? "");
+    if (!offeredItem) throw new Error("old_statue offer continuation requires offered item");
+    const owner = resolveOldStatue({
+      event,
+      choice:"offer",
+      offered_item:offeredItem,
+      remove_result:true,
+      scaling_value:maplessNormalEventScalingValue(stateOf(runtime).day),
+      outcome:{ effect_index:resolved.effectIndex, status:resolved.status, type_id:type },
+    });
+    const state = commit(runtime, index, owner, [{ op:"runtime_normal_event_battle_return", type, decision:Number(continuation.battleReturn?.decision ?? 0), offered_item:offeredItem }]);
+    state.notice = "供物に応じて現れたポケモンとの戦いを終えました。";
+    return { runtime, result:owner.outcome, completed:true, terminal:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+  }
+
+  if (continuation.actionId !== "pray") throw new Error("old_statue continuation only owns pray/offer/break Battle here");
   const resolved = prayOutcome(event);
   if (!(resolved.branch === "neutral" && resolved.effectIndex === 0)) throw new Error("old_statue pray continuation requires neutral Battle outcome");
   const type = String(continuation.payload?.battle_type ?? "");
