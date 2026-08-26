@@ -5,10 +5,16 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..");
+const indexHtml = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const presentation = fs.readFileSync(path.join(root, "normal-event-touch-presentation.js"), "utf8");
 const handoff = fs.readFileSync(path.join(root, "runtime", "safari-normal-event-touch-handoff.js"), "utf8");
 const adapter = fs.readFileSync(path.join(root, "runtime", "safari-berry-thief-interaction.js"), "utf8");
 
+assert.match(
+  indexHtml,
+  /"\.\/runtime\/safari-normal-event-touch-handoff\.js": "\.\/runtime\/safari-normal-event-touch-handoff\.js\?v=20260827-0005"/,
+  "Safari entry must fetch the post-#831 normal-event touch handoff generation",
+);
 assert.match(
   handoff,
   /SUPPORTED = new Set\(\[[\s\S]*?"berry_thief"/,
