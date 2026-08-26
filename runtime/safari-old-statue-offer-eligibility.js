@@ -4,7 +4,7 @@ import {
   safariOldStatueOfferEntries as baseOfferEntries,
   safariOldStatuePrayNeedsPokemon,
   safariOldStatuePresentation,
-} from "./safari-old-statue-offer-treasure.js?v=20260826-1600";
+} from "./safari-old-statue-offer-battle.js?v=20260826-1700";
 import { maplessV108ItemMetadata } from "./mapless-v108-item-metadata.js";
 
 function offerableItem(id) {
