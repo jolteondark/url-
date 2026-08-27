@@ -1,11 +1,12 @@
 import { remove } from "./bag-economy-mart-flow.js";
+import {
+  applyBitterMedicineHappiness,
+  isHpHealingItem,
+  resolveHpHealingItemEffect,
+} from "./item-hp-healing-effects.js";
 import { updatePokemonRuntime } from "./pokemon-runtime.js";
 
-// Canonical PBS/items.txt source-v0.9.108:
-// POTION: FieldUse=OnPokemon, BattleUse=OnPokemon, restores 20 HP.
-const ITEM_EFFECTS = Object.freeze({
-  POTION: Object.freeze({ kind: "heal_hp", amount: 20, revive: false }),
-});
+export const isSafariHpHealingItem = isHpHealingItem;
 
 function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
@@ -22,11 +23,18 @@ function itemQuantity(slots, itemId) {
   }, 0);
 }
 
+function happinessPatch(pokemon, method) {
+  if (!method || pokemon?.happiness == null) return null;
+  const before = Number(pokemon.happiness);
+  if (!Number.isInteger(before) || before < 0 || before > 255) return null;
+  const after = applyBitterMedicineHappiness(before, method);
+  return { before, after, method };
+}
+
 export function applySafariBagItemToPartyPokemon(runtime, { itemId, partyIndex, context = "field" } = {}) {
   const state = stateOf(runtime);
   const id = String(itemId ?? "").toUpperCase();
-  const effect = ITEM_EFFECTS[id];
-  if (!effect) return { runtime, result: "unsupported_item", used: false, operations: [] };
+  if (!isHpHealingItem(id)) return { runtime, result: "unsupported_item", used: false, operations: [] };
   if (context !== "field" && context !== "battle") {
     throw new RangeError(`unsupported bag item context: ${context}`);
   }
@@ -50,41 +58,50 @@ export function applySafariBagItemToPartyPokemon(runtime, { itemId, partyIndex, 
     return { runtime, result: "item_missing", used: false, operations: [] };
   }
 
-  if (effect.kind === "heal_hp") {
-    const hpBefore = Math.max(0, Math.trunc(Number(pokemon.hp ?? 0)));
-    const maxHp = Math.max(1, Math.trunc(Number(pokemon.max_hp ?? hpBefore ?? 1)));
-    if (hpBefore <= 0 && !effect.revive) {
-      return { runtime, result: "fainted_target", used: false, operations: [] };
-    }
-    if (hpBefore >= maxHp) {
-      return { runtime, result: "no_effect", used: false, operations: [] };
-    }
-    const hpAfter = Math.min(maxHp, hpBefore + effect.amount);
-    const removed = remove(runtime.bag.slots, id, 1);
-    if (!removed) throw new Error(`failed to consume ${id} after successful item validation`);
-    runtime.player.party[index] = updatePokemonRuntime(pokemon, { hp: hpAfter });
-    const operations = [
-      { op: "use_item_on_pokemon", item: id, party_index: index, context },
-      { op: "heal_hp", item: id, party_index: index, hp_before: hpBefore, hp_after: hpAfter, amount: hpAfter - hpBefore },
-      { op: "remove_item", item: id, quantity: 1 },
-    ];
-    state.last_operations = operations;
-    state.notice = `${pokemon.nickname ?? pokemon.species}のHPが${hpAfter - hpBefore}回復しました。`;
-    return {
-      runtime,
-      result: "used",
-      used: true,
-      itemId: id,
-      partyIndex: index,
-      hpBefore,
-      hpAfter,
-      operations,
-      notice: state.notice,
-      persistenceRequested: false,
-    };
-  }
+  const hpBefore = Math.max(0, Math.trunc(Number(pokemon.hp ?? 0)));
+  const maxHp = Math.max(1, Math.trunc(Number(pokemon.max_hp ?? hpBefore ?? 1)));
+  const effect = resolveHpHealingItemEffect({ itemId: id, hp: hpBefore, maxHp });
+  if (!effect.used) return { runtime, result: effect.result, used: false, operations: [] };
 
-  return { runtime, result: "unsupported_item", used: false, operations: [] };
+  const bitter = happinessPatch(pokemon, effect.happinessMethod);
+  const removed = remove(runtime.bag.slots, id, 1);
+  if (!removed) throw new Error(`failed to consume ${id} after successful item validation`);
+  const patch = { hp: effect.hpAfter };
+  if (bitter) patch.happiness = bitter.after;
+  runtime.player.party[index] = updatePokemonRuntime(pokemon, patch);
+
+  const operations = [
+    { op: "use_item_on_pokemon", item: id, party_index: index, context },
+    { op: "heal_hp", item: id, party_index: index, hp_before: hpBefore, hp_after: effect.hpAfter, amount: effect.hpGain },
+  ];
+  if (bitter) {
+    operations.push({
+      op: "change_happiness",
+      item: id,
+      party_index: index,
+      reason: bitter.method,
+      happiness_before: bitter.before,
+      happiness_after: bitter.after,
+    });
+  }
+  operations.push({ op: "remove_item", item: id, quantity: 1 });
+
+  state.last_operations = operations;
+  state.notice = `${pokemon.nickname ?? pokemon.species}のHPが${effect.hpGain}回復しました。`;
+  return {
+    runtime,
+    result: "used",
+    used: true,
+    itemId: id,
+    partyIndex: index,
+    hpBefore,
+    hpAfter: effect.hpAfter,
+    happinessBefore: bitter?.before ?? null,
+    happinessAfter: bitter?.after ?? null,
+    operations,
+    notice: state.notice,
+    persistenceRequested: false,
+  };
 }
 
 export function useSafariBagItemOnPartyPokemon(runtime, options = {}) {

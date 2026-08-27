@@ -3,7 +3,7 @@ import {
   captureSafariBattlePresentationAckSequence,
   completeSafariBattlePresentationForSequence,
 } from "./runtime/safari-battle-presentation-ack.js";
-import { useSafariBagItemOnPartyPokemon } from "./runtime/safari-bag-item-use.js";
+import { isSafariHpHealingItem, useSafariBagItemOnPartyPokemon } from "./runtime/safari-bag-item-use.js";
 import { formatSafariBattlePresentationEvent } from "./battle-presentation-narration.js";
 
 const byId = (id) => document.getElementById(id);
@@ -32,7 +32,7 @@ function bagSlots(runtime) {
 function potionTargetSelect(runtime) {
   const select = document.createElement("select");
   select.className = "bag-target-select";
-  select.setAttribute("aria-label", "キズぐすりを使うポケモン");
+  select.setAttribute("aria-label", "HP回復アイテムを使うポケモン");
   let firstUsable = null;
   for (const [index, pokemon] of (runtime?.player?.party ?? []).entries()) {
     if (!pokemon) continue;
@@ -147,7 +147,7 @@ function renderBag() {
       amount.textContent = "×" + qty;
       row.append(name, amount);
 
-      if (id === "POTION") {
+      if (isSafariHpHealingItem(id)) {
         const { select, hasTarget } = potionTargetSelect(runtime);
         const use = document.createElement("button");
         use.type = "button";
