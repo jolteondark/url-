@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const source = fs.readFileSync(new URL("../runtime/safari-pokemon-nest-interaction.js", import.meta.url), "utf8");
+const indexSource = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
 
 assert.match(source, /resolveMaplessV108PokemonNestSearchReward/,
   "Safari Pokémon Nest must call the canonical v0.9.108 search reward owner");
@@ -21,5 +22,7 @@ assert.match(source, /grantNormalEventHiddenEgg/,
   "hidden egg grant owner must remain delegated");
 assert.match(source, /request_save", reason:"normal_event_post_battle"/,
   "post-Battle Save\/Continue handoff must remain exactly-once owned by the continuation");
+assert.match(indexSource, /safari-pokemon-nest-interaction\.js\?v=20260827-1205/,
+  "Safari entry must fetch the post-#930 Pokémon Nest owner generation");
 
 console.log("safari pokemon-nest canonical reward smoke: ok");
