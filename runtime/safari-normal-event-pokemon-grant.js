@@ -42,6 +42,40 @@ function routeOne(runtime, pokemon) {
   return { runtime, success:true, result:routed.routed[0]?.result ?? "stored", pokemon, routed, operations:routed.operations };
 }
 
+function materializePreparedEncounterPokemon(encounter) {
+  if (!encounter || typeof encounter !== "object" || Array.isArray(encounter)) {
+    throw new TypeError("prepared normal-event encounter is required");
+  }
+  const species = String(encounter.species ?? encounter.species_id ?? "");
+  const speciesMaster = SAFARI_SPECIES_MASTERS[species];
+  if (!speciesMaster) throw new RangeError(`prepared normal-event encounter species is outside Safari projection: ${species}`);
+  const level = Number(encounter.level ?? encounter.resolved_level);
+  if (!Number.isInteger(level) || level < 1) throw new RangeError("prepared normal-event encounter level is unresolved");
+  const natureId = String(encounter.nature_id ?? "HARDY");
+  const natureMaster = SAFARI_NATURE_MASTERS[natureId] ?? SAFARI_NATURE_MASTERS.HARDY;
+  let pokemon = resolvePokemonRuntimeMasters({
+    species,
+    level,
+    form:Number(encounter.form ?? 0),
+    gender:encounter.gender ?? null,
+    shiny:Boolean(encounter.shiny),
+    status:"NONE",
+    hp:1,
+    nature_id:natureMaster?.id ?? natureId,
+    iv:encounter.iv ? structuredClone(encounter.iv) : { ...SAFARI_ZERO_STAT_VALUES },
+    ev:encounter.ev ? structuredClone(encounter.ev) : { ...SAFARI_ZERO_STAT_VALUES },
+    moves:Array.isArray(encounter.moves) && encounter.moves.length > 0
+      ? structuredClone(encounter.moves)
+      : safariCanonicalResetMoves(species, level),
+  }, {
+    species_master:speciesMaster,
+    nature_master:natureMaster,
+    move_masters:SAFARI_MOVE_MASTERS,
+  });
+  pokemon = updatePokemonRuntime(pokemon, { hp:pokemon.max_hp });
+  return pokemon;
+}
+
 export async function materializeNormalEventEncounterPokemon(runtime, { type, modifier = 0, seed } = {}) {
   const requiredType = String(type ?? "");
   if (!requiredType) throw new TypeError("normal-event encounter type is required");
@@ -104,6 +138,10 @@ export function materializeNormalEventHiddenEgg(runtime, { type, seed } = {}) {
 export async function grantNormalEventPokemonFromEncounter(runtime, request = {}) {
   const pokemon = await materializeNormalEventEncounterPokemon(runtime, request);
   return routeOne(runtime, pokemon);
+}
+
+export function grantNormalEventPokemonFromPreparedEncounter(runtime, encounter) {
+  return routeOne(runtime, materializePreparedEncounterPokemon(encounter));
 }
 
 export function grantNormalEventHiddenEgg(runtime, request = {}) {
