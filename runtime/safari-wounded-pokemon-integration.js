@@ -9,6 +9,7 @@ import { POKEMON_NATURE_MASTERS_V108 } from "./pokemon-nature-masters-v108.js";
 import { resolvePokemonNewCreationFormSpeciesMasterV108 } from "./pokemon-new-creation-form-v108.js";
 import { SAFARI_MOVE_MASTERS, SAFARI_SPECIES_MASTERS } from "./safari-playable-data.js";
 import { borrowSafariSharedRunRandomInt, ensureSafariEncounterSeed } from "./safari-encounter-randomization.js";
+import { grantNormalEventPokemon } from "./safari-normal-event-pokemon-grant.js";
 
 const ZERO_STATS = Object.freeze({ HP:0, ATTACK:0, DEFENSE:0, SPECIAL_ATTACK:0, SPECIAL_DEFENSE:0, SPEED:0 });
 
@@ -183,14 +184,30 @@ export function resolveSafariWoundedPokemonDecision(runtime, index, input = {}) 
     pokemon,
     consumedAfterUse: true,
   });
+  let routedOperations = [];
   if (resolved.outcome === "joined" && resolved.joinedPokemon) {
+    const routed = grantNormalEventPokemon(runtime, resolved.joinedPokemon);
+    if (!routed.success) {
+      state.notice = "手持ちもボックスもいっぱいです。空きを作れば、このポケモンを治療して仲間にできます。";
+      state.last_operations = routed.operations.map((operation) => structuredClone(operation));
+      return {
+        runtime,
+        result: "join_storage_full",
+        outcome: "join_storage_full",
+        joinedPokemon: null,
+        itemRemoved: false,
+        operations: state.last_operations,
+        notice: state.notice,
+        persistenceRequested: false,
+      };
+    }
     runtime.bag.slots = resolved.slots;
-    runtime.player.party = [...party, resolved.joinedPokemon];
+    routedOperations = routed.operations.map((operation) => structuredClone(operation));
   }
   const save = resolved.event?.normal_resolved ? [{ op: "request_save", reason: "wounded_pokemon_resolved" }] : [];
-  const operations = commitResolution(runtime, index, resolved, save);
+  const operations = commitResolution(runtime, index, resolved, [...routedOperations, ...save]);
   state.notice = resolved.outcome === "joined"
-    ? `${resolved.joinedPokemon.species}を手持ちに加えました。`
+    ? `${resolved.joinedPokemon.species}を${routedOperations.some((operation) => operation?.op === "caught_queue_to_storage") ? "ボックスへ送りました" : "手持ちに加えました"}。`
     : resolved.outcome === "no_healing_item" ? "回復に使える道具がありません。"
       : resolved.outcome === "item_not_selected" ? "使う回復アイテムを選んでください。"
         : resolved.outcome === "healing_failed" ? `${itemId || "その道具"}では治療できませんでした。`

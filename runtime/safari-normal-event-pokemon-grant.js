@@ -135,6 +135,13 @@ export function materializeNormalEventHiddenEgg(runtime, { type, seed } = {}) {
   return egg;
 }
 
+export function grantNormalEventPokemon(runtime, pokemon) {
+  if (!pokemon || typeof pokemon !== "object" || Array.isArray(pokemon)) {
+    throw new TypeError("normal-event Pokemon runtime is required");
+  }
+  return routeOne(runtime, structuredClone(pokemon));
+}
+
 export async function grantNormalEventPokemonFromEncounter(runtime, request = {}) {
   const pokemon = await materializeNormalEventEncounterPokemon(runtime, request);
   return routeOne(runtime, pokemon);
