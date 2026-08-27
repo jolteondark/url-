@@ -3,9 +3,10 @@ import { ensureSafariGeneralData } from "./safari-general-data-demand.js";
 import { SAFARI_MOVE_MASTERS, SAFARI_SPECIES_MASTERS } from "./safari-playable-data.js";
 import { createPokemonNewIndividualV108 } from "./pokemon-new-individual-v108.js";
 import { maplessEggShopBaseLevelForDayV108, maplessEggShopHatchLevelForDayV108 } from "./mapless-egg-shop-v108-flow.js";
+import { borrowSafariSharedRunRandomInt, ensureSafariEncounterSeed } from "./safari-encounter-randomization.js";
 
 export const MAPLESS_MINER_DIG_COST_V108 = 1000;
-export const MAPLESS_MINER_COLLAPSE_PERCENT_V108 = 5;
+export const MAPLESS_MINER_COLLAPSE_PERCENT_V108 = 15;
 export const MAPLESS_MINER_OUTCOME_WEIGHTS_V108 = Object.freeze({ fossil:20, valuable:25, stone:20, apology:25, run_away:10 });
 export const MAPLESS_MINER_VALUABLE_ITEMS_V108 = Object.freeze(["PEARL","STARDUST","BIGPEARL","STARPIECE","NUGGET","PEARLSTRING","COMETSHARD","BIGNUGGET"]);
 export const MAPLESS_MINER_EVOLUTION_STONES_V108 = Object.freeze(["FIRESTONE","THUNDERSTONE","WATERSTONE","LEAFSTONE","MOONSTONE","SUNSTONE","DUSKSTONE","DAWNSTONE","SHINYSTONE","ICESTONE"]);
@@ -21,19 +22,6 @@ function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
   if (!state || typeof state !== "object") throw new TypeError("runtime variables.mapless state is required");
   return state;
-}
-
-function randomInt(limit) {
-  const max = Number(limit);
-  if (!Number.isSafeInteger(max) || max <= 0 || max > 0x100000000) throw new RangeError("random limit must be 1..2^32");
-  if (globalThis.crypto?.getRandomValues) {
-    const span = 0x100000000;
-    const threshold = span - (span % max);
-    const word = new Uint32Array(1);
-    do globalThis.crypto.getRandomValues(word); while (word[0] >= threshold);
-    return word[0] % max;
-  }
-  return Math.floor(Math.random() * max);
 }
 
 function allowedStagesForDay(day) {
@@ -120,7 +108,7 @@ export function openSafariMinerTouch(runtime, index) {
   return { runtime, result:"miner_ready", boundary:"miner", availableActions:["dig","leave"], notice:state.notice, operations:[] };
 }
 
-export async function resolveSafariMinerAction(runtime, index, action, { randomInt: injectedRandomInt = randomInt, finalPersonalId = null } = {}) {
+export async function resolveSafariMinerAction(runtime, index, action, { randomInt: injectedRandomInt = null, finalPersonalId = null } = {}) {
   const state = stateOf(runtime);
   const event = state.board_events?.[index];
   if (!event || event.kind !== "miner") throw new Error("miner board event is required");
@@ -138,16 +126,39 @@ export async function resolveSafariMinerAction(runtime, index, action, { randomI
     return { runtime, result:"insufficient_money", completed:false, consumed:false, operations:[] };
   }
 
+  const workRandomInt = injectedRandomInt ?? ((max) => borrowSafariSharedRunRandomInt(runtime, max));
+  if (injectedRandomInt == null) ensureSafariEncounterSeed(state);
+
   runtime.bag.money = Number(runtime.bag.money ?? 0) - MAPLESS_MINER_DIG_COST_V108;
   const operations = [{ op:"miner_payment", amount:MAPLESS_MINER_DIG_COST_V108 }];
-  const collapseRoll = Number(injectedRandomInt(100));
+  const collapseRoll = Number(workRandomInt(100));
   let collapse = null;
   if (collapseRoll < MAPLESS_MINER_COLLAPSE_PERCENT_V108) {
     collapse = damageForCollapse(runtime);
-    operations.push({ op:"miner_collapse", roll:collapseRoll, ...collapse });
+    state.notice = "坑道が崩れました。採掘はここで中断されました。";
+    operations.push(
+      { op:"miner_collapse", roll:collapseRoll, ...collapse },
+      { op:"request_save", reason:"miner_attempt" },
+    );
+    state.last_operations = operations;
+    refreshMinerUi(runtime, index);
+    return {
+      runtime,
+      result:"collapse",
+      completed:false,
+      consumed:false,
+      collapse,
+      outcome:null,
+      reward:null,
+      persistenceRequested:true,
+      operations,
+    };
   }
 
-  const outcomeRoll = Number(injectedRandomInt(100));
+  // #958: the remaining non-collapse branch still needs the recovered v0.9.108 rand(4)
+  // mapping and dynamic fossil owner. Keep it on the same shared run RNG stream meanwhile;
+  // do not fall back to browser crypto/Math.random.
+  const outcomeRoll = Number(workRandomInt(100));
   const outcome = outcomeFromRoll(outcomeRoll);
   let reward = null;
 
@@ -160,10 +171,10 @@ export async function resolveSafariMinerAction(runtime, index, action, { randomI
   }
 
   if (outcome === "apology") {
-    state.notice = collapse ? "坑道が崩れ、さらに成果も見つかりませんでした。炭鉱夫は謝っています。" : "砕けた石ばかりで成果はありませんでした。炭鉱夫は謝っています。";
+    state.notice = "砕けた石ばかりで成果はありませんでした。炭鉱夫は謝っています。";
   } else if (outcome === "valuable" || outcome === "stone") {
     const source = outcome === "valuable" ? MAPLESS_MINER_VALUABLE_ITEMS_V108 : MAPLESS_MINER_EVOLUTION_STONES_V108;
-    const itemId = source[Number(injectedRandomInt(source.length))];
+    const itemId = source[Number(workRandomInt(source.length))];
     if (grantItem(runtime, itemId)) {
       reward = { kind:"item", itemId, quantity:1 };
       state.notice = `${itemId}を掘り当てました！`;
@@ -178,14 +189,14 @@ export async function resolveSafariMinerAction(runtime, index, action, { randomI
       state.notice = "復元できる化石は見つかりましたが、Safari版で受け取れる手持ち枠がありません。";
     } else {
       await ensureSafariGeneralData();
-      const species = pool[Number(injectedRandomInt(pool.length))];
+      const species = pool[Number(workRandomInt(pool.length))];
       const speciesMaster = SAFARI_SPECIES_MASTERS[species];
       if (!speciesMaster) {
         state.notice = "化石の種族データを読み込めず、復元できませんでした。";
       } else {
-        const level = maplessEggShopHatchLevelForDayV108(state.day, injectedRandomInt);
-        const pid = finalPersonalId == null ? injectedRandomInt(0x100000000) : Number(finalPersonalId) >>> 0;
-        const created = createPokemonNewIndividualV108({ species, level, speciesMaster, moveMasters:SAFARI_MOVE_MASTERS, randomInt:injectedRandomInt, finalPersonalId:pid });
+        const level = maplessEggShopHatchLevelForDayV108(state.day, workRandomInt);
+        const pid = finalPersonalId == null ? workRandomInt(0x100000000) : Number(finalPersonalId) >>> 0;
+        const created = createPokemonNewIndividualV108({ species, level, speciesMaster, moveMasters:SAFARI_MOVE_MASTERS, randomInt:workRandomInt, finalPersonalId:pid });
         runtime.player.party.push(created.pokemon);
         reward = { kind:"pokemon", species, level };
         state.notice = `${species}が復元され、Lv.${level}で仲間になりました！`;
