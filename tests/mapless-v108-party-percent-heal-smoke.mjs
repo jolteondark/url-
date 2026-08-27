@@ -30,9 +30,25 @@ assert.equal(party[2].status, "PARALYSIS", "fainted Pokemon must be skipped");
 const minimum = [{ hp:1, totalHp:3 }];
 assert.equal(run(minimum, 0.10).operations[0].amount, 1, "canonical helper heals at least 1 HP");
 
-const half = [{ hp:10, totalHp:101 }];
-run(half, 0.50);
-assert.equal(half[0].hp, 60, "canonical helper floors totalHp * fraction before applying it");
+for (const [fraction, expectedAmount] of [
+  [0.10, 11],
+  [0.20, 21],
+  [0.25, 26],
+  [0.40, 41],
+  [0.50, 51],
+  [0.75, 76],
+]) {
+  const oddTotalHp = [{ hp:1, totalHp:101 }];
+  const oddResult = run(oddTotalHp, fraction);
+  assert.equal(
+    oddResult.operations[0].amount,
+    expectedAmount,
+    `canonical helper ceils 101 * ${fraction}`
+  );
+}
+
+const capped = [{ hp:99, totalHp:101 }];
+assert.equal(run(capped, 0.50).operations[0].amount, 2, "percent heal caps at total HP");
 
 const writes = [];
 const full = [{ hp:10, totalHp:10 }];
