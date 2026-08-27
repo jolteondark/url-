@@ -5,10 +5,7 @@ import {
   resolveMaplessV108ScaledEnemyLevel,
 } from "./mapless-v108-enemy-scaling.js";
 import { resolveMaplessV108SpeciesPoolByCategoryAndStages } from "./mapless-v108-species-evolution.js";
-import { ensureSafariGeneralData } from "./safari-general-data-demand.js";
-import { SAFARI_MOVE_MASTERS, SAFARI_SPECIES_MASTERS } from "./safari-playable-data.js";
-import { createPokemonNewIndividualV108 } from "./pokemon-new-individual-v108.js";
-import { grantNormalEventPokemon } from "./safari-normal-event-pokemon-grant.js";
+import { grantNormalEventPokemonFromSpeciesLevel } from "./safari-normal-event-pokemon-grant.js";
 import { borrowSafariSharedRunRandomInt, ensureSafariEncounterSeed } from "./safari-encounter-randomization.js";
 
 export const MAPLESS_MINER_DIG_COST_V108 = 1000;
@@ -159,16 +156,17 @@ export async function resolveSafariMinerAction(runtime, index, action, { randomI
     if (!pool.length) {
       state.notice = "化石らしい欠片は見つかりましたが、復元できませんでした。";
     } else {
-      await ensureSafariGeneralData();
       const species = pool[Number(workRandomInt(pool.length))];
-      const speciesMaster = SAFARI_SPECIES_MASTERS[species];
       const level = resolveMaplessV108ScaledEnemyLevel({ day:state.day, rank:"NORMAL", extraModifier:0, useVariance:true, randomInt:workRandomInt });
-      if (!speciesMaster || !Number.isInteger(level)) {
-        state.notice = "化石の種族・レベルをcanonical dataから確定できず、復元できませんでした。";
+      if (!Number.isInteger(level)) {
+        state.notice = "化石のレベルをcanonical dataから確定できず、復元できませんでした。";
       } else {
-        const pid = finalPersonalId == null ? workRandomInt(0x100000000) : Number(finalPersonalId) >>> 0;
-        const created = createPokemonNewIndividualV108({ species, level, speciesMaster, moveMasters:SAFARI_MOVE_MASTERS, randomInt:workRandomInt, finalPersonalId:pid });
-        const granted = grantNormalEventPokemon(runtime, created.pokemon);
+        const granted = grantNormalEventPokemonFromSpeciesLevel(runtime, {
+          species,
+          level,
+          randomInt:workRandomInt,
+          finalPersonalId,
+        });
         operations.push(...granted.operations.map((operation) => structuredClone(operation)));
         if (granted.success) {
           reward = { kind:"pokemon", species, level, destination:granted.result };
