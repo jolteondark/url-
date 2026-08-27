@@ -1,6 +1,8 @@
 import { reduceMovePp } from "./battle-status-pp-flow.js";
-import { setPokemonRuntimeMovePp } from "./pokemon-runtime.js";
+import { setPokemonRuntimeMovePp, updatePokemonRuntime } from "./pokemon-runtime.js";
 import { resolveUseMovePreflightCanonical } from "./battle-core-use-move-preflight.js";
+import { resolveHeldItemLifecycle } from "./battle-held-item-consumption-flow.js";
+import { resolveHeldPpRestoreBerryAfterMoveCanonical } from "./item-held-pp-berry-effects.js";
 
 function runtimeReflectionPp(result) {
   const operations = Array.isArray(result?.operations) ? result.operations : [];
@@ -121,9 +123,58 @@ export function prepareBattleSystemsPpRuntime({ battleInput = {} } = {}) {
   return { battleInput: prepared, operations };
 }
 
+function baseTotalPpMapForAction(input, moveIndex) {
+  const map = { ...(input?.moveBaseTotalPpByIndex ?? input?.baseTotalPpByIndex ?? {}) };
+  if (Number.isInteger(moveIndex) && moveIndex >= 0 && Number.isInteger(Number(input?.baseTotalPp))) {
+    map[moveIndex] = Number(input.baseTotalPp);
+  }
+  return map;
+}
+
+function opposingPokemonForAction(action, input) {
+  return action?.targetPokemon ?? action?.target ?? input?.opposingPokemon ?? {};
+}
+
+function commitPpRestoreBerry(runtime, resolution, { roundIndex, actionIndex }) {
+  if (!resolution?.triggered || !resolution.consumeRequest) return { runtime, commit: null };
+  const moveIndex = Number(resolution.moveIndex);
+  if (!Number.isInteger(moveIndex) || moveIndex < 0) return { runtime, commit: null };
+  let next = runtime;
+  if (resolution.baseTotalPp != null) {
+    next = setPokemonRuntimeMovePp(next, moveIndex, Number(resolution.ppAfter), Number(resolution.baseTotalPp));
+  } else {
+    const moves = structuredClone(next?.moves ?? []);
+    if (!moves[moveIndex]) return { runtime, commit: null };
+    moves[moveIndex] = { ...moves[moveIndex], pp: Number(resolution.ppAfter) };
+    next = updatePokemonRuntime(next, { moves });
+  }
+  const item = next?.item ?? null;
+  const flow = resolveHeldItemLifecycle({
+    ...structuredClone(resolution.consumeRequest),
+    itemToUse: item,
+    ownItem: true,
+    state: { item, pokemonItem: item, initialItem: item },
+  });
+  if (!(flow.operations ?? []).some((entry) => entry?.op === "runtime_held_item_reflection")) return { runtime, commit: null };
+  next = updatePokemonRuntime(next, { item: flow.state?.pokemonItem ?? flow.state?.item ?? null });
+  return {
+    runtime: next,
+    commit: {
+      roundIndex,
+      actionIndex,
+      item: resolution.item,
+      pokemonMoveIndex: moveIndex,
+      pp: Number(resolution.ppAfter),
+      source: "held_pp_restore_berry",
+      operations: structuredClone(flow.operations ?? []),
+    },
+  };
+}
+
 export function commitBattleSystemsPpRuntime({ battleInput = {}, turn = {}, pokemon } = {}) {
   let runtime = pokemon;
   const commits = [];
+  const ppBerryCommits = [];
   const executed = new Set(
     (Array.isArray(turn?.operations) ? turn.operations : [])
       .filter((entry) => entry.op === "use_move")
@@ -143,7 +194,19 @@ export function commitBattleSystemsPpRuntime({ battleInput = {}, turn = {}, poke
       if (!Number.isInteger(baseTotalPp) || baseTotalPp < 0) throw new TypeError("battlePpInput.baseTotalPp must be a non-negative integer");
       runtime = setPokemonRuntimeMovePp(runtime, pokemonMoveIndex, Number(resolution.runtimePp), baseTotalPp);
       commits.push({ roundIndex, actionIndex, pokemonMoveIndex, pp: Number(resolution.runtimePp) });
+
+      const berryResolution = resolveHeldPpRestoreBerryAfterMoveCanonical({
+        pokemon: runtime,
+        opposing: opposingPokemonForAction(action, input),
+        context: {
+          ...(input?.berryContext ?? {}),
+          baseTotalPpByIndex: baseTotalPpMapForAction(input, pokemonMoveIndex),
+        },
+      });
+      const berryCommitted = commitPpRestoreBerry(runtime, berryResolution, { roundIndex, actionIndex });
+      runtime = berryCommitted.runtime;
+      if (berryCommitted.commit) ppBerryCommits.push(berryCommitted.commit);
     }
   }
-  return { pokemon: runtime, commits };
+  return { pokemon: runtime, commits, ppBerryCommits };
 }
