@@ -1,4 +1,4 @@
-import { add } from "./bag-economy-mart-flow.js";
+import { resolveRewardTransaction } from "./bag-economy-reward-transaction.js";
 import { ensureSafariGeneralData } from "./safari-general-data-demand.js";
 import { SAFARI_MOVE_MASTERS, SAFARI_SPECIES_MASTERS } from "./safari-playable-data.js";
 import { createPokemonNewIndividualV108 } from "./pokemon-new-individual-v108.js";
@@ -52,19 +52,19 @@ function damageForCollapse(runtime) {
   return { affected, totalDamage };
 }
 
-function canAddItem(runtime, itemId) {
-  const slots = (runtime.bag?.slots ?? []).map((slot) => slot ? [slot[0], slot[1]] : null);
-  const maxSlots = Number(runtime.bag?.max_slots ?? runtime.bag?.maxSlots ?? 999);
-  const maxPer = Number(runtime.bag?.max_per_slot ?? runtime.bag?.maxPerSlot ?? 999);
-  return add(slots, maxSlots, maxPer, itemId, 1);
-}
-
 function grantItem(runtime, itemId) {
-  if (!canAddItem(runtime, itemId)) return false;
-  const slots = runtime.bag.slots ?? (runtime.bag.slots = []);
+  const slots = runtime.bag?.slots ?? [];
   const maxSlots = Number(runtime.bag?.max_slots ?? runtime.bag?.maxSlots ?? 999);
-  const maxPer = Number(runtime.bag?.max_per_slot ?? runtime.bag?.maxPerSlot ?? 999);
-  return add(slots, maxSlots, maxPer, itemId, 1);
+  const maxPerSlot = Number(runtime.bag?.max_per_slot ?? runtime.bag?.maxPerSlot ?? 999);
+  const transaction = resolveRewardTransaction({
+    pockets:{ general:{ slots, maxSlots, maxPerSlot } },
+    itemMeta:{ [itemId]:{ valid:true, pocket:"general" } },
+    items:[itemId],
+    costs:[],
+  });
+  if (!transaction.success) return false;
+  runtime.bag.slots = transaction.pockets.general.slots.filter(Boolean);
+  return true;
 }
 
 function outcomeFromRoll(roll) {
