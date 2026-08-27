@@ -6,7 +6,10 @@ import {
   MAPLESS_NORMAL_EVENT_MID_REWARD_ITEMS,
   pickMaplessNormalEventMediumRewards,
 } from "./mapless-normal-event-medium-reward.js";
-import { MAPLESS_NORMAL_EVENT_SMALL_REWARD_ITEMS } from "./mapless-normal-event-small-reward.js";
+import {
+  MAPLESS_NORMAL_EVENT_SMALL_REWARD_ITEMS,
+  pickMaplessNormalEventSmallRewards,
+} from "./mapless-normal-event-small-reward.js";
 import { resolveLostPokemon } from "./mapless-normal-events-a2-flow.js";
 import { resolvePokemonRuntimeMasters } from "./pokemon-runtime-masters.js";
 import { updatePokemonRuntime } from "./pokemon-runtime.js";
@@ -17,12 +20,12 @@ import { SAFARI_MOVE_MASTERS, SAFARI_NATURE_MASTERS, SAFARI_SPECIES_MASTERS, SAF
 import { registerSafariNormalEventBattleContinuation } from "./safari-normal-event-battle-continuation.js";
 import { activateSafariNormalEventWildBattle } from "./safari-web-combat-start.js";
 
-const LOW_ITEMS = Object.freeze([
-  "POTION", "ANTIDOTE", "PARALYZEHEAL", "AWAKENING", "BURNHEAL", "ICEHEAL",
-  "POKEBALL", "ORANBERRY", "PECHABERRY", "CHERIBERRY", "FRESHWATER", "SODAPOP",
-]);
 const MEDIUM_REWARD_META = Object.freeze(Object.fromEntries(
   [...MAPLESS_NORMAL_EVENT_SMALL_REWARD_ITEMS, ...MAPLESS_NORMAL_EVENT_MID_REWARD_ITEMS]
+    .map((itemId) => [itemId, Object.freeze({ valid:true, pocket:"general" })]),
+));
+const SMALL_REWARD_META = Object.freeze(Object.fromEntries(
+  MAPLESS_NORMAL_EVENT_SMALL_REWARD_ITEMS
     .map((itemId) => [itemId, Object.freeze({ valid:true, pocket:"general" })]),
 ));
 const SAFARI_BAG_MAX_SLOTS = 20;
@@ -38,10 +41,6 @@ function berryIds(runtime) {
   return [...new Set(bagSlots(runtime)
     .filter((slot) => Array.isArray(slot) && Number(slot[1]) > 0 && /BERRY$/i.test(String(slot[0] ?? "")))
     .map((slot) => String(slot[0])))];
-}
-function rewardItem(event, salt) {
-  const rng = new RubyMT19937Random((Number(event.normal_seed) ^ salt) & 0x7fffffff);
-  return LOW_ITEMS[rng.randInt(LOW_ITEMS.length)];
 }
 function itemMeta(ids) {
   return Object.fromEntries([...new Set(ids)].map((id) => [id, { valid:true, pocket:"general" }]));
@@ -225,10 +224,23 @@ export async function resolveSafariLostPokemonInteraction(runtime, index, reques
   }
 
   if (action === "berry") {
-    const rewards = [rewardItem(event, 0xbe22f)];
-    const transaction = rewardTransaction(runtime, rewards, [{ item:berry, quantity:1 }]);
+    ensureSafariEncounterSeed(state);
+    const sharedCounter = Number(state.preview_encounter_counter ?? 0);
+    const selectedSmall = pickMaplessNormalEventSmallRewards({
+      count:1,
+      randomInt:(max) => borrowSafariSharedRunRandomInt(runtime, max),
+      itemMeta:SMALL_REWARD_META,
+    });
+    if (!selectedSmall.items.length) {
+      state.preview_encounter_counter = sharedCounter;
+      state.notice = "お礼の道具候補を確定できませんでした。きのみ・イベント・共有RNGは消費していません。";
+      state.last_operations = [];
+      return { runtime, result:"berry_reward_empty", completed:false, operations:[], notice:state.notice, persistenceRequested:false, availableActions };
+    }
+    const transaction = rewardTransaction(runtime, selectedSmall.items, [{ item:berry, quantity:1 }]);
     if (!transaction?.success) {
-      state.notice = transaction?.result === "not_enough_items" ? "そのきのみを持っていません。" : "バッグにお礼の道具を入れる空きがありません。きのみは消費していません。";
+      state.preview_encounter_counter = sharedCounter;
+      state.notice = transaction?.result === "not_enough_items" ? "そのきのみを持っていません。" : "バッグにお礼の道具を入れる空きがありません。きのみ・共有RNGは消費していません。";
       state.last_operations = (transaction?.operations ?? []).map((operation) => structuredClone(operation));
       return { runtime, result:transaction?.result ?? "berry_failed", completed:false, operations:state.last_operations, notice:state.notice, persistenceRequested:false, availableActions };
     }
@@ -236,7 +248,12 @@ export async function resolveSafariLostPokemonInteraction(runtime, index, reques
     const applied = applyReward(runtime, transaction);
     state.board_events[index] = owner.event;
     state.board_consumed[index] = Boolean(owner.event.normal_resolved);
-    state.last_operations = [...owner.operations.map((operation) => structuredClone(operation)), ...transaction.operations.map((operation) => structuredClone(operation)), ...applied];
+    state.last_operations = [
+      ...owner.operations.map((operation) => structuredClone(operation)),
+      ...selectedSmall.operations.map((operation) => structuredClone(operation)),
+      ...transaction.operations.map((operation) => structuredClone(operation)),
+      ...applied,
+    ];
     state.notice = "きのみを渡すと、迷子のポケモンがお礼の道具を残しました。";
     return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
   }
