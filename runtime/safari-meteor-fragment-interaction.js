@@ -1,17 +1,23 @@
 import { resolveRewardTransaction } from "./bag-economy-reward-transaction.js";
 import { resolveMeteorFragment } from "./mapless-normal-events-a2-flow.js";
+import {
+  MAPLESS_NORMAL_EVENT_LARGE_REWARD_ITEMS,
+  resolveMaplessNormalEventLargeReward,
+} from "./mapless-normal-event-large-reward.js";
+import { MAPLESS_NORMAL_EVENT_MID_REWARD_ITEMS } from "./mapless-normal-event-medium-reward.js";
+import {
+  hydrateMaplessV108MeteorFragmentFixedData,
+  resolveMaplessV108MeteorFragmentReward,
+} from "./mapless-v108-meteor-fragment.js";
 import { updatePokemonRuntime } from "./pokemon-runtime.js";
-import { RubyMT19937Random } from "./ruby-mt19937-random.js";
+import { borrowSafariSharedRunRandomInt, ensureSafariEncounterSeed } from "./safari-encounter-randomization.js";
 import { hasSafariUsablePartyType, safariPokemonTypes } from "./safari-pokemon-type-membership.js";
 
-const LOW_ITEMS = Object.freeze([
-  "POTION", "ANTIDOTE", "PARALYZEHEAL", "AWAKENING", "BURNHEAL", "ICEHEAL",
-  "POKEBALL", "ORANBERRY", "PECHABERRY", "CHERIBERRY", "FRESHWATER", "SODAPOP",
-]);
 const SAFARI_BAG_MAX_SLOTS = 20;
 const SAFARI_BAG_MAX_PER_SLOT = 99;
-const SAFARI_REWARD_ITEM_META = Object.freeze(Object.fromEntries(
-  LOW_ITEMS.map((itemId) => [itemId, Object.freeze({ valid:true, pocket:"general" })]),
+const LARGE_ITEM_META = Object.freeze(Object.fromEntries(
+  [...MAPLESS_NORMAL_EVENT_MID_REWARD_ITEMS, ...MAPLESS_NORMAL_EVENT_LARGE_REWARD_ITEMS]
+    .map((itemId) => [itemId, Object.freeze({ valid:true, pocket:"general" })]),
 ));
 
 function stateOf(runtime) {
@@ -26,40 +32,54 @@ function firstUsableOfType(runtime, typeId) {
   const wanted = String(typeId).toUpperCase();
   return party(runtime).find((pokemon) => usable(pokemon) && safariPokemonTypes(pokemon).includes(wanted)) ?? null;
 }
-function deterministicItems(event, salt, count) {
-  const rng = new RubyMT19937Random((Number(event.normal_seed) ^ salt) & 0x7fffffff);
-  return Array.from({ length:count }, () => LOW_ITEMS[rng.randInt(LOW_ITEMS.length)]);
+function canonicalData(event) {
+  const seeded = hydrateMaplessV108MeteorFragmentFixedData(event.normal_seed, {});
+  const existing = event.normal_data ?? {};
+  return {
+    ...seeded,
+    ...existing,
+    rock_choices:Array.isArray(existing.rock_choices) ? [...existing.rock_choices] : [...(seeded.rock_choices ?? [])],
+  };
 }
-function rockChoices(event) {
-  const stored = event.normal_data?.rock_choices;
-  if (Array.isArray(stored) && stored.length > 0) return [...stored];
-  return [...new Set(deterministicItems(event, 0x70c4, 3))];
-}
+function rockChoices(event) { return [...(canonicalData(event).rock_choices ?? [])]; }
 function parsedAction(requestedAction) {
   const raw = String(requestedAction ?? "");
   if (raw.startsWith("rock:")) return { action:"rock", rockChoice:raw.slice(5) };
   return { action:raw, rockChoice:null };
 }
-function rewardItemsFor(event, parsed) {
-  if (parsed.action === "rock") return parsed.rockChoice ? [parsed.rockChoice] : [];
-  if (parsed.action === "steel") {
-    const rng = new RubyMT19937Random((Number(event.normal_seed) ^ 0x57ee1) & 0x7fffffff);
-    return deterministicItems(event, 0x57ee1, 2 + rng.randInt(2));
-  }
-  if (parsed.action === "carry") return deterministicItems(event, 0xca771, 1);
-  if (parsed.action === "smash") {
-    const roll = Number(event.normal_data?.smash_roll);
-    return roll < 90 ? deterministicItems(event, roll < 55 ? 0x570ae : roll < 80 ? 0x57a2 : 0x1a29e, 1) : [];
-  }
-  return [];
+function rewardPockets(runtime) {
+  return { general:{ slots:runtime?.bag?.slots ?? [], maxSlots:SAFARI_BAG_MAX_SLOTS, maxPerSlot:SAFARI_BAG_MAX_PER_SLOT } };
 }
-function preflightReward(runtime, items) {
-  if (items.length === 0) return null;
-  return resolveRewardTransaction({
-    pockets:{ general:{ slots:runtime.bag?.slots ?? [], maxSlots:SAFARI_BAG_MAX_SLOTS, maxPerSlot:SAFARI_BAG_MAX_PER_SLOT } },
-    itemMeta:SAFARI_REWARD_ITEM_META,
-    items,
+function directReward(runtime, items) {
+  if (!Array.isArray(items) || items.length === 0) return null;
+  const itemMeta = Object.fromEntries(items.map((itemId) => [itemId, { valid:true, pocket:"general" }]));
+  return resolveRewardTransaction({ pockets:rewardPockets(runtime), itemMeta, items });
+}
+function sharedLargeReward(runtime) {
+  const state = stateOf(runtime);
+  ensureSafariEncounterSeed(state);
+  const counter = state.preview_encounter_counter;
+  const reward = resolveMaplessNormalEventLargeReward({
+    day:Math.max(1, Math.trunc(Number(state.day) || 1)),
+    count:1,
+    randomInt:(max) => borrowSafariSharedRunRandomInt(runtime, max),
+    itemMeta:LARGE_ITEM_META,
+    pockets:rewardPockets(runtime),
   });
+  if (!reward.success) state.preview_encounter_counter = counter;
+  return reward;
+}
+function canonicalReward(runtime, event, parsed) {
+  if (parsed.action === "leave") return { canonical:{ kind:"none", items:[] }, transaction:null };
+  const data = canonicalData(event);
+  const canonical = resolveMaplessV108MeteorFragmentReward(event.normal_seed, parsed.action, {
+    rockChoices:data.rock_choices,
+    rockChoice:parsed.rockChoice,
+    smashRoll:data.smash_roll,
+  });
+  if (canonical.kind === "invalid_rock_choice") return { canonical, transaction:null };
+  if (canonical.kind === "shared_large") return { canonical, transaction:sharedLargeReward(runtime) };
+  return { canonical, transaction:directReward(runtime, canonical.items) };
 }
 function applyPartyDamage(runtime, percent) {
   runtime.player.party = party(runtime).map((pokemon) => {
@@ -68,6 +88,12 @@ function applyPartyDamage(runtime, percent) {
     const damage = Math.max(1, Math.ceil(maxHp * Math.trunc(Number(percent)) / 100));
     return updatePokemonRuntime(pokemon, { hp:Math.max(1, Number(pokemon.hp) - damage) });
   });
+}
+function applyReward(runtime, reward) {
+  if (!reward?.success) return [];
+  runtime.bag ??= { slots:[], money:0 };
+  runtime.bag.slots = reward.pockets.general.slots.filter(Boolean);
+  return (reward.granted ?? []).map((entry) => ({ op:"runtime_grant_item", item:entry.item, quantity:entry.quantity }));
 }
 
 export function safariMeteorFragmentRockChoices(runtime, index) {
@@ -87,9 +113,12 @@ export function resolveSafariMeteorFragmentInteraction(runtime, index, requested
 
   state.board_revealed[index] = true;
   state.board_visited[index] = true;
+  const data = canonicalData(event);
+  const preparedEvent = { ...event, normal_data:data };
+  state.board_events[index] = preparedEvent;
   const parsed = parsedAction(requestedAction);
   const availableActions = [
-    ...(hasType(runtime, "ROCK") ? rockChoices(event).map((item) => `rock:${item}`) : []),
+    ...(hasType(runtime, "ROCK") ? data.rock_choices.map((item) => `rock:${item}`) : []),
     ...(hasType(runtime, "STEEL") ? ["steel"] : []),
     "smash", "carry", "leave",
   ];
@@ -97,17 +126,20 @@ export function resolveSafariMeteorFragmentInteraction(runtime, index, requested
     return { runtime, result:"unsupported_action", completed:false, operations:[], availableActions };
   }
 
-  const rewards = rewardItemsFor(event, parsed);
-  const reward = preflightReward(runtime, rewards);
+  const rewardPlan = canonicalReward(runtime, preparedEvent, parsed);
+  if (rewardPlan.canonical.kind === "invalid_rock_choice") {
+    return { runtime, result:"unsupported_action", completed:false, operations:[], availableActions };
+  }
+  const reward = rewardPlan.transaction;
   if (reward && !reward.success) {
     state.notice = "バッグに隕石の報酬をすべて入れる空きがありません。隕石にはまだ手を付けていません。";
     state.last_operations = reward.operations.map((operation) => structuredClone(operation));
     return { runtime, result:"reward_bag_full", completed:false, operations:state.last_operations, notice:state.notice, persistenceRequested:false, availableActions };
   }
 
-  const preparedEvent = parsed.action === "rock"
-    ? { ...event, normal_data:{ ...(event.normal_data ?? {}), rock_choices:rockChoices(event) } }
-    : event;
+  const resolvedItems = rewardPlan.canonical.kind === "items"
+    ? rewardPlan.canonical.items
+    : reward?.selectedItems ?? [];
   const owner = resolveMeteorFragment({
     event:preparedEvent,
     action:parsed.action,
@@ -115,7 +147,7 @@ export function resolveSafariMeteorFragmentInteraction(runtime, index, requested
     has_steel:hasType(runtime, "STEEL"),
     chosen_pokemon:parsed.action === "rock" ? firstUsableOfType(runtime, "ROCK") : parsed.action === "steel" ? firstUsableOfType(runtime, "STEEL") : null,
     rock_choice:parsed.rockChoice,
-    reward_items:rewards,
+    reward_items:resolvedItems,
   });
 
   const applied = [];
@@ -125,10 +157,7 @@ export function resolveSafariMeteorFragmentInteraction(runtime, index, requested
       applied.push({ op:"runtime_damage_party", percent:Number(operation.amount) });
     }
   }
-  if (reward?.success) {
-    runtime.bag.slots = reward.pockets.general.slots.filter(Boolean);
-    applied.push(...reward.granted.map((entry) => ({ op:"runtime_grant_item", item:entry.item, quantity:entry.quantity })));
-  }
+  if (reward?.success) applied.push(...applyReward(runtime, reward));
 
   state.board_events[index] = owner.event;
   state.board_consumed[index] = Boolean(owner.event.normal_resolved);

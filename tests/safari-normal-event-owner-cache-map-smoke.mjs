@@ -28,5 +28,15 @@ assert.doesNotMatch(
   /"\.\/runtime\/safari-honey-tree-interaction\.js"\s*:\s*"\.\/runtime\/safari-honey-tree-interaction\.js\?v=20260827-0100"/,
   "Honey Tree must not stay pinned to the pre-#904 owner generation",
 );
+assert.match(
+  index,
+  /"\.\/runtime\/safari-meteor-fragment-interaction\.js"\s*:\s*"\.\/runtime\/safari-meteor-fragment-interaction\.js\?v=20260827-1005"/,
+  "Meteor Fragment must fetch the post-#924 canonical reward owner generation",
+);
+assert.match(
+  index,
+  /"\.\/runtime\/safari-photographer-interaction\.js"\s*:\s*"\.\/runtime\/safari-photographer-interaction\.js\?v=20260827-1005"/,
+  "Photographer must fetch the post-#923 shared small-reward generation",
+);
 
-console.log(`ok - pinned ${ownerSpecifiers.length} generic normal-event Safari owners; Honey Tree is post-#904`);
+console.log(`ok - pinned ${ownerSpecifiers.length} generic normal-event Safari owners; canonical reward generations are fresh`);
