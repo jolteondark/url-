@@ -3,6 +3,7 @@ import fs from "node:fs";
 
 const lostSource = fs.readFileSync(new URL("../runtime/safari-lost-pokemon-interaction.js", import.meta.url), "utf8");
 const grantSource = fs.readFileSync(new URL("../runtime/safari-normal-event-pokemon-grant.js", import.meta.url), "utf8");
+const indexSource = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
 
 assert.match(lostSource, /event\.normal_data\?\.lost_encounter/,
   "Lost Pokemon join must consume the hydrated prepared encounter from normal_data");
@@ -23,5 +24,10 @@ assert.match(grantSource, /level = Number\(encounter\.level \?\? encounter\.reso
   "prepared encounter materialization must reuse the hydrated level");
 assert.match(grantSource, /return routeOne\(runtime, materializePreparedEncounterPokemon\(encounter\)\)/,
   "prepared encounters must reuse the existing Party/Storage routing owner");
+
+assert.match(indexSource, /safari-lost-pokemon-interaction\.js\?v=20260827-1755/,
+  "physical Safari entry must fetch the post-join Lost Pokemon owner");
+assert.match(indexSource, /safari-normal-event-pokemon-grant\.js\?v=20260827-1755/,
+  "physical Safari must fetch the prepared-encounter grant owner rather than a cached pre-export generation");
 
 console.log("safari Lost Pokemon prepared join smoke: ok");
