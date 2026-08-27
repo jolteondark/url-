@@ -6,6 +6,14 @@ import {
   resolveHpHealingItemEffect,
 } from "./item-hp-healing-effects.js";
 import {
+  isPpItem,
+  isPpItemUsableInContext,
+  ppItemCanAffectPokemon,
+  ppItemMoveOptions,
+  ppItemNeedsMoveSelection,
+  resolvePpItemEffect,
+} from "./item-pp-effects.js";
+import {
   isBattleMassStatusHealingItem,
   isStatusHealingItem,
   isStatusHealingItemUsableInContext,
@@ -13,14 +21,22 @@ import {
   statusHealingItemCanAffectPokemon,
 } from "./item-status-healing-effects.js";
 import { updatePokemonRuntime } from "./pokemon-runtime.js";
+import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
 
 export const isSafariHpHealingItem = isHpHealingItem;
 export const isSafariStatusHealingItem = isStatusHealingItem;
+export const isSafariPpItem = isPpItem;
 export const isSafariBattleNoTargetItem = isBattleMassStatusHealingItem;
 
 export function isSafariPartyUseItem(itemId, context = "field") {
   const id = String(itemId ?? "").toUpperCase();
-  return isHpHealingItem(id) || (isStatusHealingItem(id) && isStatusHealingItemUsableInContext(id, context));
+  return isHpHealingItem(id) ||
+    (isStatusHealingItem(id) && isStatusHealingItemUsableInContext(id, context)) ||
+    (isPpItem(id) && isPpItemUsableInContext(id, context));
+}
+
+export function isSafariMoveSelectionItem(itemId, context = "field") {
+  return ppItemNeedsMoveSelection(itemId, context);
 }
 
 function stateOf(runtime) {
@@ -72,6 +88,13 @@ function statusEffectContext(state, pokemon, index, context) {
   };
 }
 
+export function safariBagItemMoveOptions(runtime, itemId, partyIndex, { context = "field" } = {}) {
+  const index = Number(partyIndex);
+  const pokemon = runtime?.player?.party?.[index];
+  if (!pokemon || !Number.isInteger(index) || index < 0) return [];
+  return ppItemMoveOptions({ itemId, pokemon, moveMasters: SAFARI_MOVE_MASTERS, context });
+}
+
 export function canSafariBagItemTargetPartyPokemon(runtime, itemId, partyIndex, { context = "field" } = {}) {
   const state = stateOf(runtime);
   const id = String(itemId ?? "").toUpperCase();
@@ -81,6 +104,9 @@ export function canSafariBagItemTargetPartyPokemon(runtime, itemId, partyIndex, 
   const hp = Math.max(0, Math.trunc(Number(pokemon.hp ?? 0)));
   const maxHp = Math.max(1, Math.trunc(Number(pokemon.max_hp ?? hp ?? 1)));
   if (isHpHealingItem(id)) return hp > 0 && hp < maxHp;
+  if (isPpItem(id) && isPpItemUsableInContext(id, context)) {
+    return ppItemCanAffectPokemon({ itemId: id, pokemon, moveMasters: SAFARI_MOVE_MASTERS, context });
+  }
   if (!isStatusHealingItem(id) || !isStatusHealingItemUsableInContext(id, context)) return false;
   const effectContext = statusEffectContext(state, pokemon, index, context);
   return statusHealingItemCanAffectPokemon({ itemId: id, pokemon, context, ...effectContext });
@@ -146,10 +172,73 @@ function applyMassWakeBattleItem(runtime, id) {
   };
 }
 
-export function applySafariBagItemToPartyPokemon(runtime, { itemId, partyIndex, context = "field" } = {}) {
+function applyPpItem(runtime, id, pokemon, index, context, moveIndex) {
+  const state = stateOf(runtime);
+  const effect = resolvePpItemEffect({
+    itemId: id,
+    pokemon,
+    moveMasters: SAFARI_MOVE_MASTERS,
+    context,
+    moveIndex,
+  });
+  if (!effect.used) return { runtime, result: effect.result, used: false, operations: [] };
+
+  const hp = Math.max(0, Math.trunc(Number(pokemon.hp ?? 0)));
+  const updated = updatePokemonRuntime(pokemon, { moves: effect.moves });
+  runtime.player.party[index] = preserveBattleConfusion(pokemon, updated, { context });
+  const operations = [{ op: "use_item_on_pokemon", item: id, party_index: index, context }];
+  for (const change of effect.changes) {
+    if (change.ppAfter !== change.ppBefore) {
+      operations.push({
+        op: "restore_pp",
+        item: id,
+        party_index: index,
+        move_index: change.moveIndex,
+        move: change.moveId,
+        pp_before: change.ppBefore,
+        pp_after: change.ppAfter,
+        amount: change.ppAfter - change.ppBefore,
+      });
+    }
+    if (change.ppupAfter !== change.ppupBefore) {
+      operations.push({
+        op: "raise_max_pp",
+        item: id,
+        party_index: index,
+        move_index: change.moveIndex,
+        move: change.moveId,
+        ppup_before: change.ppupBefore,
+        ppup_after: change.ppupAfter,
+        total_pp_before: change.totalPpBefore,
+        total_pp_after: change.totalPpAfter,
+      });
+    }
+  }
+  consumeItemIfNeeded(runtime, id, true, operations);
+  state.last_operations = operations;
+  state.notice = effect.changes.some((change) => change.ppupAfter !== change.ppupBefore)
+    ? "わざの最大PPが増えました。"
+    : "わざのPPが回復しました。";
+  return {
+    runtime,
+    result: "used",
+    used: true,
+    itemId: id,
+    partyIndex: index,
+    moveIndex: effect.moveIndex,
+    hpBefore: hp,
+    hpAfter: hp,
+    ppChanges: effect.changes,
+    operations,
+    notice: state.notice,
+    persistenceRequested: false,
+  };
+}
+
+export function applySafariBagItemToPartyPokemon(runtime, { itemId, partyIndex, moveIndex = undefined, context = "field" } = {}) {
   const state = stateOf(runtime);
   const id = String(itemId ?? "").toUpperCase();
-  if (!isHpHealingItem(id) && !isStatusHealingItem(id)) return { runtime, result: "unsupported_item", used: false, operations: [] };
+  if (!isHpHealingItem(id) && !isStatusHealingItem(id) && !isPpItem(id)) return { runtime, result: "unsupported_item", used: false, operations: [] };
   if (context !== "field" && context !== "battle") throw new RangeError(`unsupported bag item context: ${context}`);
   if (context === "field" && state.battle && !state.battle.completed) return { runtime, result: "battle_active", used: false, operations: [] };
   if (context === "battle" && (!state.battle || state.battle.completed)) return { runtime, result: "battle_missing", used: false, operations: [] };
@@ -161,6 +250,8 @@ export function applySafariBagItemToPartyPokemon(runtime, { itemId, partyIndex, 
   if (!Number.isInteger(index) || index < 0 || index >= (runtime.player?.party?.length ?? 0)) return { runtime, result: "invalid_target", used: false, operations: [] };
   const pokemon = runtime.player.party[index];
   if (!pokemon || Number(pokemon.steps_to_hatch ?? 0) > 0) return { runtime, result: "invalid_target", used: false, operations: [] };
+
+  if (isPpItem(id)) return applyPpItem(runtime, id, pokemon, index, context, moveIndex);
 
   if (isHpHealingItem(id)) {
     const hpBefore = Math.max(0, Math.trunc(Number(pokemon.hp ?? 0)));

@@ -146,7 +146,7 @@ export function commitSafariCapturedWildRewardGrowth(runtime, result = {}) {
   return result;
 }
 
-export function useSafariNormalBattleItem(runtime, { itemId = "POTION", partyIndex = undefined } = {}) {
+export function useSafariNormalBattleItem(runtime, { itemId = "POTION", partyIndex = undefined, moveIndex = undefined } = {}) {
   const state = stateOf(runtime);
   const battle = state.battle;
   if (!battle || battle.completed) throw new Error("active battle is required");
@@ -158,6 +158,7 @@ export function useSafariNormalBattleItem(runtime, { itemId = "POTION", partyInd
   const itemUse = applySafariBagItemToPartyPokemon(runtime, {
     itemId,
     partyIndex: targetIndex,
+    moveIndex,
     context: "battle",
   });
   if (!itemUse.used) {
@@ -181,6 +182,8 @@ export function useSafariNormalBattleItem(runtime, { itemId = "POTION", partyInd
       actor: "player",
       itemId: itemUse.itemId,
       partyIndex: itemUse.partyIndex,
+      moveIndex: itemUse.moveIndex ?? null,
+      ppChanges: itemUse.ppChanges ?? null,
       hpBefore: itemUse.hpBefore,
       hpAfter: itemUse.hpAfter,
     },

@@ -7,8 +7,9 @@ import {
   canSafariBagItemTargetPartyPokemon,
   canSafariBagItemUseWithoutTarget,
   isSafariBattleNoTargetItem,
-  isSafariHpHealingItem,
+  isSafariMoveSelectionItem,
   isSafariPartyUseItem,
+  safariBagItemMoveOptions,
   useSafariBagItemOnPartyPokemon,
 } from "./runtime/safari-bag-item-use.js";
 import { formatSafariBattlePresentationEvent } from "./battle-presentation-narration.js";
@@ -59,6 +60,31 @@ function bagTargetSelect(runtime, itemId, context) {
   return { select, hasTarget: firstUsable != null };
 }
 
+function populateBagMoveSelect(select, runtime, itemId, partyIndex, context) {
+  select.replaceChildren();
+  let firstUsable = null;
+  for (const move of safariBagItemMoveOptions(runtime, itemId, partyIndex, { context })) {
+    const option = document.createElement("option");
+    option.value = String(move.index);
+    option.textContent = move.totalPp == null
+      ? String(move.id ?? `Move ${move.index + 1}`)
+      : `${move.id}  PP ${move.pp}/${move.totalPp}  PP Up ${move.ppup}/3`;
+    option.disabled = !move.usable;
+    if (move.usable && firstUsable == null) firstUsable = move.index;
+    select.append(option);
+  }
+  if (firstUsable != null) select.value = String(firstUsable);
+  select.disabled = firstUsable == null;
+  return firstUsable != null;
+}
+
+function bagMoveSelect(runtime, itemId, partyIndex, context) {
+  const select = document.createElement("select");
+  select.className = "bag-move-select";
+  select.setAttribute("aria-label", "アイテムを使うわざ");
+  return { select, hasMove: populateBagMoveSelect(select, runtime, itemId, partyIndex, context) };
+}
+
 function battleBagCommandAvailable(runtime) {
   const battle = runtime?.variables?.mapless?.battle;
   if (!battle) return true;
@@ -88,8 +114,8 @@ async function playBattleItemPresentation(runtime, events = []) {
     if (event.type === "battle_item") {
       const pokemon = runtime?.player?.party?.[Number(event.partyIndex ?? 0)];
       const maxHp = Number(pokemon?.max_hp ?? 0);
-      if (byId("player-hp") && maxHp > 0) byId("player-hp").textContent = `${event.hpAfter} / ${maxHp}`;
-      if (byId("player-hp-bar") && maxHp > 0) byId("player-hp-bar").style.width = Math.max(0, Math.min(100, Number(event.hpAfter) / maxHp * 100)) + "%";
+      if (byId("player-hp") && maxHp > 0 && Number.isFinite(Number(event.hpAfter))) byId("player-hp").textContent = `${event.hpAfter} / ${maxHp}`;
+      if (byId("player-hp-bar") && maxHp > 0 && Number.isFinite(Number(event.hpAfter))) byId("player-hp-bar").style.width = Math.max(0, Math.min(100, Number(event.hpAfter) / maxHp * 100)) + "%";
       await sleep(260);
     } else if (event.type === "move_started") {
       const actor = byId(event.actor + "-combatant");
@@ -157,18 +183,33 @@ function renderBag() {
 
       const battleActive = Boolean(runtime.variables?.mapless?.battle);
       const context = battleActive ? "battle" : "field";
-      const directHpItem = isSafariHpHealingItem(id);
-      if (directHpItem || isSafariPartyUseItem(id, context)) {
+      if (isSafariPartyUseItem(id, context)) {
         const noTarget = battleActive && isSafariBattleNoTargetItem(id);
         const target = noTarget ? null : bagTargetSelect(runtime, id, context);
-        const canUse = noTarget ? canSafariBagItemUseWithoutTarget(runtime, id, { context }) : target.hasTarget;
         const use = document.createElement("button");
         use.type = "button";
         use.dataset.bagUseItem = id;
         use.textContent = "使う";
-        use.disabled = !canUse || Boolean(runtime.variables?.mapless?.shop) || !battleBagCommandAvailable(runtime) || (!battleActive && fieldBagUseBusy);
-        if (target) row.append(target.select, use);
-        else row.append(use);
+
+        let move = null;
+        if (target && isSafariMoveSelectionItem(id, context)) {
+          move = bagMoveSelect(runtime, id, Number(target.select.value), context);
+          target.select.addEventListener("change", () => {
+            move.hasMove = populateBagMoveSelect(move.select, runtime, id, Number(target.select.value), context);
+            refreshDisabled();
+          });
+        }
+
+        const refreshDisabled = () => {
+          const canUse = noTarget
+            ? canSafariBagItemUseWithoutTarget(runtime, id, { context })
+            : Boolean(target?.hasTarget) && (!move || move.hasMove);
+          use.disabled = !canUse || Boolean(runtime.variables?.mapless?.shop) || !battleBagCommandAvailable(runtime) || (!battleActive && fieldBagUseBusy);
+        };
+        refreshDisabled();
+        if (target) row.append(target.select);
+        if (move) row.append(move.select);
+        row.append(use);
       }
       grid.append(row);
     }
@@ -241,6 +282,8 @@ byId("game-menu")?.addEventListener("click", async (event) => {
     const runtime = snapshot();
     const row = use.closest(".bag-slot");
     const partyIndex = Number(row?.querySelector(".bag-target-select")?.value);
+    const moveValue = row?.querySelector(".bag-move-select")?.value;
+    const moveIndex = moveValue === undefined || moveValue === "" ? undefined : Number(moveValue);
     if (!runtime || !battleBagCommandAvailable(runtime)) return;
     const battle = runtime.variables?.mapless?.battle;
     if (!battle && fieldBagUseBusy) return;
@@ -250,7 +293,7 @@ byId("game-menu")?.addEventListener("click", async (event) => {
     }
     try {
       if (battle) {
-        const pending = useSafariBattleItem(runtime, { itemId: use.dataset.bagUseItem, partyIndex });
+        const pending = useSafariBattleItem(runtime, { itemId: use.dataset.bagUseItem, partyIndex, moveIndex });
         globalThis.__maplessApplyBattlePhaseUi?.();
         const result = await pending;
         const presentationSequence = captureSafariBattlePresentationAckSequence(runtime);
@@ -261,7 +304,7 @@ byId("game-menu")?.addEventListener("click", async (event) => {
           completeSafariBattlePresentationForSequence(runtime, presentationSequence);
         }
       } else {
-        const result = useSafariBagItemOnPartyPokemon(runtime, { itemId: use.dataset.bagUseItem, partyIndex });
+        const result = useSafariBagItemOnPartyPokemon(runtime, { itemId: use.dataset.bagUseItem, partyIndex, moveIndex });
         if (result.persistenceRequested) saveSafariPlayableRun(window.localStorage, runtime);
       }
     } catch (error) {
