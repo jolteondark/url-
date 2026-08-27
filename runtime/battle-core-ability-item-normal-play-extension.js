@@ -2,6 +2,10 @@ import {
   BATTLE_TYPE_RESIST_BERRY_COVERAGE_CANONICAL,
   resolveTypeResistBerryActionBeforeCanonical,
 } from "./battle-core-type-resist-berry-extension.js";
+import {
+  HELD_TYPE_POWER_BOOST_ITEM_IDS,
+  heldTypePowerMultiplier,
+} from "./item-held-type-boost-effects.js";
 
 const id = (value) => String(value ?? "").toUpperCase();
 
@@ -19,26 +23,6 @@ const WEATHER_EVASION_ABILITIES = Object.freeze({
   SNOWCLOAK: new Set(["Hail", "Snow"]),
 });
 
-const TYPE_BOOST_ITEMS = Object.freeze({
-  NORMAL: "SILKSCARF",
-  FIRE: "CHARCOAL",
-  WATER: "MYSTICWATER",
-  ELECTRIC: "MAGNET",
-  GRASS: "MIRACLESEED",
-  ICE: "NEVERMELTICE",
-  FIGHTING: "BLACKBELT",
-  POISON: "POISONBARB",
-  GROUND: "SOFTSAND",
-  FLYING: "SHARPBEAK",
-  PSYCHIC: "TWISTEDSPOON",
-  BUG: "SILVERPOWDER",
-  ROCK: "HARDSTONE",
-  GHOST: "SPELLTAG",
-  DRAGON: "DRAGONFANG",
-  DARK: "BLACKGLASSES",
-  STEEL: "METALCOAT",
-  FAIRY: "FAIRYFEATHER",
-});
 const ABILITY_TYPE_POWER_BOOSTS = Object.freeze({
   STEELWORKER: Object.freeze({ type: "STEEL", multiplier: 1.5 }),
   DRAGONSMAW: Object.freeze({ type: "DRAGON", multiplier: 1.5 }),
@@ -107,7 +91,7 @@ const EXTENSION_ITEM_IDS = Object.freeze([
   "RAZORCLAW",
   "SCOPELENS",
   "WISEGLASSES",
-  ...Object.values(TYPE_BOOST_ITEMS),
+  ...HELD_TYPE_POWER_BOOST_ITEM_IDS,
   ...SPECIES_SPECIFIC_STAT_ITEMS,
   ...BATTLE_TYPE_RESIST_BERRY_COVERAGE_CANONICAL.itemIds,
 ].sort());
@@ -245,7 +229,7 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
   if (weather === "Sandstorm" && userAbility === "SANDFORCE" && ["ROCK", "GROUND", "STEEL"].includes(moveType)) {
     powerMultiplier *= 1.3;
   }
-  if (TYPE_BOOST_ITEMS[moveType] === userItem) powerMultiplier *= 1.2;
+  powerMultiplier *= heldTypePowerMultiplier({ itemId: userItem, moveType });
   if (userItem === "MUSCLEBAND" && category === "Physical") powerMultiplier *= 1.1;
   if (userItem === "WISEGLASSES" && category === "Special") powerMultiplier *= 1.1;
   if (userAbility === "TOXICBOOST" && category === "Physical" && ["POISON", "TOXIC"].includes(userStatus)) powerMultiplier *= 1.5;
@@ -336,7 +320,7 @@ export const BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL = Obje
     weatherSpecialAttackModifier: 1,
     statStageIgnore: 1,
     weatherPowerModifier: 1,
-    typeBoostHeldItems: Object.keys(TYPE_BOOST_ITEMS).length,
+    typeBoostHeldItems: HELD_TYPE_POWER_BOOST_ITEM_IDS.length,
     categoryBoostHeldItems: 2,
     speciesSpecificStatHeldItems: SPECIES_SPECIFIC_STAT_ITEMS.length,
     superEffectiveOffenseModifier: 3,
