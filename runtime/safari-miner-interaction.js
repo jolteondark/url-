@@ -1,8 +1,14 @@
 import { resolveRewardTransaction } from "./bag-economy-reward-transaction.js";
+import {
+  resolveMaplessV108AllowedEvolutionStages,
+  resolveMaplessV108EffectiveScalingValue,
+  resolveMaplessV108ScaledEnemyLevel,
+} from "./mapless-v108-enemy-scaling.js";
+import { resolveMaplessV108SpeciesPoolByCategoryAndStages } from "./mapless-v108-species-evolution.js";
 import { ensureSafariGeneralData } from "./safari-general-data-demand.js";
 import { SAFARI_MOVE_MASTERS, SAFARI_SPECIES_MASTERS } from "./safari-playable-data.js";
 import { createPokemonNewIndividualV108 } from "./pokemon-new-individual-v108.js";
-import { maplessEggShopBaseLevelForDayV108, maplessEggShopHatchLevelForDayV108 } from "./mapless-egg-shop-v108-flow.js";
+import { grantNormalEventPokemon } from "./safari-normal-event-pokemon-grant.js";
 import { borrowSafariSharedRunRandomInt, ensureSafariEncounterSeed } from "./safari-encounter-randomization.js";
 
 export const MAPLESS_MINER_DIG_COST_V108 = 1000;
@@ -11,30 +17,17 @@ export const MAPLESS_MINER_OUTCOME_WEIGHTS_V108 = Object.freeze({ fossil:20, val
 export const MAPLESS_MINER_VALUABLE_ITEMS_V108 = Object.freeze(["PEARL","STARDUST","BIGPEARL","STARPIECE","NUGGET","PEARLSTRING","COMETSHARD","BIGNUGGET"]);
 export const MAPLESS_MINER_EVOLUTION_STONES_V108 = Object.freeze(["FIRESTONE","THUNDERSTONE","WATERSTONE","LEAFSTONE","MOONSTONE","SUNSTONE","DUSKSTONE","DAWNSTONE","SHINYSTONE","ICESTONE"]);
 
-const FOSSIL_STAGE_V108 = Object.freeze({
-  OMANYTE:"ONE_EVOLUTION_BASE",OMASTAR:"ONE_EVOLUTION_FINAL",KABUTO:"ONE_EVOLUTION_BASE",KABUTOPS:"ONE_EVOLUTION_FINAL",AERODACTYL:"NO_EVOLUTION",
-  LILEEP:"ONE_EVOLUTION_BASE",CRADILY:"ONE_EVOLUTION_FINAL",ANORITH:"ONE_EVOLUTION_BASE",ARMALDO:"ONE_EVOLUTION_FINAL",CRANIDOS:"ONE_EVOLUTION_BASE",RAMPARDOS:"ONE_EVOLUTION_FINAL",
-  SHIELDON:"ONE_EVOLUTION_BASE",BASTIODON:"ONE_EVOLUTION_FINAL",TIRTOUGA:"ONE_EVOLUTION_BASE",CARRACOSTA:"ONE_EVOLUTION_FINAL",ARCHEN:"ONE_EVOLUTION_BASE",ARCHEOPS:"ONE_EVOLUTION_FINAL",
-  TYRUNT:"ONE_EVOLUTION_BASE",TYRANTRUM:"ONE_EVOLUTION_FINAL",AMAURA:"ONE_EVOLUTION_BASE",AURORUS:"ONE_EVOLUTION_FINAL",DRACOZOLT:"NO_EVOLUTION",ARCTOZOLT:"NO_EVOLUTION",DRACOVISH:"NO_EVOLUTION",ARCTOVISH:"NO_EVOLUTION",
-});
-
 function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
   if (!state || typeof state !== "object") throw new TypeError("runtime variables.mapless state is required");
   return state;
 }
 
-function allowedStagesForDay(day) {
-  const base = maplessEggShopBaseLevelForDayV108(day);
-  if (base < 16) return ["NO_EVOLUTION","ONE_EVOLUTION_BASE","TWO_EVOLUTION_BASE"];
-  if (base < 25) return ["NO_EVOLUTION","ONE_EVOLUTION_BASE","TWO_EVOLUTION_MIDDLE"];
-  if (base < 36) return ["NO_EVOLUTION","ONE_EVOLUTION_FINAL","TWO_EVOLUTION_MIDDLE"];
-  return ["NO_EVOLUTION","ONE_EVOLUTION_FINAL","TWO_EVOLUTION_FINAL"];
-}
-
 export function maplessMinerFossilPoolForDayV108(day) {
-  const allowed = new Set(allowedStagesForDay(day));
-  return Object.keys(FOSSIL_STAGE_V108).filter((species) => allowed.has(FOSSIL_STAGE_V108[species]));
+  const scaling = resolveMaplessV108EffectiveScalingValue(day, "NORMAL", 0);
+  if (scaling == null) return [];
+  const allowedStages = resolveMaplessV108AllowedEvolutionStages(scaling);
+  return resolveMaplessV108SpeciesPoolByCategoryAndStages({ category:"FOSSIL", allowedStages });
 }
 
 function damageForCollapse(runtime) {
@@ -165,21 +158,26 @@ export async function resolveSafariMinerAction(runtime, index, action, { randomI
     const pool = maplessMinerFossilPoolForDayV108(state.day);
     if (!pool.length) {
       state.notice = "化石らしい欠片は見つかりましたが、復元できませんでした。";
-    } else if (!Array.isArray(runtime.player?.party) || runtime.player.party.length >= 6) {
-      state.notice = "復元できる化石は見つかりましたが、Safari版で受け取れる手持ち枠がありません。";
     } else {
       await ensureSafariGeneralData();
       const species = pool[Number(workRandomInt(pool.length))];
       const speciesMaster = SAFARI_SPECIES_MASTERS[species];
-      if (!speciesMaster) {
-        state.notice = "化石の種族データを読み込めず、復元できませんでした。";
+      const level = resolveMaplessV108ScaledEnemyLevel({ day:state.day, rank:"NORMAL", extraModifier:0, useVariance:true, randomInt:workRandomInt });
+      if (!speciesMaster || !Number.isInteger(level)) {
+        state.notice = "化石の種族・レベルをcanonical dataから確定できず、復元できませんでした。";
       } else {
-        const level = maplessEggShopHatchLevelForDayV108(state.day, workRandomInt);
         const pid = finalPersonalId == null ? workRandomInt(0x100000000) : Number(finalPersonalId) >>> 0;
         const created = createPokemonNewIndividualV108({ species, level, speciesMaster, moveMasters:SAFARI_MOVE_MASTERS, randomInt:workRandomInt, finalPersonalId:pid });
-        runtime.player.party.push(created.pokemon);
-        reward = { kind:"pokemon", species, level };
-        state.notice = `${species}が復元され、Lv.${level}で仲間になりました！`;
+        const granted = grantNormalEventPokemon(runtime, created.pokemon);
+        operations.push(...granted.operations.map((operation) => structuredClone(operation)));
+        if (granted.success) {
+          reward = { kind:"pokemon", species, level, destination:granted.result };
+          state.notice = granted.result === "party"
+            ? `${species}が復元され、Lv.${level}で仲間になりました！`
+            : `${species}が復元され、Lv.${level}でボックスへ送られました！`;
+        } else {
+          state.notice = "復元できる化石は見つかりましたが、手持ちもボックスもいっぱいです。";
+        }
       }
     }
   }
