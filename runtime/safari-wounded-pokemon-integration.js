@@ -8,6 +8,7 @@ import { resolvePokemonRuntimeMasters } from "./pokemon-runtime-masters.js";
 import { POKEMON_NATURE_MASTERS_V108 } from "./pokemon-nature-masters-v108.js";
 import { resolvePokemonNewCreationFormSpeciesMasterV108 } from "./pokemon-new-creation-form-v108.js";
 import { SAFARI_MOVE_MASTERS, SAFARI_SPECIES_MASTERS } from "./safari-playable-data.js";
+import { borrowSafariSharedRunRandomInt, ensureSafariEncounterSeed } from "./safari-encounter-randomization.js";
 
 const ZERO_STATS = Object.freeze({ HP:0, ATTACK:0, DEFENSE:0, SPECIAL_ATTACK:0, SPECIAL_DEFENSE:0, SPEED:0 });
 
@@ -23,19 +24,6 @@ function requireWoundedEvent(runtime, index) {
   const event = state.board_events[index];
   if (!event || event.kind !== "normal_event" || event.normal_event_id !== "wounded_pokemon") throw new Error("wounded_pokemon board event is required");
   return { state, event };
-}
-
-function browserRandomInt(limit) {
-  const max = Number(limit);
-  if (!Number.isSafeInteger(max) || max <= 0 || max > 0x100000000) throw new RangeError("randomInt limit must be 1..2^32");
-  const cryptoObject = globalThis.crypto;
-  if (!cryptoObject || typeof cryptoObject.getRandomValues !== "function") throw new Error("Safari global RNG owner is unavailable");
-  if (max === 0x100000000) return cryptoObject.getRandomValues(new Uint32Array(1))[0];
-  const cutoff = Math.floor(0x100000000 / max) * max;
-  while (true) {
-    const value = cryptoObject.getRandomValues(new Uint32Array(1))[0];
-    if (value < cutoff) return value % max;
-  }
 }
 
 function explicitCreationFormContext(input) {
@@ -104,9 +92,6 @@ function canonicalLocalPreparation(event, day, randomInt, creationFormContext) {
       resolvedPokemon,
       validGeneralSpeciesPool: pool,
     });
-    // M0391's browser snapshot predates creation-form ownership. Preserve the
-    // already-resolved form as adapter metadata so re-entry materializes the
-    // same individual rather than rerolling Pokemon.new.
     prepared.event.normal_data.pokemon_data.form = Number(resolvedPokemon.form ?? 0);
     return {
       event: prepared.event,
@@ -132,16 +117,28 @@ export function safariWoundedHealingInventory(runtime) {
 export function prepareSafariWoundedPokemonCandidate(runtime, index, options = {}) {
   const { state, event } = requireWoundedEvent(runtime, index);
   const day = Math.max(1, Math.trunc(Number(state.day) || 1));
-  const prepared = canonicalLocalPreparation(
-    event,
-    day,
-    typeof options.randomInt === "function" ? options.randomInt : browserRandomInt,
-    explicitCreationFormContext(options.creationFormContext),
-  );
-  state.board_events[index] = prepared.event;
-  state.board_revealed[index] = true;
-  state.notice = `傷ついた${prepared.species} Lv.${prepared.level}がいます。`;
-  return { runtime, result: event.normal_data?.pokemon_data ? "already_prepared" : "prepared", ...prepared };
+  let sharedCounter = null;
+  let randomInt = options.randomInt;
+  if (typeof randomInt !== "function" && !event.normal_data?.pokemon_data) {
+    ensureSafariEncounterSeed(state);
+    sharedCounter = Number(state.preview_encounter_counter ?? 0);
+    randomInt = (limit) => borrowSafariSharedRunRandomInt(runtime, limit);
+  }
+  try {
+    const prepared = canonicalLocalPreparation(
+      event,
+      day,
+      typeof randomInt === "function" ? randomInt : (() => { throw new Error("wounded Pokemon shared RNG owner is unavailable"); }),
+      explicitCreationFormContext(options.creationFormContext),
+    );
+    state.board_events[index] = prepared.event;
+    state.board_revealed[index] = true;
+    state.notice = `傷ついた${prepared.species} Lv.${prepared.level}がいます。`;
+    return { runtime, result: event.normal_data?.pokemon_data ? "already_prepared" : "prepared", ...prepared };
+  } catch (error) {
+    if (sharedCounter !== null) state.preview_encounter_counter = sharedCounter;
+    throw error;
+  }
 }
 
 function commitResolution(runtime, index, resolved, extraOperations = []) {
