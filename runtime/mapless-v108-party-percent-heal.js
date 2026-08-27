@@ -40,7 +40,7 @@ export function resolveMaplessV108PartyPercentHeal(party, fraction, {
     const totalHp = requireFiniteNumber(readTotalHp(pokemon, index), "totalHp");
     if (totalHp < 0) throw new RangeError("totalHp must not be negative");
 
-    const amount = Math.max(1, Math.floor(totalHp * frac));
+    const amount = Math.max(1, Math.ceil(totalHp * frac));
     const nextHp = Math.min(totalHp, hp + amount);
     if (nextHp <= hp) continue;
 
