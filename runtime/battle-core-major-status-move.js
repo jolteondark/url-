@@ -156,11 +156,10 @@ export function resolveSecondaryMajorStatusMoveEffectCanonical({ move, target, t
     effectChance,
     ...(eligibility.canInflict ? {
       secondaryEffectInput: {
-        // The seeded owner performs the canonical chance roll before the full
-        // hit resolution is materialized. Runtime commit below still requires
-        // an actual reduce_hp operation, so misses/protect/immunity cannot
-        // persist a status even if this deterministic roll triggers.
-        calcDamage: 1,
+        // calcDamage is intentionally omitted here. The seeded secondary owner
+        // now materializes each action after accuracy/damage resolution and
+        // injects the actual calculatedDamage value. A miss, immunity or other
+        // zero-damage resolution therefore consumes no secondary-effect RNG.
         effectChance,
         functionCode: source.functionCode,
       },
