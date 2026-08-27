@@ -1,3 +1,4 @@
+import { resolveMaplessV108PartyPercentHeal } from "./mapless-v108-party-percent-heal.js";
 import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
 import { pokemonMoveTotalPp, setPokemonRuntimeMovePp, updatePokemonRuntime } from "./pokemon-runtime.js";
 
@@ -28,14 +29,22 @@ export function healSafariPartyFull(runtime) {
 export function healSafariPartyPercent(runtime, percent, { cureStatus = false } = {}) {
   const pct = Math.max(0, Math.trunc(Number(percent) || 0));
   runtime.player ??= { party: [] };
-  runtime.player.party = (runtime.player.party ?? []).map((pokemon) => {
-    if (!isUsable(pokemon)) return pokemon;
-    const maxHp = maxHpOf(pokemon);
-    const amount = Math.max(1, Math.ceil((maxHp * pct) / 100));
-    const changes = { hp: Math.min(maxHp, Math.trunc(Number(pokemon.hp ?? 0)) + amount) };
-    if (cureStatus) { changes.status = "NONE"; changes.status_count = 0; }
-    return updatePokemonRuntime(pokemon, changes);
+  const party = runtime.player.party ?? [];
+  resolveMaplessV108PartyPercentHeal(party, pct / 100, {
+    getHp:(pokemon) => Number(pokemon?.hp ?? 0),
+    getTotalHp:(pokemon) => maxHpOf(pokemon),
+    isFainted:(pokemon) => !isUsable(pokemon),
+    setHp:(pokemon, hp, index) => {
+      party[index] = updatePokemonRuntime(pokemon, { hp });
+    },
   });
+  if (cureStatus) {
+    runtime.player.party = party.map((pokemon) => isUsable(pokemon)
+      ? updatePokemonRuntime(pokemon, { status:"NONE", status_count:0 })
+      : pokemon);
+  } else {
+    runtime.player.party = party;
+  }
   return runtime.player.party;
 }
 
