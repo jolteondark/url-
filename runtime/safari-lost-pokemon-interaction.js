@@ -2,10 +2,16 @@ import { resolveRewardTransaction } from "./bag-economy-reward-transaction.js";
 import { routeCaughtQueueToPartyStorage } from "./caught-queue-party-storage.js";
 import { buildGeneralEncounterSpeciesPool } from "./general-encounter-species-pools.js";
 import { safariCarryoverPartyLimit } from "./mapless-carry-class-rules.js";
+import {
+  MAPLESS_NORMAL_EVENT_MID_REWARD_ITEMS,
+  pickMaplessNormalEventMediumRewards,
+} from "./mapless-normal-event-medium-reward.js";
+import { MAPLESS_NORMAL_EVENT_SMALL_REWARD_ITEMS } from "./mapless-normal-event-small-reward.js";
 import { resolveLostPokemon } from "./mapless-normal-events-a2-flow.js";
 import { resolvePokemonRuntimeMasters } from "./pokemon-runtime-masters.js";
 import { updatePokemonRuntime } from "./pokemon-runtime.js";
 import { RubyMT19937Random } from "./ruby-mt19937-random.js";
+import { borrowSafariSharedRunRandomInt, ensureSafariEncounterSeed } from "./safari-encounter-randomization.js";
 import { ensureSafariGeneralCombatData, safariGeneralCombatModules } from "./safari-general-data-demand.js";
 import { SAFARI_MOVE_MASTERS, SAFARI_NATURE_MASTERS, SAFARI_SPECIES_MASTERS, SAFARI_ZERO_STAT_VALUES, safariCanonicalResetMoves } from "./safari-playable-data.js";
 import { registerSafariNormalEventBattleContinuation } from "./safari-normal-event-battle-continuation.js";
@@ -15,6 +21,10 @@ const LOW_ITEMS = Object.freeze([
   "POTION", "ANTIDOTE", "PARALYZEHEAL", "AWAKENING", "BURNHEAL", "ICEHEAL",
   "POKEBALL", "ORANBERRY", "PECHABERRY", "CHERIBERRY", "FRESHWATER", "SODAPOP",
 ]);
+const MEDIUM_REWARD_META = Object.freeze(Object.fromEntries(
+  [...MAPLESS_NORMAL_EVENT_SMALL_REWARD_ITEMS, ...MAPLESS_NORMAL_EVENT_MID_REWARD_ITEMS]
+    .map((itemId) => [itemId, Object.freeze({ valid:true, pocket:"general" })]),
+));
 const SAFARI_BAG_MAX_SLOTS = 20;
 const SAFARI_BAG_MAX_PER_SLOT = 99;
 
@@ -176,9 +186,27 @@ export async function resolveSafariLostPokemonInteraction(runtime, index, reques
       if (started.result === "normal_event_wild_battle_started" && state.battle) globalThis.__maplessNormalEventUi = null;
       return started;
     }
-    const rewards = preview.outcome === "search_trainer_reward" ? [rewardItem(event, 0x5ea2c)] : [];
-    const transaction = rewardTransaction(runtime, rewards);
+    let selectedMedium = { items:[], operations:[] };
+    let sharedCounter = null;
+    if (preview.outcome === "search_trainer_reward") {
+      ensureSafariEncounterSeed(state);
+      sharedCounter = Number(state.preview_encounter_counter ?? 0);
+      selectedMedium = pickMaplessNormalEventMediumRewards({
+        day:Math.max(1, Math.trunc(Number(state.day) || 1)),
+        count:1,
+        randomInt:(max) => borrowSafariSharedRunRandomInt(runtime, max),
+        itemMeta:MEDIUM_REWARD_META,
+      });
+      if (!selectedMedium.items.length) {
+        state.preview_encounter_counter = sharedCounter;
+        state.notice = "お礼の道具候補を確定できませんでした。イベントと共有RNGは消費していません。";
+        state.last_operations = [];
+        return { runtime, result:"search_reward_empty", completed:false, operations:[], notice:state.notice, persistenceRequested:false, availableActions };
+      }
+    }
+    const transaction = rewardTransaction(runtime, selectedMedium.items);
     if (transaction && !transaction.success) {
+      if (sharedCounter !== null) state.preview_encounter_counter = sharedCounter;
       state.notice = "バッグにお礼の道具を入れる空きがありません。まだ探索は完了していません。";
       state.last_operations = transaction.operations.map((operation) => structuredClone(operation));
       return { runtime, result:"reward_bag_full", completed:false, operations:state.last_operations, notice:state.notice, persistenceRequested:false, availableActions };
@@ -186,7 +214,12 @@ export async function resolveSafariLostPokemonInteraction(runtime, index, reques
     const applied = applyReward(runtime, transaction);
     state.board_events[index] = preview.event;
     state.board_consumed[index] = Boolean(preview.event.normal_resolved);
-    state.last_operations = [...preview.operations.map((operation) => structuredClone(operation)), ...(transaction?.operations ?? []).map((operation) => structuredClone(operation)), ...applied];
+    state.last_operations = [
+      ...preview.operations.map((operation) => structuredClone(operation)),
+      ...selectedMedium.operations.map((operation) => structuredClone(operation)),
+      ...(transaction?.operations ?? []).map((operation) => structuredClone(operation)),
+      ...applied,
+    ];
     state.notice = preview.outcome === "search_trainer_reward" ? "飼い主を見つけ、お礼に道具を受け取りました。" : "迷子のポケモンを親元へ返しました。";
     return { runtime, result:preview.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner:preview };
   }
