@@ -4,6 +4,8 @@ import { safariPokemonTypes } from "./safari-pokemon-type-membership.js";
 import {
   applySafariSmallItemReward,
   preflightSafariSharedSmallItemReward,
+  preflightSafariSmallItemReward,
+  SAFARI_SMALL_REWARD_ITEMS,
 } from "./safari-small-item-reward.js";
 import {
   borrowSafariSharedRunRandomInt,
@@ -36,6 +38,9 @@ function addMoney(runtime, amount) {
   const value = Math.max(0, Math.trunc(Number(amount) || 0));
   runtime.bag.money = Math.max(0, Math.trunc(Number(runtime.bag.money ?? 0))) + value;
   return { op:"runtime_add_money", amount:value };
+}
+function canAcceptSharedSmallReward(runtime) {
+  return SAFARI_SMALL_REWARD_ITEMS.every((item) => preflightSafariSmallItemReward(runtime, item).success);
 }
 function sharedSmallReward(runtime) {
   const state = stateOf(runtime);
@@ -91,8 +96,7 @@ registerSafariNormalEventBattleContinuation("photographer", (runtime, continuati
   const reward = projected.reward;
   if (!reward.success) {
     rollbackSharedSmallReward(runtime, projected.counter);
-    state.notice = "撮影成功のお礼を受け取る空きがありません。バッグを空けてから受け取ってください。";
-    return { runtime, result:"reward_bag_full", completed:false, terminal:false, operations:reward.operations.map((operation) => structuredClone(operation)), notice:state.notice, persistenceRequested:false };
+    throw new Error("photographer shared small reward no longer fits in Bag");
   }
 
   const scale = scalingValue(state.day);
@@ -113,7 +117,7 @@ registerSafariNormalEventBattleContinuation("photographer", (runtime, continuati
   return { runtime, result:owner.outcome, completed:true, terminal:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
 });
 
-export function resolveSafariPhotographerInteraction(runtime, index, requestedAction) {
+export async function resolveSafariPhotographerInteraction(runtime, index, requestedAction) {
   const state = stateOf(runtime);
   const event = state.board_events?.[index];
   if (!event || event.kind !== "normal_event" || event.normal_event_id !== "photographer") throw new Error("photographer board event is required");
@@ -133,13 +137,19 @@ export function resolveSafariPhotographerInteraction(runtime, index, requestedAc
     const preview = resolvePhotographer({ event, action:"wild", scaling_value:scale, battle_success:false });
     const battleEvent = battleOperation(preview);
     if (!battleEvent) throw new Error("photographer wild route requires canonical Battle request");
-    return activateSafariNormalEventWildBattle(runtime, index, {
+    if (!canAcceptSharedSmallReward(runtime)) {
+      state.notice = "撮影成功時の道具を確実に受け取れる空きがありません。バッグを空けてから探してください。";
+      return { runtime, result:"reward_bag_full", completed:false, operations:[], notice:state.notice, persistenceRequested:false, availableActions };
+    }
+    const started = await activateSafariNormalEventWildBattle(runtime, index, {
       eventId:"photographer",
       actionId:"wild",
       battleEvent,
       request:structuredClone(battleEvent),
       payload:{ requested_type:requestedType(event) },
     });
+    if (started.result === "normal_event_wild_battle_started" && state.battle) globalThis.__maplessNormalEventUi = null;
+    return started;
   }
 
   if (raw.startsWith("party:")) {
