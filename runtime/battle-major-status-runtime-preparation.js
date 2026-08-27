@@ -50,7 +50,6 @@ function directFlinchSecondaryEffectInput(move) {
   const effectChance = Number(move.effect_chance ?? 0);
   if (effectChance <= 0) return null;
   return {
-    calcDamage: 1,
     effectChance,
     functionCode: "FlinchTarget",
     transientEffect: "flinch",
@@ -63,7 +62,6 @@ function directConfusionSecondaryEffectInput(move) {
   const effectChance = Number(move.effect_chance ?? 0);
   if (effectChance <= 0) return null;
   return {
-    calcDamage: 1,
     effectChance,
     functionCode: String(move.function_code),
     transientEffect: "confusion",
@@ -80,7 +78,6 @@ function randomMajorStatusSecondaryEffectInput(move) {
   const effectChance = Number(move.effect_chance ?? 0);
   if (!projection || effectChance <= 0) return null;
   return {
-    calcDamage: 1,
     effectChance,
     functionCode: String(move.function_code),
     randomChoiceValues: [...projection.statuses],
