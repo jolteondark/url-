@@ -15,7 +15,7 @@ function executedActionKeys(turn) {
     .map((entry) => `${Number(entry.round) - 1}:${Number(entry.action)}`));
 }
 
-function commitResistBerry(runtime, request, { roundIndex, actionIndex }) {
+function commitConsumableHeldItem(runtime, request, { roundIndex, actionIndex, source }) {
   if (!request || canonicalItemId(runtime?.item) !== canonicalItemId(request?.item)) return { runtime, commit: null };
   const item = runtime.item ?? null;
   const flow = resolveHeldItemLifecycle({
@@ -32,7 +32,7 @@ function commitResistBerry(runtime, request, { roundIndex, actionIndex }) {
     commit: {
       roundIndex,
       actionIndex,
-      source: "resist_berry_action_after",
+      source,
       result: flow.result,
       item: next.item ?? null,
       operations: structuredClone(flow.operations ?? []),
@@ -55,12 +55,32 @@ export function commitBattleSystemsHeldItemRuntime({ battleInput = {}, turn = {}
     for (const actionIndex of order) {
       if (!executed.has(`${roundIndex}:${actionIndex}`)) continue;
       const action = actions[actionIndex];
-      if (Number(action?.targetBattlerIndex) !== index) continue;
-      const berry = action?.abilityItemActionAfter?.targetResistBerry;
-      if (berry?.triggered !== true || !berry.consumeRequest) continue;
-      const committed = commitResistBerry(runtime, berry.consumeRequest, { roundIndex, actionIndex });
-      runtime = committed.runtime;
-      if (committed.commit) commits.push(committed.commit);
+
+      if (Number(action?.targetBattlerIndex) === index) {
+        const berry = action?.abilityItemActionAfter?.targetResistBerry;
+        if (berry?.triggered === true && berry.consumeRequest) {
+          const committed = commitConsumableHeldItem(runtime, berry.consumeRequest, {
+            roundIndex,
+            actionIndex,
+            source: "resist_berry_action_after",
+          });
+          runtime = committed.runtime;
+          if (committed.commit) commits.push(committed.commit);
+        }
+      }
+
+      if (Number(action?.battlerIndex) === index) {
+        const gem = action?.abilityItemActionAfter?.userTypeGem;
+        if (gem?.triggered === true && gem.consumeRequest) {
+          const committed = commitConsumableHeldItem(runtime, gem.consumeRequest, {
+            roundIndex,
+            actionIndex,
+            source: "type_gem_action_after",
+          });
+          runtime = committed.runtime;
+          if (committed.commit) commits.push(committed.commit);
+        }
+      }
     }
   }
   return { pokemon: runtime, commits };
