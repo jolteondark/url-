@@ -2,6 +2,7 @@ import { routeCaughtQueueToPartyStorage } from "./caught-queue-party-storage.js"
 import { buildGeneralEncounterSpeciesPool } from "./general-encounter-species-pools.js";
 import { createMaplessEggShopEggV108 } from "./mapless-egg-shop-v108-flow.js";
 import { safariCarryoverPartyLimit } from "./mapless-carry-class-rules.js";
+import { createPokemonNewIndividualV108 } from "./pokemon-new-individual-v108.js";
 import { resolvePokemonRuntimeMasters } from "./pokemon-runtime-masters.js";
 import { updatePokemonRuntime } from "./pokemon-runtime.js";
 import { RubyMT19937Random } from "./ruby-mt19937-random.js";
@@ -140,6 +141,26 @@ export function grantNormalEventPokemon(runtime, pokemon) {
     throw new TypeError("normal-event Pokemon runtime is required");
   }
   return routeOne(runtime, structuredClone(pokemon));
+}
+
+export function grantNormalEventPokemonFromSpeciesLevel(runtime, { species, level, randomInt, finalPersonalId = null } = {}) {
+  const id = String(species ?? "");
+  const resolvedLevel = Number(level);
+  const speciesMaster = SAFARI_SPECIES_MASTERS[id];
+  if (!speciesMaster) throw new RangeError(`normal-event species is outside Safari projection: ${id}`);
+  if (!Number.isInteger(resolvedLevel) || resolvedLevel < 1) throw new RangeError("normal-event level is unresolved");
+  if (typeof randomInt !== "function") throw new TypeError("normal-event Pokemon randomInt is required");
+  const pid = finalPersonalId == null ? Number(randomInt(0x100000000)) >>> 0 : Number(finalPersonalId) >>> 0;
+  const created = createPokemonNewIndividualV108({
+    species:id,
+    level:resolvedLevel,
+    speciesMaster,
+    moveMasters:SAFARI_MOVE_MASTERS,
+    randomInt,
+    finalPersonalId:pid,
+  });
+  const granted = routeOne(runtime, created.pokemon);
+  return { ...granted, created };
 }
 
 export async function grantNormalEventPokemonFromEncounter(runtime, request = {}) {
