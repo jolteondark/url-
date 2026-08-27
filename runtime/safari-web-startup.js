@@ -2,8 +2,9 @@ import { assembleDayBoard } from "./mapless-day-board-generation.js";
 import { projectDayBoardEventName } from "./mapless-day-board-event-name-projection.js";
 import { clearStoredRun, hasStoredRun, persistRunState, restoreRunState } from "./browser-run-storage.js";
 import { ensureMaplessRunLifecycleState } from "./mapless-run-end-lifecycle.js";
-import { ensureSafariEncounterSeed } from "./safari-encounter-randomization.js";
+import { borrowSafariSharedRunRandomInt, ensureSafariEncounterSeed } from "./safari-encounter-randomization.js";
 import { hydrateSafariNormalEventCells } from "./mapless-normal-event-v108-preparation.js";
+import { prepareMaplessV108TreasureChest } from "./mapless-v108-treasure-chest.js";
 import { SAFARI_BOUNTY_PROJECTION } from "./safari-playable-data.js";
 
 export const SAFARI_PLAYABLE_SAVE_KEY = "mapless.safari.playable.v4";
@@ -141,6 +142,18 @@ function ensureTrainerSeeds(state) {
     return { ...event, trainer_seed: seed };
   });
 }
+function hydrateSafariTreasureChestCells(runtime) {
+  const state = stateOf(runtime);
+  if (!Array.isArray(state.board_events)) return runtime;
+  const day = Math.max(1, Math.trunc(Number(state.day) || 1));
+  state.board_events = state.board_events.map((event) => event?.kind === "treasure"
+    ? prepareMaplessV108TreasureChest(event, {
+      day,
+      randomInt:(limit) => borrowSafariSharedRunRandomInt(runtime, limit),
+    })
+    : event);
+  return runtime;
+}
 function normalizeStartupRuntime(runtime) {
   const state = stateOf(runtime);
   if (!("shop" in state)) state.shop = null;
@@ -162,6 +175,7 @@ function normalizeStartupRuntime(runtime) {
 
   ensureVillageState(state);
   ensureSafariEncounterSeed(state);
+  hydrateSafariTreasureChestCells(runtime);
   assignFullWildTypes(state);
   ensureTrainerSeeds(state);
   hydrateSafariNormalEventCells(runtime);
