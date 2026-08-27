@@ -84,7 +84,7 @@ for (const [itemId, hpAfter] of Object.entries(expectedHp)) {
   pokemon.hp = 10;
   runtime.bag.slots.push(["RAGECANDYBAR", 1]);
   const rage = useSafariBagItemOnPartyPokemon(runtime, { itemId: "RAGECANDYBAR", partyIndex: 0 });
-  assert.equal(rage.result, "unsupported_item", "Gen 9 Rage Candy Bar belongs to the status-cure owner, not HP healing");
+  assert.equal(rage.result, "no_effect", "Gen 9 Rage Candy Bar is a registered status cure but must do nothing on a healthy target");
   assert.equal(quantity(runtime, "RAGECANDYBAR"), 1);
 
   state.battle = { kind: "wild", completed: false };

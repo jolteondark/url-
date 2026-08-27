@@ -3,7 +3,14 @@ import {
   captureSafariBattlePresentationAckSequence,
   completeSafariBattlePresentationForSequence,
 } from "./runtime/safari-battle-presentation-ack.js";
-import { isSafariHpHealingItem, useSafariBagItemOnPartyPokemon } from "./runtime/safari-bag-item-use.js";
+import {
+  canSafariBagItemTargetPartyPokemon,
+  canSafariBagItemUseWithoutTarget,
+  isSafariBattleNoTargetItem,
+  isSafariHpHealingItem,
+  isSafariPartyUseItem,
+  useSafariBagItemOnPartyPokemon,
+} from "./runtime/safari-bag-item-use.js";
 import { formatSafariBattlePresentationEvent } from "./battle-presentation-narration.js";
 
 const byId = (id) => document.getElementById(id);
@@ -29,19 +36,20 @@ function bagSlots(runtime) {
   return [...totals].sort((a, b) => String(a[0]).localeCompare(String(b[0])));
 }
 
-function potionTargetSelect(runtime) {
+function bagTargetSelect(runtime, itemId, context) {
   const select = document.createElement("select");
   select.className = "bag-target-select";
-  select.setAttribute("aria-label", "HP回復アイテムを使うポケモン");
+  select.setAttribute("aria-label", "アイテムを使うポケモン");
   let firstUsable = null;
   for (const [index, pokemon] of (runtime?.player?.party ?? []).entries()) {
     if (!pokemon) continue;
     const hp = Number(pokemon.hp ?? 0);
     const maxHp = Number(pokemon.max_hp ?? hp);
-    const usable = Number(pokemon.steps_to_hatch ?? 0) <= 0 && hp > 0 && hp < maxHp;
+    const status = pokemon.status && String(pokemon.status).toUpperCase() !== "NONE" ? `  ${pokemon.status}` : "";
+    const usable = canSafariBagItemTargetPartyPokemon(runtime, itemId, index, { context });
     const option = document.createElement("option");
     option.value = String(index);
-    option.textContent = `${pokemon.nickname ?? pokemon.species}  HP ${hp}/${maxHp}`;
+    option.textContent = `${pokemon.nickname ?? pokemon.species}  HP ${hp}/${maxHp}${status}`;
     option.disabled = !usable;
     if (usable && firstUsable == null) firstUsable = index;
     select.append(option);
@@ -147,15 +155,20 @@ function renderBag() {
       amount.textContent = "×" + qty;
       row.append(name, amount);
 
-      if (isSafariHpHealingItem(id)) {
-        const { select, hasTarget } = potionTargetSelect(runtime);
+      const battleActive = Boolean(runtime.variables?.mapless?.battle);
+      const context = battleActive ? "battle" : "field";
+      const directHpItem = isSafariHpHealingItem(id);
+      if (directHpItem || isSafariPartyUseItem(id, context)) {
+        const noTarget = battleActive && isSafariBattleNoTargetItem(id);
+        const target = noTarget ? null : bagTargetSelect(runtime, id, context);
+        const canUse = noTarget ? canSafariBagItemUseWithoutTarget(runtime, id, { context }) : target.hasTarget;
         const use = document.createElement("button");
         use.type = "button";
         use.dataset.bagUseItem = id;
         use.textContent = "使う";
-        const battleActive = Boolean(runtime.variables?.mapless?.battle);
-        use.disabled = !hasTarget || Boolean(runtime.variables?.mapless?.shop) || !battleBagCommandAvailable(runtime) || (!battleActive && fieldBagUseBusy);
-        row.append(select, use);
+        use.disabled = !canUse || Boolean(runtime.variables?.mapless?.shop) || !battleBagCommandAvailable(runtime) || (!battleActive && fieldBagUseBusy);
+        if (target) row.append(target.select, use);
+        else row.append(use);
       }
       grid.append(row);
     }
