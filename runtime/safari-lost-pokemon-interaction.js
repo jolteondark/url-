@@ -11,6 +11,10 @@ import {
   pickMaplessNormalEventSmallRewards,
 } from "./mapless-normal-event-small-reward.js";
 import { resolveLostPokemon } from "./mapless-normal-events-a2-flow.js";
+import {
+  resolveMaplessV108LostPokemonBerryThanks,
+  resolveMaplessV108LostPokemonGiftRoll,
+} from "./mapless-v108-lost-pokemon.js";
 import { resolvePokemonRuntimeMasters } from "./pokemon-runtime-masters.js";
 import { updatePokemonRuntime } from "./pokemon-runtime.js";
 import { RubyMT19937Random } from "./ruby-mt19937-random.js";
@@ -224,37 +228,53 @@ export async function resolveSafariLostPokemonInteraction(runtime, index, reques
   }
 
   if (action === "berry") {
-    ensureSafariEncounterSeed(state);
-    const sharedCounter = Number(state.preview_encounter_counter ?? 0);
-    const selectedSmall = pickMaplessNormalEventSmallRewards({
-      count:1,
-      randomInt:(max) => borrowSafariSharedRunRandomInt(runtime, max),
-      itemMeta:SMALL_REWARD_META,
-    });
-    if (!selectedSmall.items.length) {
-      state.preview_encounter_counter = sharedCounter;
+    const giftRoll = event.normal_data?.gift_roll ?? resolveMaplessV108LostPokemonGiftRoll(event.normal_seed);
+    const thanks = resolveMaplessV108LostPokemonBerryThanks(event.normal_seed, giftRoll);
+    let selectedReward = { items:[...(thanks.items ?? [])], operations:[] };
+    let sharedCounter = null;
+    if (thanks.kind === "shared_small") {
+      ensureSafariEncounterSeed(state);
+      sharedCounter = Number(state.preview_encounter_counter ?? 0);
+      selectedReward = pickMaplessNormalEventSmallRewards({
+        count:1,
+        randomInt:(max) => borrowSafariSharedRunRandomInt(runtime, max),
+        itemMeta:SMALL_REWARD_META,
+      });
+    }
+    if (!selectedReward.items.length) {
+      if (sharedCounter !== null) state.preview_encounter_counter = sharedCounter;
       state.notice = "お礼の道具候補を確定できませんでした。きのみ・イベント・共有RNGは消費していません。";
       state.last_operations = [];
       return { runtime, result:"berry_reward_empty", completed:false, operations:[], notice:state.notice, persistenceRequested:false, availableActions };
     }
-    const transaction = rewardTransaction(runtime, selectedSmall.items, [{ item:berry, quantity:1 }]);
+    const transaction = rewardTransaction(runtime, selectedReward.items, [{ item:berry, quantity:1 }]);
     if (!transaction?.success) {
-      state.preview_encounter_counter = sharedCounter;
+      if (sharedCounter !== null) state.preview_encounter_counter = sharedCounter;
       state.notice = transaction?.result === "not_enough_items" ? "そのきのみを持っていません。" : "バッグにお礼の道具を入れる空きがありません。きのみ・共有RNGは消費していません。";
       state.last_operations = (transaction?.operations ?? []).map((operation) => structuredClone(operation));
       return { runtime, result:transaction?.result ?? "berry_failed", completed:false, operations:state.last_operations, notice:state.notice, persistenceRequested:false, availableActions };
     }
-    const owner = resolveLostPokemon({ event, action:"berry", berry, remove_success:true, rare_thanks:false });
+    const rareThanks = thanks.kind === "rare_item";
+    const owner = resolveLostPokemon({
+      event,
+      action:"berry",
+      berry,
+      remove_success:true,
+      rare_thanks:rareThanks,
+      rare_reward_items:rareThanks ? selectedReward.items : undefined,
+    });
     const applied = applyReward(runtime, transaction);
     state.board_events[index] = owner.event;
     state.board_consumed[index] = Boolean(owner.event.normal_resolved);
     state.last_operations = [
       ...owner.operations.map((operation) => structuredClone(operation)),
-      ...selectedSmall.operations.map((operation) => structuredClone(operation)),
+      ...selectedReward.operations.map((operation) => structuredClone(operation)),
       ...transaction.operations.map((operation) => structuredClone(operation)),
       ...applied,
     ];
-    state.notice = "きのみを渡すと、迷子のポケモンがお礼の道具を残しました。";
+    state.notice = rareThanks
+      ? "きのみを渡すと、迷子のポケモンが珍しいきのみをお礼に残しました。"
+      : "きのみを渡すと、迷子のポケモンがお礼の道具を残しました。";
     return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
   }
 
