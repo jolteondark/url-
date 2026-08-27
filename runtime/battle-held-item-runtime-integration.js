@@ -1,47 +1,29 @@
+export * from "./battle-held-item-runtime-integration-base.js";
+
+import { commitBattleSystemsHeldItemRuntime as commitBaseHeldItemRuntime } from "./battle-held-item-runtime-integration-base.js";
 import { resolveHeldItemLifecycle } from "./battle-held-item-consumption-flow.js";
 import { updatePokemonRuntime } from "./pokemon-runtime.js";
 
-function hasAfterMoveRequest(action) {
-  return (action?.postHitResolution?.operations ?? []).some((entry) => entry?.op === "effects_after_move_request");
-}
-
 function canonicalItemId(value) {
   const raw = typeof value === "string" ? value : value?.id;
-  return String(raw ?? "").toUpperCase();
+  return String(raw ?? "").trim().toUpperCase();
 }
 
-function actionAfterConsumeRequests(action, reflectedBattlerIndex) {
-  const after = action?.abilityItemActionAfter;
-  if (!after || reflectedBattlerIndex === null || reflectedBattlerIndex === undefined) return [];
-  const index = Number(reflectedBattlerIndex);
-  const requests = [];
-  if (Number(action?.targetBattlerIndex) === index) {
-    if (after?.targetBerry?.triggered === true && after.targetBerry.consumeRequest) requests.push(after.targetBerry.consumeRequest);
-    if (after?.targetAirBalloon?.triggered === true && after.targetAirBalloon.consumeRequest) requests.push(after.targetAirBalloon.consumeRequest);
-    if (after?.targetHitReactiveItem?.triggered === true && after.targetHitReactiveItem.consumeRequest) requests.push(after.targetHitReactiveItem.consumeRequest);
-  }
-  return requests;
+function executedActionKeys(turn) {
+  return new Set((turn?.operations ?? [])
+    .filter((entry) => entry?.op === "use_move")
+    .map((entry) => `${Number(entry.round) - 1}:${Number(entry.action)}`));
 }
 
-function survivalConsumeRequests(action, reflectedBattlerIndex) {
-  const survival = action?.abilityItemSurvival;
-  if (!survival?.triggered || !survival.consumeRequest) return [];
-  if (reflectedBattlerIndex === null || reflectedBattlerIndex === undefined) return [];
-  return Number(action?.targetBattlerIndex) === Number(reflectedBattlerIndex)
-    ? [survival.consumeRequest]
-    : [];
-}
-
-function commitConsumeRequest(runtime, request, { roundIndex, actionIndex, source }) {
+function commitResistBerry(runtime, request, { roundIndex, actionIndex }) {
   if (!request || canonicalItemId(runtime?.item) !== canonicalItemId(request?.item)) return { runtime, commit: null };
   const item = runtime.item ?? null;
-  const input = {
+  const flow = resolveHeldItemLifecycle({
     ...structuredClone(request),
     itemToUse: item,
     ownItem: true,
     state: { item, pokemonItem: item, initialItem: item },
-  };
-  const flow = resolveHeldItemLifecycle(input);
+  });
   const reflected = (flow.operations ?? []).some((entry) => entry?.op === "runtime_held_item_reflection");
   if (!reflected) return { runtime, commit: null };
   const next = updatePokemonRuntime(runtime, { item: flow.state?.pokemonItem ?? flow.state?.item ?? null });
@@ -50,7 +32,7 @@ function commitConsumeRequest(runtime, request, { roundIndex, actionIndex, sourc
     commit: {
       roundIndex,
       actionIndex,
-      source,
+      source: "resist_berry_action_after",
       result: flow.result,
       item: next.item ?? null,
       operations: structuredClone(flow.operations ?? []),
@@ -59,61 +41,26 @@ function commitConsumeRequest(runtime, request, { roundIndex, actionIndex, sourc
 }
 
 export function commitBattleSystemsHeldItemRuntime({ battleInput = {}, turn = {}, pokemon, reflectedBattlerIndex = null } = {}) {
-  let runtime = updatePokemonRuntime(pokemon, {});
-  const commits = [];
-  const executed = new Set((turn.operations ?? [])
-    .filter((entry) => entry?.op === "use_move")
-    .map((entry) => `${Number(entry.round) - 1}:${Number(entry.action)}`));
-
+  const base = commitBaseHeldItemRuntime({ battleInput, turn, pokemon, reflectedBattlerIndex });
+  if (reflectedBattlerIndex === null || reflectedBattlerIndex === undefined) return base;
+  let runtime = base.pokemon;
+  const commits = [...(base.commits ?? [])];
+  const executed = executedActionKeys(turn);
+  const index = Number(reflectedBattlerIndex);
   for (const [roundIndex, round] of (battleInput.rounds ?? []).entries()) {
-    const actions = Array.isArray(round.actions) ? round.actions : [];
-    const order = Array.isArray(round.priorityOrder)
+    const actions = Array.isArray(round?.actions) ? round.actions : [];
+    const order = Array.isArray(round?.priorityOrder)
       ? round.priorityOrder.map(Number).filter((actionIndex) => Number.isInteger(actionIndex) && actionIndex >= 0 && actionIndex < actions.length)
       : actions.map((_, actionIndex) => actionIndex);
     for (const actionIndex of order) {
-      const action = actions[actionIndex];
       if (!executed.has(`${roundIndex}:${actionIndex}`)) continue;
-
-      if (hasAfterMoveRequest(action) && action?.battleHeldItemInput) {
-        const input = structuredClone(action.battleHeldItemInput);
-        input.state = { ...(input.state ?? {}) };
-        if (!Object.prototype.hasOwnProperty.call(input.state, "item")) input.state.item = runtime.item ?? null;
-        if (!Object.prototype.hasOwnProperty.call(input.state, "pokemonItem")) input.state.pokemonItem = runtime.item ?? null;
-        if (!Object.prototype.hasOwnProperty.call(input.state, "initialItem")) input.state.initialItem = runtime.item ?? null;
-        const flow = resolveHeldItemLifecycle(input);
-        const reflected = (flow.operations ?? []).some((entry) => entry?.op === "runtime_held_item_reflection");
-        if (reflected) {
-          runtime = updatePokemonRuntime(runtime, { item: flow.state?.pokemonItem ?? flow.state?.item ?? null });
-          commits.push({
-            roundIndex,
-            actionIndex,
-            source: "battle_held_item_input",
-            result: flow.result,
-            item: runtime.item ?? null,
-            operations: structuredClone(flow.operations ?? []),
-          });
-        }
-      }
-
-      for (const request of actionAfterConsumeRequests(action, reflectedBattlerIndex)) {
-        const committed = commitConsumeRequest(runtime, request, {
-          roundIndex,
-          actionIndex,
-          source: "shared_action_after",
-        });
-        runtime = committed.runtime;
-        if (committed.commit) commits.push(committed.commit);
-      }
-
-      for (const request of survivalConsumeRequests(action, reflectedBattlerIndex)) {
-        const committed = commitConsumeRequest(runtime, request, {
-          roundIndex,
-          actionIndex,
-          source: "shared_survival",
-        });
-        runtime = committed.runtime;
-        if (committed.commit) commits.push(committed.commit);
-      }
+      const action = actions[actionIndex];
+      if (Number(action?.targetBattlerIndex) !== index) continue;
+      const berry = action?.abilityItemActionAfter?.targetResistBerry;
+      if (berry?.triggered !== true || !berry.consumeRequest) continue;
+      const committed = commitResistBerry(runtime, berry.consumeRequest, { roundIndex, actionIndex });
+      runtime = committed.runtime;
+      if (committed.commit) commits.push(committed.commit);
     }
   }
   return { pokemon: runtime, commits };
