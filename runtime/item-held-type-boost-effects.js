@@ -47,6 +47,7 @@ export const HELD_TYPE_POWER_BOOSTS = Object.freeze({
   EARTHPLATE: "GROUND",
   SPOOKYPLATE: "GHOST",
   MINDPLATE: "PSYCHIC",
+  BLANKPLATE: "NORMAL",
 });
 
 export const HELD_TYPE_POWER_BOOST_ITEM_IDS = Object.freeze(Object.keys(HELD_TYPE_POWER_BOOSTS).sort());

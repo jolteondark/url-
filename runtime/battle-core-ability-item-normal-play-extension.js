@@ -6,6 +6,10 @@ import {
   HELD_TYPE_POWER_BOOST_ITEM_IDS,
   heldTypePowerMultiplier,
 } from "./item-held-type-boost-effects.js";
+import {
+  HELD_SPECIES_DAMAGE_BOOST_ITEM_IDS,
+  resolveHeldSpeciesDamageBoostCanonical,
+} from "./item-held-species-damage-boost-effects.js";
 
 const id = (value) => String(value ?? "").toUpperCase();
 
@@ -92,6 +96,7 @@ const EXTENSION_ITEM_IDS = Object.freeze([
   "SCOPELENS",
   "WISEGLASSES",
   ...HELD_TYPE_POWER_BOOST_ITEM_IDS,
+  ...HELD_SPECIES_DAMAGE_BOOST_ITEM_IDS,
   ...SPECIES_SPECIFIC_STAT_ITEMS,
   ...BATTLE_TYPE_RESIST_BERRY_COVERAGE_CANONICAL.itemIds,
 ].sort());
@@ -171,6 +176,11 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
   const userStatus = id(user?.status ?? "NONE");
   const targetStatus = id(target?.status ?? "NONE");
   const targetTypeResistBerry = resolveTypeResistBerryActionBeforeCanonical({ user, target, move, context });
+  const speciesDamageBoost = resolveHeldSpeciesDamageBoostCanonical({
+    itemId: userItem,
+    species: userSpecies,
+    moveType,
+  });
 
   const pranksterPriority = userAbility === "PRANKSTER" && category === "Status" ? 1 : 0;
   const moldBreaker = MOLD_BREAKER_ABILITIES.has(userAbility);
@@ -230,6 +240,7 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
     powerMultiplier *= 1.3;
   }
   powerMultiplier *= heldTypePowerMultiplier({ itemId: userItem, moveType });
+  powerMultiplier *= speciesDamageBoost.powerMultiplier;
   if (userItem === "MUSCLEBAND" && category === "Physical") powerMultiplier *= 1.1;
   if (userItem === "WISEGLASSES" && category === "Special") powerMultiplier *= 1.1;
   if (userAbility === "TOXICBOOST" && category === "Physical" && ["POISON", "TOXIC"].includes(userStatus)) powerMultiplier *= 1.5;
@@ -238,7 +249,7 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
   if (abilityTypeBoost?.type === moveType) powerMultiplier *= abilityTypeBoost.multiplier;
   if (userAbility === "RIVALRY" && userGender && targetGender) powerMultiplier *= userGender === targetGender ? 1.25 : 0.75;
 
-  let finalDamageMultiplier = 1;
+  let finalDamageMultiplier = speciesDamageBoost.finalDamageMultiplier;
   if (userAbility === "TINTEDLENS" && typeMod > 0 && typeMod < 1) finalDamageMultiplier *= 2;
   if (userItem === "EXPERTBELT" && typeMod > 1) finalDamageMultiplier *= 1.2;
   if (userAbility === "NEUROFORCE" && typeMod > 1) finalDamageMultiplier *= 1.25;
@@ -298,6 +309,7 @@ export function resolveNormalPlayActionBeforeAbilityItemExtensionCanonical({ use
       targetCriticalHitPrevention: criticalHitPrevention,
     }),
     targetTypeResistBerry,
+    speciesDamageBoost,
   });
 }
 
@@ -323,6 +335,7 @@ export const BATTLE_ABILITY_ITEM_NORMAL_PLAY_EXTENSION_COVERAGE_CANONICAL = Obje
     typeBoostHeldItems: HELD_TYPE_POWER_BOOST_ITEM_IDS.length,
     categoryBoostHeldItems: 2,
     speciesSpecificStatHeldItems: SPECIES_SPECIFIC_STAT_ITEMS.length,
+    speciesSpecificDamageBoostHeldItems: HELD_SPECIES_DAMAGE_BOOST_ITEM_IDS.length,
     superEffectiveOffenseModifier: 3,
     superEffectiveDamageBoostAbilities: 1,
     superEffectiveDefenseModifier: MOLD_BREAKER_SUPER_EFFECTIVE_REDUCTION_ABILITIES.size + UNBYPASSABLE_SUPER_EFFECTIVE_REDUCTION_ABILITIES.size,
