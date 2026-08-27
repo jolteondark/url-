@@ -6,7 +6,7 @@ import { maplessEggShopBaseLevelForDayV108, maplessEggShopHatchLevelForDayV108 }
 import { borrowSafariSharedRunRandomInt, ensureSafariEncounterSeed } from "./safari-encounter-randomization.js";
 
 export const MAPLESS_MINER_DIG_COST_V108 = 1000;
-export const MAPLESS_MINER_COLLAPSE_PERCENT_V108 = 15;
+export const MAPLESS_MINER_COLLAPSE_PERCENT_V108 = 5;
 export const MAPLESS_MINER_OUTCOME_WEIGHTS_V108 = Object.freeze({ fossil:20, valuable:25, stone:20, apology:25, run_away:10 });
 export const MAPLESS_MINER_VALUABLE_ITEMS_V108 = Object.freeze(["PEARL","STARDUST","BIGPEARL","STARPIECE","NUGGET","PEARLSTRING","COMETSHARD","BIGNUGGET"]);
 export const MAPLESS_MINER_EVOLUTION_STONES_V108 = Object.freeze(["FIRESTONE","THUNDERSTONE","WATERSTONE","LEAFSTONE","MOONSTONE","SUNSTONE","DUSKSTONE","DAWNSTONE","SHINYSTONE","ICESTONE"]);
@@ -135,29 +135,9 @@ export async function resolveSafariMinerAction(runtime, index, action, { randomI
   let collapse = null;
   if (collapseRoll < MAPLESS_MINER_COLLAPSE_PERCENT_V108) {
     collapse = damageForCollapse(runtime);
-    state.notice = "坑道が崩れました。採掘はここで中断されました。";
-    operations.push(
-      { op:"miner_collapse", roll:collapseRoll, ...collapse },
-      { op:"request_save", reason:"miner_attempt" },
-    );
-    state.last_operations = operations;
-    refreshMinerUi(runtime, index);
-    return {
-      runtime,
-      result:"collapse",
-      completed:false,
-      consumed:false,
-      collapse,
-      outcome:null,
-      reward:null,
-      persistenceRequested:true,
-      operations,
-    };
+    operations.push({ op:"miner_collapse", roll:collapseRoll, ...collapse });
   }
 
-  // #958: the remaining non-collapse branch still needs the recovered v0.9.108 rand(4)
-  // mapping and dynamic fossil owner. Keep it on the same shared run RNG stream meanwhile;
-  // do not fall back to browser crypto/Math.random.
   const outcomeRoll = Number(workRandomInt(100));
   const outcome = outcomeFromRoll(outcomeRoll);
   let reward = null;
@@ -171,7 +151,7 @@ export async function resolveSafariMinerAction(runtime, index, action, { randomI
   }
 
   if (outcome === "apology") {
-    state.notice = "砕けた石ばかりで成果はありませんでした。炭鉱夫は謝っています。";
+    state.notice = collapse ? "坑道が崩れ、さらに成果も見つかりませんでした。炭鉱夫は謝っています。" : "砕けた石ばかりで成果はありませんでした。炭鉱夫は謝っています。";
   } else if (outcome === "valuable" || outcome === "stone") {
     const source = outcome === "valuable" ? MAPLESS_MINER_VALUABLE_ITEMS_V108 : MAPLESS_MINER_EVOLUTION_STONES_V108;
     const itemId = source[Number(workRandomInt(source.length))];
