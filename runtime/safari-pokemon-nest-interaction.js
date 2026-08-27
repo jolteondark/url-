@@ -1,20 +1,13 @@
 import { resolveRewardTransaction } from "./bag-economy-reward-transaction.js";
+import { resolveMaplessV108PokemonNestSearchReward } from "./mapless-v108-pokemon-nest.js";
 import { resolvePokemonNest } from "./mapless-normal-events-a3-flow.js";
-import { RubyMT19937Random } from "./ruby-mt19937-random.js";
 import { registerSafariNormalEventBattleContinuation } from "./safari-normal-event-battle-continuation.js";
 import { grantSafariNormalEventPartyExp } from "./safari-normal-event-exp-owner.js";
 import { grantNormalEventHiddenEgg } from "./safari-normal-event-pokemon-grant.js";
 import { activateSafariNormalEventWildBattle } from "./safari-web-combat-start.js";
 
-const LOW_ITEMS = Object.freeze([
-  "POTION", "ANTIDOTE", "PARALYZEHEAL", "AWAKENING", "BURNHEAL", "ICEHEAL",
-  "POKEBALL", "ORANBERRY", "PECHABERRY", "CHERIBERRY", "FRESHWATER", "SODAPOP",
-]);
 const SAFARI_BAG_MAX_SLOTS = 20;
 const SAFARI_BAG_MAX_PER_SLOT = 99;
-const ITEM_META = Object.freeze(Object.fromEntries(
-  LOW_ITEMS.map((itemId) => [itemId, Object.freeze({ valid:true, pocket:"general" })]),
-));
 
 function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
@@ -40,16 +33,15 @@ function battleSucceeded(summary = {}) {
   return decision === 1 || decision === 4;
 }
 
-function rewardItem(event) {
-  const rng = new RubyMT19937Random((Number(event.normal_seed) ^ 0x4e455354) & 0x7fffffff);
-  return LOW_ITEMS[rng.randInt(LOW_ITEMS.length)];
+function canonicalSearchReward(event) {
+  return resolveMaplessV108PokemonNestSearchReward(Number(event.normal_seed ?? 0));
 }
 
 function rewardTransaction(runtime, items) {
   if (items.length === 0) return null;
   return resolveRewardTransaction({
     pockets:{ general:{ slots:runtime.bag?.slots ?? [], maxSlots:SAFARI_BAG_MAX_SLOTS, maxPerSlot:SAFARI_BAG_MAX_PER_SLOT } },
-    itemMeta:ITEM_META,
+    itemMeta:Object.fromEntries(items.map((itemId) => [itemId, { valid:true, pocket:"general" }])),
     items,
   });
 }
@@ -82,7 +74,6 @@ registerSafariNormalEventBattleContinuation("pokemon_nest", (runtime, continuati
       action:"search",
       current_day:state.day,
       battle_success:success,
-      search_reward_item:rewardItem(event),
     });
     commitOwner(state, index, owner, [{ op:"request_save", reason:"normal_event_post_battle" }]);
     state.notice = success
@@ -203,13 +194,28 @@ export async function resolveSafariPokemonNestInteraction(runtime, index, reques
   }
 
   if (action === "search") {
-    const item = rewardItem(event);
+    const searchRoll = Number(event.normal_data?.search_roll);
+    const canonicalReward = searchRoll < 65 ? canonicalSearchReward(event) : { kind:"none", items:[] };
+    const item = canonicalReward.items?.[0] ?? null;
+    if (searchRoll < 65 && !item) {
+      state.notice = "巣で見つかる道具候補を確定できませんでした。イベントはまだ探索できます。";
+      state.last_operations = [];
+      return {
+        runtime,
+        result:"search_reward_empty",
+        completed:false,
+        operations:[],
+        notice:state.notice,
+        persistenceRequested:false,
+        availableActions,
+      };
+    }
     const owner = resolvePokemonNest({
       event,
       action:"search",
       current_day:state.day,
       battle_success:false,
-      search_reward_item:item,
+      ...(item ? { search_reward_item:item } : {}),
     });
     const battleEvent = battleOperation(owner);
     if (battleEvent) {
@@ -224,7 +230,7 @@ export async function resolveSafariPokemonNestInteraction(runtime, index, reques
       return started;
     }
 
-    const rewards = owner.outcome === "search_reward" ? [item] : [];
+    const rewards = owner.outcome === "search_reward" ? canonicalReward.items : [];
     const transaction = rewardTransaction(runtime, rewards);
     if (transaction && !transaction.success) {
       state.notice = "バッグに巣で見つけた道具を入れる空きがありません。巣はまだ探索できます。";
