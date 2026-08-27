@@ -1,7 +1,4 @@
 import { resolveRewardTransaction } from "./bag-economy-reward-transaction.js";
-import { routeCaughtQueueToPartyStorage } from "./caught-queue-party-storage.js";
-import { buildGeneralEncounterSpeciesPool } from "./general-encounter-species-pools.js";
-import { safariCarryoverPartyLimit } from "./mapless-carry-class-rules.js";
 import {
   MAPLESS_NORMAL_EVENT_MID_REWARD_ITEMS,
   pickMaplessNormalEventMediumRewards,
@@ -15,13 +12,9 @@ import {
   resolveMaplessV108LostPokemonBerryThanks,
   resolveMaplessV108LostPokemonGiftRoll,
 } from "./mapless-v108-lost-pokemon.js";
-import { resolvePokemonRuntimeMasters } from "./pokemon-runtime-masters.js";
-import { updatePokemonRuntime } from "./pokemon-runtime.js";
-import { RubyMT19937Random } from "./ruby-mt19937-random.js";
 import { borrowSafariSharedRunRandomInt, ensureSafariEncounterSeed } from "./safari-encounter-randomization.js";
-import { ensureSafariGeneralCombatData, safariGeneralCombatModules } from "./safari-general-data-demand.js";
-import { SAFARI_MOVE_MASTERS, SAFARI_NATURE_MASTERS, SAFARI_SPECIES_MASTERS, SAFARI_ZERO_STAT_VALUES, safariCanonicalResetMoves } from "./safari-playable-data.js";
 import { registerSafariNormalEventBattleContinuation } from "./safari-normal-event-battle-continuation.js";
+import { grantNormalEventPokemonFromPreparedEncounter } from "./safari-normal-event-pokemon-grant.js";
 import { activateSafariNormalEventWildBattle } from "./safari-web-combat-start.js";
 
 const MEDIUM_REWARD_META = Object.freeze(Object.fromEntries(
@@ -69,46 +62,8 @@ function applyReward(runtime, transaction) {
 function searchBattleOperation(owner) {
   return (owner.operations ?? []).find((operation) => operation?.op === "start_wild_battle") ?? null;
 }
-function unit32(rng) { return rng.randInt(0x100000000) / 0x100000000; }
 
 export function safariLostPokemonBerryChoices(runtime) { return berryIds(runtime); }
-
-async function materializeJoinCandidate(runtime, event) {
-  await ensureSafariGeneralCombatData("wild");
-  const type = String(event.normal_data?.type ?? "");
-  const pool = buildGeneralEncounterSpeciesPool(type, ["ONE_EVOLUTION_BASE", "TWO_EVOLUTION_BASE"]);
-  if (pool.length === 0) throw new Error(`lost_pokemon has no canonical unevolved pool for ${type}`);
-  const seed = Number(event.normal_seed) & 0x7fffffff;
-  const rng = new RubyMT19937Random(seed ^ 0x10a57);
-  const species = pool[rng.randInt(pool.length)];
-  const encounter = safariGeneralCombatModules("wild").encounterRuntime.resolveSafariGeneralEncounter({
-    day:stateOf(runtime).day,
-    requiredType:type,
-    enemyRank:"NORMAL",
-    extraModifier:0,
-    speciesRoll:unit32(rng),
-    varianceRoll:unit32(rng),
-  });
-  const level = encounter.resolved_level;
-  const moves = safariCanonicalResetMoves(species, level);
-  const natureId = "HARDY";
-  let pokemon = resolvePokemonRuntimeMasters({
-    species,
-    level,
-    status:"NONE",
-    hp:1,
-    nature_id:natureId,
-    iv:{ ...SAFARI_ZERO_STAT_VALUES },
-    ev:{ ...SAFARI_ZERO_STAT_VALUES },
-    moves,
-  }, {
-    species_master:SAFARI_SPECIES_MASTERS[species],
-    nature_master:SAFARI_NATURE_MASTERS[natureId],
-    move_masters:SAFARI_MOVE_MASTERS,
-  });
-  pokemon = updatePokemonRuntime(pokemon, { hp:pokemon.max_hp });
-  return pokemon;
-}
 
 registerSafariNormalEventBattleContinuation("lost_pokemon", (runtime, continuation) => {
   if (continuation.actionId !== "search") throw new Error(`unsupported lost_pokemon Battle continuation action: ${continuation.actionId}`);
@@ -146,26 +101,22 @@ export async function resolveSafariLostPokemonInteraction(runtime, index, reques
   if (action === "join") {
     const preview = resolveLostPokemon({ event, action:"join", add_success:true });
     if (preview.outcome === "joined") {
-      const pokemon = await materializeJoinCandidate(runtime, event);
-      const carryClass = state.mapless_carry_class ?? "general";
-      const partyLimit = safariCarryoverPartyLimit(carryClass);
-      const routed = routeCaughtQueueToPartyStorage({
-        party:runtime.player.party,
-        boxes:runtime.storage_system.boxes,
-        currentBox:runtime.storage_system.currentBox,
-      }, [pokemon], { maxPartySize:partyLimit });
-      if (routed.remainingQueue.length > 0) {
+      const preparedEncounter = event.normal_data?.lost_encounter;
+      if (!preparedEncounter || typeof preparedEncounter !== "object" || Array.isArray(preparedEncounter)) {
+        state.notice = "迷子のポケモンの遭遇個体データを読み込めませんでした。イベントは消費していません。";
+        state.last_operations = [];
+        return { runtime, result:"join_encounter_missing", completed:false, operations:[], notice:state.notice, persistenceRequested:false, availableActions };
+      }
+      const granted = grantNormalEventPokemonFromPreparedEncounter(runtime, preparedEncounter);
+      if (!granted.success) {
         state.notice = "手持ちもボックスもいっぱいです。空きを作れば、このポケモンを仲間にできます。";
-        state.last_operations = routed.operations.map((operation) => structuredClone(operation));
+        state.last_operations = granted.operations.map((operation) => structuredClone(operation));
         return { runtime, result:"join_storage_full", completed:false, operations:state.last_operations, notice:state.notice, persistenceRequested:false, availableActions };
       }
-      runtime.player.party = routed.state.party;
-      runtime.storage_system.boxes = routed.state.boxes;
-      runtime.storage_system.currentBox = routed.state.currentBox;
       state.board_events[index] = preview.event;
       state.board_consumed[index] = Boolean(preview.event.normal_resolved);
-      state.last_operations = [...preview.operations.map((operation) => structuredClone(operation)), ...routed.operations.map((operation) => structuredClone(operation))];
-      state.notice = routed.routed[0]?.result === "party" ? `${pokemon.species}が仲間になりました。` : `${pokemon.species}をボックスへ送りました。`;
+      state.last_operations = [...preview.operations.map((operation) => structuredClone(operation)), ...granted.operations.map((operation) => structuredClone(operation))];
+      state.notice = granted.result === "party" ? `${granted.pokemon.species}が仲間になりました。` : `${granted.pokemon.species}をボックスへ送りました。`;
       return { runtime, result:preview.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner:preview };
     }
     state.board_events[index] = preview.event;
