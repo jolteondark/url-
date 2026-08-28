@@ -1,11 +1,12 @@
-export * from "./safari-old-statue-offer-continuation.js?v=20260828-1955";
+export * from "./safari-old-statue-offer-continuation.js?v=20260828-2300";
 
 import {
   resolveSafariOldStatueInteraction as resolveBaseOldStatueInteraction,
   safariOldStatuePresentation as baseOldStatuePresentation,
-} from "./safari-old-statue-offer-continuation.js?v=20260828-1955";
+} from "./safari-old-statue-offer-continuation.js?v=20260828-2300";
 import { resolveOldStatue } from "./mapless-old-statue-flow.js";
 import { damageSafariPokemonPercent } from "./safari-pokemon-healing.js";
+import { activateSafariNormalEventWildBattle } from "./safari-web-combat-start.js";
 
 function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
@@ -18,6 +19,7 @@ function eventAt(runtime, index) {
   return event;
 }
 function isEgg(pokemon) { return Number(pokemon?.steps_to_hatch ?? 0) > 0 || pokemon?.egg === true; }
+function battleOperation(owner) { return (owner.operations ?? []).find((operation) => operation?.op === "start_wild_battle") ?? null; }
 function applyCollapseDamage(runtime, percent) {
   runtime.player ??= { party:[] };
   const applied = [];
@@ -47,7 +49,7 @@ export function safariOldStatuePresentation(runtime, index) {
   return {
     ...presentation,
     actions:presentation.actions.map((action) => action.id === "break"
-      ? { ...action, meta:"石像を壊します。崩落ダメージ結果はSafari接続済み" }
+      ? { ...action, meta:"石像を壊します。守護者Battleと崩落ダメージはSafari接続済み" }
       : action),
   };
 }
@@ -63,6 +65,20 @@ export async function resolveSafariOldStatueInteraction(runtime, index, requeste
   if (state.board_consumed?.[index]) return { runtime, result:"already_consumed", completed:true, operations:[] };
 
   const roll = Number(event.normal_data?.break_roll ?? 0);
+  if (roll < 50) {
+    const preview = resolveOldStatue({ event, choice:"break", battle_success:false });
+    const battleEvent = battleOperation(preview);
+    if (!battleEvent) throw new Error("old_statue break guardian route requires canonical Battle request");
+    const started = await activateSafariNormalEventWildBattle(runtime, index, {
+      eventId:"old_statue",
+      actionId:"break",
+      battleEvent,
+      request:structuredClone(battleEvent),
+      payload:{ guardian_type:"ROCK", cannot_run:true },
+    });
+    if (started.result === "normal_event_wild_battle_started" && state.battle) globalThis.__maplessNormalEventUi = null;
+    return started;
+  }
   if (roll < 95) return await resolveBaseOldStatueInteraction(runtime, index, action, options);
 
   const owner = resolveOldStatue({ event, choice:"break" });
