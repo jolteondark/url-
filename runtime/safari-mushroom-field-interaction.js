@@ -4,8 +4,7 @@ import { ensureMaplessRunLifecycleState, finishMaplessRun, maplessPartyAllFainte
 import { setMoney } from "./bag-economy-mart-flow.js";
 import { damageSafariPokemonFlat, healSafariPokemonFull, inflictSafariOverworldStatus } from "./safari-pokemon-healing.js";
 import { safariPokemonTypes } from "./safari-pokemon-type-membership.js";
-import { addPokemonRuntimeMaplessBonusStat } from "./pokemon-runtime.js";
-import { SAFARI_NATURE_MASTERS, SAFARI_SPECIES_MASTERS } from "./safari-playable-data.js";
+import { applySafariPartyMaplessBonus } from "./safari-pokemon-mapless-bonus.js";
 
 function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
@@ -22,16 +21,6 @@ function parsedAction(action) {
   return match ? { action: match[1], targetIndex: Number(match[2]) } : { action: raw, targetIndex: null };
 }
 function pokemonLabel(pokemon) { return String(pokemon?.nickname || pokemon?.species || "ポケモン"); }
-function applyPermanentBonus(pokemon, stat, amount) {
-  const speciesMaster = SAFARI_SPECIES_MASTERS[pokemon?.species];
-  if (!speciesMaster) return null;
-  const natureId = pokemon?.nature_for_stats_id ?? pokemon?.nature_id ?? null;
-  const natureMaster = natureId ? SAFARI_NATURE_MASTERS[natureId] : null;
-  return addPokemonRuntimeMaplessBonusStat(pokemon, stat, amount, {
-    base_stats: speciesMaster.base_stats,
-    nature_stat_changes: natureMaster?.stat_changes ?? [],
-  });
-}
 function finishMushroomPartyWipe(runtime) {
   const state = ensureMaplessRunLifecycleState(runtime);
   if (!state.mapless_run_active || !maplessPartyAllFainted(party(runtime))) {
@@ -89,13 +78,12 @@ export function resolveSafariMushroomFieldInteraction(runtime, index, requestedA
   if (owner.result && parsed.targetIndex != null) {
     for (const operation of owner.operations ?? []) {
       if (operation.op === "add_bonus") {
-        const next = applyPermanentBonus(party(runtime)[parsed.targetIndex], operation.stat, operation.amount);
-        if (!next) {
+        const bonus = applySafariPartyMaplessBonus(runtime, parsed.targetIndex, operation.stat, operation.amount);
+        if (!bonus.success) {
           state.notice = "ポケモンの能力上昇を安全に反映できませんでした。";
           return { runtime, result: "bonus_apply_failed", completed: false, operations: [], notice: state.notice, persistenceRequested: false };
         }
-        party(runtime)[parsed.targetIndex] = next;
-        applied.push({ op: "runtime_add_mapless_bonus_stat", party_index: parsed.targetIndex, stat: operation.stat, amount: operation.amount });
+        applied.push(...bonus.operations);
       } else if (operation.op === "heal_pokemon_full") {
         party(runtime)[parsed.targetIndex] = healSafariPokemonFull(party(runtime)[parsed.targetIndex]);
         applied.push({ op: "runtime_heal_pokemon_full", party_index: parsed.targetIndex });
