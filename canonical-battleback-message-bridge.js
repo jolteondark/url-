@@ -1,3 +1,5 @@
+import "./canonical-battleback-presentation-bridge.js";
+
 const CANONICAL_FIELD_MESSAGE = "./assets/canonical-battlebacks/field_message.png";
 
 function applyCanonicalBattleMessageArt() {
