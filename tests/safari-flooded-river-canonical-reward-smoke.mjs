@@ -15,5 +15,13 @@ assert.match(source, /Object\.fromEntries\(items\.map\(\(itemId\) => \[itemId, \
   "Bag preflight must accept the canonical reward pool rather than the legacy LOW_ITEMS-only metadata");
 assert.match(source, /function canonicalForceInput/,
   "force-route item loss remains separate and unchanged by this reward-owner wiring");
+assert.match(source, /damageSafariPokemonPercent/,
+  "Flooded River force damage must delegate Pokemon damage mechanics to the shared Safari owner");
+assert.match(source, /return damageSafariPokemonPercent\(pokemon, percent\)/,
+  "Flooded River must apply canonical percent damage through the shared runtime owner");
+assert.doesNotMatch(source, /updatePokemonRuntime/,
+  "Flooded River adapter must not directly rebuild Pokemon runtime state for force damage");
+assert.doesNotMatch(source, /Math\.ceil\(maxHp \* Math\.trunc\(Number\(percent\)\)/,
+  "Flooded River adapter must not duplicate percent-damage arithmetic");
 
 console.log("Safari Flooded River canonical reward smoke passed");
