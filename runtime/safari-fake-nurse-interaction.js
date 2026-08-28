@@ -1,4 +1,5 @@
 import { resolveFakeNurse } from "./mapless-fake-nurse-flow.js";
+import { projectMaplessNormalEventOptionalReward } from "./mapless-normal-event-optional-reward.js";
 import { RubyMT19937Random } from "./ruby-mt19937-random.js";
 import {
   healSafariPartyFull,
@@ -98,11 +99,16 @@ export async function resolveSafariFakeNurseInteraction(runtime,index,choice){
   const idRoll=Number(event.normal_data?.id_roll??0);
   if(idRoll<50){
     const projected=sharedSmallReward(runtime),reward=projected.reward;
-    if(!reward.success){state.notice="偽看護師が落とした道具を受け取る空きがありません。イベントはまだ完了していません。";return {runtime,result:"reward_bag_full",completed:false,operations:reward.operations??[],notice:state.notice,persistenceRequested:false,availableActions};}
-    const owner=resolveFakeNurse({event,choice:"check_id",has_dark_or_psychic:isWarned,scaling_value:scale,grant_random_result:true});
-    const applied=[...(reward.operations??[]).map((operation)=>structuredClone(operation)),...applySafariSmallItemReward(runtime,reward)];
-    commit(runtime,index,owner,applied);state.notice=`偽看護師は逃げ出し、${reward.selectedItems?.[0]??"道具"}を落としていきました。`;
-    return {runtime,result:owner.outcome,completed:true,reward,operations:state.last_operations,notice:state.notice,persistenceRequested:true,owner};
+    const owner=resolveFakeNurse({event,choice:"check_id",has_dark_or_psychic:isWarned,scaling_value:scale,grant_random_result:reward.success});
+    const optionalReward=projectMaplessNormalEventOptionalReward({ownerResult:owner,rewardResult:reward});
+    const applied=reward.success
+      ? [...(reward.operations??[]).map((operation)=>structuredClone(operation)),...applySafariSmallItemReward(runtime,reward)]
+      : [...optionalReward.rewardOperations];
+    commit(runtime,index,owner,applied);
+    state.notice=reward.success
+      ? `偽看護師は逃げ出し、${reward.selectedItems?.[0]??"道具"}を落としていきました。`
+      : "偽看護師は逃げ出しましたが、バッグがいっぱいで落とした道具は持ち帰れませんでした。";
+    return {runtime,result:owner.outcome,completed:true,reward,optionalReward,operations:state.last_operations,notice:state.notice,persistenceRequested:true,owner};
   }
 
   const preview=resolveFakeNurse({event,choice:"check_id",has_dark_or_psychic:isWarned,scaling_value:scale,battle_success:false});
