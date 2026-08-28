@@ -1,11 +1,10 @@
 import { resolvePhotographer } from "./mapless-normal-events-a3-flow.js";
+import { projectMaplessNormalEventOptionalReward } from "./mapless-normal-event-optional-reward.js";
 import { registerSafariNormalEventBattleContinuation } from "./safari-normal-event-battle-continuation.js";
 import { safariPokemonTypes } from "./safari-pokemon-type-membership.js";
 import {
   applySafariSmallItemReward,
   preflightSafariSharedSmallItemReward,
-  preflightSafariSmallItemReward,
-  SAFARI_SMALL_REWARD_ITEMS,
 } from "./safari-small-item-reward.js";
 import {
   borrowSafariSharedRunRandomInt,
@@ -39,9 +38,6 @@ function addMoney(runtime, amount) {
   runtime.bag.money = Math.max(0, Math.trunc(Number(runtime.bag.money ?? 0))) + value;
   return { op:"runtime_add_money", amount:value };
 }
-function canAcceptSharedSmallReward(runtime) {
-  return SAFARI_SMALL_REWARD_ITEMS.every((item) => preflightSafariSmallItemReward(runtime, item).success);
-}
 function sharedSmallReward(runtime) {
   const state = stateOf(runtime);
   ensureSafariEncounterSeed(state);
@@ -53,9 +49,6 @@ function sharedSmallReward(runtime) {
   );
   if (!reward.success) state.preview_encounter_counter = counter;
   return { reward, counter };
-}
-function rollbackSharedSmallReward(runtime, counter) {
-  if (Number.isInteger(counter) && counter >= 0) stateOf(runtime).preview_encounter_counter = counter;
 }
 function battleOperation(owner) { return (owner.operations ?? []).find((operation) => operation?.op === "start_wild_battle") ?? null; }
 function battleSucceeded(summary = {}) { const decision = Number(summary.decision); return decision === 1 || decision === 4; }
@@ -94,27 +87,25 @@ registerSafariNormalEventBattleContinuation("photographer", (runtime, continuati
 
   const projected = sharedSmallReward(runtime);
   const reward = projected.reward;
-  if (!reward.success) {
-    rollbackSharedSmallReward(runtime, projected.counter);
-    throw new Error("photographer shared small reward no longer fits in Bag");
-  }
-
   const scale = scalingValue(state.day);
   const owner = resolvePhotographer({ event, action:"wild", scaling_value:scale, battle_success:true });
+  const optionalReward = projectMaplessNormalEventOptionalReward({ ownerResult:owner, rewardResult:reward });
   const money = 1200 + scale * 200;
-  const applied = applySafariSmallItemReward(runtime, reward);
+  const applied = reward.success ? applySafariSmallItemReward(runtime, reward) : [];
   const moneyOp = addMoney(runtime, money);
   state.board_events[index] = owner.event;
   state.board_consumed[index] = Boolean(owner.event.normal_resolved);
   state.last_operations = [
-    ...(owner.operations ?? []).filter((operation) => operation?.op !== "start_wild_battle").map((operation) => structuredClone(operation)),
-    ...(reward.operations ?? []).map((operation) => structuredClone(operation)),
+    ...(owner.operations ?? []).filter((operation) => operation?.op !== "start_wild_battle" && operation?.op !== "grant_random").map((operation) => structuredClone(operation)),
+    ...(reward.success ? (reward.operations ?? []) : optionalReward.rewardOperations).map((operation) => structuredClone(operation)),
     ...applied,
     moneyOp,
     { op:"request_save", reason:"normal_event_post_battle" },
   ];
-  state.notice = `撮影に成功し、${money}円と${reward.selectedItems?.[0] ?? "道具"}を受け取りました。`;
-  return { runtime, result:owner.outcome, completed:true, terminal:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+  state.notice = reward.success
+    ? `撮影に成功し、${money}円と${reward.selectedItems?.[0] ?? "道具"}を受け取りました。`
+    : `撮影に成功して${money}円受け取りましたが、バッグがいっぱいで道具は持ち帰れませんでした。`;
+  return { runtime, result:owner.outcome, completed:true, terminal:true, reward, optionalReward, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
 });
 
 export async function resolveSafariPhotographerInteraction(runtime, index, requestedAction) {
@@ -137,10 +128,6 @@ export async function resolveSafariPhotographerInteraction(runtime, index, reque
     const preview = resolvePhotographer({ event, action:"wild", scaling_value:scale, battle_success:false });
     const battleEvent = battleOperation(preview);
     if (!battleEvent) throw new Error("photographer wild route requires canonical Battle request");
-    if (!canAcceptSharedSmallReward(runtime)) {
-      state.notice = "撮影成功時の道具を確実に受け取れる空きがありません。バッグを空けてから探してください。";
-      return { runtime, result:"reward_bag_full", completed:false, operations:[], notice:state.notice, persistenceRequested:false, availableActions };
-    }
     const started = await activateSafariNormalEventWildBattle(runtime, index, {
       eventId:"photographer",
       actionId:"wild",
