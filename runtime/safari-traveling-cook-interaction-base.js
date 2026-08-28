@@ -1,7 +1,7 @@
 import { resolveRewardTransaction } from "./bag-economy-reward-transaction.js";
 import { resolveTravelingCook } from "./mapless-normal-events-a3-flow.js";
 import { ensureMaplessRunLifecycleState, finishMaplessRun, maplessPartyAllFainted } from "./mapless-run-end-lifecycle.js";
-import { healSafariPartyPercent, inflictSafariOverworldStatus } from "./safari-pokemon-healing.js";
+import { damageSafariPokemonFlat, healSafariPartyPercent, inflictSafariOverworldStatus } from "./safari-pokemon-healing.js";
 import { updatePokemonRuntime } from "./pokemon-runtime.js";
 
 const SAFARI_BAG_MAX_SLOTS = 20;
@@ -64,9 +64,8 @@ function applyFlatPartyDamage(runtime, amount) {
   runtime.player ??= { party:[] };
   runtime.player.party = (runtime.player.party ?? []).map((pokemon, index) => {
     if (!usable(pokemon)) return pokemon;
-    const hp = Math.max(0, Math.trunc(Number(pokemon.hp ?? 0)) - Math.max(0, Math.trunc(Number(amount) || 0)));
     applied.push({ op:"runtime_damage_pokemon", party_index:index, amount:Number(amount) });
-    return updatePokemonRuntime(pokemon, { hp });
+    return damageSafariPokemonFlat(pokemon, amount);
   });
   return applied;
 }
