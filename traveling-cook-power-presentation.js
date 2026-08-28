@@ -1,4 +1,4 @@
-const OWNER_URL = "./runtime/safari-traveling-cook-interaction.js?v=20260825-2200";
+const OWNER_URL = "./runtime/safari-traveling-cook-interaction.js?v=20260828-2140";
 let resolvingPowerMeal = false;
 
 function runtime() { return globalThis.__maplessSafariRuntime ?? null; }
