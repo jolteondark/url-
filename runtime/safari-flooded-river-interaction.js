@@ -2,8 +2,8 @@ import { quantity, remove } from "./bag-economy-mart-flow.js";
 import { resolveRewardTransaction } from "./bag-economy-reward-transaction.js";
 import { resolveFloodedRiver } from "./mapless-normal-events-a1-flow.js";
 import { resolveMaplessV108FloodedRiverReward } from "./mapless-v108-event-local-item-reward.js";
-import { updatePokemonRuntime } from "./pokemon-runtime.js";
 import { RubyMT19937Random } from "./ruby-mt19937-random.js";
+import { damageSafariPokemonPercent } from "./safari-pokemon-healing.js";
 import { hasSafariUsablePartyType, safariPokemonTypes } from "./safari-pokemon-type-membership.js";
 
 const LOW_ITEMS = Object.freeze([
@@ -71,9 +71,7 @@ function preflightSpecialReward(runtime, items) {
 function applyPartyDamage(runtime, percent) {
   runtime.player.party = (runtime.player?.party ?? []).map((pokemon) => {
     if (!pokemon || Number(pokemon.hp ?? 0) <= 0 || pokemon.egg === true) return pokemon;
-    const maxHp = Math.max(1, Math.trunc(Number(pokemon.max_hp ?? pokemon.hp ?? 1)));
-    const damage = Math.max(1, Math.ceil(maxHp * Math.trunc(Number(percent)) / 100));
-    return updatePokemonRuntime(pokemon, { hp: Math.max(1, Number(pokemon.hp) - damage) });
+    return damageSafariPokemonPercent(pokemon, percent);
   });
 }
 
