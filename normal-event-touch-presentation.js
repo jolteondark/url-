@@ -54,7 +54,7 @@ function loadOwner(eventId) {
       mushroom_field:"./runtime/safari-mushroom-field-interaction.js",
       hot_spring:"./runtime/safari-hot-spring-interaction.js",
       fake_nurse:"./runtime/safari-fake-nurse-interaction.js",
-      traveling_cook:"./runtime/safari-traveling-cook-interaction.js?v=20260825-2200",
+      traveling_cook:"./runtime/safari-traveling-cook-interaction.js?v=20260828-1605",
       flooded_river:"./runtime/safari-flooded-river-interaction.js",
       burning_wagon:"./runtime/safari-burning-wagon-interaction.js",
       meteor_fragment:"./runtime/safari-meteor-fragment-interaction.js",
