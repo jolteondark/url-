@@ -48,6 +48,13 @@ export function healSafariPartyPercent(runtime, percent, { cureStatus = false } 
   return runtime.player.party;
 }
 
+export function damageSafariPokemonFlat(pokemon, amount) {
+  if (!isUsable(pokemon)) return pokemon;
+  const damage = Math.max(0, Math.trunc(Number(amount) || 0));
+  const hp = Math.max(0, Math.trunc(Number(pokemon.hp ?? 0)) - damage);
+  return updatePokemonRuntime(pokemon, { hp });
+}
+
 export function damageSafariPokemonPercent(pokemon, percent) {
   if (!isUsable(pokemon)) return pokemon;
   const pct = Math.max(0, Math.trunc(Number(percent) || 0));
