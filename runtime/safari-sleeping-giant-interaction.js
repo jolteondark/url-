@@ -40,19 +40,20 @@ registerSafariNormalEventBattleContinuation("sleeping_giant", (runtime, continua
   if (!event || event.kind !== "normal_event" || event.normal_event_id !== "sleeping_giant") throw new Error("sleeping_giant continuation requires originating event");
   const success = battleSucceeded(continuation.battleReturn);
   const item = displayedItem(event);
-  const preflight = success ? reward(runtime, item) : null;
-  if (preflight && !preflight.success) throw new Error("sleeping_giant post-battle reward no longer fits in Bag");
+  const rewardAttempt = success ? reward(runtime, item) : null;
   const owner = resolveSleepingGiant({ event, action:continuation.actionId, battle_success:success });
-  const applied = applyReward(runtime, preflight);
+  const applied = applyReward(runtime, rewardAttempt);
   state.board_events[index] = owner.event;
   state.board_consumed[index] = Boolean(owner.event.normal_resolved);
   state.last_operations = [
     ...(owner.operations ?? []).filter((operation) => operation?.op !== "start_wild_battle" && operation?.op !== "grant_items").map((operation) => structuredClone(operation)),
-    ...(preflight?.operations ?? []).map((operation) => structuredClone(operation)),
+    ...(rewardAttempt?.operations ?? []).map((operation) => structuredClone(operation)),
     ...applied,
     { op:"request_save", reason:"normal_event_post_battle" },
   ];
-  state.notice = success ? `巨体のポケモンを退け、${item}を回収しました。` : "巨体のポケモンとの戦いから離れました。";
+  state.notice = success
+    ? (rewardAttempt?.success ? `巨体のポケモンを退け、${item}を回収しました。` : `巨体のポケモンを退けましたが、バッグがいっぱいで${item}は持ち帰れませんでした。`)
+    : "巨体のポケモンとの戦いから離れました。";
   return { runtime, result:owner.outcome, completed:true, terminal:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
 });
 
@@ -77,24 +78,22 @@ export async function resolveSafariSleepingGiantInteraction(runtime, index, requ
     return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
   }
   const item = displayedItem(event);
-  const preflight = reward(runtime, item);
-  if (!preflight.success) {
-    state.notice = `${item}を受け取る空きがありません。バッグを空けてから試してください。`;
-    return { runtime, result:"reward_bag_full", completed:false, operations:preflight.operations.map((operation) => structuredClone(operation)), notice:state.notice, persistenceRequested:false, availableActions };
-  }
   const preview = resolveSleepingGiant({ event, action, battle_success:false });
   const battleEvent = battleOperation(preview);
   if (!battleEvent) {
     const owner = resolveSleepingGiant({ event, action });
-    const applied = applyReward(runtime, preflight);
+    const rewardAttempt = reward(runtime, item);
+    const applied = applyReward(runtime, rewardAttempt);
     state.board_events[index] = owner.event;
     state.board_consumed[index] = Boolean(owner.event.normal_resolved);
     state.last_operations = [
       ...(owner.operations ?? []).filter((operation) => operation?.op !== "grant_items").map((operation) => structuredClone(operation)),
-      ...(preflight.operations ?? []).map((operation) => structuredClone(operation)),
+      ...(rewardAttempt.operations ?? []).map((operation) => structuredClone(operation)),
       ...applied,
     ];
-    state.notice = `眠っている隙に${item}を回収しました。`;
+    state.notice = rewardAttempt.success
+      ? `眠っている隙に${item}を回収しました。`
+      : `眠っている隙に手を伸ばしましたが、バッグがいっぱいで${item}は持ち帰れませんでした。`;
     return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
   }
   const started = await activateSafariNormalEventWildBattle(runtime, index, {
