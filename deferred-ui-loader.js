@@ -33,6 +33,7 @@ async function loadBoardPresentation() {
     loadModule("./old-statue-touch-presentation.js?v=20260829-0005"),
     loadModule("./machine-gacha-touch-presentation.js?v=20260829-0315"),
     loadModule("./wishing-fountain-touch-presentation.js?v=20260829-0805"),
+    loadModule("./item-collector-touch-presentation.js?v=20260829-0815"),
   ]);
 }
 
