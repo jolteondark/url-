@@ -1,4 +1,5 @@
 import { resolveStreetPerformer } from "./mapless-normal-events-a4-flow.js";
+import { projectMaplessNormalEventOptionalReward } from "./mapless-normal-event-optional-reward.js";
 import { ensureSafariGeneralData } from "./safari-general-data-demand.js";
 import { grantSafariNormalEventPokemonExp } from "./safari-normal-event-exp-owner.js";
 import { registerSafariNormalEventBattleContinuation } from "./safari-normal-event-battle-continuation.js";
@@ -62,7 +63,7 @@ function commitResolvedEvent(runtime, index, owner, appliedOperations) {
   state.board_visited[index] = true;
   state.board_consumed[index] = Boolean(owner.event.normal_resolved);
   state.last_operations = [
-    ...(owner.operations ?? []).map((operation) => structuredClone(operation)),
+    ...(owner.operations ?? []).filter((operation) => operation?.op !== "grant_random").map((operation) => structuredClone(operation)),
     ...appliedOperations,
   ];
   return state;
@@ -151,6 +152,7 @@ export async function resolveSafariStreetPerformerInteraction(runtime, index, re
     if (!moneyOperation || !expOperation) throw new Error("street_performer perform canonical rewards are unresolved");
 
     let reward = null;
+    let optionalReward = null;
     let rewardItem = null;
     let rewardCounter = null;
     if (hasSameTypeMove) {
@@ -158,10 +160,7 @@ export async function resolveSafariStreetPerformerInteraction(runtime, index, re
       reward = projected.reward;
       rewardCounter = projected.counter;
       rewardItem = reward.selectedItems?.[0] ?? null;
-      if (!reward.success) {
-        state.notice = "芸の追加報酬を受け取る空きがありません。バッグを空けてから挑戦してください。";
-        return { runtime, result:"reward_bag_full", completed:false, operations:reward.operations.map((operation) => structuredClone(operation)), notice:state.notice, persistenceRequested:false };
-      }
+      optionalReward = projectMaplessNormalEventOptionalReward({ ownerResult:owner, rewardResult:reward });
     }
 
     let exp;
@@ -174,14 +173,16 @@ export async function resolveSafariStreetPerformerInteraction(runtime, index, re
     const appliedOperations = [addMoney(runtime, Number(moneyOperation.amount))];
     appliedOperations.push(...exp.operations.map((operation) => ({ ...structuredClone(operation), scope:"street_performer" })));
     if (reward) {
-      appliedOperations.push(...reward.operations.map((operation) => structuredClone(operation)));
-      appliedOperations.push(...applySafariSmallItemReward(runtime, reward));
+      appliedOperations.push(...(reward.success ? reward.operations : optionalReward.rewardOperations).map((operation) => structuredClone(operation)));
+      if (reward.success) appliedOperations.push(...applySafariSmallItemReward(runtime, reward));
     }
     commitResolvedEvent(runtime, index, owner, appliedOperations);
     state.notice = hasSameTypeMove
-      ? `${pokemonLabel(runtime.player.party[partyIndex])}が${type}芸を披露し、${moneyOperation.amount}円・EXP ${exp.expGained}・${rewardItem}を受け取りました。`
+      ? reward.success
+        ? `${pokemonLabel(runtime.player.party[partyIndex])}が${type}芸を披露し、${moneyOperation.amount}円・EXP ${exp.expGained}・${rewardItem}を受け取りました。`
+        : `${pokemonLabel(runtime.player.party[partyIndex])}が${type}芸を披露し、${moneyOperation.amount}円とEXP ${exp.expGained}を受け取りましたが、バッグがいっぱいで追加の道具は持ち帰れませんでした。`
       : `${pokemonLabel(runtime.player.party[partyIndex])}が${type}芸を披露し、${moneyOperation.amount}円とEXP ${exp.expGained}を受け取りました。`;
-    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+    return { runtime, result:owner.outcome, completed:true, reward, optionalReward, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
   }
 
   if (raw === "watch") {
