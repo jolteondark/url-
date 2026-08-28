@@ -2,9 +2,9 @@ import { resolveMushroomField } from "./mapless-normal-events-a1-flow.js";
 import { maplessCarryMoneyGain } from "./mapless-carry-class-rules.js";
 import { ensureMaplessRunLifecycleState, finishMaplessRun, maplessPartyAllFainted } from "./mapless-run-end-lifecycle.js";
 import { setMoney } from "./bag-economy-mart-flow.js";
-import { healSafariPokemonFull, inflictSafariOverworldStatus } from "./safari-pokemon-healing.js";
+import { damageSafariPokemonFlat, healSafariPokemonFull, inflictSafariOverworldStatus } from "./safari-pokemon-healing.js";
 import { safariPokemonTypes } from "./safari-pokemon-type-membership.js";
-import { addPokemonRuntimeMaplessBonusStat, updatePokemonRuntime } from "./pokemon-runtime.js";
+import { addPokemonRuntimeMaplessBonusStat } from "./pokemon-runtime.js";
 import { SAFARI_NATURE_MASTERS, SAFARI_SPECIES_MASTERS } from "./safari-playable-data.js";
 
 function stateOf(runtime) {
@@ -22,10 +22,6 @@ function parsedAction(action) {
   return match ? { action: match[1], targetIndex: Number(match[2]) } : { action: raw, targetIndex: null };
 }
 function pokemonLabel(pokemon) { return String(pokemon?.nickname || pokemon?.species || "ポケモン"); }
-function applyFlatDamage(pokemon, amount) {
-  const hp = Math.max(0, Math.trunc(Number(pokemon?.hp ?? 0)) - Math.max(0, Math.trunc(Number(amount) || 0)));
-  return updatePokemonRuntime(pokemon, { hp });
-}
 function applyPermanentBonus(pokemon, stat, amount) {
   const speciesMaster = SAFARI_SPECIES_MASTERS[pokemon?.species];
   if (!speciesMaster) return null;
@@ -107,7 +103,7 @@ export function resolveSafariMushroomFieldInteraction(runtime, index, requestedA
         party(runtime)[parsed.targetIndex] = inflictSafariOverworldStatus(party(runtime)[parsed.targetIndex], operation.status);
         applied.push({ op: "runtime_inflict_status", party_index: parsed.targetIndex, status: operation.status });
       } else if (operation.op === "damage_pokemon") {
-        party(runtime)[parsed.targetIndex] = applyFlatDamage(party(runtime)[parsed.targetIndex], operation.amount);
+        party(runtime)[parsed.targetIndex] = damageSafariPokemonFlat(party(runtime)[parsed.targetIndex], operation.amount);
         applied.push({ op: "runtime_damage_pokemon", party_index: parsed.targetIndex, amount: operation.amount });
       }
     }
