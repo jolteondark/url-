@@ -3,7 +3,7 @@ import "./wishing-fountain-touch-presentation.js?v=20260826-0245";
 import "./item-collector-touch-presentation.js?v=20260825-2355";
 import "./trainer-camp-touch-presentation.js?v=20260825-2330";
 import "./berry-juice-shop-touch-presentation.js?v=20260825-2300";
-import { safariLostBagWarning } from "./runtime/safari-lost-bag-interaction.js?v=20260826-1905";
+import { safariLostBagWarning } from "./runtime/safari-lost-bag-interaction.js?v=20260829-0715";
 
 function runtime() { return globalThis.__maplessSafariRuntime ?? null; }
 function state() { return runtime()?.variables?.mapless ?? null; }
