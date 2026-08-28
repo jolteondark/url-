@@ -1,10 +1,10 @@
 import { resolveLostBag } from "./mapless-lost-bag-flow.js";
 import {
   MAPLESS_NORMAL_EVENT_MID_REWARD_ITEMS,
-  maplessNormalEventMediumRewardPool,
   resolveMaplessNormalEventMediumReward,
 } from "./mapless-normal-event-medium-reward.js";
 import { MAPLESS_NORMAL_EVENT_SMALL_REWARD_ITEMS } from "./mapless-normal-event-small-reward.js";
+import { projectMaplessNormalEventOptionalReward } from "./mapless-normal-event-optional-reward.js";
 import { RubyMT19937Random } from "./ruby-mt19937-random.js";
 import {
   borrowSafariSharedRunRandomInt,
@@ -31,12 +31,6 @@ function dayOf(state) { return Math.max(1, Math.trunc(Number(state.day) || 1)); 
 function bagSlots(runtime) { return runtime.bag?.slots ?? []; }
 function rewardPockets(runtime) {
   return { general:{ slots:bagSlots(runtime), maxSlots:SAFARI_BAG_MAX_SLOTS, maxPerSlot:SAFARI_BAG_MAX_PER_SLOT } };
-}
-function canGuaranteeSingleMediumReward(runtime) {
-  const slots = bagSlots(runtime).filter(Boolean);
-  if (slots.length < SAFARI_BAG_MAX_SLOTS) return true;
-  const pool = maplessNormalEventMediumRewardPool(dayOf(stateOf(runtime)), MEDIUM_ITEM_META);
-  return pool.every((item) => slots.some((slot) => String(slot?.[0] ?? "") === item && Number(slot?.[1] ?? 0) < SAFARI_BAG_MAX_PER_SLOT));
 }
 function resolveMediumReward(runtime, count, randomInt) {
   return resolveMaplessNormalEventMediumReward({
@@ -91,6 +85,13 @@ function trainerRequest(owner) {
 function trapWarning(runtime, event) {
   return event?.normal_data?.trap === true && hasSafariUsablePartyType(runtime, "DARK", "PSYCHIC");
 }
+function rewardProjection(owner, reward) {
+  return reward ? projectMaplessNormalEventOptionalReward({ ownerResult:owner, rewardResult:reward }) : null;
+}
+function rewardOperations(reward, optionalReward) {
+  if (!reward) return [];
+  return (reward.success ? reward.operations : optionalReward?.rewardOperations ?? []).map((operation) => structuredClone(operation));
+}
 
 registerSafariNormalEventBattleContinuation("lost_bag", (runtime, continuation) => {
   if (!["open", "wait"].includes(continuation.actionId)) throw new Error(`unsupported lost_bag Battle continuation action: ${continuation.actionId}`);
@@ -100,7 +101,6 @@ registerSafariNormalEventBattleContinuation("lost_bag", (runtime, continuation) 
   if (!event || event.kind !== "normal_event" || event.normal_event_id !== "lost_bag") throw new Error("lost_bag continuation requires the originating board event");
   const success = battleSucceeded(continuation.battleReturn);
   const reward = success ? sharedMediumReward(runtime, 1) : null;
-  if (success && !reward?.success) throw new Error("lost_bag post-battle medium reward no longer fits in Bag");
   const owner = resolveLostBag({
     event,
     choice:continuation.actionId,
@@ -112,21 +112,23 @@ registerSafariNormalEventBattleContinuation("lost_bag", (runtime, continuation) 
     grant_random_result:reward?.success ?? false,
     add_money_result:true,
   });
-  const applied = [];
-  if (reward) {
-    applied.push(...reward.operations.map((operation) => structuredClone(operation)));
-    applied.push(...applyMediumReward(runtime, reward));
-  }
+  const optionalReward = rewardProjection(owner, reward);
+  const applied = rewardOperations(reward, optionalReward);
+  if (reward?.success) applied.push(...applyMediumReward(runtime, reward));
   const moneyOperation = success && continuation.actionId === "wait"
     ? (owner.operations ?? []).find((operation) => operation?.op === "add_money") ?? null
     : null;
   if (moneyOperation) applied.push(addMoney(runtime, moneyOperation.amount));
   commit(runtime, index, owner, applied);
-  const itemText = reward?.selectedItems?.length ? ` ${reward.selectedItems.join("・")}を受け取りました。` : "";
+  const itemText = reward?.success && reward.selectedItems?.length ? ` ${reward.selectedItems.join("・")}を受け取りました。` : "";
   state.notice = success
-    ? continuation.actionId === "wait"
-      ? `待ち伏せの一団に勝ち、${moneyOperation?.amount ?? 0}円${itemText ? `と${itemText.trim()}` : ""}を受け取りました。`
-      : `罠を仕掛けたトレーナーに勝ちました。${itemText}`.trim()
+    ? reward && !reward.success
+      ? continuation.actionId === "wait"
+        ? `待ち伏せの一団に勝ち、${moneyOperation?.amount ?? 0}円を受け取りましたが、バッグがいっぱいで道具は持ち帰れませんでした。`
+        : "罠を仕掛けたトレーナーに勝ちましたが、バッグがいっぱいで報酬の道具は持ち帰れませんでした。"
+      : continuation.actionId === "wait"
+        ? `待ち伏せの一団に勝ち、${moneyOperation?.amount ?? 0}円${itemText ? `と${itemText.trim()}` : ""}を受け取りました。`
+        : `罠を仕掛けたトレーナーに勝ちました。${itemText}`.trim()
     : continuation.actionId === "wait"
       ? "待ち伏せの一団との勝負を終えました。"
       : "罠を仕掛けたトレーナーとの勝負を終えました。";
@@ -140,6 +142,7 @@ registerSafariNormalEventBattleContinuation("lost_bag", (runtime, continuation) 
     persistenceRequested:true,
     owner,
     reward,
+    optionalReward,
     moneyAdded:moneyOperation?.amount ?? 0,
   };
 });
@@ -175,10 +178,6 @@ export async function resolveSafariLostBagInteraction(runtime, index, requestedA
   }
 
   if (event.normal_data?.trap === true) {
-    if (!canGuaranteeSingleMediumReward(runtime)) {
-      state.notice = "罠の戦闘後報酬を受け取れるよう、バッグを1枠以上空けてから挑んでください。";
-      return { runtime, result:"reward_bag_full", completed:false, availableActions, operations:[], notice:state.notice, persistenceRequested:false };
-    }
     const preview = resolveLostBag({
       event,
       choice:action,
@@ -205,26 +204,19 @@ export async function resolveSafariLostBagInteraction(runtime, index, requestedA
   if (action === "open") {
     const rng = new RubyMT19937Random(Number(event.normal_seed ?? 0) & 0x7fffffff);
     const reward = resolveMediumReward(runtime, 2, (max) => rng.randInt(max));
-    if (!reward.success) {
-      state.notice = "落とし物の中身を受け取るバッグの空きがありません。袋はまだ開けていません。";
-      return { runtime, result:"reward_bag_full", completed:false, availableActions, operations:reward.operations ?? [], notice:state.notice, persistenceRequested:false };
-    }
-    const owner = resolveLostBag({ event, choice:"open", has_dark_or_psychic:warned, current_day:day, scaling_value:scale, grant_random_result:true });
-    const applied = [...reward.operations.map((operation) => structuredClone(operation)), ...applyMediumReward(runtime, reward)];
+    const owner = resolveLostBag({ event, choice:"open", has_dark_or_psychic:warned, current_day:day, scaling_value:scale, grant_random_result:reward.success });
+    const optionalReward = rewardProjection(owner, reward);
+    const applied = rewardOperations(reward, optionalReward);
+    if (reward.success) applied.push(...applyMediumReward(runtime, reward));
     commit(runtime, index, owner, applied);
-    state.notice = `落とし物を開け、${reward.selectedItems.join("・")}を手に入れました。`;
-    return { runtime, result:owner.outcome, completed:true, reward, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+    state.notice = reward.success
+      ? `落とし物を開け、${reward.selectedItems.join("・")}を手に入れました。`
+      : "落とし物を開けましたが、バッグがいっぱいで中の道具は持ち帰れませんでした。";
+    return { runtime, result:owner.outcome, completed:true, reward, optionalReward, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
   }
 
   const waitRoll = Number(event.normal_data?.wait_roll ?? 0);
-  let reward = null;
-  if (waitRoll < 70) {
-    reward = sharedMediumReward(runtime, 1);
-    if (!reward.success) {
-      state.notice = "持ち主のお礼を受け取るバッグの空きがありません。イベントはまだ完了していません。";
-      return { runtime, result:"reward_bag_full", completed:false, availableActions, operations:reward.operations ?? [], notice:state.notice, persistenceRequested:false };
-    }
-  }
+  const reward = waitRoll < 70 ? sharedMediumReward(runtime, 1) : null;
   const owner = resolveLostBag({
     event,
     choice:"wait",
@@ -234,16 +226,16 @@ export async function resolveSafariLostBagInteraction(runtime, index, requestedA
     grant_random_result:reward?.success ?? true,
     add_money_result:true,
   });
-  const applied = [];
-  if (reward) {
-    applied.push(...reward.operations.map((operation) => structuredClone(operation)));
-    applied.push(...applyMediumReward(runtime, reward));
-  }
+  const optionalReward = rewardProjection(owner, reward);
+  const applied = rewardOperations(reward, optionalReward);
+  if (reward?.success) applied.push(...applyMediumReward(runtime, reward));
   const moneyOperation = (owner.operations ?? []).find((operation) => operation?.op === "add_money");
   if (moneyOperation) applied.push(addMoney(runtime, moneyOperation.amount));
   commit(runtime, index, owner, applied);
   state.notice = owner.outcome === "owner_returned"
-    ? `持ち主が戻り、お礼に${moneyOperation?.amount ?? 0}円${reward?.selectedItems?.length ? `と${reward.selectedItems.join("・")}` : ""}を受け取りました。`
+    ? reward && !reward.success
+      ? `持ち主が戻り、お礼に${moneyOperation?.amount ?? 0}円を受け取りましたが、バッグがいっぱいで道具は持ち帰れませんでした。`
+      : `持ち主が戻り、お礼に${moneyOperation?.amount ?? 0}円${reward?.selectedItems?.length ? `と${reward.selectedItems.join("・")}` : ""}を受け取りました。`
     : "しばらく待ちましたが、持ち主は戻りませんでした。";
-  return { runtime, result:owner.outcome, completed:true, reward, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+  return { runtime, result:owner.outcome, completed:true, reward, optionalReward, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
 }
