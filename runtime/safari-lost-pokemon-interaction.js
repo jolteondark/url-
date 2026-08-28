@@ -1,4 +1,5 @@
 import { resolveRewardTransaction } from "./bag-economy-reward-transaction.js";
+import { projectMaplessNormalEventOptionalReward } from "./mapless-normal-event-optional-reward.js";
 import {
   MAPLESS_NORMAL_EVENT_MID_REWARD_ITEMS,
   pickMaplessNormalEventMediumRewards,
@@ -159,23 +160,25 @@ export async function resolveSafariLostPokemonInteraction(runtime, index, reques
       }
     }
     const transaction = rewardTransaction(runtime, selectedMedium.items);
-    if (transaction && !transaction.success) {
-      if (sharedCounter !== null) state.preview_encounter_counter = sharedCounter;
-      state.notice = "バッグにお礼の道具を入れる空きがありません。まだ探索は完了していません。";
-      state.last_operations = transaction.operations.map((operation) => structuredClone(operation));
-      return { runtime, result:"reward_bag_full", completed:false, operations:state.last_operations, notice:state.notice, persistenceRequested:false, availableActions };
-    }
+    const optionalReward = transaction
+      ? projectMaplessNormalEventOptionalReward({ ownerResult:preview, rewardResult:transaction })
+      : null;
+    if (transaction && !transaction.success && sharedCounter !== null) state.preview_encounter_counter = sharedCounter;
     const applied = applyReward(runtime, transaction);
     state.board_events[index] = preview.event;
     state.board_consumed[index] = Boolean(preview.event.normal_resolved);
     state.last_operations = [
       ...preview.operations.map((operation) => structuredClone(operation)),
-      ...selectedMedium.operations.map((operation) => structuredClone(operation)),
+      ...(transaction?.success ? selectedMedium.operations : []).map((operation) => structuredClone(operation)),
       ...(transaction?.operations ?? []).map((operation) => structuredClone(operation)),
       ...applied,
     ];
-    state.notice = preview.outcome === "search_trainer_reward" ? "飼い主を見つけ、お礼に道具を受け取りました。" : "迷子のポケモンを親元へ返しました。";
-    return { runtime, result:preview.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner:preview };
+    state.notice = preview.outcome === "search_trainer_reward"
+      ? transaction?.success
+        ? "飼い主を見つけ、お礼に道具を受け取りました。"
+        : "飼い主を見つけましたが、バッグがいっぱいでお礼の道具は持ち帰れませんでした。"
+      : "迷子のポケモンを親元へ返しました。";
+    return { runtime, result:preview.outcome, completed:true, optionalReward, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner:preview };
   }
 
   if (action === "berry") {
