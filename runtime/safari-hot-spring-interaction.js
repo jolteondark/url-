@@ -2,8 +2,9 @@ import { resolveRewardTransaction } from "./bag-economy-reward-transaction.js";
 import { resolveHotSpring } from "./mapless-normal-events-a1-flow.js";
 import { RubyMT19937Random } from "./ruby-mt19937-random.js";
 import { resolveMaplessV108HotSpringBottleReward } from "./mapless-v108-event-local-item-reward.js";
+import { ensureMaplessRunLifecycleState, finishMaplessRun, maplessPartyAllFainted } from "./mapless-run-end-lifecycle.js";
 import {
-  damageSafariPokemonPercent,
+  damageSafariPokemonFlat,
   healSafariPartyFull,
   healSafariPartyPercent,
   inflictSafariOverworldStatus,
@@ -31,6 +32,23 @@ function preflightBottleReward(runtime, items) {
     itemMeta,
     items,
   });
+}
+function finishHotSpringPartyWipe(runtime) {
+  const state = ensureMaplessRunLifecycleState(runtime);
+  if (!state.mapless_run_active || !maplessPartyAllFainted(runtime.player?.party ?? [])) {
+    return { finished:false, overflow:false, operations:[] };
+  }
+  state.mapless_run_end_pending = true;
+  const finished = finishMaplessRun(runtime);
+  state.location = "home";
+  return {
+    ...finished,
+    operations:[
+      { op:"mark_run_end", reason:"party_wipe", source:"normal_event:hot_spring" },
+      ...(finished.operations ?? []),
+      { op:"return_to_home", source:"normal_event:hot_spring" },
+    ],
+  };
 }
 
 export function resolveSafariHotSpringInteraction(runtime, index, action) {
@@ -90,7 +108,7 @@ export function resolveSafariHotSpringInteraction(runtime, index, action) {
     } else if (owner.outcome === "enter_burn") {
       const activeIndex = firstUsableIndex(runtime);
       if (activeIndex >= 0) {
-        let pokemon = damageSafariPokemonPercent(runtime.player.party[activeIndex], 15);
+        let pokemon = damageSafariPokemonFlat(runtime.player.party[activeIndex], 15);
         pokemon = inflictSafariOverworldStatus(pokemon, "BURN");
         runtime.player.party[activeIndex] = pokemon;
         applied.push({ op: "runtime_damage_pokemon", party_index: activeIndex, amount: 15 }, { op: "runtime_inflict_status", party_index: activeIndex, status: "BURN" });
@@ -104,18 +122,38 @@ export function resolveSafariHotSpringInteraction(runtime, index, action) {
 
   state.board_events[index] = owner.event;
   state.board_consumed[index] = Boolean(owner.event.normal_resolved);
-  state.last_operations = [
+  const eventOperations = [
     ...(owner.operations ?? []).map((operation) => structuredClone(operation)),
     ...(bottleReward?.operations ?? []).map((operation) => structuredClone(operation)),
     ...applied,
   ];
+  state.last_operations = eventOperations;
   state.notice = owner.outcome === "safe_full_heal" ? "みず・こおりタイプの力で安全に温泉を整え、手持ちが完全回復しました。"
     : owner.outcome === "enter_half_heal" ? "温泉で休み、手持ちのHPが回復しました。"
       : owner.outcome === "enter_full_heal" ? "温泉で十分に休み、手持ちが完全回復しました。"
-        : owner.outcome === "enter_burn" ? "熱湯が噴き出し、先頭のポケモンが傷とやけどを負いました。"
+        : owner.outcome === "enter_burn" ? "熱湯が噴き出し、先頭のポケモンが15ダメージとやけどを負いました。"
           : owner.outcome === "bottled_water" ? "温泉水を汲み、道具として持ち帰りました。"
             : "温泉を使わず立ち去りました。";
-  return { runtime, result: owner.outcome, completed: Boolean(owner.result), roll: preparedEvent.normal_data.enter_roll ?? null, operations: state.last_operations, notice: state.notice, persistenceRequested: Boolean(owner.result), owner };
+
+  const runEnd = owner.result && owner.outcome === "enter_burn"
+    ? finishHotSpringPartyWipe(runtime)
+    : { finished:false, overflow:false, operations:[] };
+  if (runEnd.finished) {
+    state.notice = "熱湯で手持ちが全滅したため、今回のランは終了しました。";
+    state.last_operations = [...eventOperations, ...(runEnd.operations ?? [])];
+  }
+
+  return {
+    runtime,
+    result: owner.outcome,
+    completed: Boolean(owner.result),
+    roll: preparedEvent.normal_data.enter_roll ?? null,
+    operations: state.last_operations,
+    notice: state.notice,
+    persistenceRequested: Boolean(owner.result) || runEnd.finished,
+    owner,
+    runEnd,
+  };
 }
 
 export function interactiveSafariHotSpring(runtime, index) {
