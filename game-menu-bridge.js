@@ -133,7 +133,7 @@ async function playBattleItemPresentation(runtime, events = []) {
       const bar = byId(event.target + "-hp-bar");
       const maxHp = Number(event.targetMaxHp ?? 0);
       if (hp && maxHp > 0) hp.textContent = `${event.hpAfter} / ${maxHp}`;
-      if (bar && maxHp > 0) bar.style.width = Math.max(0, Math.min(100, Number(event.hpAfter]) / maxHp * 100)) + "%";
+      if (bar && maxHp > 0) bar.style.width = Math.max(0, Math.min(100, Number(event.hpAfter) / maxHp * 100)) + "%";
       target?.classList.add("hit");
       await sleep(220);
       target?.classList.remove("hit");
