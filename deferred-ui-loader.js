@@ -3,6 +3,7 @@ const loadedModules = new Map();
 let sceneBundleSyncScheduled = false;
 let gameMenuOpenPending = false;
 let boardPresentationManifestPromise = null;
+let battleChromePromise = null;
 
 const boardPresentationFallbackModules = [
   "./berry-juice-shop-touch-presentation.js?v=20260829-1102",
@@ -70,6 +71,20 @@ async function loadBattleUi() {
   ]);
 }
 
+function loadBattleChrome() {
+  if (battleChromePromise) return battleChromePromise;
+  loadStyle("./canonical-battle-ui.css?v=20260829-2001");
+  loadStyle("./canonical-battle-status.css?v=20260829-2001");
+  battleChromePromise = Promise.all([
+    loadModule("./canonical-battle-ui-bridge.js?v=20260829-2001"),
+    loadModule("./canonical-battle-status-bridge.js?v=20260829-2001"),
+  ]).catch((error) => {
+    battleChromePromise = null;
+    throw error;
+  });
+  return battleChromePromise;
+}
+
 async function loadShopUi() {
   loadStyle("./shop-touch-presentation.css");
   await loadModule("./shop-touch-presentation.js");
@@ -100,7 +115,10 @@ function menuUiReadyForTab(tab, modules) {
 
 function syncSceneBundles() {
   const state = globalThis.__maplessSafariRuntime?.variables?.mapless;
-  if (state?.battle) loadBattleUi();
+  if (state?.battle) {
+    loadBattleUi();
+    loadBattleChrome();
+  }
   if (state?.shop) loadShopUi();
 }
 
