@@ -1,0 +1,10 @@
+{
+  "modules": [
+    "./berry-juice-shop-touch-presentation.js?v=20260829-1102",
+    "./trainer-camp-touch-presentation.js?v=20260829-1102",
+    "./old-statue-touch-presentation.js?v=20260829-0005",
+    "./machine-gacha-touch-presentation.js?v=20260829-0315",
+    "./wishing-fountain-touch-presentation.js?v=20260829-0805",
+    "./item-collector-touch-presentation.js?v=20260829-0900"
+  ]
+}
