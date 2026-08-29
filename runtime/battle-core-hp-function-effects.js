@@ -14,6 +14,10 @@ function positiveInt(value, fallback = 0) {
   return Number.isFinite(n) ? Math.max(0, n) : Math.max(0, fallback);
 }
 
+function normalizeWeather(value) {
+  return String(value ?? "None").trim().toUpperCase().replaceAll("_", "").replaceAll("-", "").replaceAll(" ", "");
+}
+
 export const CANONICAL_FIXED_DAMAGE_FUNCTIONS = new Set([
   "FixedDamage20",
   "FixedDamage40",
@@ -45,6 +49,7 @@ export function resolveCanonicalHpFunctionEffect({
   actorMaxHp,
   actorStatus = "NONE",
   actorAbility = null,
+  effectiveWeather = "None",
   targetAffected = true,
   moveExecuted = true,
   struggle = false,
@@ -55,6 +60,7 @@ export function resolveCanonicalHpFunctionEffect({
   const actualDamage = positiveInt(resolvedDamage);
   const status = String(actorStatus ?? "NONE").toUpperCase();
   const ability = String(actorAbility ?? "").toUpperCase();
+  const weather = normalizeWeather(effectiveWeather);
   let heal = 0;
   let selfDamage = 0;
   let selfKo = false;
@@ -68,6 +74,12 @@ export function resolveCanonicalHpFunctionEffect({
     if (actualDamage > 0) heal = rubyRound(actualDamage * 0.75);
   } else if (code === "HealUserHalfOfTotalHP") {
     heal = rubyRound(maxHp / 2);
+  } else if (code === "HealUserDependingOnWeather") {
+    if (["SUN", "HARSHSUN"].includes(weather)) heal = rubyRound(maxHp * 2 / 3);
+    else if (["NONE", "STRONGWINDS"].includes(weather)) heal = rubyRound(maxHp / 2);
+    else heal = rubyRound(maxHp / 4);
+  } else if (code === "HealUserDependingOnSandstorm") {
+    heal = weather === "SANDSTORM" ? rubyRound(maxHp * 2 / 3) : rubyRound(maxHp / 2);
   } else if (code === "HealUserFullyAndFallAsleep") {
     // Rest fails if already asleep, or if both HP and status need no restoration.
     if (status !== "SLEEP" && (hpBefore < maxHp || status !== "NONE")) {
