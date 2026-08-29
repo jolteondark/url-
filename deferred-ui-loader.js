@@ -4,6 +4,7 @@ let sceneBundleSyncScheduled = false;
 let gameMenuOpenPending = false;
 let boardPresentationManifestPromise = null;
 let battleChromePromise = null;
+let trainerBattlePresentationPromise = null;
 
 const boardPresentationFallbackModules = [
   "./berry-juice-shop-touch-presentation.js?v=20260829-1102",
@@ -85,6 +86,13 @@ function loadBattleChrome() {
   return battleChromePromise;
 }
 
+function loadTrainerBattlePresentation() {
+  if (trainerBattlePresentationPromise) return trainerBattlePresentationPromise;
+  loadStyle("./trainer-battle-presentation.css?v=20260830-0500");
+  trainerBattlePresentationPromise = loadModule("./trainer-battle-presentation.js?v=20260830-0500");
+  return trainerBattlePresentationPromise;
+}
+
 async function loadShopUi() {
   loadStyle("./shop-touch-presentation.css");
   await loadModule("./shop-touch-presentation.js");
@@ -118,6 +126,7 @@ function syncSceneBundles() {
   if (state?.battle) {
     loadBattleUi();
     loadBattleChrome();
+    if (state.battle.kind === "trainer") loadTrainerBattlePresentation();
   }
   if (state?.shop) loadShopUi();
 }
