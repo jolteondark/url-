@@ -13,6 +13,15 @@ function requestsPersistence(operations) {
     && operations.some((operation) => operation?.op === "request_save");
 }
 
+function ownerResultRequestsPersistence(result) {
+  return Boolean(result?.persistenceRequested) || requestsPersistence(result?.operations);
+}
+
+function persistSafariOwnerResult(runtime, result, storage = globalThis.localStorage) {
+  if (!runtime || !ownerResultRequestsPersistence(result)) return null;
+  return saveSafariPlayableRun(storage, runtime);
+}
+
 function boardButtonIndex(event) {
   const button = event.target?.closest?.("button[data-board-index]");
   if (!button) return null;
@@ -29,7 +38,7 @@ async function persistWhenOwnerRequests(index, beforeOperations) {
     const operations = state.last_operations;
     if (operations === beforeOperations || !requestsPersistence(operations)) continue;
 
-    const saved = saveSafariPlayableRun(globalThis.localStorage, runtime);
+    const saved = persistSafariOwnerResult(runtime, { operations });
     globalThis.__maplessLastBoardPersistence = {
       index,
       key: saved?.key ?? null,
@@ -51,4 +60,9 @@ function handleBoardClick(event) {
 const board = globalThis.document?.getElementById?.("board");
 board?.addEventListener("click", handleBoardClick);
 
-export { boardButtonIndex, requestsPersistence };
+export {
+  boardButtonIndex,
+  ownerResultRequestsPersistence,
+  persistSafariOwnerResult,
+  requestsPersistence,
+};

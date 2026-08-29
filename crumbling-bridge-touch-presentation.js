@@ -3,7 +3,7 @@ import {
   resolveSafariCrumblingBridgeInteraction,
   safariCrumblingBridgePresentation,
 } from "./runtime/safari-crumbling-bridge-interaction.js?v=20260829-1658";
-import { saveSafariPlayableRun } from "./runtime/safari-web-startup.js";
+import { persistSafariOwnerResult } from "./day-board-direct-persistence-handoff.js?v=20260829-1710";
 
 let resolving = false;
 function runtime() { return globalThis.__maplessSafariRuntime ?? null; }
@@ -73,9 +73,7 @@ document.addEventListener("click", (event) => {
   button.disabled = true;
   try {
     const result = resolveSafariCrumblingBridgeInteraction(current, active.boardIndex, String(button.dataset.normalEventAction ?? ""));
-    if (result.persistenceRequested || result.operations?.some((operation) => operation.op === "request_save")) {
-      saveSafariPlayableRun(window.localStorage, current);
-    }
+    persistSafariOwnerResult(current, result);
     if (result.completed) globalThis.__maplessNormalEventUi = null;
     else setUi(active.boardIndex);
     publish("safari-runtime-changed");

@@ -2,12 +2,12 @@
   "modules": [
     "./berry-juice-shop-touch-presentation.js?v=20260829-1102",
     "./trainer-camp-touch-presentation.js?v=20260829-1102",
-    "./old-statue-touch-presentation.js?v=20260829-0005",
+    "./old-statue-touch-presentation.js?v=20260829-1710",
     "./machine-gacha-touch-presentation.js?v=20260829-0315",
-    "./wishing-fountain-touch-presentation.js?v=20260829-0805",
+    "./wishing-fountain-touch-presentation.js?v=20260829-1710",
     "./item-collector-touch-presentation.js?v=20260829-0900",
-    "./day-board-direct-persistence-handoff.js?v=20260829-1401",
+    "./day-board-direct-persistence-handoff.js?v=20260829-1710",
     "./board-special-event-ui-handoff.js?v=20260829-1638",
-    "./crumbling-bridge-touch-presentation.js?v=20260829-1658"
+    "./crumbling-bridge-touch-presentation.js?v=20260829-1710"
   ]
 }
