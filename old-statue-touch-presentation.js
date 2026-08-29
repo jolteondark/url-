@@ -6,7 +6,7 @@ import {
   safariOldStatuePrayNeedsPokemon,
   safariOldStatuePresentation,
 } from "./runtime/safari-old-statue-break-rewards.js?v=20260828-2320";
-import { saveSafariPlayableRun } from "./runtime/safari-web-startup.js";
+import { persistSafariOwnerResult } from "./day-board-direct-persistence-handoff.js?v=20260829-1710";
 
 let resolving = false;
 function runtime() { return globalThis.__maplessSafariRuntime ?? null; }
@@ -116,9 +116,7 @@ document.addEventListener("click", async (event) => {
       action,
       actionSelectionOptions(current, active.boardIndex, action),
     );
-    if (result.persistenceRequested || result.operations?.some((operation) => operation.op === "request_save")) {
-      saveSafariPlayableRun(window.localStorage, current);
-    }
+    persistSafariOwnerResult(current, result);
     if (result.completed || result.result === "normal_event_wild_battle_started") globalThis.__maplessNormalEventUi = null;
     else setUi(active.boardIndex);
     publish("safari-runtime-changed");
