@@ -1,6 +1,5 @@
 import { saveSafariPlayableRun } from "./runtime/safari-web-startup.js";
 
-const DIRECT_PERSISTENCE_KINDS = new Set(["center", "buried_item"]);
 const POLL_INTERVAL_MS = 25;
 const MAX_POLLS = 80;
 
@@ -45,12 +44,11 @@ function handleBoardClick(event) {
   if (index == null) return;
   const runtime = globalThis.__maplessSafariRuntime;
   const state = stateOf(runtime);
-  const boardEvent = state?.board_events?.[index];
-  if (!boardEvent || !DIRECT_PERSISTENCE_KINDS.has(boardEvent.kind)) return;
+  if (!state?.board_events?.[index]) return;
   void persistWhenOwnerRequests(index, state.last_operations);
 }
 
 const board = globalThis.document?.getElementById?.("board");
 board?.addEventListener("click", handleBoardClick);
 
-export { DIRECT_PERSISTENCE_KINDS, boardButtonIndex, requestsPersistence };
+export { boardButtonIndex, requestsPersistence };
