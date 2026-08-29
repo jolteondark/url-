@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { applyBitterMedicineHappiness } from "../runtime/item-hp-healing-effects.js";
 import {
   isRevivalItem,
   resolveRevivalItemEffect,
@@ -27,6 +28,9 @@ const herb = resolveRevivalItemEffect({ itemId: "REVIVALHERB", hp: 0, maxHp: 101
 assert.equal(herb.hpAfter, 101);
 assert.equal(herb.curesStatus, true);
 assert.equal(herb.happinessMethod, "revivalherb");
+assert.equal(applyBitterMedicineHappiness(50, "revivalherb"), 35);
+assert.equal(applyBitterMedicineHappiness(150, "revivalherb"), 135);
+assert.equal(applyBitterMedicineHappiness(250, "revivalherb"), 230);
 
 const alive = resolveRevivalItemEffect({ itemId: "REVIVE", hp: 1, maxHp: 100 });
 assert.equal(alive.used, false);
