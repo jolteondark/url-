@@ -8,6 +8,7 @@ import {
 } from "./mapless-normal-event-medium-reward.js";
 import { MAPLESS_NORMAL_EVENT_SMALL_REWARD_ITEMS } from "./mapless-normal-event-small-reward.js";
 import { projectMaplessNormalEventOptionalReward } from "./mapless-normal-event-optional-reward.js";
+import { ensureMaplessRunLifecycleState, finishMaplessRun, maplessPartyAllFainted } from "./mapless-run-end-lifecycle.js";
 import {
   MAPLESS_V108_TREASURE_CHEST_REWARD_ENTRIES,
   resolveMaplessV108TreasureChestReward,
@@ -36,40 +37,27 @@ function stateOf(runtime) {
   if (!state || typeof state !== "object" || Array.isArray(state)) throw new TypeError("runtime variables.mapless state is required");
   return state;
 }
-
-function usable(pokemon) {
-  return Boolean(pokemon) && Number(pokemon.hp ?? 0) > 0 && pokemon.egg !== true;
-}
-
+function usable(pokemon) { return Boolean(pokemon) && Number(pokemon.hp ?? 0) > 0 && pokemon.egg !== true; }
 function firstUsablePokemonOfType(runtime, typeId) {
   const wanted = String(typeId).toUpperCase();
   return (runtime.player?.party ?? []).find((pokemon) => usable(pokemon) && safariPokemonTypes(pokemon).includes(wanted)) ?? null;
 }
-
 function rewardPockets(runtime) {
-  return {
-    general:{
-      slots:runtime.bag?.slots ?? [],
-      maxSlots:SAFARI_BAG_MAX_SLOTS,
-      maxPerSlot:SAFARI_BAG_MAX_PER_SLOT,
-    },
-  };
+  return { general:{ slots:runtime.bag?.slots ?? [], maxSlots:SAFARI_BAG_MAX_SLOTS, maxPerSlot:SAFARI_BAG_MAX_PER_SLOT } };
 }
-
 function applyReward(runtime, reward) {
   if (!reward?.success) return [];
   runtime.bag ??= { slots:[], money:0 };
   runtime.bag.slots = reward.pockets.general.slots.filter(Boolean);
   return (reward.granted ?? []).map((entry) => ({ op:"runtime_grant_item", item:entry.item, quantity:entry.quantity }));
 }
-
 function addMoney(runtime, amount) {
   runtime.bag ??= { slots:[], money:0 };
+  const requested = Math.max(0, Math.trunc(Number(amount) || 0));
   const before = Number(runtime.bag.money ?? 0);
-  runtime.bag.money = setMoney(before + Math.max(0, Math.trunc(Number(amount) || 0)), SAFARI_MAX_MONEY);
-  return { op:"runtime_add_money", requested:Math.max(0, Math.trunc(Number(amount) || 0)), applied:runtime.bag.money - before };
+  runtime.bag.money = setMoney(before + requested, SAFARI_MAX_MONEY);
+  return { op:"runtime_add_money", requested, applied:runtime.bag.money - before };
 }
-
 function sharedMediumReward(runtime, day) {
   const state = stateOf(runtime);
   ensureSafariEncounterSeed(state);
@@ -84,7 +72,6 @@ function sharedMediumReward(runtime, day) {
   if (!reward.success) state.preview_encounter_counter = counter;
   return reward;
 }
-
 function normalTreasureReward(runtime, event, day) {
   const treasure = resolveMaplessV108TreasureChestReward({
     kind:"treasure",
@@ -96,7 +83,6 @@ function normalTreasureReward(runtime, event, day) {
   const reward = resolveRewardTransaction({ pockets:rewardPockets(runtime), itemMeta:ITEM_META, items:flattened });
   return { treasure, reward };
 }
-
 function applyOwnerDamage(runtime, operations) {
   const applied = [];
   for (const operation of operations ?? []) {
@@ -104,7 +90,7 @@ function applyOwnerDamage(runtime, operations) {
       const pokemon = runtime.player?.party?.[0];
       if (!usable(pokemon)) continue;
       runtime.player.party[0] = damageSafariPokemonFlat(pokemon, operation.amount);
-      applied.push({ op:"runtime_damage_pokemon", partyIndex:0, amount:Number(operation.amount) });
+      applied.push({ op:"runtime_damage_pokemon", party_index:0, amount:Number(operation.amount) });
     } else if (operation.op === "damage_party") {
       runtime.player.party = (runtime.player?.party ?? []).map((pokemon) => usable(pokemon)
         ? damageSafariPokemonPercent(pokemon, operation.amount)
@@ -114,25 +100,42 @@ function applyOwnerDamage(runtime, operations) {
   }
   return applied;
 }
-
-function commit(runtime, index, owner, extraOperations, notice) {
+function finishPartyWipe(runtime) {
+  const state = ensureMaplessRunLifecycleState(runtime);
+  const party = runtime.player?.party ?? [];
+  if (!state.mapless_run_active || !maplessPartyAllFainted(party)) return { finished:false, overflow:false, operations:[] };
+  state.mapless_run_end_pending = true;
+  const finished = finishMaplessRun(runtime);
+  state.location = "home";
+  return {
+    ...finished,
+    operations:[
+      { op:"mark_run_end", reason:"party_wipe", source:"normal_event:crumbling_bridge" },
+      ...(finished.operations ?? []),
+      { op:"return_to_home", source:"normal_event:crumbling_bridge" },
+    ],
+  };
+}
+function commit(runtime, index, owner, extraOperations, notice, runEnd = { finished:false, operations:[] }) {
   const state = stateOf(runtime);
   state.board_events[index] = owner.event;
   state.board_consumed[index] = Boolean(owner.event?.normal_resolved);
   state.last_operations = [
     ...(owner.operations ?? []).map((operation) => structuredClone(operation)),
     ...extraOperations,
-    { op:"request_save", reason:"crumbling_bridge" },
+    ...(runEnd.operations ?? []),
+    ...(owner.result && !runEnd.finished ? [{ op:"request_save", reason:"crumbling_bridge" }] : []),
   ];
-  state.notice = notice;
+  state.notice = runEnd.finished ? "橋での負傷により手持ちが全滅したため、今回のランは終了しました。" : notice;
   return {
     runtime,
     result:owner.outcome,
     completed:Boolean(owner.result),
     operations:state.last_operations,
     notice:state.notice,
-    persistenceRequested:Boolean(owner.result),
+    persistenceRequested:Boolean(owner.result) || Boolean(runEnd.finished),
     owner,
+    runEnd,
   };
 }
 
@@ -155,7 +158,6 @@ export function safariCrumblingBridgePresentation(runtime, index) {
     ],
   };
 }
-
 export function openSafariCrumblingBridgeTouch(runtime, index) {
   const state = stateOf(runtime);
   const event = state.board_events?.[index];
@@ -166,16 +168,10 @@ export function openSafariCrumblingBridgeTouch(runtime, index) {
   const presentation = safariCrumblingBridgePresentation(runtime, index);
   state.notice = presentation.message;
   if (typeof globalThis.document !== "undefined") {
-    globalThis.__maplessNormalEventUi = {
-      runtime,
-      boardIndex:index,
-      eventId:"crumbling_bridge",
-      ...presentation,
-    };
+    globalThis.__maplessNormalEventUi = { runtime, boardIndex:index, eventId:"crumbling_bridge", ...presentation };
   }
   return { runtime, result:"crumbling_bridge_ready", boundary:"normal_event", notice:state.notice, operations:[] };
 }
-
 export function resolveSafariCrumblingBridgeInteraction(runtime, index, requestedAction) {
   const state = stateOf(runtime);
   const event = state.board_events?.[index];
@@ -199,15 +195,12 @@ export function resolveSafariCrumblingBridgeInteraction(runtime, index, requeste
   const rewardKind = String(event.normal_data?.reward_kind ?? "rescue");
   let reward = null;
   let treasure = null;
-
   if (action !== "leave" && !(action === "careful" && Number(event.normal_data?.careful_roll ?? 0) >= 90)) {
     if (rewardKind === "treasure") {
       const prepared = normalTreasureReward(runtime, event, state.day);
       treasure = prepared.treasure;
       reward = prepared.reward;
-    } else {
-      reward = sharedMediumReward(runtime, state.day);
-    }
+    } else reward = sharedMediumReward(runtime, state.day);
   }
 
   const owner = resolveCrumblingBridge({
@@ -223,7 +216,6 @@ export function resolveSafariCrumblingBridgeInteraction(runtime, index, requeste
     random_reward_result:rewardKind === "treasure" ? undefined : reward?.success !== false,
     damage_result:true,
   });
-
   const extras = applyOwnerDamage(runtime, owner.operations);
   if (owner.result && reward) {
     if (rewardKind === "treasure") {
@@ -236,15 +228,17 @@ export function resolveSafariCrumblingBridgeInteraction(runtime, index, requeste
       extras.push(addMoney(runtime, 800 + scale * 120));
     }
   }
-
+  const runEnd = owner.result && owner.operations?.some((operation) => operation.op === "damage_pokemon")
+    ? finishPartyWipe(runtime)
+    : { finished:false, overflow:false, operations:[] };
   const notice = owner.outcome === "left"
     ? "危険な橋を渡らず引き返しました。"
     : owner.outcome === "bridge_collapsed"
       ? "橋が崩れ、手持ち全員が少し傷つきました。"
       : owner.outcome === "careful_injured"
-        ? "橋は渡れましたが、先頭のポケモンが傷つきました。"
+        ? "橋は渡れましたが、先頭のポケモンが20ダメージを受けました。"
         : reward?.success === false
           ? "橋を渡り切りましたが、バッグがいっぱいで道具は持ち帰れませんでした。"
           : "橋を無事に渡り、向こう側の報酬を受け取りました。";
-  return commit(runtime, index, owner, extras, notice);
+  return commit(runtime, index, owner, extras, notice, runEnd);
 }
