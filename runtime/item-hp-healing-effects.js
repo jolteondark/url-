@@ -44,7 +44,8 @@ export function applyBitterMedicineHappiness(happiness, method) {
   const band = Math.min(2, Math.floor(value / 100));
   const table = method === "powder" ? [-5, -5, -10]
     : method === "energyroot" ? [-10, -10, -15]
-      : null;
+      : method === "revivalherb" ? [-15, -15, -20]
+        : null;
   if (!table) throw new RangeError(`unknown happiness method: ${method}`);
   return Math.max(0, Math.min(255, value + table[band]));
 }
