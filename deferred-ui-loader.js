@@ -2,6 +2,16 @@ const loadedStyles = new Set();
 const loadedModules = new Map();
 let sceneBundleSyncScheduled = false;
 let gameMenuOpenPending = false;
+let boardPresentationManifestPromise = null;
+
+const boardPresentationFallbackModules = [
+  "./berry-juice-shop-touch-presentation.js?v=20260829-1102",
+  "./trainer-camp-touch-presentation.js?v=20260829-1102",
+  "./old-statue-touch-presentation.js?v=20260829-0005",
+  "./machine-gacha-touch-presentation.js?v=20260829-0315",
+  "./wishing-fountain-touch-presentation.js?v=20260829-0805",
+  "./item-collector-touch-presentation.js?v=20260829-0900",
+];
 
 function loadStyle(href) {
   if (loadedStyles.has(href)) return;
@@ -24,18 +34,30 @@ function loadModule(path) {
   return promise;
 }
 
+async function loadBoardPresentationManifest() {
+  if (!boardPresentationManifestPromise) {
+    boardPresentationManifestPromise = fetch("./board-presentation-manifest.json", { cache: "no-store" })
+      .then((response) => {
+        if (!response.ok) throw new Error(`manifest HTTP ${response.status}`);
+        return response.json();
+      })
+      .then((manifest) => Array.isArray(manifest?.modules) ? manifest.modules : boardPresentationFallbackModules)
+      .catch((error) => {
+        console.error("[Mapless] board presentation manifest failed; using fallback", error);
+        return boardPresentationFallbackModules;
+      });
+  }
+  return boardPresentationManifestPromise;
+}
+
 async function loadBoardPresentation() {
   loadStyle("./game-presentation.css");
   loadStyle("./board-event-result-flow.css?v=20260819-2252");
+  const presentationModules = await loadBoardPresentationManifest();
   return Promise.all([
     loadModule("./game-presentation.js?v=20260825-1030"),
     loadModule("./board-event-result-flow.js?v=20260819-2252"),
-    loadModule("./berry-juice-shop-touch-presentation.js?v=20260829-1102"),
-    loadModule("./trainer-camp-touch-presentation.js?v=20260829-1102"),
-    loadModule("./old-statue-touch-presentation.js?v=20260829-0005"),
-    loadModule("./machine-gacha-touch-presentation.js?v=20260829-0315"),
-    loadModule("./wishing-fountain-touch-presentation.js?v=20260829-0805"),
-    loadModule("./item-collector-touch-presentation.js?v=20260829-0900"),
+    ...presentationModules.map(loadModule),
   ]);
 }
 
