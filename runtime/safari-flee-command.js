@@ -54,12 +54,18 @@ function fleePresentation(player, foe, resolved) {
   };
 }
 
-export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), randomRoll = undefined } = {}) {
+export function attemptSafariFlee(runtime, {
+  runRandomSeed = browserRunSeed(),
+  randomRoll = undefined,
+  certainEscapeByItem = false,
+  commandKind = "flee",
+} = {}) {
   const state = runtime?.variables?.mapless;
   const battle = state?.battle;
   if (!state || !battle || battle.completed) throw new Error("active battle is required");
+  if (commandKind !== "flee" && commandKind !== "item") throw new RangeError(`unsupported flee command kind: ${commandKind}`);
 
-  beginSafariBattleCommand(runtime, "flee");
+  beginSafariBattleCommand(runtime, commandKind);
   const commandAttempt = captureSafariBattleCommandAttempt(runtime);
   try {
     const playerPartyIndex = activePartyIndex(battle, runtime);
@@ -82,7 +88,7 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
         moreTypeEffects: false,
         battlerHasGhostType: false,
         certainEscapeByAbility: false,
-        certainEscapeByItem: false,
+        certainEscapeByItem: Boolean(certainEscapeByItem),
         trappedInBattle: false,
         trappedByOpponentAbility: false,
         trappedByOpponentItem: false,
@@ -103,6 +109,7 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
       rate: resolved.rate,
       randomRoll: resolved.randomRoll,
       runRandomSeed: Number(runRandomSeed) & 0x7fffffff,
+      certainEscapeByItem: Boolean(certainEscapeByItem),
     };
 
     if (resolved.result !== 1 || resolved.decision !== 3) {
@@ -129,7 +136,7 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
           presentation: [presentation, ...(response.presentation ?? [])],
           persistenceRequested: Boolean(response.persistenceRequested),
         };
-        return commitSafariBattleResolution(runtime, result, "flee", { commandAttempt });
+        return commitSafariBattleResolution(runtime, result, commandKind, { commandAttempt });
       }
       state.notice = blocked ? "この戦闘からは逃げられない！" : "逃げられなかった！";
       const operations = [baseOperation];
@@ -147,7 +154,7 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
         operations,
         presentation: [presentation],
       };
-      return commitSafariBattleResolution(runtime, result, "flee", { commandAttempt });
+      return commitSafariBattleResolution(runtime, result, commandKind, { commandAttempt });
     }
 
     commitTerminalPlayer(runtime, command.terminalStateHandoff, playerPartyIndex);
@@ -183,9 +190,9 @@ export function attemptSafariFlee(runtime, { runRandomSeed = browserRunSeed(), r
       presentation: [presentation],
       persistenceRequested: true,
     };
-    return commitSafariBattleResolution(runtime, result, "flee", { commandAttempt });
+    return commitSafariBattleResolution(runtime, result, commandKind, { commandAttempt });
   } catch (error) {
-    abortSafariBattleCommand(runtime, `flee failed:${error?.message ?? error}`, { commandAttempt });
+    abortSafariBattleCommand(runtime, `${commandKind} flee failed:${error?.message ?? error}`, { commandAttempt });
     throw error;
   }
 }
