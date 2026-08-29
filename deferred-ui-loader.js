@@ -30,6 +30,8 @@ async function loadBoardPresentation() {
   return Promise.all([
     loadModule("./game-presentation.js?v=20260825-1030"),
     loadModule("./board-event-result-flow.js?v=20260819-2252"),
+    loadModule("./berry-juice-shop-touch-presentation.js?v=20260829-1102"),
+    loadModule("./trainer-camp-touch-presentation.js?v=20260829-1102"),
     loadModule("./old-statue-touch-presentation.js?v=20260829-0005"),
     loadModule("./machine-gacha-touch-presentation.js?v=20260829-0315"),
     loadModule("./wishing-fountain-touch-presentation.js?v=20260829-0805"),
