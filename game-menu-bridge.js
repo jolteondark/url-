@@ -12,6 +12,11 @@ import {
   safariBagItemMoveOptions,
   useSafariBagItemOnPartyPokemon,
 } from "./runtime/safari-bag-item-use.js";
+import {
+  canSafariBagUsePartyRevivalItem,
+  isSafariPartyRevivalDirectItem,
+  useSafariBagPartyRevivalItem,
+} from "./runtime/safari-bag-party-revival-use.js";
 import { formatSafariBattlePresentationEvent } from "./battle-presentation-narration.js";
 
 const byId = (id) => document.getElementById(id);
@@ -128,7 +133,7 @@ async function playBattleItemPresentation(runtime, events = []) {
       const bar = byId(event.target + "-hp-bar");
       const maxHp = Number(event.targetMaxHp ?? 0);
       if (hp && maxHp > 0) hp.textContent = `${event.hpAfter} / ${maxHp}`;
-      if (bar && maxHp > 0) bar.style.width = Math.max(0, Math.min(100, Number(event.hpAfter) / maxHp * 100)) + "%";
+      if (bar && maxHp > 0) bar.style.width = Math.max(0, Math.min(100, Number(event.hpAfter]) / maxHp * 100)) + "%";
       target?.classList.add("hit");
       await sleep(220);
       target?.classList.remove("hit");
@@ -183,8 +188,9 @@ function renderBag() {
 
       const battleActive = Boolean(runtime.variables?.mapless?.battle);
       const context = battleActive ? "battle" : "field";
-      if (isSafariPartyUseItem(id, context)) {
-        const noTarget = battleActive && isSafariBattleNoTargetItem(id);
+      const directPartyRevival = !battleActive && isSafariPartyRevivalDirectItem(id);
+      if (isSafariPartyUseItem(id, context) || directPartyRevival) {
+        const noTarget = directPartyRevival || (battleActive && isSafariBattleNoTargetItem(id));
         const target = noTarget ? null : bagTargetSelect(runtime, id, context);
         const use = document.createElement("button");
         use.type = "button";
@@ -201,9 +207,11 @@ function renderBag() {
         }
 
         const refreshDisabled = () => {
-          const canUse = noTarget
-            ? canSafariBagItemUseWithoutTarget(runtime, id, { context })
-            : Boolean(target?.hasTarget) && (!move || move.hasMove);
+          const canUse = directPartyRevival
+            ? canSafariBagUsePartyRevivalItem(runtime, id, { context })
+            : noTarget
+              ? canSafariBagItemUseWithoutTarget(runtime, id, { context })
+              : Boolean(target?.hasTarget) && (!move || move.hasMove);
           use.disabled = !canUse || Boolean(runtime.variables?.mapless?.shop) || !battleBagCommandAvailable(runtime) || (!battleActive && fieldBagUseBusy);
         };
         refreshDisabled();
@@ -304,7 +312,9 @@ byId("game-menu")?.addEventListener("click", async (event) => {
           completeSafariBattlePresentationForSequence(runtime, presentationSequence);
         }
       } else {
-        const result = useSafariBagItemOnPartyPokemon(runtime, { itemId: use.dataset.bagUseItem, partyIndex, moveIndex });
+        const result = isSafariPartyRevivalDirectItem(use.dataset.bagUseItem)
+          ? useSafariBagPartyRevivalItem(runtime, { itemId: use.dataset.bagUseItem })
+          : useSafariBagItemOnPartyPokemon(runtime, { itemId: use.dataset.bagUseItem, partyIndex, moveIndex });
         if (result.persistenceRequested) saveSafariPlayableRun(window.localStorage, runtime);
       }
     } catch (error) {
