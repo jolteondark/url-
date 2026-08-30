@@ -24,22 +24,26 @@ const STATUS_HEALING_ITEMS = [
   "OLDGATEAU", "CASTELIACONE", "LUMIOSEGALETTE", "SHALOURSABLE",
   "BIGMALASADA", "PEWTERCRUNCHIES", "RAGECANDYBAR", "HEALPOWDER", "YELLOWFLUTE",
 ];
-const STATUS_HEALING_HELD_ITEMS = [
-  "CHESTOBERRY", "PECHABERRY", "RAWSTBERRY", "CHERIBERRY", "ASPEARBERRY", "LUMBERRY", "PERSIMBERRY",
+const STATUS_HEALING_HELD_CONNECTED = [
+  "CHESTOBERRY", "PECHABERRY", "RAWSTBERRY", "CHERIBERRY", "ASPEARBERRY",
 ];
+const STATUS_HEALING_HELD_CONFUSION_PARTIAL = ["LUMBERRY", "PERSIMBERRY"];
+const STATUS_BERRY_OWNER = "safari-bag-item-use + battle-ability-item-hook-dispatch/battle-status-pp-flow/battle-held-item-consumption-flow";
 
 const PP_RESTORE_ITEMS = ["ETHER", "MAXETHER", "ELIXIR", "MAXELIXIR"];
 const PP_RESTORE_HELD_ITEMS = ["LEPPABERRY", "HOPOBERRY"];
 const PP_CAPACITY_ITEMS = ["PPUP", "PPMAX"];
 const REVIVAL_ITEMS = ["REVIVE", "MAXREVIVE", "REVIVALHERB"];
 const HELD_REMAINING = "held-item trigger/eligibility/consumption owner audit";
+const CONFUSION_BERRY_REMAINING = "held confusion cure boundary owner audit; major-status held trigger is connected where applicable";
 
 export const ITEM_EFFECT_SUPPORT_STATUS = Object.freeze({
   ...Object.fromEntries(X_STAT_ITEMS.map((id) => [id, connected("battle_stat_stage", "safari-normal-battle-lifecycle")])),
   ...Object.fromEntries(HP_HEALING_ITEMS.map((id) => [id, connected("medicine_hp_healing", "safari-bag-item-use")])),
   ...Object.fromEntries(HP_HEALING_HELD_ITEMS.map((id) => [id, partial("medicine_hp_healing", "safari-bag-item-use", HELD_REMAINING)])),
   ...Object.fromEntries(STATUS_HEALING_ITEMS.map((id) => [id, connected("medicine_status_healing", "safari-bag-item-use")])),
-  ...Object.fromEntries(STATUS_HEALING_HELD_ITEMS.map((id) => [id, partial("medicine_status_healing", "safari-bag-item-use", HELD_REMAINING)])),
+  ...Object.fromEntries(STATUS_HEALING_HELD_CONNECTED.map((id) => [id, connected("medicine_status_healing", STATUS_BERRY_OWNER)])),
+  ...Object.fromEntries(STATUS_HEALING_HELD_CONFUSION_PARTIAL.map((id) => [id, partial("medicine_status_healing", STATUS_BERRY_OWNER, CONFUSION_BERRY_REMAINING)])),
   ...Object.fromEntries(PP_RESTORE_ITEMS.map((id) => [id, connected("medicine_pp_restore", "safari-bag-item-use")])),
   ...Object.fromEntries(PP_RESTORE_HELD_ITEMS.map((id) => [id, partial("medicine_pp_restore", "safari-bag-item-use", HELD_REMAINING)])),
   ...Object.fromEntries(PP_CAPACITY_ITEMS.map((id) => [id, connected("medicine_pp_capacity", "safari-bag-item-use")])),
