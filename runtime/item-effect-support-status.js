@@ -1,4 +1,5 @@
 const connected = (family, owner) => Object.freeze({ status: "connected", family, owner });
+const partial = (family, owner, remaining) => Object.freeze({ status: "partially_connected", family, owner, remaining });
 const blocked = (family, ownerNeeded) => Object.freeze({ status: "effect_mapped_owner_blocked", family, ownerNeeded });
 
 const X_STAT_ITEMS = [
@@ -11,29 +12,36 @@ const X_STAT_ITEMS = [
 ];
 
 const HP_HEALING_ITEMS = [
-  "POTION", "BERRYJUICE", "SWEETHEART", "SUPERPOTION", "HYPERPOTION", "MAXPOTION",
-  "FRESHWATER", "SODAPOP", "LEMONADE", "MOOMOOMILK", "ORANBERRY", "SITRUSBERRY",
+  "POTION", "SWEETHEART", "SUPERPOTION", "HYPERPOTION", "MAXPOTION",
+  "FRESHWATER", "SODAPOP", "LEMONADE", "MOOMOOMILK",
   "ENERGYPOWDER", "ENERGYROOT", "CANARIBREAD",
 ];
+const HP_HEALING_HELD_ITEMS = ["BERRYJUICE", "ORANBERRY", "SITRUSBERRY"];
 
 const STATUS_HEALING_ITEMS = [
-  "AWAKENING", "CHESTOBERRY", "BLUEFLUTE", "POKEFLUTE",
-  "ANTIDOTE", "PECHABERRY", "BURNHEAL", "RAWSTBERRY",
-  "PARALYZEHEAL", "PARLYZHEAL", "CHERIBERRY", "ICEHEAL", "ASPEARBERRY",
-  "FULLHEAL", "LAVACOOKIE", "OLDGATEAU", "CASTELIACONE", "LUMIOSEGALETTE",
-  "SHALOURSABLE", "BIGMALASADA", "PEWTERCRUNCHIES", "LUMBERRY", "RAGECANDYBAR",
-  "HEALPOWDER", "PERSIMBERRY", "YELLOWFLUTE",
+  "AWAKENING", "BLUEFLUTE", "POKEFLUTE", "ANTIDOTE", "BURNHEAL",
+  "PARALYZEHEAL", "PARLYZHEAL", "ICEHEAL", "FULLHEAL", "LAVACOOKIE",
+  "OLDGATEAU", "CASTELIACONE", "LUMIOSEGALETTE", "SHALOURSABLE",
+  "BIGMALASADA", "PEWTERCRUNCHIES", "RAGECANDYBAR", "HEALPOWDER", "YELLOWFLUTE",
+];
+const STATUS_HEALING_HELD_ITEMS = [
+  "CHESTOBERRY", "PECHABERRY", "RAWSTBERRY", "CHERIBERRY", "ASPEARBERRY", "LUMBERRY", "PERSIMBERRY",
 ];
 
-const PP_RESTORE_ITEMS = ["ETHER", "LEPPABERRY", "HOPOBERRY", "MAXETHER", "ELIXIR", "MAXELIXIR"];
+const PP_RESTORE_ITEMS = ["ETHER", "MAXETHER", "ELIXIR", "MAXELIXIR"];
+const PP_RESTORE_HELD_ITEMS = ["LEPPABERRY", "HOPOBERRY"];
 const PP_CAPACITY_ITEMS = ["PPUP", "PPMAX"];
 const REVIVAL_ITEMS = ["REVIVE", "MAXREVIVE", "REVIVALHERB"];
+const HELD_REMAINING = "held-item trigger/eligibility/consumption owner audit";
 
 export const ITEM_EFFECT_SUPPORT_STATUS = Object.freeze({
   ...Object.fromEntries(X_STAT_ITEMS.map((id) => [id, connected("battle_stat_stage", "safari-normal-battle-lifecycle")])),
   ...Object.fromEntries(HP_HEALING_ITEMS.map((id) => [id, connected("medicine_hp_healing", "safari-bag-item-use")])),
+  ...Object.fromEntries(HP_HEALING_HELD_ITEMS.map((id) => [id, partial("medicine_hp_healing", "safari-bag-item-use", HELD_REMAINING)])),
   ...Object.fromEntries(STATUS_HEALING_ITEMS.map((id) => [id, connected("medicine_status_healing", "safari-bag-item-use")])),
+  ...Object.fromEntries(STATUS_HEALING_HELD_ITEMS.map((id) => [id, partial("medicine_status_healing", "safari-bag-item-use", HELD_REMAINING)])),
   ...Object.fromEntries(PP_RESTORE_ITEMS.map((id) => [id, connected("medicine_pp_restore", "safari-bag-item-use")])),
+  ...Object.fromEntries(PP_RESTORE_HELD_ITEMS.map((id) => [id, partial("medicine_pp_restore", "safari-bag-item-use", HELD_REMAINING)])),
   ...Object.fromEntries(PP_CAPACITY_ITEMS.map((id) => [id, connected("medicine_pp_capacity", "safari-bag-item-use")])),
   ...Object.fromEntries(REVIVAL_ITEMS.map((id) => [id, connected("medicine_revival", "safari-bag-item-use")])),
   FULLRESTORE: connected("medicine_full_restore", "safari-bag-item-use"),
