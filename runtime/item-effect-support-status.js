@@ -30,12 +30,12 @@ const STATUS_HEALING_HELD_CONNECTED = [
 const STATUS_HEALING_HELD_CONFUSION_PARTIAL = ["LUMBERRY", "PERSIMBERRY"];
 const STATUS_BERRY_OWNER = "safari-bag-item-use + battle-ability-item-hook-dispatch/battle-status-pp-flow/battle-held-item-consumption-flow";
 
-const PP_RESTORE_ITEMS = ["ETHER", "MAXETHER", "ELIXIR", "MAXELIXIR"];
-const PP_RESTORE_HELD_ITEMS = ["LEPPABERRY", "HOPOBERRY"];
+const PP_RESTORE_ITEMS = ["ETHER", "MAXETHER", "ELIXIR", "MAXELIXIR", "HOPOBERRY"];
+const PP_RESTORE_HELD_ITEMS = ["LEPPABERRY"];
 const PP_CAPACITY_ITEMS = ["PPUP", "PPMAX"];
 const REVIVAL_ITEMS = ["REVIVE", "MAXREVIVE", "REVIVALHERB"];
 const HELD_HP_REMAINING = "Bag target-use owner is connected; canonical automatic held HP threshold/recovery trigger still needs a shared Battle owner before held consumption can be connected";
-const HELD_PP_REMAINING = "Bag target-use owner is connected; held PP trigger/eligibility/consumption owner audit remains";
+const HELD_PP_REMAINING = "Bag target-use owner is connected; canonical Leppa held 0-PP trigger/move selection still needs a shared Battle hook before held consumption can be connected";
 const CONFUSION_BERRY_REMAINING = "held confusion cure boundary owner audit; major-status held trigger is connected where applicable";
 
 export const ITEM_EFFECT_SUPPORT_STATUS = Object.freeze({

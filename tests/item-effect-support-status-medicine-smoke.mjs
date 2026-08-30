@@ -12,6 +12,7 @@ const expected = new Map([
   ["MAXETHER", "medicine_pp_restore"],
   ["ELIXIR", "medicine_pp_restore"],
   ["MAXELIXIR", "medicine_pp_restore"],
+  ["HOPOBERRY", "medicine_pp_restore"],
   ["PPUP", "medicine_pp_capacity"],
   ["PPMAX", "medicine_pp_capacity"],
   ["REVIVE", "medicine_revival"],
@@ -35,11 +36,19 @@ for (const itemId of ["BERRYJUICE", "ORANBERRY", "SITRUSBERRY"]) {
   assert.match(status.remaining, /shared Battle owner/);
 }
 
-for (const itemId of ["LEPPABERRY", "HOPOBERRY"]) {
-  const status = getItemEffectSupportStatus(itemId);
-  assert.equal(status.status, "partially_connected", `${itemId} Bag use is connected but held PP behavior remains separate`);
+{
+  const status = getItemEffectSupportStatus("LEPPABERRY");
+  assert.equal(status.status, "partially_connected", "Leppa Berry Bag use is connected but its canonical held 0-PP trigger is not");
   assert.equal(status.owner, "safari-bag-item-use");
-  assert.match(status.remaining, /held PP trigger/);
+  assert.match(status.remaining, /Leppa held 0-PP trigger/);
+  assert.match(status.remaining, /shared Battle hook/);
+}
+
+{
+  const status = getItemEffectSupportStatus("HOPOBERRY");
+  assert.equal(status.status, "connected", "Hopo Berry should be tracked as the connected Bag PP restore family, not as a Leppa-style held trigger");
+  assert.equal(status.owner, "safari-bag-item-use");
+  assert.equal(status.family, "medicine_pp_restore");
 }
 
 for (const itemId of ["LUMBERRY", "PERSIMBERRY"]) {
