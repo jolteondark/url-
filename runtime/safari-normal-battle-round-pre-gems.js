@@ -7,7 +7,6 @@ import {
 import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
 import {
   commitHeldPpRestoreBerryCanonical,
-  resolvedBattlerCompletedMoveCanonical,
 } from "./item-held-pp-restore-berry-effects.js";
 
 function stateOf(runtime) {
@@ -47,17 +46,17 @@ function triggerContextForBattler(result, battlerIndex, pokemonBefore, opposingB
       const opposing = Number(action?.targetBattlerIndex) === (index === 0 ? 1 : 0) && Number(action?.hpAfter ?? opposingBefore?.hp ?? 0) <= 0
         ? {}
         : opposingBefore;
-      return { completedMove: true, activeAtTrigger: true, opposingPokemon: opposing };
+      return { completedMove: true, completedMoveId: String(action.moveId).trim().toUpperCase(), activeAtTrigger: true, opposingPokemon: opposing };
     }
     if (Number(action?.targetBattlerIndex) === index) {
       if (Number(action?.hpAfter ?? pokemonAfter?.hp ?? 0) <= 0) continue;
-      return { completedMove: true, activeAtTrigger: true, opposingPokemon: opposingAfter };
+      return { completedMove: true, completedMoveId: null, activeAtTrigger: true, opposingPokemon: opposingAfter };
     }
     if (Number(pokemonAfter?.hp ?? 0) > 0) {
-      return { completedMove: true, activeAtTrigger: true, opposingPokemon: opposingAfter };
+      return { completedMove: true, completedMoveId: null, activeAtTrigger: true, opposingPokemon: opposingAfter };
     }
   }
-  return { completedMove: false, activeAtTrigger: Number(pokemonAfter?.hp ?? 0) > 0, opposingPokemon: opposingAfter };
+  return { completedMove: false, completedMoveId: null, activeAtTrigger: Number(pokemonAfter?.hp ?? 0) > 0, opposingPokemon: opposingAfter };
 }
 
 function commitOntoCurrentPokemon(currentPokemon, resolvedPokemon) {
@@ -76,12 +75,13 @@ function applyPlayerBerry(runtime, before, result) {
   if (!pokemon) return null;
   const opposingAfter = result?.foeReplacementApplied ? {} : (result?.foe ?? stateOf(runtime).battle?.foe ?? before.foe);
   const trigger = triggerContextForBattler(result, 0, before.player, before.foe, pokemon, opposingAfter);
-  if (!trigger.completedMove) return null;
+  if (!trigger.completedMoveId) return null;
   const committed = commitHeldPpRestoreBerryCanonical({
     pokemon,
     opposingPokemon: trigger.opposingPokemon,
     moveMasters: SAFARI_MOVE_MASTERS,
     completedMove: true,
+    completedMoveId: trigger.completedMoveId,
     activeAtTrigger: trigger.activeAtTrigger,
   });
   if (committed.resolution.triggered) party[index] = commitOntoCurrentPokemon(pokemon, committed.pokemon);
@@ -94,12 +94,13 @@ function applyFoeBerry(runtime, before, result) {
   if (!battle?.foe) return null;
   const playerAfter = result?.playerReplacementApplied ? {} : (result?.player ?? runtime?.player?.party?.[Number(before.playerPartyIndex)] ?? before.player);
   const trigger = triggerContextForBattler(result, 1, before.foe, before.player, battle.foe, playerAfter);
-  if (!trigger.completedMove) return null;
+  if (!trigger.completedMoveId) return null;
   const committed = commitHeldPpRestoreBerryCanonical({
     pokemon: battle.foe,
     opposingPokemon: trigger.opposingPokemon,
     moveMasters: SAFARI_MOVE_MASTERS,
     completedMove: true,
+    completedMoveId: trigger.completedMoveId,
     activeAtTrigger: trigger.activeAtTrigger,
   });
   if (!committed.resolution.triggered) return committed;
