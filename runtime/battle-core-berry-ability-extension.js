@@ -19,14 +19,18 @@ function integerHp(pokemon, key, fallback = 0) {
   return Math.max(0, Math.trunc(Number(value ?? fallback)));
 }
 
-function berryConsumeRequest(item, effectKind, previous = null) {
+function heldItemConsumeRequest(item, effectKind, itemIsBerry, previous = null) {
   return Object.freeze({
     ...(previous ?? {}),
     item,
-    itemIsBerry: true,
+    itemIsBerry: Boolean(itemIsBerry),
     effectKind,
     permanent: true,
   });
+}
+
+function berryConsumeRequest(item, effectKind, previous = null) {
+  return heldItemConsumeRequest(item, effectKind, true, previous);
 }
 
 function freezeStatChanges(changes = []) {
@@ -36,12 +40,13 @@ function freezeStatChanges(changes = []) {
 export const BATTLE_BERRY_ABILITY_COVERAGE_CANONICAL = Object.freeze({
   abilityIds: Object.freeze(["CHEEKPOUCH", "GLUTTONY", "RIPEN"]),
   abilityCount: 3,
-  itemIds: Object.freeze([]),
-  itemCount: 0,
+  itemIds: Object.freeze(["BERRYJUICE"]),
+  itemCount: 1,
   classificationCounts: Object.freeze({
     earlyPinchBerryAbilities: 1,
     berryEffectMultiplierAbilities: 1,
     berryConsumptionHealAbilities: 1,
+    hpThresholdNonBerryConsumables: 1,
   }),
 });
 
@@ -57,6 +62,12 @@ export function resolveBerryAbilityPreConsumptionCanonical({ pokemon = {}, berry
   let confusionCheckRequired = Boolean(base.confusionCheckRequired);
   let consumeRequest = base.consumeRequest ?? null;
 
+  if (!triggered && item === "BERRYJUICE" && hp > 0 && maxHp > 0 && hp * 2 <= maxHp) {
+    heal = Math.min(Math.max(0, maxHp - hp), 20);
+    triggered = heal > 0;
+    consumeRequest = triggered ? heldItemConsumeRequest(item, "hp_restore", false) : null;
+  }
+
   if (!triggered && ability === "GLUTTONY" && hp > 0 && maxHp > 0 && hp * 2 <= maxHp) {
     if (PINCH_HEAL_BERRIES.has(item)) {
       heal = Math.min(maxHp - hp, Math.max(1, Math.floor(maxHp / 3)));
@@ -70,7 +81,7 @@ export function resolveBerryAbilityPreConsumptionCanonical({ pokemon = {}, berry
     }
   }
 
-  if (triggered && ability === "RIPEN") {
+  if (triggered && ability === "RIPEN" && item.endsWith("BERRY")) {
     if (heal > 0) heal = Math.min(Math.max(0, maxHp - hp), heal * 2);
     if (statChanges.length > 0) {
       statChanges = statChanges.map((change) => ({ ...change, delta: Math.trunc(Number(change.delta ?? 0)) * 2 }));
