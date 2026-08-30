@@ -34,8 +34,8 @@ const PP_RESTORE_ITEMS = ["ETHER", "MAXETHER", "ELIXIR", "MAXELIXIR", "HOPOBERRY
 const PP_RESTORE_HELD_ITEMS = ["LEPPABERRY"];
 const PP_CAPACITY_ITEMS = ["PPUP", "PPMAX"];
 const REVIVAL_ITEMS = ["REVIVE", "MAXREVIVE", "REVIVALHERB"];
-const HELD_HP_REMAINING = "Bag target-use owner is connected; canonical automatic held HP threshold/recovery trigger still needs a shared Battle owner before held consumption can be connected";
-const HELD_PP_REMAINING = "Bag target-use owner is connected; canonical Leppa held 0-PP trigger/move selection still needs a shared Battle hook before held consumption can be connected";
+const HELD_HP_REMAINING = "Bag target-use owner is connected; Oran/Sitrus canonical HP-threshold resolver and held-consumption request already exist in battle-core-ability-item-modifiers, but final Safari Battle action-after HP apply/consume wiring still needs verification; Berry Juice remains separately unmapped for held auto-use";
+const HELD_PP_REMAINING = "Bag target-use owner is connected; canonical Leppa 0-PP move selection/10 PP restore (20 with Ripen) now exists in battle-core-leppa-berry-extension and delegates PP mutation/held consumption to existing owners; final post-PP-decrement Battle dispatch wiring remains";
 const CONFUSION_BERRY_REMAINING = "held confusion cure boundary owner audit; major-status held trigger is connected where applicable";
 
 export const ITEM_EFFECT_SUPPORT_STATUS = Object.freeze({
