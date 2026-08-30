@@ -21,19 +21,20 @@ export const MAPLESS_BATTLE_UI_CANONICAL_RELEASE = Object.freeze({
   zipSha256: '58324a607ac1cd9566eb19ee3bfd0c049d6d33ce15247d773df74cbe9cc3a446',
 });
 
+export const PUBLISHED_CANONICAL_BATTLE_UI = Object.freeze({
+  'types.png': Object.freeze({
+    canonicalGitBlobSha: '7f1b9d801436bbf1fc215aed24093292d3c0c8ba',
+    canonicalSha256: '9dd259f26d6983ebe738b2a088941dce88f2acc63391dc8a3303190eea26f5ea',
+    bytes: 4380,
+  }),
+});
+
 export const UNRESOLVED_CANONICAL_BATTLE_UI = Object.freeze({
   'cursor_command.png': Object.freeze({
     reason: 'canonical_binary_not_published',
     canonicalGitBlobSha: 'c73f69b29b93355a605d7c0d2aa611e36a007020',
     canonicalSha256: '614722591ecfa667be586e0c9df985c5b4bcbac2b8f3c3b2beed1fc4c7094d39',
     bytes: 8456,
-  }),
-  'types.png': Object.freeze({
-    reason: 'published_binary_mismatch',
-    canonicalGitBlobSha: '7f1b9d801436bbf1fc215aed24093292d3c0c8ba',
-    canonicalSha256: '9dd259f26d6983ebe738b2a088941dce88f2acc63391dc8a3303190eea26f5ea',
-    publishedGitBlobSha: 'b25861610ddaf602c88db4ac2fb9b94050133bdb',
-    bytes: 4380,
   }),
 });
 
@@ -62,7 +63,8 @@ export function canonicalBattleUiResolutionState(name) {
   const unresolved = UNRESOLVED_CANONICAL_BATTLE_UI[safe];
   if (unresolved) return Object.freeze({ status: 'blocked', name: safe, ...unresolved });
   const mirror = canonicalBattleUiExactMirror(safe);
-  return Object.freeze({ status: 'eligible', name: safe, mirror: Boolean(mirror) });
+  const published = PUBLISHED_CANONICAL_BATTLE_UI[safe] ?? null;
+  return Object.freeze({ status: 'eligible', name: safe, mirror: Boolean(mirror), published });
 }
 
 export { EXACT_CANONICAL_MIRRORS };
