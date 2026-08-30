@@ -73,6 +73,7 @@ export function resolveHeldPpRestoreBerryCanonical({
   opposingPokemon = {},
   moveMasters = {},
   completedMove = false,
+  completedMoveId = null,
   activeAtTrigger = null,
 } = {}) {
   const item = heldPpRestoreBerryItemIdCanonical(pokemon);
@@ -100,16 +101,20 @@ export function resolveHeldPpRestoreBerryCanonical({
     return Object.freeze({ boundary: "end_of_using_move", triggered: false, item, moveIndex: null, moveId: null, ppBefore: null, ppAfter: null, restoreAmount: 0, consumeRequest: null, reason: "move_not_completed" });
   }
 
+  const exactMoveId = id(completedMoveId);
+  if (!exactMoveId) {
+    return Object.freeze({ boundary: "end_of_using_move", triggered: false, item, moveIndex: null, moveId: null, ppBefore: null, ppAfter: null, restoreAmount: 0, consumeRequest: null, reason: "completed_move_unknown" });
+  }
+
   let empty = null;
   for (let index = 0; index < (pokemon.moves?.length ?? 0); index += 1) {
     const state = moveStateCanonical(pokemon, index, moveMasters);
-    if (state && state.pp === 0) {
-      empty = state;
-      break;
-    }
+    if (state?.moveId !== exactMoveId) continue;
+    if (state.pp === 0) empty = state;
+    break;
   }
   if (!empty) {
-    return Object.freeze({ boundary: "end_of_using_move", triggered: false, item, moveIndex: null, moveId: null, ppBefore: null, ppAfter: null, restoreAmount: 0, consumeRequest: null, reason: "no_zero_pp_move" });
+    return Object.freeze({ boundary: "end_of_using_move", triggered: false, item, moveIndex: null, moveId: exactMoveId, ppBefore: null, ppAfter: null, restoreAmount: 0, consumeRequest: null, reason: "completed_move_not_at_zero_pp" });
   }
 
   const ripen = abilityId(pokemon) === "RIPEN";
@@ -127,7 +132,7 @@ export function resolveHeldPpRestoreBerryCanonical({
     restoreAmount: ppAfter - empty.pp,
     ripen,
     consumeRequest: Object.freeze({ item, reason: "held_pp_restore_berry" }),
-    reason: "restore_zero_pp_move",
+    reason: "restore_completed_zero_pp_move",
   });
   const suppressed = applyBerryConsumptionSuppressionCanonical(base, {
     consumer: pokemon,
