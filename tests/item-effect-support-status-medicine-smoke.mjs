@@ -27,11 +27,19 @@ for (const [itemId, family] of expected) {
   assert.equal(status.owner, "safari-bag-item-use", `${itemId} should use the shared Bag owner`);
 }
 
-for (const itemId of ["BERRYJUICE", "ORANBERRY", "SITRUSBERRY", "LEPPABERRY", "HOPOBERRY"]) {
+for (const itemId of ["BERRYJUICE", "ORANBERRY", "SITRUSBERRY"]) {
   const status = getItemEffectSupportStatus(itemId);
-  assert.equal(status.status, "partially_connected", `${itemId} Bag use is connected but held behavior remains separate`);
+  assert.equal(status.status, "partially_connected", `${itemId} Bag use is connected but automatic held HP recovery is not`);
   assert.equal(status.owner, "safari-bag-item-use");
-  assert.match(status.remaining, /held-item/);
+  assert.match(status.remaining, /automatic held HP threshold\/recovery trigger/);
+  assert.match(status.remaining, /shared Battle owner/);
+}
+
+for (const itemId of ["LEPPABERRY", "HOPOBERRY"]) {
+  const status = getItemEffectSupportStatus(itemId);
+  assert.equal(status.status, "partially_connected", `${itemId} Bag use is connected but held PP behavior remains separate`);
+  assert.equal(status.owner, "safari-bag-item-use");
+  assert.match(status.remaining, /held PP trigger/);
 }
 
 for (const itemId of ["LUMBERRY", "PERSIMBERRY"]) {
