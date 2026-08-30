@@ -22,7 +22,7 @@ const EXPECTED = [
 assert.equal(MAPLESS_TRAINER_CANONICAL_RELEASE.release, 'source-v0.9.108');
 assert.equal(MAPLESS_TRAINER_CANONICAL_RELEASE.expectedCount, 8);
 assert.deepEqual(Object.keys(CANONICAL_TRAINERS), EXPECTED);
-assert.deepEqual(canonicalTrainerMissingNames(), EXPECTED);
+assert.deepEqual(canonicalTrainerMissingNames(), []);
 
 for (const name of EXPECTED) {
   const source = canonicalTrainerExpected(name);
@@ -31,11 +31,12 @@ for (const name of EXPECTED) {
   assert.match(source.gitBlobSha, /^[0-9a-f]{40}$/);
   assert.ok(source.bytes > 0);
   assert.equal(canonicalTrainerLocalPath(name), `assets/canonical-trainers/${name}`);
-  assert.equal(canonicalTrainerPublishedPath(name), null);
+  assert.equal(canonicalTrainerPublishedPath(name), `assets/canonical-trainers/${name}`);
 }
 
 assert.equal(canonicalTrainerExpected('leader_brock.png'), null);
 assert.equal(canonicalTrainerLocalPath('../RIVAL2.png'), null);
-assert.equal(canonicalTrainerPublishedPath('RIVAL2.png'), null);
+assert.equal(canonicalTrainerPublishedPath('leader_brock.png'), null);
+assert.equal(canonicalTrainerPublishedPath('../RIVAL2.png'), null);
 
 console.log('canonical trainer source smoke: ok');

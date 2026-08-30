@@ -22,6 +22,11 @@ export const MAPLESS_BATTLE_UI_CANONICAL_RELEASE = Object.freeze({
 });
 
 export const PUBLISHED_CANONICAL_BATTLE_UI = Object.freeze({
+  'cursor_command.png': Object.freeze({
+    canonicalGitBlobSha: 'c73f69b29b93355a605d7c0d2aa611e36a007020',
+    canonicalSha256: '614722591ecfa667be586e0c9df985c5b4bcbac2b8f3c3b2beed1fc4c7094d39',
+    bytes: 8456,
+  }),
   'types.png': Object.freeze({
     canonicalGitBlobSha: '7f1b9d801436bbf1fc215aed24093292d3c0c8ba',
     canonicalSha256: '9dd259f26d6983ebe738b2a088941dce88f2acc63391dc8a3303190eea26f5ea',
@@ -29,14 +34,7 @@ export const PUBLISHED_CANONICAL_BATTLE_UI = Object.freeze({
   }),
 });
 
-export const UNRESOLVED_CANONICAL_BATTLE_UI = Object.freeze({
-  'cursor_command.png': Object.freeze({
-    reason: 'canonical_binary_not_published',
-    canonicalGitBlobSha: 'c73f69b29b93355a605d7c0d2aa611e36a007020',
-    canonicalSha256: '614722591ecfa667be586e0c9df985c5b4bcbac2b8f3c3b2beed1fc4c7094d39',
-    bytes: 8456,
-  }),
-});
+export const UNRESOLVED_CANONICAL_BATTLE_UI = Object.freeze({});
 
 export function canonicalBattleUiLocalPath(name) {
   const safe = String(name ?? '').trim();
