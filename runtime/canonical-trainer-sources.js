@@ -9,7 +9,7 @@ const CANONICAL_TRAINERS = Object.freeze({
   'RIVAL2.png': Object.freeze({ bytes: 2060, gitBlobSha: '965804733fbdf7c865890b814a465bc37a2e45fb', sha256: 'db09772c96436104ecb1f69e967190b8b19ed21763bc66951394dbc93a83abc2' }),
 });
 
-const PUBLISHED_EXACT = new Set();
+const PUBLISHED_EXACT = new Set(Object.keys(CANONICAL_TRAINERS));
 
 export const MAPLESS_TRAINER_CANONICAL_RELEASE = Object.freeze({
   release: 'source-v0.9.108',
@@ -27,7 +27,7 @@ export function canonicalTrainerLocalPath(name) {
   return `assets/canonical-trainers/${safe}`;
 }
 
-// Fail closed: never expose a local URL until that exact canonical payload is published.
+// Fail closed: only expose an exact canonical name whose verified payload is published.
 export function canonicalTrainerPublishedPath(name) {
   const safe = String(name ?? '').trim();
   if (!PUBLISHED_EXACT.has(safe)) return null;
