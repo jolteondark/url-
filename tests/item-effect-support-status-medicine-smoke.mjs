@@ -30,10 +30,11 @@ for (const [itemId, family] of expected) {
 
 for (const itemId of ["BERRYJUICE", "ORANBERRY", "SITRUSBERRY"]) {
   const status = getItemEffectSupportStatus(itemId);
-  assert.equal(status.status, "partially_connected", `${itemId} Bag use is connected but automatic held HP recovery is not`);
-  assert.equal(status.owner, "safari-bag-item-use");
-  assert.match(status.remaining, /automatic held HP threshold\/recovery trigger/);
-  assert.match(status.remaining, /shared Battle owner/);
+  assert.equal(status.status, "connected", `${itemId} Bag and automatic held HP recovery should both be connected`);
+  assert.equal(status.family, "medicine_hp_healing");
+  assert.match(status.owner, /battle-ability-item-hook-dispatch/);
+  assert.match(status.owner, /battle-runtime-integration/);
+  assert.match(status.owner, /battle-held-item-runtime-integration/);
 }
 
 {
