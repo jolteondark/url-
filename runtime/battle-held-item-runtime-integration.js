@@ -67,6 +67,17 @@ export function commitBattleSystemsHeldItemRuntime({ battleInput = {}, turn = {}
           runtime = committed.runtime;
           if (committed.commit) commits.push(committed.commit);
         }
+
+        const hpBerry = action?.abilityItemActionAfter?.targetBerry;
+        if (hpBerry?.triggered === true && hpBerry.consumeRequest) {
+          const committed = commitConsumableHeldItem(runtime, hpBerry.consumeRequest, {
+            roundIndex,
+            actionIndex,
+            source: "hp_threshold_berry_action_after",
+          });
+          runtime = committed.runtime;
+          if (committed.commit) commits.push(committed.commit);
+        }
       }
 
       if (Number(action?.battlerIndex) === index) {
