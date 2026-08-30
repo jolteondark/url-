@@ -54,8 +54,10 @@ for (const itemId of ["BERRYJUICE", "ORANBERRY", "SITRUSBERRY"]) {
 
 for (const itemId of ["LUMBERRY", "PERSIMBERRY"]) {
   const status = getItemEffectSupportStatus(itemId);
-  assert.equal(status.status, "partially_connected", `${itemId} confusion cure remains a separate held boundary`);
-  assert.match(status.remaining, /confusion/);
+  assert.equal(status.status, "effect_mapped_owner_blocked", `${itemId} held confusion cure should not be reported as partially wired without a shared confusion owner`);
+  assert.equal(status.family, "medicine_status_healing");
+  assert.match(status.ownerNeeded, /confusion-state owner/);
+  assert.match(status.ownerNeeded, /Bag target-use remains connected/);
 }
 
 assert.notEqual(getItemEffectSupportStatus("FULLRESTORE").family, "medicine_hp_healing");
