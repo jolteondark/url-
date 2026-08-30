@@ -22,6 +22,10 @@ import {
   canSafariUseBattleEscapeItem,
   useSafariBattleEscapeItem,
 } from "./runtime/safari-battle-escape-item-use.js";
+import {
+  canSafariUseBattleStatBoostItem,
+  isSafariBattleStatBoostItem,
+} from "./runtime/safari-battle-stat-boost-item-use.js";
 import { formatSafariBattlePresentationEvent } from "./battle-presentation-narration.js";
 
 const byId = (id) => document.getElementById(id);
@@ -195,8 +199,9 @@ function renderBag() {
       const context = battleActive ? "battle" : "field";
       const directPartyRevival = !battleActive && isSafariPartyRevivalDirectItem(id);
       const directBattleEscape = battleActive && isBattleEscapeItem(id);
-      if (isSafariPartyUseItem(id, context) || directPartyRevival || directBattleEscape) {
-        const noTarget = directPartyRevival || directBattleEscape || (battleActive && isSafariBattleNoTargetItem(id));
+      const directBattleStatBoost = battleActive && isSafariBattleStatBoostItem(id);
+      if (isSafariPartyUseItem(id, context) || directPartyRevival || directBattleEscape || directBattleStatBoost) {
+        const noTarget = directPartyRevival || directBattleEscape || directBattleStatBoost || (battleActive && isSafariBattleNoTargetItem(id));
         const target = noTarget ? null : bagTargetSelect(runtime, id, context);
         const use = document.createElement("button");
         use.type = "button";
@@ -217,9 +222,11 @@ function renderBag() {
             ? canSafariBagUsePartyRevivalItem(runtime, id, { context })
             : directBattleEscape
               ? canSafariUseBattleEscapeItem(runtime, id)
-              : noTarget
-                ? canSafariBagItemUseWithoutTarget(runtime, id, { context })
-                : Boolean(target?.hasTarget) && (!move || move.hasMove);
+              : directBattleStatBoost
+                ? canSafariUseBattleStatBoostItem(runtime, { itemId: id })
+                : noTarget
+                  ? canSafariBagItemUseWithoutTarget(runtime, id, { context })
+                  : Boolean(target?.hasTarget) && (!move || move.hasMove);
           use.disabled = !canUse || Boolean(runtime.variables?.mapless?.shop) || !battleBagCommandAvailable(runtime) || (!battleActive && fieldBagUseBusy);
         };
         refreshDisabled();
@@ -310,9 +317,14 @@ byId("game-menu")?.addEventListener("click", async (event) => {
     try {
       if (battle) {
         const itemId = use.dataset.bagUseItem;
+        const statBoost = isSafariBattleStatBoostItem(itemId);
         const pending = isBattleEscapeItem(itemId)
           ? Promise.resolve(useSafariBattleEscapeItem(runtime, { itemId }))
-          : useSafariBattleItem(runtime, { itemId, partyIndex, moveIndex });
+          : useSafariBattleItem(runtime, {
+              itemId,
+              partyIndex: statBoost ? undefined : partyIndex,
+              moveIndex: statBoost ? undefined : moveIndex,
+            });
         globalThis.__maplessApplyBattlePhaseUi?.();
         const result = await pending;
         const presentationSequence = captureSafariBattlePresentationAckSequence(runtime);
