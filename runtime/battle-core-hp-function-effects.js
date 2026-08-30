@@ -92,6 +92,8 @@ export function resolveCanonicalHpFunctionEffect({
     if (targetAffected && ability !== "ROCKHEAD") selfDamage = Math.max(1, rubyRound(actualDamage / 3));
   } else if (code === "RecoilHalfOfDamageDealt") {
     if (targetAffected && ability !== "ROCKHEAD") selfDamage = Math.max(1, rubyRound(actualDamage / 2));
+  } else if (code === "RecoilHalfOfTotalHP") {
+    if (targetAffected && ability !== "ROCKHEAD") selfDamage = Math.max(1, Math.ceil(maxHp / 2));
   } else if (code === "UserLosesHalfOfTotalHP") {
     selfDamage = Math.max(1, Math.ceil(maxHp / 2));
   } else if (code === "UserLosesHalfOfTotalHPExplosive") {
