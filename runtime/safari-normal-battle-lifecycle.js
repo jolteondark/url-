@@ -1,4 +1,5 @@
 import { applySafariBagItemToPartyPokemon } from "./safari-bag-item-use.js";
+import { isSafariBattleStatBoostItem, useSafariBattleStatBoostItem } from "./safari-battle-stat-boost-item-use.js";
 import { resolveCaptureFlow } from "./battle-capture-flow.js";
 import { routeCaughtQueueToPartyStorage } from "./caught-queue-party-storage.js";
 import { safariCarryoverPartyLimit } from "./mapless-carry-class-rules.js";
@@ -155,12 +156,14 @@ export function useSafariNormalBattleItem(runtime, { itemId = "POTION", partyInd
 
   const targetIndex = partyIndex === undefined ? Number(battle.player_party_index ?? 0) : Number(partyIndex);
   const turnBefore = Number(battle.turn ?? 1);
-  const itemUse = applySafariBagItemToPartyPokemon(runtime, {
-    itemId,
-    partyIndex: targetIndex,
-    moveIndex,
-    context: "battle",
-  });
+  const itemUse = isSafariBattleStatBoostItem(itemId)
+    ? useSafariBattleStatBoostItem(runtime, { itemId, partyIndex: targetIndex })
+    : applySafariBagItemToPartyPokemon(runtime, {
+        itemId,
+        partyIndex: targetIndex,
+        moveIndex,
+        context: "battle",
+      });
   if (!itemUse.used) {
     return {
       ...itemUse,
