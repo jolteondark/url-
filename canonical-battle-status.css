@@ -1,4 +1,4 @@
-#battle-card .canonical-status-badge{position:absolute;z-index:5;display:block;width:44px;height:16px;border:0;border-radius:0;background-image:url("./assets/canonical-battle-ui/icon_statuses.png");background-repeat:no-repeat;background-size:44px 128px;background-position:0 0;color:transparent;font-size:0;text-shadow:none;box-shadow:none}
+#battle-card .canonical-status-badge{position:absolute;z-index:5;display:block;width:44px;height:16px;border:0;border-radius:0;background-image:var(--canonical-battle-status-icons,none);background-repeat:no-repeat;background-size:44px 128px;background-position:0 0;color:transparent;font-size:0;text-shadow:none;box-shadow:none}
 #battle-card .canonical-status-badge[hidden]{display:none}
 #battle-card .foe-info>.canonical-status-badge{left:70px;top:33px}
 #battle-card .player-info>.canonical-status-badge{left:88px;top:33px}
@@ -14,6 +14,6 @@
 #battle-card .player-info>.canonical-gender{left:141px}
 #battle-card .canonical-gender[data-gender="male"]{color:#3b78d8}
 #battle-card .canonical-gender[data-gender="female"]{color:#e05a82}
-#battle-card .pokemon-name>span.canonical-level-value{top:6px;width:50px;height:14px;padding:0 0 0 22px;box-sizing:border-box;background-image:url("./assets/canonical-battle-ui/overlay_lv.png");background-repeat:no-repeat;background-position:0 0;background-size:22px 14px;color:#303038;font-size:.64rem;font-weight:900;line-height:14px;text-shadow:0 1px #fff}
+#battle-card .pokemon-name>span.canonical-level-value{top:6px;width:50px;height:14px;padding:0 0 0 22px;box-sizing:border-box;background-image:var(--canonical-battle-level-overlay,none);background-repeat:no-repeat;background-position:0 0;background-size:22px 14px;color:#303038;font-size:.64rem;font-weight:900;line-height:14px;text-shadow:0 1px #fff}
 #battle-card .battle-info-panel[data-hp-zone="1"] .hp-track span{background-position:0 -6px}
 #battle-card .battle-info-panel[data-hp-zone="2"] .hp-track span{background-position:0 -12px}
