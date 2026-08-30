@@ -27,6 +27,13 @@ for (const [itemId, family] of expected) {
   assert.equal(status.owner, "safari-bag-item-use", `${itemId} should use the shared Bag owner`);
 }
 
+for (const itemId of ["BERRYJUICE", "ORANBERRY", "SITRUSBERRY", "LUMBERRY", "PERSIMBERRY", "LEPPABERRY", "HOPOBERRY"]) {
+  const status = getItemEffectSupportStatus(itemId);
+  assert.equal(status.status, "partially_connected", `${itemId} Bag use is connected but held behavior remains separate`);
+  assert.equal(status.owner, "safari-bag-item-use");
+  assert.match(status.remaining, /held-item/);
+}
+
 assert.notEqual(getItemEffectSupportStatus("FULLRESTORE").family, "medicine_hp_healing");
 assert.notEqual(getItemEffectSupportStatus("ETHER").family, "medicine_hp_healing");
 assert.notEqual(getItemEffectSupportStatus("REVIVE").family, "medicine_hp_healing");
