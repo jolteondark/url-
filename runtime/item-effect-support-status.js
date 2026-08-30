@@ -10,8 +10,34 @@ const X_STAT_ITEMS = [
   "XACCURACY", "XACCURACY2", "XACCURACY3", "XACCURACY6",
 ];
 
+const HP_HEALING_ITEMS = [
+  "POTION", "BERRYJUICE", "SWEETHEART", "SUPERPOTION", "HYPERPOTION", "MAXPOTION",
+  "FRESHWATER", "SODAPOP", "LEMONADE", "MOOMOOMILK", "ORANBERRY", "SITRUSBERRY",
+  "ENERGYPOWDER", "ENERGYROOT", "CANARIBREAD",
+];
+
+const STATUS_HEALING_ITEMS = [
+  "AWAKENING", "CHESTOBERRY", "BLUEFLUTE", "POKEFLUTE",
+  "ANTIDOTE", "PECHABERRY", "BURNHEAL", "RAWSTBERRY",
+  "PARALYZEHEAL", "PARLYZHEAL", "CHERIBERRY", "ICEHEAL", "ASPEARBERRY",
+  "FULLHEAL", "LAVACOOKIE", "OLDGATEAU", "CASTELIACONE", "LUMIOSEGALETTE",
+  "SHALOURSABLE", "BIGMALASADA", "PEWTERCRUNCHIES", "LUMBERRY", "RAGECANDYBAR",
+  "HEALPOWDER", "PERSIMBERRY", "YELLOWFLUTE",
+];
+
+const PP_RESTORE_ITEMS = ["ETHER", "LEPPABERRY", "HOPOBERRY", "MAXETHER", "ELIXIR", "MAXELIXIR"];
+const PP_CAPACITY_ITEMS = ["PPUP", "PPMAX"];
+const REVIVAL_ITEMS = ["REVIVE", "MAXREVIVE", "REVIVALHERB"];
+
 export const ITEM_EFFECT_SUPPORT_STATUS = Object.freeze({
   ...Object.fromEntries(X_STAT_ITEMS.map((id) => [id, connected("battle_stat_stage", "safari-normal-battle-lifecycle")])),
+  ...Object.fromEntries(HP_HEALING_ITEMS.map((id) => [id, connected("medicine_hp_healing", "safari-bag-item-use")])),
+  ...Object.fromEntries(STATUS_HEALING_ITEMS.map((id) => [id, connected("medicine_status_healing", "safari-bag-item-use")])),
+  ...Object.fromEntries(PP_RESTORE_ITEMS.map((id) => [id, connected("medicine_pp_restore", "safari-bag-item-use")])),
+  ...Object.fromEntries(PP_CAPACITY_ITEMS.map((id) => [id, connected("medicine_pp_capacity", "safari-bag-item-use")])),
+  ...Object.fromEntries(REVIVAL_ITEMS.map((id) => [id, connected("medicine_revival", "safari-bag-item-use")])),
+  FULLRESTORE: connected("medicine_full_restore", "safari-bag-item-use"),
+
   POKEDOLL: connected("battle_certain_escape", "safari-flee-command"),
   FLUFFYTAIL: connected("battle_certain_escape", "safari-flee-command"),
   POKETOY: connected("battle_certain_escape", "safari-flee-command"),
