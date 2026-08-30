@@ -38,15 +38,15 @@ for (const itemId of ["BERRYJUICE", "ORANBERRY", "SITRUSBERRY"]) {
 
 {
   const status = getItemEffectSupportStatus("LEPPABERRY");
-  assert.equal(status.status, "partially_connected", "Leppa Berry Bag use is connected but its canonical held 0-PP trigger is not");
-  assert.equal(status.owner, "safari-bag-item-use");
-  assert.match(status.remaining, /Leppa held 0-PP trigger/);
-  assert.match(status.remaining, /shared Battle hook/);
+  assert.equal(status.status, "connected", "Leppa Berry Bag use and canonical held 0-PP exact-move trigger should both be connected");
+  assert.equal(status.family, "medicine_pp_restore");
+  assert.match(status.owner, /safari-normal-battle-round-pre-gems/);
+  assert.match(status.owner, /item-held-pp-restore-berry-effects/);
 }
 
 {
   const status = getItemEffectSupportStatus("HOPOBERRY");
-  assert.equal(status.status, "connected", "Hopo Berry should be tracked as the connected Bag PP restore family, not as a Leppa-style held trigger");
+  assert.equal(status.status, "connected", "Hopo Berry should remain tracked as the connected Bag PP restore family pending a separate canonical held-eligibility audit");
   assert.equal(status.owner, "safari-bag-item-use");
   assert.equal(status.family, "medicine_pp_restore");
 }
