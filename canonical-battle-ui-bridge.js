@@ -1,4 +1,5 @@
 import { SAFARI_MOVE_MASTERS } from "./runtime/safari-playable-data.js";
+import { canonicalBattleUiCandidates } from "./runtime/canonical-battle-ui-sources.js";
 
 const TYPE_ICON_ROWS = Object.freeze({
   NORMAL: 0,
@@ -22,8 +23,36 @@ const TYPE_ICON_ROWS = Object.freeze({
   FAIRY: 18,
 });
 
+const CANONICAL_BATTLE_UI_CSS_ASSETS = Object.freeze({
+  "--canonical-battle-databox-foe": "databox_normal_foe.png",
+  "--canonical-battle-databox-player": "databox_normal.png",
+  "--canonical-battle-hp-overlay": "overlay_hp.png",
+  "--canonical-battle-message-overlay": "overlay_message.png",
+  "--canonical-battle-fight-overlay": "overlay_fight.png",
+  "--canonical-battle-types": "types.png",
+  "--canonical-battle-status-icons": "icon_statuses.png",
+  "--canonical-battle-level-overlay": "overlay_lv.png",
+});
+
 const grid = document.getElementById("moves");
 let syncScheduled = false;
+
+function cssUrl(value) {
+  return `url("${String(value).replaceAll('"', '%22')}")`;
+}
+
+function applyCanonicalBattleUiSources() {
+  const card = document.getElementById("battle-card");
+  if (!card) return;
+  for (const [property, assetName] of Object.entries(CANONICAL_BATTLE_UI_CSS_ASSETS)) {
+    const candidate = canonicalBattleUiCandidates(assetName)[0] ?? null;
+    if (!candidate) {
+      card.style.removeProperty(property);
+      continue;
+    }
+    card.style.setProperty(property, cssUrl(new URL(candidate, import.meta.url).href));
+  }
+}
 
 function moveButtons() {
   if (!grid) return [];
@@ -112,10 +141,12 @@ function scheduleSync() {
   syncScheduled = true;
   requestAnimationFrame(() => {
     syncScheduled = false;
+    applyCanonicalBattleUiSources();
     syncFightMenu();
   });
 }
 
+applyCanonicalBattleUiSources();
 if (grid) {
   new MutationObserver(scheduleSync).observe(grid, { childList: true });
   syncFightMenu();
