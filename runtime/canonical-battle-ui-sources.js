@@ -27,6 +27,16 @@ export const PUBLISHED_CANONICAL_BATTLE_UI = Object.freeze({
     canonicalSha256: '614722591ecfa667be586e0c9df985c5b4bcbac2b8f3c3b2beed1fc4c7094d39',
     bytes: 8456,
   }),
+  'overlay_hp.png': Object.freeze({
+    canonicalGitBlobSha: '7064a0ca0dc20a7fd91c4f155af93d95b58c8280',
+    canonicalSha256: '087d8f80277526e7814a965dfdc27c61312f5e29a1bd5632bfea8e280d2b72b5',
+    bytes: 120,
+  }),
+  'icon_statuses.png': Object.freeze({
+    canonicalGitBlobSha: 'b3e204c5d53a6d17a556a8602f516ea4db2bbfff',
+    canonicalSha256: 'f1220f895c686dc8601916769be7853960a44f0efdccbd4b1ec429906dd33fa0',
+    bytes: 756,
+  }),
   'types.png': Object.freeze({
     canonicalGitBlobSha: '7f1b9d801436bbf1fc215aed24093292d3c0c8ba',
     canonicalSha256: '9dd259f26d6983ebe738b2a088941dce88f2acc63391dc8a3303190eea26f5ea',
