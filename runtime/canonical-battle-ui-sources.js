@@ -107,6 +107,17 @@ export function canonicalBattleUiCandidates(name) {
   return [];
 }
 
+export function canonicalBattleUiAssetUrl(name, _options = {}) {
+  const candidate = canonicalBattleUiCandidates(name)[0] ?? null;
+  if (!candidate) return null;
+  try {
+    const source = candidate.startsWith('assets/') ? `../${candidate}` : candidate;
+    return new URL(source, import.meta.url).href;
+  } catch {
+    return null;
+  }
+}
+
 export function canonicalBattleUiResolutionState(name) {
   const safe = String(name ?? '').trim();
   const unresolved = UNRESOLVED_CANONICAL_BATTLE_UI[safe];
