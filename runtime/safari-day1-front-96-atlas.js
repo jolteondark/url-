@@ -1,3 +1,5 @@
+import { canonicalBattleSpriteAtlasUrl } from "./canonical-battle-sprite-atlas-sources.js";
+
 const SPECIES = Object.freeze([
   "BULBASAUR","CHARMANDER","SQUIRTLE","CATERPIE","WEEDLE","PIDGEY","RATTATA","SPEAROW","EKANS","SANDSHREW",
   "NIDORANfE","NIDORANmA","VULPIX","ZUBAT","ODDISH","PARAS","VENONAT","DIGLETT","MEOWTH","PSYDUCK",
@@ -9,7 +11,7 @@ const SPECIES = Object.freeze([
 
 const INDEX = new Map(SPECIES.map((species, index) => [species, index]));
 const URLS = Object.freeze(Array.from({ length: 6 }, (_, chunk) =>
-  new URL(`../assets/canonical-battle-sprites/day1-front/front-${String(chunk).padStart(2, "0")}.webp`, import.meta.url).href
+  canonicalBattleSpriteAtlasUrl("day1-front-96", chunk, import.meta.url)
 ));
 const LOAD_STATE = Array(URLS.length).fill("idle");
 
@@ -18,6 +20,8 @@ function notify() {
 }
 
 function ensureChunkLoaded(chunk) {
+  const url = URLS[chunk];
+  if (!url) return false;
   if (typeof Image === "undefined") return true;
   if (LOAD_STATE[chunk] === "ready") return true;
   if (LOAD_STATE[chunk] === "failed") return false;
@@ -33,7 +37,7 @@ function ensureChunkLoaded(chunk) {
       LOAD_STATE[chunk] = "failed";
       notify();
     };
-    image.src = URLS[chunk];
+    image.src = url;
   }
   return false;
 }
