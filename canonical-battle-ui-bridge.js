@@ -32,6 +32,7 @@ const CANONICAL_BATTLE_UI_CSS_ASSETS = Object.freeze({
   "--canonical-battle-types": "types.png",
   "--canonical-battle-status-icons": "icon_statuses.png",
   "--canonical-battle-level-overlay": "overlay_lv.png",
+  "--canonical-battle-command-cursor": "cursor_command.png",
 });
 
 const grid = document.getElementById("moves");
