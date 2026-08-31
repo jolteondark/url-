@@ -29,6 +29,7 @@ const CANONICAL_BATTLE_UI_CSS_ASSETS = Object.freeze({
   "--canonical-battle-hp-overlay": "overlay_hp.png",
   "--canonical-battle-message-overlay": "overlay_message.png",
   "--canonical-battle-fight-overlay": "overlay_fight.png",
+  "--canonical-battle-command-overlay": "overlay_command.png",
   "--canonical-battle-types": "types.png",
   "--canonical-battle-status-icons": "icon_statuses.png",
   "--canonical-battle-level-overlay": "overlay_lv.png",
