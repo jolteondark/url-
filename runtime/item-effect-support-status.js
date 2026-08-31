@@ -44,11 +44,13 @@ const EVOLUTION_STONE_ITEMS = [
   "SCROLLOFDARKNESS", "SCROLLOFWATERS", "SYRUPYAPPLE",
   "UNREMARKABLETEACUP", "MASTERPIECETEACUP", "METALALLOY",
 ];
+const FORM_CHANGE_KEY_ITEMS = ["GRACIDEA", "REVEALGLASS", "METEORITE"];
 const HELD_PP_OWNER = "safari-bag-item-use + safari-normal-battle-round-pre-gems/item-held-pp-restore-berry-effects";
 const CERTAIN_ESCAPE_OWNER_NEEDED = "battle Bag no-target dispatch into safari-flee-command attemptSafariFlee(certainEscapeByItem=true) + consume only after successful escape";
 const ABILITY_MUTATION_OWNER_NEEDED = "shared Pokemon ability-index/species-ability owner + Bag target confirmation/consume-on-success adapter";
 const ITEM_EVOLUTION_OWNER_NEEDED = "shared Pokemon species/form item-evolution resolver + canonical evolution sequence + Bag consume-on-success adapter";
 const LEVEL_UP_ITEM_OWNER_NEEDED = "shared Pokemon level/experience owner + canonical level-up/move-learning/evolution sequence + Bag consume-on-success adapter";
+const FORM_CHANGE_OWNER_NEEDED = "shared Pokemon species/form setForm owner + Bag OnPokemon target adapter; key item must remain non-consumable";
 
 export const ITEM_EFFECT_SUPPORT_STATUS = Object.freeze({
   ...Object.fromEntries(X_STAT_ITEMS.map((id) => [id, connected("battle_stat_stage", "safari-normal-battle-lifecycle")])),
@@ -62,6 +64,7 @@ export const ITEM_EFFECT_SUPPORT_STATUS = Object.freeze({
   ...Object.fromEntries(PP_CAPACITY_ITEMS.map((id) => [id, connected("medicine_pp_capacity", "safari-bag-item-use")])),
   ...Object.fromEntries(REVIVAL_ITEMS.map((id) => [id, connected("medicine_revival", "safari-bag-item-use")])),
   ...Object.fromEntries(EVOLUTION_STONE_ITEMS.map((id) => [id, blocked("item_evolution", ITEM_EVOLUTION_OWNER_NEEDED)])),
+  ...Object.fromEntries(FORM_CHANGE_KEY_ITEMS.map((id) => [id, blocked("pokemon_form_change", FORM_CHANGE_OWNER_NEEDED)])),
   FULLRESTORE: connected("medicine_full_restore", "safari-bag-item-use"),
   RARECANDY: blocked("level_up_item", LEVEL_UP_ITEM_OWNER_NEEDED),
 
