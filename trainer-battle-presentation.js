@@ -1,7 +1,16 @@
+import { canonicalBattleUiAssetUrl } from "./runtime/canonical-battle-ui-sources.js";
+
 const byId = (id) => document.getElementById(id);
 let scheduled = false;
 let replacementMessageTimer = 0;
 let lastReplacementSignature = null;
+
+const TRAINER_PARTY_BALL_ICON_BY_STATE = Object.freeze({
+  occupied: "icon_ball.png",
+  empty: "icon_ball_empty.png",
+  fainted: "icon_ball_faint.png",
+  status: "icon_ball_status.png",
+});
 
 function runtimeState() {
   return globalThis.__maplessSafariRuntime?.variables?.mapless ?? null;
@@ -111,20 +120,31 @@ function syncFleePresentation(battle) {
   flee.removeAttribute("aria-disabled");
 }
 
+function lineupIconState(pokemon, index, active) {
+  if (!pokemon) return "empty";
+  if (index < active || isFainted(pokemon)) return "fainted";
+  if (hasStatus(pokemon)) return "status";
+  return "occupied";
+}
+
 function lineupPip(pokemon, index, active, completed) {
-  const item = document.createElement("span");
-  item.className = "trainer-party-pip";
-  if (!pokemon) {
-    item.classList.add("empty");
-    item.setAttribute("aria-label", `${index + 1}: 空き`);
-    return item;
+  const state = lineupIconState(pokemon, index, active);
+  const src = canonicalBattleUiAssetUrl(TRAINER_PARTY_BALL_ICON_BY_STATE[state], {
+    consumer: "trainer-party-pips",
+  });
+  if (!src) return null;
+
+  const item = document.createElement("img");
+  item.className = "trainer-party-ball-icon";
+  item.src = src;
+  item.alt = "";
+  item.setAttribute("aria-hidden", "true");
+  item.dataset.partyState = state;
+  if (pokemon) {
+    item.title = pokemonName(pokemon);
+    item.dataset.partyIndex = String(index);
+    if (index === active && !completed) item.dataset.active = "true";
   }
-  const fainted = index < active || isFainted(pokemon);
-  if (index === active && !completed) item.classList.add("active");
-  if (fainted) item.classList.add("fainted");
-  else if (hasStatus(pokemon)) item.classList.add("status");
-  item.title = pokemonName(pokemon);
-  item.setAttribute("aria-label", `${index + 1}: ${pokemonName(pokemon)}${index === active ? " 使用中" : ""}${fainted ? " ひんし" : hasStatus(pokemon) ? " 状態異常" : ""}`);
   return item;
 }
 
@@ -149,7 +169,7 @@ function render() {
   byId("trainer-battle-count").textContent = battle.completed ? "RESULT" : `残り ${remaining} / ${party.length || 1}`;
 
   const lineup = Array.from({ length: Math.max(6, party.length || 1) }, (_, index) => party[index] ?? (index === 0 ? battle.foe : null));
-  const pips = lineup.map((pokemon, index) => lineupPip(pokemon, index, active, battle.completed));
+  const pips = lineup.map((pokemon, index) => lineupPip(pokemon, index, active, battle.completed)).filter(Boolean);
   byId("trainer-battle-party").replaceChildren(...pips);
   if (!battle.completed) scheduleReplacementMessage(battle);
 }
