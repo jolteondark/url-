@@ -54,4 +54,4 @@
 #battle-card[data-dppt-menu="root"] .dppt-command-root button[data-dppt-command="flee"]{--canonical-command-row:3;grid-column:2;grid-row:2}
 #battle-card[data-dppt-menu="root"] .dppt-command-root button:focus-visible,#battle-card[data-dppt-menu="root"] .dppt-command-root button:active:not(:disabled){outline:0;background-position:100% calc(var(--canonical-command-row) * 11.111111%)!important;transform:none;filter:none}
 @media(max-width:430px){#battle-card .foe-info{left:10px}#battle-card .player-info{right:10px}#battle-card .move-grid{height:96px}#battle-card .move-grid>button{padding-left:12px;padding-right:8px}#battle-card .canonical-move-type-icon{transform:translateX(-50%) scale(.88);transform-origin:center}#battle-card .battle-actions button{min-height:56px;font-size:.86rem}}
-@media(max-width:360px){#battle-card .move-grid strong{font-size:.68rem}#battle-card .canonical-move-pp{font-size:.52rem}}
+@media(max-width:360px){#battle-card .battle-message{padding-left:14px;padding-right:14px}#battle-card .move-grid strong{font-size:.68rem}#battle-card .canonical-move-pp{font-size:.52rem}}
