@@ -61,6 +61,19 @@ const EFFECTS = Object.freeze({
     consumable: false,
     consumeOnFailure: false,
   }),
+  ROTOMCATALOG: Object.freeze({
+    family: "pokemon_form_change",
+    target: "selected_party_pokemon",
+    eligibility: Object.freeze({
+      speciesRequired: "ROTOM",
+      requireNotFainted: true,
+      requireDestinationFormDifferent: true,
+    }),
+    apply: Object.freeze({ chooseFormFrom: Object.freeze([0, 1, 2, 3, 4, 5]), useCanonicalSetForm: true }),
+    selectionCancelReturnsFailure: true,
+    consumable: false,
+    consumeOnFailure: false,
+  }),
   ABILITYCAPSULE: Object.freeze({
     family: "ability_mutation",
     target: "selected_party_pokemon",

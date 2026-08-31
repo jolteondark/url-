@@ -44,7 +44,7 @@ const EVOLUTION_STONE_ITEMS = [
   "SCROLLOFDARKNESS", "SCROLLOFWATERS", "SYRUPYAPPLE",
   "UNREMARKABLETEACUP", "MASTERPIECETEACUP", "METALALLOY",
 ];
-const FORM_CHANGE_KEY_ITEMS = ["GRACIDEA", "REVEALGLASS", "METEORITE"];
+const FORM_CHANGE_KEY_ITEMS = ["GRACIDEA", "REVEALGLASS", "METEORITE", "ROTOMCATALOG"];
 const HELD_PP_OWNER = "safari-bag-item-use + safari-normal-battle-round-pre-gems/item-held-pp-restore-berry-effects";
 const CERTAIN_ESCAPE_OWNER_NEEDED = "battle Bag no-target dispatch into safari-flee-command attemptSafariFlee(certainEscapeByItem=true) + consume only after successful escape";
 const ABILITY_MUTATION_OWNER_NEEDED = "shared Pokemon ability-index/species-ability owner + Bag target confirmation/consume-on-success adapter";
