@@ -49,6 +49,29 @@ const EFFECTS = Object.freeze({
     }),
     consumeOnFailure: false,
   }),
+  LUMBERRY: Object.freeze({
+    family: "medicine_status_healing",
+    target: "holder_battler",
+    eligibility: Object.freeze({
+      requireCanConsumeBerryUnlessForced: true,
+      requirePrimaryStatusOrConfusion: true,
+    }),
+    apply: Object.freeze({
+      curePrimaryStatus: true,
+      cureConfusion: true,
+    }),
+    consumeOnFailure: false,
+  }),
+  PERSIMBERRY: Object.freeze({
+    family: "medicine_status_healing",
+    target: "holder_battler",
+    eligibility: Object.freeze({
+      requireCanConsumeBerryUnlessForced: true,
+      requireConfusion: true,
+    }),
+    apply: Object.freeze({ cureConfusion: true }),
+    consumeOnFailure: false,
+  }),
   DIREHIT: Object.freeze({
     family: "focus_energy",
     target: "selected_ally_battler",
