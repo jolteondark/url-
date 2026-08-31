@@ -86,7 +86,7 @@ export function canonicalBattleUiCandidates(name) {
   const published = PUBLISHED_CANONICAL_BATTLE_UI[safe] ?? null;
   if (published) return mirror ? [local, mirror.url] : [local];
   if (mirror) return [mirror.url];
-  return [local];
+  return [];
 }
 
 export function canonicalBattleUiResolutionState(name) {
@@ -95,6 +95,9 @@ export function canonicalBattleUiResolutionState(name) {
   if (unresolved) return Object.freeze({ status: 'blocked', name: safe, ...unresolved });
   const mirror = canonicalBattleUiExactMirror(safe);
   const published = PUBLISHED_CANONICAL_BATTLE_UI[safe] ?? null;
+  if (!published && !mirror) {
+    return Object.freeze({ status: 'blocked', name: safe, reason: 'unpublished-no-exact-mirror', mirror: false, published: null });
+  }
   return Object.freeze({ status: 'eligible', name: safe, mirror: Boolean(mirror), published });
 }
 
