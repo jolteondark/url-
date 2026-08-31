@@ -147,6 +147,25 @@ const EFFECTS = Object.freeze({
     consumable: false,
     consumeOnFailure: false,
   }),
+  ZYGARDECUBE: Object.freeze({
+    family: "zygarde_cube",
+    target: "selected_party_pokemon_then_action_choice",
+    eligibility: Object.freeze({
+      speciesRequired: "ZYGARDE",
+      requireNotFainted: true,
+    }),
+    choices: Object.freeze({
+      changeForm: Object.freeze({
+        apply: Object.freeze({ toggleForms: Object.freeze([0, 1]), useCanonicalSetForm: true }),
+      }),
+      changeAbility: Object.freeze({
+        apply: Object.freeze({ toggleAbilityIndex: Object.freeze([0, 1]), clearCachedAbility: true }),
+      }),
+    }),
+    selectionCancelReturnsFailure: true,
+    consumable: false,
+    consumeOnFailure: false,
+  }),
 
   DNASPLICERS: fusionEffect({
     primarySpecies: "KYUREM",
