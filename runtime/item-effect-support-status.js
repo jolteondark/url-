@@ -61,6 +61,7 @@ const EXP_CANDY_OWNER_NEEDED = "shared Pokemon experience/growth-rate owner + ca
 const FORM_CHANGE_OWNER_NEEDED = "shared Pokemon species/form setForm owner + Bag OnPokemon target adapter; key item must remain non-consumable";
 const FUSION_OWNER_NEEDED = "shared Pokemon fused-state + species/form setForm owner + Party remove/restore owner + atomic Bag key-item replace adapter";
 const ZYGARDE_CUBE_OWNER_NEEDED = "shared Pokemon species/form setForm + ability-index owner + Bag OnPokemon choice adapter; key item must remain non-consumable";
+const PARTY_MASS_REVIVAL_OWNER_NEEDED = "shared Party roster mutation owner + field Bag direct-use adapter that heals every fainted party Pokemon and consumes exactly once only when at least one Pokemon is revived";
 
 export const ITEM_EFFECT_SUPPORT_STATUS = Object.freeze({
   ...Object.fromEntries(X_STAT_ITEMS.map((id) => [id, connected("battle_stat_stage", "safari-normal-battle-lifecycle")])),
@@ -78,6 +79,7 @@ export const ITEM_EFFECT_SUPPORT_STATUS = Object.freeze({
   ...Object.fromEntries(FORM_CHANGE_KEY_ITEMS.map((id) => [id, blocked("pokemon_form_change", FORM_CHANGE_OWNER_NEEDED)])),
   ...Object.fromEntries(FUSION_KEY_ITEMS.map((id) => [id, blocked("pokemon_fusion_key_item", FUSION_OWNER_NEEDED)])),
   FULLRESTORE: connected("medicine_full_restore", "safari-bag-item-use"),
+  SACREDASH: blocked("party_mass_revival", PARTY_MASS_REVIVAL_OWNER_NEEDED),
   RARECANDY: blocked("level_up_item", LEVEL_UP_ITEM_OWNER_NEEDED),
   ZYGARDECUBE: blocked("zygarde_cube", ZYGARDE_CUBE_OWNER_NEEDED),
 
