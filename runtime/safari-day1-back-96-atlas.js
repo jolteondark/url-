@@ -1,17 +1,20 @@
+import { canonicalBattleSpriteAtlasUrl } from "./canonical-battle-sprite-atlas-sources.js";
+
 const SPECIES = Object.freeze([
   "BULBASAUR","CHARMANDER","SQUIRTLE","CATERPIE","WEEDLE",
   "PIDGEY","RATTATA","SPEAROW","EKANS","SANDSHREW",
 ]);
 
 const INDEX = new Map(SPECIES.map((species, index) => [species, index]));
-const URL = new URL("../assets/canonical-battle-sprites/day1-back/back-00.webp", import.meta.url).href;
-let loadState = "idle";
+const URL = canonicalBattleSpriteAtlasUrl("day1-back-96", 0, import.meta.url);
+let loadState = URL ? "idle" : "failed";
 
 function notify() {
   if (typeof window !== "undefined") window.dispatchEvent(new Event("safari-day1-back-96-atlas-state"));
 }
 
 function ensureLoaded() {
+  if (!URL) return false;
   if (typeof Image === "undefined") return true;
   if (loadState === "ready") return true;
   if (loadState === "failed") return false;
