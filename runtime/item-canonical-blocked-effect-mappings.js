@@ -25,6 +25,42 @@ const EFFECTS = Object.freeze({
     apply: Object.freeze({ levelDelta: 1, useCanonicalLevelUpSequence: true }),
     consumeOnFailure: false,
   }),
+  GRACIDEA: Object.freeze({
+    family: "pokemon_form_change",
+    target: "selected_party_pokemon",
+    eligibility: Object.freeze({
+      speciesRequired: "SHAYMIN",
+      requireNotFainted: true,
+      statusesDisallowed: Object.freeze(["FROZEN", "FROSTBITE"]),
+      requireNotNight: true,
+    }),
+    apply: Object.freeze({ toggleForms: Object.freeze([0, 1]), useCanonicalSetForm: true }),
+    consumable: false,
+    consumeOnFailure: false,
+  }),
+  REVEALGLASS: Object.freeze({
+    family: "pokemon_form_change",
+    target: "selected_party_pokemon",
+    eligibility: Object.freeze({
+      requireSpeciesFlag: "ForcesOfNature",
+      requireNotFainted: true,
+    }),
+    apply: Object.freeze({ toggleForms: Object.freeze([0, 1]), useCanonicalSetForm: true }),
+    consumable: false,
+    consumeOnFailure: false,
+  }),
+  METEORITE: Object.freeze({
+    family: "pokemon_form_change",
+    target: "selected_party_pokemon",
+    eligibility: Object.freeze({
+      speciesRequired: "DEOXYS",
+      requireNotFainted: true,
+      requireDestinationFormDifferent: true,
+    }),
+    apply: Object.freeze({ chooseFormFrom: Object.freeze([0, 1, 2, 3]), useCanonicalSetForm: true }),
+    consumable: false,
+    consumeOnFailure: false,
+  }),
   ABILITYCAPSULE: Object.freeze({
     family: "ability_mutation",
     target: "selected_party_pokemon",
