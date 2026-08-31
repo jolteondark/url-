@@ -12,7 +12,6 @@ const expected = new Map([
   ["MAXETHER", "medicine_pp_restore"],
   ["ELIXIR", "medicine_pp_restore"],
   ["MAXELIXIR", "medicine_pp_restore"],
-  ["HOPOBERRY", "medicine_pp_restore"],
   ["PPUP", "medicine_pp_capacity"],
   ["PPMAX", "medicine_pp_capacity"],
   ["REVIVE", "medicine_revival"],
@@ -37,19 +36,13 @@ for (const itemId of ["BERRYJUICE", "ORANBERRY", "SITRUSBERRY"]) {
   assert.match(status.owner, /battle-held-item-runtime-integration/);
 }
 
-{
-  const status = getItemEffectSupportStatus("LEPPABERRY");
-  assert.equal(status.status, "connected", "Leppa Berry Bag use and canonical held 0-PP exact-move trigger should both be connected");
+for (const itemId of ["LEPPABERRY", "HOPOBERRY"]) {
+  const status = getItemEffectSupportStatus(itemId);
+  assert.equal(status.status, "connected", `${itemId} Bag use and canonical held 0-PP exact-move trigger should both be connected`);
   assert.equal(status.family, "medicine_pp_restore");
+  assert.match(status.owner, /safari-bag-item-use/);
   assert.match(status.owner, /safari-normal-battle-round-pre-gems/);
   assert.match(status.owner, /item-held-pp-restore-berry-effects/);
-}
-
-{
-  const status = getItemEffectSupportStatus("HOPOBERRY");
-  assert.equal(status.status, "connected", "Hopo Berry should remain tracked as the connected Bag PP restore family pending a separate canonical held-eligibility audit");
-  assert.equal(status.owner, "safari-bag-item-use");
-  assert.equal(status.family, "medicine_pp_restore");
 }
 
 for (const itemId of ["LUMBERRY", "PERSIMBERRY"]) {
