@@ -68,7 +68,7 @@ export function resolveCanonicalHpFunctionEffect({
 
   if (!moveExecuted) return { functionCode: code, hpBefore, hpAfter: hpBefore, heal: 0, selfDamage: 0, selfKo: false, restSleep: false };
 
-  if (code === "HealUserByHalfOfDamageDone" || code === "HealUserByHalfOfDamageDoneIfTargetAsleep") {
+  if (["HealUserByHalfOfDamageDone", "HealUserByHalfOfDamageDoneIfTargetAsleep", "HealUserByHalfOfDamageDoneBurnTarget"].includes(code)) {
     if (actualDamage > 0) heal = rubyRound(actualDamage / 2);
   } else if (code === "HealUserByThreeQuartersOfDamageDone") {
     if (actualDamage > 0) heal = rubyRound(actualDamage * 0.75);
