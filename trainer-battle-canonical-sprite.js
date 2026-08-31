@@ -63,6 +63,13 @@ function scheduleRender() {
   requestAnimationFrame(render);
 }
 
+function installHudObserver() {
+  const card = document.getElementById("battle-card");
+  if (!card || typeof MutationObserver !== "function") return;
+  new MutationObserver(scheduleRender).observe(card, { childList: true, subtree: true });
+}
+
 window.addEventListener("pageshow", scheduleRender, { passive: true });
 window.addEventListener("safari-runtime-changed", scheduleRender, { passive: true });
+installHudObserver();
 requestAnimationFrame(render);
