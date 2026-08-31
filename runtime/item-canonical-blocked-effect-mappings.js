@@ -1,4 +1,30 @@
+const EVOLUTION_STONE_ITEMS = Object.freeze([
+  "FIRESTONE", "THUNDERSTONE", "WATERSTONE", "LEAFSTONE", "MOONSTONE",
+  "SUNSTONE", "DUSKSTONE", "DAWNSTONE", "SHINYSTONE", "ICESTONE",
+  "SWEETAPPLE", "TARTAPPLE", "CRACKEDPOT", "CHIPPEDPOT",
+  "GALARICACUFF", "GALARICAWREATH", "BLACKAUGURITE", "PEATBLOCK",
+  "LINKINGCORD", "AUSPICIOUSARMOR", "MALICIOUSARMOR",
+  "SCROLLOFDARKNESS", "SCROLLOFWATERS", "SYRUPYAPPLE",
+  "UNREMARKABLETEACUP", "MASTERPIECETEACUP", "METALALLOY",
+]);
+
+const evolutionStoneEffect = Object.freeze({
+  family: "item_evolution",
+  target: "selected_party_pokemon",
+  eligibility: Object.freeze({ requireMatchingCanonicalItemEvolution: true }),
+  apply: Object.freeze({ useCanonicalEvolutionSequence: true }),
+  consumeOnFailure: false,
+});
+
 const EFFECTS = Object.freeze({
+  ...Object.fromEntries(EVOLUTION_STONE_ITEMS.map((id) => [id, evolutionStoneEffect])),
+  RARECANDY: Object.freeze({
+    family: "level_up_item",
+    target: "selected_party_pokemon",
+    eligibility: Object.freeze({ requireLevelBelowMaximum: true }),
+    apply: Object.freeze({ levelDelta: 1, useCanonicalLevelUpSequence: true }),
+    consumeOnFailure: false,
+  }),
   ABILITYCAPSULE: Object.freeze({
     family: "ability_mutation",
     target: "selected_party_pokemon",
