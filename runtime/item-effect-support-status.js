@@ -31,8 +31,8 @@ const STATUS_HEALING_HELD_CONFUSION_BLOCKED = ["LUMBERRY", "PERSIMBERRY"];
 const STATUS_BERRY_OWNER = "safari-bag-item-use + battle-ability-item-hook-dispatch/battle-status-pp-flow/battle-held-item-consumption-flow";
 const HELD_CONFUSION_OWNER_NEEDED = "shared Battle confusion-state owner + held confusion-cure trigger; Bag target-use remains connected via safari-bag-item-use";
 
-const PP_RESTORE_ITEMS = ["ETHER", "MAXETHER", "ELIXIR", "MAXELIXIR", "HOPOBERRY"];
-const PP_RESTORE_HELD_ITEMS = ["LEPPABERRY"];
+const PP_RESTORE_ITEMS = ["ETHER", "MAXETHER", "ELIXIR", "MAXELIXIR"];
+const PP_RESTORE_HELD_ITEMS = ["LEPPABERRY", "HOPOBERRY"];
 const PP_CAPACITY_ITEMS = ["PPUP", "PPMAX"];
 const REVIVAL_ITEMS = ["REVIVE", "MAXREVIVE", "REVIVALHERB"];
 const HELD_PP_OWNER = "safari-bag-item-use + safari-normal-battle-round-pre-gems/item-held-pp-restore-berry-effects";
