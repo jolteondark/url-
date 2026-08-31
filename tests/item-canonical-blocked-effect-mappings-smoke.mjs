@@ -30,6 +30,34 @@ for (const itemId of ["ABILITYCAPSULE", "ABILITYPATCH"]) {
   assert.match(status.ownerNeeded, /consume-on-success/);
 }
 
+const lum = getCanonicalBlockedItemEffectMapping("LUMBERRY");
+assert.equal(lum.known, true);
+assert.equal(lum.family, "medicine_status_healing");
+assert.equal(lum.target, "holder_battler");
+assert.equal(lum.eligibility.requireCanConsumeBerryUnlessForced, true);
+assert.equal(lum.eligibility.requirePrimaryStatusOrConfusion, true);
+assert.equal(lum.apply.curePrimaryStatus, true);
+assert.equal(lum.apply.cureConfusion, true);
+assert.equal(lum.consumeOnFailure, false);
+
+const persim = getCanonicalBlockedItemEffectMapping("PERSIMBERRY");
+assert.equal(persim.known, true);
+assert.equal(persim.family, "medicine_status_healing");
+assert.equal(persim.target, "holder_battler");
+assert.equal(persim.eligibility.requireCanConsumeBerryUnlessForced, true);
+assert.equal(persim.eligibility.requireConfusion, true);
+assert.equal(persim.apply.cureConfusion, true);
+assert.equal(persim.apply.curePrimaryStatus, undefined);
+assert.equal(persim.consumeOnFailure, false);
+
+for (const itemId of ["LUMBERRY", "PERSIMBERRY"]) {
+  const status = getItemEffectSupportStatus(itemId);
+  assert.equal(status.status, "effect_mapped_owner_blocked");
+  assert.equal(status.family, "medicine_status_healing");
+  assert.match(status.ownerNeeded, /confusion-state owner/);
+  assert.match(status.ownerNeeded, /Bag target-use remains connected/);
+}
+
 const direHit = getCanonicalBlockedItemEffectMapping("DIREHIT");
 assert.equal(direHit.known, true);
 assert.equal(direHit.family, "focus_energy");
