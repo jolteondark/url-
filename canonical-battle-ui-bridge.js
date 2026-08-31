@@ -34,6 +34,7 @@ const CANONICAL_BATTLE_UI_CSS_ASSETS = Object.freeze({
   "--canonical-battle-status-icons": "icon_statuses.png",
   "--canonical-battle-level-overlay": "overlay_lv.png",
   "--canonical-battle-command-cursor": "cursor_command.png",
+  "--canonical-battle-fight-cursor": "cursor_fight.png",
 });
 
 const grid = document.getElementById("moves");
@@ -102,6 +103,10 @@ function updateInfo(panel, button, buttons) {
   panel.querySelector(".canonical-move-type-label").textContent = `TYPE/${type}`;
 
   for (const candidate of buttons) {
+    const candidateMaster = SAFARI_MOVE_MASTERS[candidate?.dataset.moveId ?? ""] ?? null;
+    const candidateType = String(candidateMaster?.type ?? "QMARKS");
+    const candidateRow = TYPE_ICON_ROWS[candidateType] ?? TYPE_ICON_ROWS.QMARKS;
+    candidate.style.setProperty("--canonical-fight-row", String(candidateRow));
     candidate.classList.toggle("canonical-selected", candidate === button);
   }
 }
