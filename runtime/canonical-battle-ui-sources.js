@@ -53,7 +53,10 @@ export function canonicalBattleUiCandidates(name) {
   const local = canonicalBattleUiLocalPath(safe);
   if (!local) return [];
   const mirror = canonicalBattleUiExactMirror(safe);
-  return mirror ? [local, mirror.url] : [local];
+  const published = PUBLISHED_CANONICAL_BATTLE_UI[safe] ?? null;
+  if (published) return mirror ? [local, mirror.url] : [local];
+  if (mirror) return [mirror.url];
+  return [local];
 }
 
 export function canonicalBattleUiResolutionState(name) {
