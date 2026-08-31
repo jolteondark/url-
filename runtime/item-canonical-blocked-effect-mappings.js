@@ -16,6 +16,20 @@ const evolutionStoneEffect = Object.freeze({
   consumeOnFailure: false,
 });
 
+const expCandyEffect = (experienceGain) => Object.freeze({
+  family: "experience_candy",
+  target: "selected_party_pokemon",
+  eligibility: Object.freeze({
+    requireLevelBelowMaximum: true,
+    shadowPokemonDisallowed: true,
+  }),
+  apply: Object.freeze({
+    experienceGain,
+    useCanonicalExperienceGainSequence: true,
+  }),
+  consumeOnFailure: false,
+});
+
 const EFFECTS = Object.freeze({
   ...Object.fromEntries(EVOLUTION_STONE_ITEMS.map((id) => [id, evolutionStoneEffect])),
   RARECANDY: Object.freeze({
@@ -25,6 +39,11 @@ const EFFECTS = Object.freeze({
     apply: Object.freeze({ levelDelta: 1, useCanonicalLevelUpSequence: true }),
     consumeOnFailure: false,
   }),
+  EXPCANDYXS: expCandyEffect(100),
+  EXPCANDYS: expCandyEffect(800),
+  EXPCANDYM: expCandyEffect(3_000),
+  EXPCANDYL: expCandyEffect(10_000),
+  EXPCANDYXL: expCandyEffect(30_000),
   GRACIDEA: Object.freeze({
     family: "pokemon_form_change",
     target: "selected_party_pokemon",
@@ -71,6 +90,17 @@ const EFFECTS = Object.freeze({
     }),
     apply: Object.freeze({ chooseFormFrom: Object.freeze([0, 1, 2, 3, 4, 5]), useCanonicalSetForm: true }),
     selectionCancelReturnsFailure: true,
+    consumable: false,
+    consumeOnFailure: false,
+  }),
+  PRISONBOTTLE: Object.freeze({
+    family: "pokemon_form_change",
+    target: "selected_party_pokemon",
+    eligibility: Object.freeze({
+      speciesRequired: "HOOPA",
+      requireNotFainted: true,
+    }),
+    apply: Object.freeze({ toggleForms: Object.freeze([0, 1]), useCanonicalSetForm: true }),
     consumable: false,
     consumeOnFailure: false,
   }),
