@@ -1,4 +1,28 @@
 const EFFECTS = Object.freeze({
+  ABILITYCAPSULE: Object.freeze({
+    family: "ability_mutation",
+    target: "selected_party_pokemon",
+    eligibility: Object.freeze({
+      requireNormalAbilitySlots: Object.freeze([0, 1]),
+      hiddenAbilityDisallowed: true,
+      speciesDisallowed: Object.freeze(["ZYGARDE"]),
+    }),
+    apply: Object.freeze({ toggleAbilityIndex: Object.freeze([0, 1]) }),
+    consumeOnFailure: false,
+  }),
+  ABILITYPATCH: Object.freeze({
+    family: "ability_mutation",
+    target: "selected_party_pokemon",
+    eligibility: Object.freeze({
+      requireDestinationAbility: true,
+      speciesDisallowed: Object.freeze(["ZYGARDE"]),
+    }),
+    apply: Object.freeze({
+      normalAbilityToHiddenIndex: 2,
+      hiddenAbilityToNormalIndex: 0,
+    }),
+    consumeOnFailure: false,
+  }),
   DIREHIT: Object.freeze({
     family: "focus_energy",
     target: "selected_ally_battler",

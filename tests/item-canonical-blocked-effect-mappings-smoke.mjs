@@ -1,5 +1,34 @@
 import assert from "node:assert/strict";
 import { getCanonicalBlockedItemEffectMapping } from "../runtime/item-canonical-blocked-effect-mappings.js";
+import { getItemEffectSupportStatus } from "../runtime/item-effect-support-status.js";
+
+const capsule = getCanonicalBlockedItemEffectMapping("ABILITYCAPSULE");
+assert.equal(capsule.known, true);
+assert.equal(capsule.family, "ability_mutation");
+assert.equal(capsule.target, "selected_party_pokemon");
+assert.deepEqual(capsule.eligibility.requireNormalAbilitySlots, [0, 1]);
+assert.equal(capsule.eligibility.hiddenAbilityDisallowed, true);
+assert.deepEqual(capsule.eligibility.speciesDisallowed, ["ZYGARDE"]);
+assert.deepEqual(capsule.apply.toggleAbilityIndex, [0, 1]);
+assert.equal(capsule.consumeOnFailure, false);
+
+const patch = getCanonicalBlockedItemEffectMapping("ABILITYPATCH");
+assert.equal(patch.known, true);
+assert.equal(patch.family, "ability_mutation");
+assert.equal(patch.target, "selected_party_pokemon");
+assert.equal(patch.eligibility.requireDestinationAbility, true);
+assert.deepEqual(patch.eligibility.speciesDisallowed, ["ZYGARDE"]);
+assert.equal(patch.apply.normalAbilityToHiddenIndex, 2);
+assert.equal(patch.apply.hiddenAbilityToNormalIndex, 0);
+assert.equal(patch.consumeOnFailure, false);
+
+for (const itemId of ["ABILITYCAPSULE", "ABILITYPATCH"]) {
+  const status = getItemEffectSupportStatus(itemId);
+  assert.equal(status.status, "effect_mapped_owner_blocked");
+  assert.equal(status.family, "ability_mutation");
+  assert.match(status.ownerNeeded, /ability-index/);
+  assert.match(status.ownerNeeded, /consume-on-success/);
+}
 
 const direHit = getCanonicalBlockedItemEffectMapping("DIREHIT");
 assert.equal(direHit.known, true);
