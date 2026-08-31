@@ -30,6 +30,49 @@ const expCandyEffect = (experienceGain) => Object.freeze({
   consumeOnFailure: false,
 });
 
+const fusionEffect = ({ primarySpecies, companionForms, usedItemId }) => Object.freeze({
+  family: "pokemon_fusion_key_item",
+  target: "selected_party_pokemon_then_companion",
+  eligibility: Object.freeze({
+    primarySpeciesRequired: primarySpecies,
+    primaryRequireNotFainted: true,
+    primaryRequireNotFused: true,
+    companionRequireDifferentPartyPokemon: true,
+    companionEggDisallowed: true,
+    companionRequireNotFainted: true,
+    companionSpeciesToForm: Object.freeze({ ...companionForms }),
+  }),
+  apply: Object.freeze({
+    useCanonicalSetForm: true,
+    storeCompanionInFusedState: true,
+    removeCompanionFromParty: true,
+    replaceBagItemWith: usedItemId,
+  }),
+  selectionCancelReturnsFailure: true,
+  consumable: false,
+  consumeOnFailure: false,
+});
+
+const separationEffect = ({ primarySpecies, requiredForm = null, unusedItemId }) => Object.freeze({
+  family: "pokemon_fusion_key_item",
+  target: "selected_party_pokemon",
+  eligibility: Object.freeze({
+    primarySpeciesRequired: primarySpecies,
+    primaryRequireNotFainted: true,
+    primaryRequireFused: true,
+    ...(requiredForm === null ? {} : { primaryFormRequired: requiredForm }),
+  }),
+  apply: Object.freeze({
+    setPrimaryForm: 0,
+    useCanonicalSetForm: true,
+    restoreFusedCompanionToParty: true,
+    clearFusedState: true,
+    replaceBagItemWith: unusedItemId,
+  }),
+  consumable: false,
+  consumeOnFailure: false,
+});
+
 const EFFECTS = Object.freeze({
   ...Object.fromEntries(EVOLUTION_STONE_ITEMS.map((id) => [id, evolutionStoneEffect])),
   RARECANDY: Object.freeze({
@@ -104,6 +147,32 @@ const EFFECTS = Object.freeze({
     consumable: false,
     consumeOnFailure: false,
   }),
+
+  DNASPLICERS: fusionEffect({
+    primarySpecies: "KYUREM",
+    companionForms: { RESHIRAM: 1, ZEKROM: 2 },
+    usedItemId: "DNASPLICERSUSED",
+  }),
+  DNASPLICERSUSED: separationEffect({ primarySpecies: "KYUREM", unusedItemId: "DNASPLICERS" }),
+  NSOLARIZER: fusionEffect({
+    primarySpecies: "NECROZMA",
+    companionForms: { SOLGALEO: 1 },
+    usedItemId: "NSOLARIZERUSED",
+  }),
+  NSOLARIZERUSED: separationEffect({ primarySpecies: "NECROZMA", requiredForm: 1, unusedItemId: "NSOLARIZER" }),
+  NLUNARIZER: fusionEffect({
+    primarySpecies: "NECROZMA",
+    companionForms: { LUNALA: 2 },
+    usedItemId: "NLUNARIZERUSED",
+  }),
+  NLUNARIZERUSED: separationEffect({ primarySpecies: "NECROZMA", requiredForm: 2, unusedItemId: "NLUNARIZER" }),
+  REINSOFUNITY: fusionEffect({
+    primarySpecies: "CALYREX",
+    companionForms: { GLASTRIER: 1, SPECTRIER: 2 },
+    usedItemId: "REINSOFUNITYUSED",
+  }),
+  REINSOFUNITYUSED: separationEffect({ primarySpecies: "CALYREX", unusedItemId: "REINSOFUNITY" }),
+
   ABILITYCAPSULE: Object.freeze({
     family: "ability_mutation",
     target: "selected_party_pokemon",

@@ -46,6 +46,12 @@ const EVOLUTION_STONE_ITEMS = [
   "UNREMARKABLETEACUP", "MASTERPIECETEACUP", "METALALLOY",
 ];
 const FORM_CHANGE_KEY_ITEMS = ["GRACIDEA", "REVEALGLASS", "METEORITE", "ROTOMCATALOG", "PRISONBOTTLE"];
+const FUSION_KEY_ITEMS = [
+  "DNASPLICERS", "DNASPLICERSUSED",
+  "NSOLARIZER", "NSOLARIZERUSED",
+  "NLUNARIZER", "NLUNARIZERUSED",
+  "REINSOFUNITY", "REINSOFUNITYUSED",
+];
 const HELD_PP_OWNER = "safari-bag-item-use + safari-normal-battle-round-pre-gems/item-held-pp-restore-berry-effects";
 const CERTAIN_ESCAPE_OWNER_NEEDED = "battle Bag no-target dispatch into safari-flee-command attemptSafariFlee(certainEscapeByItem=true) + consume only after successful escape";
 const ABILITY_MUTATION_OWNER_NEEDED = "shared Pokemon ability-index/species-ability owner + Bag target confirmation/consume-on-success adapter";
@@ -53,6 +59,7 @@ const ITEM_EVOLUTION_OWNER_NEEDED = "shared Pokemon species/form item-evolution 
 const LEVEL_UP_ITEM_OWNER_NEEDED = "shared Pokemon level/experience owner + canonical level-up/move-learning/evolution sequence + Bag consume-on-success adapter";
 const EXP_CANDY_OWNER_NEEDED = "shared Pokemon experience/growth-rate owner + canonical experience gain/level-up/move-learning/evolution sequence + Bag quantity consume-on-success adapter";
 const FORM_CHANGE_OWNER_NEEDED = "shared Pokemon species/form setForm owner + Bag OnPokemon target adapter; key item must remain non-consumable";
+const FUSION_OWNER_NEEDED = "shared Pokemon fused-state + species/form setForm owner + Party remove/restore owner + atomic Bag key-item replace adapter";
 
 export const ITEM_EFFECT_SUPPORT_STATUS = Object.freeze({
   ...Object.fromEntries(X_STAT_ITEMS.map((id) => [id, connected("battle_stat_stage", "safari-normal-battle-lifecycle")])),
@@ -68,6 +75,7 @@ export const ITEM_EFFECT_SUPPORT_STATUS = Object.freeze({
   ...Object.fromEntries(EXP_CANDY_ITEMS.map((id) => [id, blocked("experience_candy", EXP_CANDY_OWNER_NEEDED)])),
   ...Object.fromEntries(EVOLUTION_STONE_ITEMS.map((id) => [id, blocked("item_evolution", ITEM_EVOLUTION_OWNER_NEEDED)])),
   ...Object.fromEntries(FORM_CHANGE_KEY_ITEMS.map((id) => [id, blocked("pokemon_form_change", FORM_CHANGE_OWNER_NEEDED)])),
+  ...Object.fromEntries(FUSION_KEY_ITEMS.map((id) => [id, blocked("pokemon_fusion_key_item", FUSION_OWNER_NEEDED)])),
   FULLRESTORE: connected("medicine_full_restore", "safari-bag-item-use"),
   RARECANDY: blocked("level_up_item", LEVEL_UP_ITEM_OWNER_NEEDED),
 
