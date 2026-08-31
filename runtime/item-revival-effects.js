@@ -6,6 +6,7 @@ export const REVIVAL_ITEM_EFFECT_SOURCE = Object.freeze({
 export const REVIVAL_ITEM_EFFECTS = Object.freeze({
   REVIVE: Object.freeze({ kind: "half", happinessMethod: null }),
   MAXREVIVE: Object.freeze({ kind: "full", happinessMethod: null }),
+  MAXHONEY: Object.freeze({ kind: "full", happinessMethod: null }),
   REVIVALHERB: Object.freeze({ kind: "full", happinessMethod: "revivalherb" }),
 });
 
