@@ -36,6 +36,7 @@ const PP_RESTORE_HELD_ITEMS = ["LEPPABERRY"];
 const PP_CAPACITY_ITEMS = ["PPUP", "PPMAX"];
 const REVIVAL_ITEMS = ["REVIVE", "MAXREVIVE", "REVIVALHERB"];
 const HELD_PP_OWNER = "safari-bag-item-use + safari-normal-battle-round-pre-gems/item-held-pp-restore-berry-effects";
+const CERTAIN_ESCAPE_OWNER_NEEDED = "battle Bag no-target dispatch into safari-flee-command attemptSafariFlee(certainEscapeByItem=true) + consume only after successful escape";
 
 export const ITEM_EFFECT_SUPPORT_STATUS = Object.freeze({
   ...Object.fromEntries(X_STAT_ITEMS.map((id) => [id, connected("battle_stat_stage", "safari-normal-battle-lifecycle")])),
@@ -50,9 +51,9 @@ export const ITEM_EFFECT_SUPPORT_STATUS = Object.freeze({
   ...Object.fromEntries(REVIVAL_ITEMS.map((id) => [id, connected("medicine_revival", "safari-bag-item-use")])),
   FULLRESTORE: connected("medicine_full_restore", "safari-bag-item-use"),
 
-  POKEDOLL: connected("battle_certain_escape", "safari-flee-command"),
-  FLUFFYTAIL: connected("battle_certain_escape", "safari-flee-command"),
-  POKETOY: connected("battle_certain_escape", "safari-flee-command"),
+  POKEDOLL: blocked("battle_certain_escape", CERTAIN_ESCAPE_OWNER_NEEDED),
+  FLUFFYTAIL: blocked("battle_certain_escape", CERTAIN_ESCAPE_OWNER_NEEDED),
+  POKETOY: blocked("battle_certain_escape", CERTAIN_ESCAPE_OWNER_NEEDED),
 
   DIREHIT: blocked("focus_energy", "shared Battle battler Focus Energy state owner"),
   DIREHIT2: blocked("focus_energy", "shared Battle battler Focus Energy state owner"),
