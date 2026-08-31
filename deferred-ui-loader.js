@@ -69,6 +69,7 @@ async function loadBattleUi() {
     loadModule("./canonical-battle-sprite-bridge.js?v=20260825-1042"),
     loadModule("./canonical-battle-back-atlas-patch.js?v=20260825-1042"),
     loadModule("./canonical-battleback-message-bridge.js?v=20260827-1604"),
+    loadModule("./canonical-battleback-presentation-bridge.js?v=20260831-1604"),
   ]);
 }
 
