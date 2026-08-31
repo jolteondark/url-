@@ -62,6 +62,8 @@ const FORM_CHANGE_OWNER_NEEDED = "shared Pokemon species/form setForm owner + Ba
 const FUSION_OWNER_NEEDED = "shared Pokemon fused-state + species/form setForm owner + Party remove/restore owner + atomic Bag key-item replace adapter";
 const ZYGARDE_CUBE_OWNER_NEEDED = "shared Pokemon species/form setForm + ability-index owner + Bag OnPokemon choice adapter; key item must remain non-consumable";
 const PARTY_MASS_REVIVAL_OWNER_NEEDED = "shared Party roster mutation owner + field Bag direct-use adapter that heals every fainted party Pokemon and consumes exactly once only when at least one Pokemon is revived";
+const FLUTE_FIELD_OWNER_NEEDED = "shared map/board wild-encounter level modifier + persistence owner; Gen 9 canonical Black/White Flute effects change wild levels and key off each other; items remain non-consumable";
+const HONEY_FIELD_OWNER_NEEDED = "shared Mapless board current-terrain/type resolver + ordinary capturable wild battle owner + field Bag direct-use consume-on-success adapter";
 
 export const ITEM_EFFECT_SUPPORT_STATUS = Object.freeze({
   ...Object.fromEntries(X_STAT_ITEMS.map((id) => [id, connected("battle_stat_stage", "safari-normal-battle-lifecycle")])),
@@ -82,6 +84,10 @@ export const ITEM_EFFECT_SUPPORT_STATUS = Object.freeze({
   SACREDASH: blocked("party_mass_revival", PARTY_MASS_REVIVAL_OWNER_NEEDED),
   RARECANDY: blocked("level_up_item", LEVEL_UP_ITEM_OWNER_NEEDED),
   ZYGARDECUBE: blocked("zygarde_cube", ZYGARDE_CUBE_OWNER_NEEDED),
+
+  BLACKFLUTE: blocked("wild_encounter_level_flute", FLUTE_FIELD_OWNER_NEEDED),
+  WHITEFLUTE: blocked("wild_encounter_level_flute", FLUTE_FIELD_OWNER_NEEDED),
+  HONEY: blocked("mapless_honey_wild_encounter", HONEY_FIELD_OWNER_NEEDED),
 
   ABILITYCAPSULE: blocked("ability_mutation", ABILITY_MUTATION_OWNER_NEEDED),
   ABILITYPATCH: blocked("ability_mutation", ABILITY_MUTATION_OWNER_NEEDED),
