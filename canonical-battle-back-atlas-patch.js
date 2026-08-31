@@ -2,6 +2,18 @@ import { applySafariDay1Back96Sprite } from "./runtime/safari-day1-back-96-atlas
 
 let scheduled = false;
 
+function ensureFrontAsBackGuard() {
+  if (document.getElementById("canonical-player-back-front-guard")) return;
+  const style = document.createElement("style");
+  style.id = "canonical-player-back-front-guard";
+  style.textContent = `
+    .combatant.player .canonical-battle-atlas-fallback[data-battle-sprite-fallback="species-form-front-for-back"]{
+      display:none!important;
+    }
+  `;
+  document.head.append(style);
+}
+
 function playerPokemon() {
   const runtime = globalThis.__maplessSafariRuntime;
   const battle = runtime?.variables?.mapless?.battle;
@@ -23,6 +35,7 @@ function canonicalImageMatches(image, species) {
 
 function render() {
   scheduled = false;
+  ensureFrontAsBackGuard();
   const card = document.getElementById("battle-card");
   const combatant = document.getElementById("player-combatant");
   if (!card || card.hidden || !combatant) return;
@@ -69,10 +82,11 @@ function installObserver() {
   new MutationObserver(schedule).observe(card, {
     attributes: true,
     subtree: true,
-    attributeFilter: ["hidden", "data-turn-phase", "data-sprite-loading"],
+    attributeFilter: ["hidden", "data-turn-phase", "data-sprite-loading", "data-battle-sprite-fallback"],
   });
 }
 
+ensureFrontAsBackGuard();
 render();
 installObserver();
 window.addEventListener("pageshow", schedule, { passive: true });
