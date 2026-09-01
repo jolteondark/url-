@@ -10,15 +10,15 @@ const BATTLE_PRESENTATION_PUBLIC_REVISION = "20260901-1503";
 const battlePresentationUrl = (path) => `${path}?v=${BATTLE_PRESENTATION_PUBLIC_REVISION}`;
 
 const boardPresentationFallbackModules = [
-  "./berry-juice-shop-touch-presentation.js?v=20260829-1102",
-  "./trainer-camp-touch-presentation.js?v=20260829-1102",
-  "./old-statue-touch-presentation.js?v=20260829-1710",
-  "./machine-gacha-touch-presentation.js?v=20260829-0315",
-  "./wishing-fountain-touch-presentation.js?v=20260829-1710",
-  "./item-collector-touch-presentation.js?v=20260829-0900",
-  "./day-board-direct-persistence-handoff.js?v=20260829-1710",
-  "./board-special-event-ui-handoff.js?v=20260829-1638",
-  "./crumbling-bridge-touch-presentation.js?v=20260829-1710",
+  "./berry-juice-shop-touch-presentation.js?v=20260901-1327",
+  "./trainer-camp-touch-presentation.js?v=20260901-1327",
+  "./old-statue-touch-presentation.js?v=20260901-1327",
+  "./machine-gacha-touch-presentation.js?v=20260901-1327",
+  "./wishing-fountain-touch-presentation.js?v=20260901-1327",
+  "./item-collector-touch-presentation.js?v=20260901-1327",
+  "./day-board-direct-persistence-handoff.js?v=20260901-1327",
+  "./board-special-event-ui-handoff.js?v=20260901-1327",
+  "./crumbling-bridge-touch-presentation.js?v=20260901-1327",
 ];
 
 function loadStyle(href) {
