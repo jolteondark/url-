@@ -42,3 +42,34 @@
  #battle-card .battle-command-panel{grid-template-columns:43% 57%;min-height:190px}
  #battle-card .battle-message{min-height:96px;font-size:.8rem;padding:10px 9px 13px}
 }
+
+/* Consume canonical v0.9.108 battle UI assets resolved by canonical-battle-ui-bridge.js. */
+#battle-card .foe-info{
+  background-color:transparent;
+  background-image:var(--canonical-battle-databox-foe);
+  background-repeat:no-repeat;
+  background-position:center;
+  background-size:100% 100%;
+}
+#battle-card .player-info{
+  background-color:transparent;
+  background-image:var(--canonical-battle-databox-player);
+  background-repeat:no-repeat;
+  background-position:center;
+  background-size:100% 100%;
+}
+#battle-card .battle-message{
+  background-color:transparent;
+  background-image:var(--canonical-battle-message-overlay);
+  background-repeat:no-repeat;
+  background-position:center;
+  background-size:100% 100%;
+}
+#battle-card .hp-row>span{
+  min-width:18px;
+  color:transparent;
+  background-image:var(--canonical-battle-hp-overlay);
+  background-repeat:no-repeat;
+  background-position:center;
+  background-size:contain;
+}
