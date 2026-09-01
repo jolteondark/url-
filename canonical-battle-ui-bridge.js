@@ -88,6 +88,23 @@ function createInfoPanel() {
   return panel;
 }
 
+function applyCanonicalFightCursor(button, row, selected) {
+  const cursorUrl = canonicalBattleUiAssetUrl("cursor_fight.png");
+  if (!button || !cursorUrl) {
+    button?.style.removeProperty("background-image");
+    button?.style.removeProperty("background-size");
+    button?.style.removeProperty("background-position");
+    button?.style.removeProperty("background-repeat");
+    return;
+  }
+  const clampedRow = Math.max(0, Math.min(18, Number(row) || 0));
+  const y = (clampedRow / 18) * 100;
+  button.style.backgroundImage = cssUrl(cursorUrl);
+  button.style.backgroundSize = "200% 1900%";
+  button.style.backgroundPosition = `${selected ? 100 : 0}% ${y}%`;
+  button.style.backgroundRepeat = "no-repeat";
+}
+
 function updateInfo(panel, button, buttons) {
   const moveId = button?.dataset.moveId ?? "";
   const master = SAFARI_MOVE_MASTERS[moveId] ?? null;
@@ -109,6 +126,7 @@ function updateInfo(panel, button, buttons) {
     const candidateRow = TYPE_ICON_ROWS[candidateType] ?? TYPE_ICON_ROWS.QMARKS;
     candidate.style.setProperty("--canonical-fight-row", String(candidateRow));
     candidate.classList.toggle("canonical-selected", candidate === button);
+    applyCanonicalFightCursor(candidate, candidateRow, candidate === button);
   }
 }
 
