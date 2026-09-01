@@ -1,4 +1,4 @@
-import { add } from "./bag-economy-mart-flow.js";
+import { resolveRewardTransaction } from "./bag-economy-reward-transaction.js";
 import {
   MAPLESS_V108_TREASURE_CHEST_TIER_CONFIG,
   prepareMaplessV108TreasureChest,
@@ -28,21 +28,37 @@ export function safariTreasureRewardV108(event, day) {
   return resolveMaplessV108TreasureChestReward(event, day);
 }
 
-function canGrantBag(runtime, reward) {
-  const clone = (runtime.bag?.slots ?? []).map((slot) => slot ? [slot[0], slot[1]] : null);
+function resolveTreasureBagReward(runtime, reward) {
+  const slots = runtime.bag?.slots ?? [];
   const maxSlots = Number(runtime.bag?.max_slots ?? runtime.bag?.maxSlots ?? 999);
-  const maxPer = Number(runtime.bag?.max_per_slot ?? runtime.bag?.maxPerSlot ?? 999);
-  return reward.items.every(({ itemId, quantity }) => add(clone, maxSlots, maxPer, itemId, quantity));
+  const maxPerSlot = Number(runtime.bag?.max_per_slot ?? runtime.bag?.maxPerSlot ?? 999);
+  const itemMeta = {};
+  const items = [];
+  for (const { itemId, quantity } of reward.items ?? []) {
+    itemMeta[itemId] = { valid:true, pocket:"general" };
+    for (let n = 0; n < quantity; n += 1) items.push(itemId);
+  }
+  if (items.length === 0) {
+    return {
+      result:"empty",
+      success:true,
+      pockets:{ general:{ slots:slots.map((slot) => slot ? [slot[0], slot[1]] : null), maxSlots, maxPerSlot } },
+      granted:[],
+      consumed:[],
+      operations:[],
+    };
+  }
+  return resolveRewardTransaction({
+    pockets:{ general:{ slots, maxSlots, maxPerSlot } },
+    itemMeta,
+    items,
+  });
 }
 
-function grant(runtime, reward) {
-  if (!canGrantBag(runtime, reward)) return false;
-  const slots = runtime.bag.slots ?? (runtime.bag.slots = []);
-  const maxSlots = Number(runtime.bag?.max_slots ?? runtime.bag?.maxSlots ?? 999);
-  const maxPer = Number(runtime.bag?.max_per_slot ?? runtime.bag?.maxPerSlot ?? 999);
-  for (const { itemId, quantity } of reward.items) {
-    if (!add(slots, maxSlots, maxPer, itemId, quantity)) throw new Error(`treasure Bag grant failed for ${itemId}`);
-  }
+function applyTreasureReward(runtime, reward, resolved) {
+  if (!resolved?.success) return false;
+  runtime.bag ??= { slots:[], money:0 };
+  runtime.bag.slots = resolved.pockets.general.slots.filter(Boolean);
   runtime.bag.money = Math.max(0, Number(runtime.bag.money ?? 0) + reward.money);
   return true;
 }
@@ -114,14 +130,23 @@ export function resolveSafariTreasureChest(runtime, index, action) {
   if (action !== "open") throw new RangeError("treasure action must be open or leave");
 
   const reward = resolveMaplessV108TreasureChestReward(event, state.day);
-  if (!grant(runtime, reward)) {
+  const rewardAttempt = resolveTreasureBagReward(runtime, reward);
+  if (!applyTreasureReward(runtime, reward, rewardAttempt)) {
     state.notice = "バッグに空きがなく、宝箱の中身を受け取れませんでした。";
-    return { runtime, result:"no_room", completed:true, consumed:false, reward, operations:[] };
+    return {
+      runtime,
+      result:"no_room",
+      completed:true,
+      consumed:false,
+      reward,
+      operations:(rewardAttempt.operations ?? []).map((operation) => structuredClone(operation)),
+    };
   }
   state.board_consumed[index] = true;
   state.notice = `${reward.tierName}を開けました。`;
   state.last_operations = [
     { op:"treasure_reward", tier:reward.tier, money:reward.money, items:reward.items.map((entry) => ({ ...entry })) },
+    ...(rewardAttempt.operations ?? []).map((operation) => structuredClone(operation)),
     { op:"request_save", reason:"treasure_opened" },
   ];
   return {
