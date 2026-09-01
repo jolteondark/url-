@@ -1,4 +1,4 @@
-import { canonicalBattleUiAssetUrl } from "./runtime/canonical-battle-ui-sources.js";
+import { canonicalBattleUiAssetUrl } from "./runtime/canonical-battle-ui-sources.js?v=20260901-2158";
 
 const byId = (id) => document.getElementById(id);
 let scheduled = false;
