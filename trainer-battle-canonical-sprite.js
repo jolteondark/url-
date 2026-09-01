@@ -1,4 +1,4 @@
-import { canonicalTrainerAssetUrl } from "./runtime/canonical-trainer-sources.js";
+import { canonicalTrainerAssetUrl } from "./runtime/canonical-trainer-sources.js?v=20260901-2158";
 
 let scheduled = false;
 
