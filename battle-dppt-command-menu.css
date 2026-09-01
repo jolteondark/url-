@@ -137,3 +137,17 @@
   #battle-card .dppt-move-type{min-width:39px;padding:2px 3px}
   #game-menu[data-battle-command-menu] .game-menu-sheet{height:min(78dvh,620px)}
 }
+
+/* Canonical v0.9.108 command/fight chrome. If a resolver URL is unavailable, these declarations fail closed and the existing presentation remains intact. */
+#battle-card[data-dppt-menu="root"] .dppt-command-root{
+  background-image:var(--canonical-battle-command-overlay);
+  background-repeat:no-repeat;
+  background-position:center;
+  background-size:100% 100%;
+}
+#battle-card[data-dppt-menu="fight"] .move-grid{
+  background-image:var(--canonical-battle-fight-overlay);
+  background-repeat:no-repeat;
+  background-position:center;
+  background-size:100% 100%;
+}
