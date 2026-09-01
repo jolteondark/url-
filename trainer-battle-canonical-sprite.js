@@ -1,4 +1,4 @@
-import { canonicalTrainerPublishedPath } from "./runtime/canonical-trainer-sources.js";
+import { canonicalTrainerAssetUrl } from "./runtime/canonical-trainer-sources.js";
 
 let scheduled = false;
 
@@ -33,10 +33,10 @@ function render() {
   if (!image) return;
   const battle = trainerBattle();
   const trainerType = String(battle?.trainer?.trainer_type ?? "").trim();
-  const publishedPath = trainerType
-    ? canonicalTrainerPublishedPath(`${trainerType}.png`)
+  const src = trainerType
+    ? canonicalTrainerAssetUrl(`${trainerType}.png`)
     : null;
-  if (!battle || !publishedPath) {
+  if (!battle || !src) {
     image.hidden = true;
     image.removeAttribute("src");
     delete image.dataset.trainerType;
@@ -44,7 +44,6 @@ function render() {
     return;
   }
 
-  const src = new URL(publishedPath, import.meta.url).href;
   if (image.dataset.failedSrc === src) {
     image.hidden = true;
     return;
