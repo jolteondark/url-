@@ -2,8 +2,8 @@ import {
   openSafariCrumblingBridgeTouch,
   resolveSafariCrumblingBridgeInteraction,
   safariCrumblingBridgePresentation,
-} from "./runtime/safari-crumbling-bridge-interaction.js?v=20260829-1658";
-import { persistSafariOwnerResult } from "./day-board-direct-persistence-handoff.js?v=20260829-1710";
+} from "./runtime/safari-crumbling-bridge-interaction.js?v=20260902-0312";
+import { persistSafariOwnerResult } from "./day-board-direct-persistence-handoff.js?v=20260902-0312";
 
 let resolving = false;
 function runtime() { return globalThis.__maplessSafariRuntime ?? null; }
