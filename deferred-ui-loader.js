@@ -6,6 +6,9 @@ let boardPresentationManifestPromise = null;
 let battleChromePromise = null;
 let trainerBattlePresentationPromise = null;
 
+const BATTLE_PRESENTATION_PUBLIC_REVISION = "20260901-1503";
+const battlePresentationUrl = (path) => `${path}?v=${BATTLE_PRESENTATION_PUBLIC_REVISION}`;
+
 const boardPresentationFallbackModules = [
   "./berry-juice-shop-touch-presentation.js?v=20260829-1102",
   "./trainer-camp-touch-presentation.js?v=20260829-1102",
@@ -67,22 +70,22 @@ async function loadBoardPresentation() {
 }
 
 async function loadBattleUi() {
-  loadStyle("./battle-core-safety.css");
+  loadStyle(battlePresentationUrl("./battle-core-safety.css"));
   await Promise.all([
-    loadModule("./canonical-battle-sprite-bridge.js?v=20260825-1042"),
-    loadModule("./canonical-battle-back-atlas-patch.js?v=20260825-1042"),
-    loadModule("./canonical-battleback-message-bridge.js?v=20260827-1604"),
-    loadModule("./canonical-battleback-presentation-bridge.js?v=20260831-1604"),
+    loadModule(battlePresentationUrl("./canonical-battle-sprite-bridge.js")),
+    loadModule(battlePresentationUrl("./canonical-battle-back-atlas-patch.js")),
+    loadModule(battlePresentationUrl("./canonical-battleback-message-bridge.js")),
+    loadModule(battlePresentationUrl("./canonical-battleback-presentation-bridge.js")),
   ]);
 }
 
 function loadBattleChrome() {
   if (battleChromePromise) return battleChromePromise;
-  loadStyle("./canonical-battle-ui.css?v=20260829-2001");
-  loadStyle("./canonical-battle-status.css?v=20260829-2001");
+  loadStyle(battlePresentationUrl("./canonical-battle-ui.css"));
+  loadStyle(battlePresentationUrl("./canonical-battle-status.css"));
   battleChromePromise = Promise.all([
-    loadModule("./canonical-battle-ui-bridge.js?v=20260829-2001"),
-    loadModule("./canonical-battle-status-bridge.js?v=20260829-2001"),
+    loadModule(battlePresentationUrl("./canonical-battle-ui-bridge.js")),
+    loadModule(battlePresentationUrl("./canonical-battle-status-bridge.js")),
   ]).catch((error) => {
     battleChromePromise = null;
     throw error;
@@ -92,8 +95,8 @@ function loadBattleChrome() {
 
 function loadTrainerBattlePresentation() {
   if (trainerBattlePresentationPromise) return trainerBattlePresentationPromise;
-  loadStyle("./trainer-battle-presentation.css?v=20260830-0500");
-  trainerBattlePresentationPromise = loadModule("./trainer-battle-presentation.js?v=20260830-0500");
+  loadStyle(battlePresentationUrl("./trainer-battle-presentation.css"));
+  trainerBattlePresentationPromise = loadModule(battlePresentationUrl("./trainer-battle-presentation.js"));
   return trainerBattlePresentationPromise;
 }
 
