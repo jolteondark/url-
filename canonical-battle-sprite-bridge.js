@@ -119,20 +119,20 @@ function ensureAtlasFallback(combatant, species, form, side, symbol) {
   const preferredApplied = side === "player"
     ? applySafariDay1Back96Sprite(fallback, species, { size: 96 })
     : applySafariDay1Front96Sprite(fallback, species, { size: 96 });
-  const broadApplied = preferredApplied
-    ? false
-    : applySafariSpeciesFormFrontSprite(fallback, species, {
+  const broadApplied = !preferredApplied && side === "foe"
+    ? applySafariSpeciesFormFrontSprite(fallback, species, {
         form,
-        family: side === "player" ? "back-fallback-front" : "front",
+        family: "front",
         size: 96,
-      });
+      })
+    : false;
   const ok = preferredApplied || broadApplied;
   setHidden(fallback, !ok);
   if (ok) {
     fallback.dataset.spriteSpecies = species;
     fallback.dataset.battleSpriteFallback = preferredApplied
       ? side === "player" ? "canonical-back-96" : "canonical-front-96"
-      : side === "player" ? "species-form-front-for-back" : "species-form-front";
+      : "species-form-front";
     setHidden(symbol, true);
   }
   return ok;
