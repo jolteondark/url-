@@ -1,6 +1,6 @@
 import "./trainer-battle-canonical-sprite.js?v=20260831-1301";
 import { SAFARI_MOVE_MASTERS } from "./runtime/safari-playable-data.js";
-import { canonicalBattleUiCandidates } from "./runtime/canonical-battle-ui-sources.js";
+import { canonicalBattleUiAssetUrl } from "./runtime/canonical-battle-ui-sources.js";
 
 const TYPE_ICON_ROWS = Object.freeze({
   NORMAL: 0,
@@ -49,12 +49,12 @@ function applyCanonicalBattleUiSources() {
   const card = document.getElementById("battle-card");
   if (!card) return;
   for (const [property, assetName] of Object.entries(CANONICAL_BATTLE_UI_CSS_ASSETS)) {
-    const candidate = canonicalBattleUiCandidates(assetName)[0] ?? null;
-    if (!candidate) {
+    const assetUrl = canonicalBattleUiAssetUrl(assetName);
+    if (!assetUrl) {
       card.style.removeProperty(property);
       continue;
     }
-    card.style.setProperty(property, cssUrl(new URL(candidate, import.meta.url).href));
+    card.style.setProperty(property, cssUrl(assetUrl));
   }
 }
 
