@@ -177,5 +177,3 @@ if (grid) {
   new MutationObserver(scheduleSync).observe(grid, { childList: true });
   syncFightMenu();
 }
-window.addEventListener("pageshow", scheduleSync, { passive: true });
-window.addEventListener("safari-runtime-changed", scheduleSync, { passive: true });
