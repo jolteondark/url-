@@ -19,6 +19,7 @@ const boardPresentationFallbackModules = [
   "./day-board-direct-persistence-handoff.js?v=20260901-1327",
   "./board-special-event-ui-handoff.js?v=20260901-1327",
   "./crumbling-bridge-touch-presentation.js?v=20260901-1327",
+  "./bounty-poster-owner-action-handoff.js?v=20260901-1327",
 ];
 
 function loadStyle(href) {
