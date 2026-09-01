@@ -1,12 +1,12 @@
+import { persistSafariOwnerResult } from "./runtime/safari-owner-result-persistence.js";
+
 const byId = (id) => document.getElementById(id);
 let syncQueued = false;
 let resolving = false;
 let webModulePromise = null;
-let startupModulePromise = null;
 const ownerModules = new Map();
 
 const webModule = () => webModulePromise ??= import("./runtime/safari-web-playable-integration.js");
-const startupModule = () => startupModulePromise ??= import("./runtime/safari-web-startup.js");
 
 function runtime() { return globalThis.__maplessSafariRuntime ?? null; }
 function state() { return runtime()?.variables?.mapless ?? null; }
@@ -219,10 +219,7 @@ document.addEventListener("click", async (event) => {
   await sync();
   try {
     const result = await resolveAction(current, active, button.dataset.normalEventAction);
-    if (result.persistenceRequested || result.operations?.some((operation) => operation.op === "request_save")) {
-      const { saveSafariPlayableRun } = await startupModule();
-      saveSafariPlayableRun(window.localStorage, current);
-    }
+    persistSafariOwnerResult(current, result, window.localStorage);
     if (result.completed) closeNormalEventUi();
     window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
   } catch (error) {

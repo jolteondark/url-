@@ -1,4 +1,8 @@
-import { saveSafariPlayableRun } from "./runtime/safari-web-startup.js";
+import {
+  ownerResultRequestsPersistence,
+  persistSafariOwnerResult,
+  requestsPersistence,
+} from "./runtime/safari-owner-result-persistence.js";
 
 const POLL_INTERVAL_MS = 25;
 const MAX_POLLS = 80;
@@ -6,20 +10,6 @@ const MAX_POLLS = 80;
 function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
   return state && typeof state === "object" && !Array.isArray(state) ? state : null;
-}
-
-function requestsPersistence(operations) {
-  return Array.isArray(operations)
-    && operations.some((operation) => operation?.op === "request_save");
-}
-
-function ownerResultRequestsPersistence(result) {
-  return Boolean(result?.persistenceRequested) || requestsPersistence(result?.operations);
-}
-
-function persistSafariOwnerResult(runtime, result, storage = globalThis.localStorage) {
-  if (!runtime || !ownerResultRequestsPersistence(result)) return null;
-  return saveSafariPlayableRun(storage, runtime);
 }
 
 function boardButtonIndex(event) {
