@@ -1,4 +1,4 @@
-import { canonicalBattlebackPublishedPath } from "./runtime/canonical-battleback-sources.js";
+import { canonicalBattlebackPublishedPath } from "./runtime/canonical-battleback-sources.js?v=20260901-2300";
 
 const PERIOD_PREFIX = Object.freeze({
   day: "field",
