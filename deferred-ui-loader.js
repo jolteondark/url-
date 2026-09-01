@@ -6,7 +6,7 @@ let boardPresentationManifestPromise = null;
 let battleChromePromise = null;
 let trainerBattlePresentationPromise = null;
 
-const BATTLE_PRESENTATION_PUBLIC_REVISION = "20260901-2231";
+const BATTLE_PRESENTATION_PUBLIC_REVISION = "20260902-0008";
 const battlePresentationUrl = (path) => `${path}?v=${BATTLE_PRESENTATION_PUBLIC_REVISION}`;
 
 const boardPresentationFallbackModules = [
