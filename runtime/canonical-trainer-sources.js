@@ -34,6 +34,16 @@ export function canonicalTrainerPublishedPath(name) {
   return canonicalTrainerLocalPath(safe);
 }
 
+export function canonicalTrainerAssetUrl(name, _options = {}) {
+  const publishedPath = canonicalTrainerPublishedPath(name);
+  if (!publishedPath) return null;
+  try {
+    return new URL(`../${publishedPath}`, import.meta.url).href;
+  } catch {
+    return null;
+  }
+}
+
 export function canonicalTrainerMissingNames() {
   return Object.keys(CANONICAL_TRAINERS).filter((name) => !PUBLISHED_EXACT.has(name));
 }
