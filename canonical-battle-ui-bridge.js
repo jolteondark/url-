@@ -1,4 +1,4 @@
-import "./trainer-battle-canonical-sprite.js?v=20260831-1301";
+import "./trainer-battle-canonical-sprite.js?v=20260901-1707";
 import { SAFARI_MOVE_MASTERS } from "./runtime/safari-playable-data.js";
 import { canonicalBattleUiAssetUrl } from "./runtime/canonical-battle-ui-sources.js";
 
