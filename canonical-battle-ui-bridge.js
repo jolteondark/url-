@@ -1,6 +1,6 @@
-import "./trainer-battle-canonical-sprite.js?v=20260901-2158";
+import "./trainer-battle-canonical-sprite.js?v=20260902-0657";
 import { SAFARI_MOVE_MASTERS } from "./runtime/safari-playable-data.js";
-import { canonicalBattleUiAssetUrl } from "./runtime/canonical-battle-ui-sources.js?v=20260901-2158";
+import { canonicalBattleUiAssetUrl } from "./runtime/canonical-battle-ui-sources.js?v=20260902-0657";
 
 const TYPE_ICON_ROWS = Object.freeze({
   NORMAL: 0,
@@ -177,3 +177,5 @@ if (grid) {
   new MutationObserver(scheduleSync).observe(grid, { childList: true });
   syncFightMenu();
 }
+window.addEventListener("pageshow", scheduleSync, { passive: true });
+window.addEventListener("safari-runtime-changed", scheduleSync, { passive: true });
