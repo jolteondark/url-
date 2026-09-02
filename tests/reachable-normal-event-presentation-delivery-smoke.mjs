@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 const root = path.resolve(import.meta.dirname, "..");
 const manifestText = fs.readFileSync(path.join(root, "board-presentation-manifest.json"), "utf8");
 const loaderText = fs.readFileSync(path.join(root, "deferred-ui-loader.js"), "utf8");
+const indexText = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const manifest = JSON.parse(manifestText);
 
 const required = [
@@ -19,6 +20,7 @@ for (const file of required) {
   assert.match(manifestEntry, /\?v=\d{8}-\d{4}$/, `${file} manifest delivery must be versioned`);
   assert.ok(loaderText.includes(`"./${manifestEntry.slice(2)}"`), `${file} must also be present in fallback delivery with the same revision`);
   assert.ok(!manifest.modules.includes(`./${file}`), `${file} must not regress to unversioned manifest delivery`);
+  assert.ok(!indexText.includes(`src="./${file}`), `${file} must not also be eagerly delivered by index.html`);
 }
 
 const revisions = required.map((file) => {
