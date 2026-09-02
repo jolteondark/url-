@@ -47,13 +47,23 @@ function setOwnedBackground(element, path, owner) {
     element.dataset.canonicalBattlebackPath = path;
     return;
   }
-  if (element.dataset.canonicalBattlebackOwner !== owner) return;
-  element.style.removeProperty("background-image");
+  element.style.backgroundImage = "none";
   element.style.removeProperty("background-repeat");
   element.style.removeProperty("background-position");
   element.style.removeProperty("background-size");
-  delete element.dataset.canonicalBattlebackOwner;
+  element.dataset.canonicalBattlebackOwner = owner;
   delete element.dataset.canonicalBattlebackPath;
+}
+
+function suppressSceneFallback(card, suppress) {
+  if (suppress) {
+    card.style.backgroundImage = "none";
+    card.dataset.canonicalBattlebackSceneFallback = "suppressed";
+    return;
+  }
+  if (card.dataset.canonicalBattlebackSceneFallback !== "suppressed") return;
+  card.style.removeProperty("background-image");
+  delete card.dataset.canonicalBattlebackSceneFallback;
 }
 
 function reportMissingBattlebacks(card, period, names, resolved) {
@@ -94,6 +104,7 @@ export function applyCanonicalBattlebackPresentation() {
   card.dataset.canonicalBattlebackPlayerBase = playerBase ? "published" : "missing";
   card.dataset.canonicalBattlebackFoeBase = foeBase ? "published" : "missing";
   reportMissingBattlebacks(card, period, names, { bg, playerBase, foeBase });
+  suppressSceneFallback(card, !bg);
 
   setOwnedBackground(card.querySelector(".arena"), bg, "bg");
   setOwnedBackground(card.querySelector(".player-platform"), playerBase, "player-base");
