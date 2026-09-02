@@ -10,11 +10,6 @@ assert.doesNotMatch(
   /unsupported[^\n]*cannot_run|\["cannot_run",\s*"strong_ai"\]/,
   "normal-event trainer adapter must not fail-close cannot_run after selecting trainer Battle kind",
 );
-assert.match(
-  combatStart,
-  /battleEvent\.strong_ai/,
-  "genuinely unowned strong_ai must remain visibly fail-closed",
-);
 
 const runtime = {
   variables: {

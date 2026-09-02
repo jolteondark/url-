@@ -96,6 +96,11 @@ function trainerBattleExtraModifier(event) {
   const value = Number(event?.modifier ?? 0);
   return Number.isFinite(value) ? value : 0;
 }
+export function resolveSafariNormalEventTrainerSkillLevel(skillLevel, strongAi = false) {
+  const value = Number(skillLevel);
+  if (!Number.isFinite(value)) throw new TypeError("normal-event trainer skill_level must be finite");
+  return strongAi === true ? Math.min(value + 15, 100) : value;
+}
 export function safariWildBattleInitialStatStages(event) {
   return createBattleStatStageStateCanonical({ foe: event?.enemy_stages ?? {} });
 }
@@ -183,6 +188,13 @@ function startTrainer(runtime, event, index, operations) {
   }
 
   setBattle(runtime, index, "trainer", party[0], [...operations, ...extraOperations], trainer, null, null, party);
+  state.battle.skill_level = resolveSafariNormalEventTrainerSkillLevel(trainer.skill_level, event?.strong_ai === true);
+  if (event?.strong_ai === true) {
+    state.battle.normal_event_strong_ai = {
+      base_skill_level: trainer.skill_level,
+      skill_level: state.battle.skill_level,
+    };
+  }
   if (extraPokemon) state.battle.normal_event_extra_pokemon = structuredClone(extraOperations[0]);
   state.notice = `${trainer.trainer_full_name}が勝負を仕掛けてきた！`;
 }
@@ -281,10 +293,8 @@ export async function activateSafariNormalEventTrainerBattle(runtime, index, {
 
   // extra_pokemon is owned as a distinct post-generator append boundary.
   // cannot_run is satisfied by the shared RUN owner because this adapter launches
-  // a trainer/non-wild Battle. Keep only genuinely unowned constraints fail-closed.
-  if (battleEvent.strong_ai) {
-    throw new Error("normal-event trainer Battle constraint is not yet owned by the shared trainer AI policy: strong_ai");
-  }
+  // a trainer/non-wild Battle. strong_ai maps only to the existing shared trainer
+  // AI skill policy below (canonical +15, capped at 100).
   if (battleEvent.type && battleEvent.extra_pokemon !== true) {
     throw new Error("normal-event trainer Battle type constraint is only owned for extra_pokemon append");
   }
@@ -357,7 +367,6 @@ export async function activateSafariWebCombatCell(runtime, index) {
     };
   }
   if (state.shop) return { runtime, result: "shop_active", boundary: "shop", notice: "ショップを先に終了してください。" , operations: [] };
-
   const previousBoardEvents = state.board_events;
   const previousBoardRevealed = state.board_revealed;
   const previousBoardConsumed = state.board_consumed;
