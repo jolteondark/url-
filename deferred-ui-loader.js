@@ -102,8 +102,8 @@ function loadTrainerBattlePresentation() {
 }
 
 async function loadShopUi() {
-  loadStyle("./shop-touch-presentation.css");
-  await loadModule("./shop-touch-presentation.js");
+  loadStyle("./shop-touch-presentation.css?v=20260902-1400");
+  await loadModule("./shop-touch-presentation.js?v=20260902-1400");
 }
 
 async function loadMenuUi() {
