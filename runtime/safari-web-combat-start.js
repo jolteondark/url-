@@ -279,10 +279,11 @@ export async function activateSafariNormalEventTrainerBattle(runtime, index, {
   const blocked = assertNormalEventBattleAvailable(state);
   if (blocked) return { runtime, ...blocked, operations: [] };
 
-  // extra_pokemon is now owned as a distinct post-generator append boundary.
-  // Other constraints remain fail-closed until their canonical owners exist.
-  for (const unsupported of ["cannot_run", "strong_ai"]) {
-    if (battleEvent[unsupported]) throw new Error(`normal-event trainer Battle constraint is not yet owned by the shared trainer generator: ${unsupported}`);
+  // extra_pokemon is owned as a distinct post-generator append boundary.
+  // cannot_run is satisfied by the shared RUN owner because this adapter launches
+  // a trainer/non-wild Battle. Keep only genuinely unowned constraints fail-closed.
+  if (battleEvent.strong_ai) {
+    throw new Error("normal-event trainer Battle constraint is not yet owned by the shared trainer AI policy: strong_ai");
   }
   if (battleEvent.type && battleEvent.extra_pokemon !== true) {
     throw new Error("normal-event trainer Battle type constraint is only owned for extra_pokemon append");
@@ -355,7 +356,7 @@ export async function activateSafariWebCombatCell(runtime, index) {
       operations: [],
     };
   }
-  if (state.shop) return { runtime, result: "shop_active", boundary: "shop", notice: "ショップを先に終了してください。", operations: [] };
+  if (state.shop) return { runtime, result: "shop_active", boundary: "shop", notice: "ショップを先に終了してください。" , operations: [] };
 
   const previousBoardEvents = state.board_events;
   const previousBoardRevealed = state.board_revealed;
