@@ -12,11 +12,11 @@ assert.ok(outerRevision, "Safari pokemon-center command must have an explicit pu
 assert.ok(nestedRevision, "bounty target placement nested import must have an explicit public revision");
 assert.ok(interactionRevision, "bounty target interaction must have an explicit public revision");
 assert.notEqual(outerRevision, "20260902-1028", "pre-#1141 Safari command pin must not return");
-assert.equal(outerRevision, interactionRevision, "Board dispatcher and bounty target interaction must move together");
+assert.notEqual(interactionRevision, "20260903-0132", "pre-#1143 bounty interaction pin must not return");
 assert.match(
   command,
   /event\.normal_event_id === "bounty_target"\) return startSafariBountyTargetBattle\(runtime, index\)/,
   "the delivered Day Board dispatcher must route bounty_target touch to its Battle continuation adapter",
 );
 
-console.log(`ok - bounty target public delivery ${outerRevision}`);
+console.log(`ok - bounty target public delivery command=${outerRevision} interaction=${interactionRevision}`);
