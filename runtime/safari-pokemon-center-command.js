@@ -18,6 +18,7 @@ import { openSafariTreasureTouch } from "./safari-treasure-chest-interaction.js"
 import { openSafariMinerTouch } from "./safari-miner-interaction.js";
 import { openSafariTavernTouch } from "./safari-tavern-interaction.js";
 import { openSafariNormalEventTouch, supportsSafariNormalEventTouch } from "./safari-normal-event-touch-handoff.js";
+import { startSafariBountyTargetBattle } from "./safari-bounty-target-interaction.js";
 import { activateSafariDayBoardCell as activateSafariDayBoardCellBase } from "./safari-playable-integration-wounded.js";
 
 function moveId(move) {
@@ -64,6 +65,7 @@ export function activateSafariDayBoardCell(runtime, index) {
   const state = runtime?.variables?.mapless;
   const event = state?.board_events?.[index];
   if (event?.kind === "normal_event") {
+    if (event.normal_event_id === "bounty_target") return startSafariBountyTargetBattle(runtime, index);
     if (typeof globalThis.document !== "undefined" && supportsSafariNormalEventTouch(event.normal_event_id)) {
       return openSafariNormalEventTouch(runtime, index);
     }
