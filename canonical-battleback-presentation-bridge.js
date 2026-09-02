@@ -5,6 +5,7 @@ const PERIOD_PREFIX = Object.freeze({
   eve: "field_eve",
   night: "field_night",
 });
+let lastMissingSignature = "";
 
 function maplessState() {
   return globalThis.__maplessSafariRuntime?.variables?.mapless ?? null;
@@ -55,6 +56,30 @@ function setOwnedBackground(element, path, owner) {
   delete element.dataset.canonicalBattlebackPath;
 }
 
+function reportMissingBattlebacks(card, period, names, resolved) {
+  const missing = [
+    ["bg", names.bg, resolved.bg],
+    ["playerBase", names.playerBase, resolved.playerBase],
+    ["foeBase", names.foeBase, resolved.foeBase],
+  ].filter(([, , path]) => !path).map(([slot, name]) => Object.freeze({ slot, name }));
+
+  if (missing.length === 0) {
+    delete card.dataset.canonicalBattlebackMissing;
+    lastMissingSignature = "";
+    return;
+  }
+
+  card.dataset.canonicalBattlebackMissing = missing.map(({ name }) => name).join(",");
+  const signature = `${period}:${card.dataset.canonicalBattlebackMissing}`;
+  if (signature === lastMissingSignature) return;
+  lastMissingSignature = signature;
+
+  const detail = Object.freeze({ period, missing: Object.freeze(missing) });
+  globalThis.__maplessBattlebackPresentationDiagnostic = detail;
+  console.warn(`[Mapless] canonical battleback assets unpublished (${period}): ${missing.map(({ name }) => name).join(", ")}`);
+  window.dispatchEvent(new CustomEvent("mapless-canonical-battleback-missing", { detail }));
+}
+
 export function applyCanonicalBattlebackPresentation() {
   const card = document.getElementById("battle-card");
   if (!card) return;
@@ -68,6 +93,7 @@ export function applyCanonicalBattlebackPresentation() {
   card.dataset.canonicalBattlebackBg = bg ? "published" : "missing";
   card.dataset.canonicalBattlebackPlayerBase = playerBase ? "published" : "missing";
   card.dataset.canonicalBattlebackFoeBase = foeBase ? "published" : "missing";
+  reportMissingBattlebacks(card, period, names, { bg, playerBase, foeBase });
 
   setOwnedBackground(card.querySelector(".arena"), bg, "bg");
   setOwnedBackground(card.querySelector(".player-platform"), playerBase, "player-base");
