@@ -98,7 +98,10 @@ function loadBattleChrome() {
 function loadTrainerBattlePresentation() {
   if (trainerBattlePresentationPromise) return trainerBattlePresentationPromise;
   loadStyle(battlePresentationUrl("./trainer-battle-presentation.css"));
-  trainerBattlePresentationPromise = loadModule(battlePresentationUrl("./trainer-battle-presentation.js"));
+  trainerBattlePresentationPromise = Promise.all([
+    loadModule(battlePresentationUrl("./trainer-battle-presentation.js")),
+    loadModule(battlePresentationUrl("./trainer-battle-canonical-sprite.js")),
+  ]);
   return trainerBattlePresentationPromise;
 }
 
