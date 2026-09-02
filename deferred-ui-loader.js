@@ -21,6 +21,8 @@ const boardPresentationFallbackModules = [
   "./board-special-event-ui-handoff.js?v=20260901-1327",
   "./crumbling-bridge-touch-presentation.js?v=20260902-0312",
   "./bounty-poster-owner-action-handoff.js?v=20260901-1327",
+  "./fake-nurse-check-id-presentation.js?v=20260902-2358",
+  "./burning-wagon-fire-presentation.js?v=20260902-2358",
 ];
 
 function loadStyle(href) {
