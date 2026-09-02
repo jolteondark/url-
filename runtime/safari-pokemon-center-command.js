@@ -1,4 +1,5 @@
 import { resolveMaplessPokemonCenterHealing } from "./mapless-pokemon-center-healing.js";
+import { placeSafariBountyTargetForDayV108 } from "./mapless-bounty-target-board-placement-v108.js";
 import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
 import {
   pokemonMoveTotalPp,
@@ -40,6 +41,25 @@ function healPokemon(pokemon) {
   return healed;
 }
 
+function applyScheduledBoardContinuation(runtime, event, result, previousDay) {
+  if (event?.kind !== "next_day") return result;
+  const state = runtime?.variables?.mapless;
+  if (!state || Number(state.day) <= Number(previousDay)) return result;
+  const scheduled = placeSafariBountyTargetForDayV108(runtime);
+  if (!scheduled.placed && !scheduled.expired) return result;
+  state.last_operations = [
+    ...(Array.isArray(state.last_operations) ? state.last_operations : []),
+    ...scheduled.operations.map((operation) => structuredClone(operation)),
+  ];
+  return {
+    ...result,
+    runtime,
+    operations:state.last_operations,
+    scheduledBountyTarget:scheduled,
+    persistenceRequested:true,
+  };
+}
+
 export function activateSafariDayBoardCell(runtime, index) {
   const state = runtime?.variables?.mapless;
   const event = state?.board_events?.[index];
@@ -59,7 +79,14 @@ export function activateSafariDayBoardCell(runtime, index) {
   if (event?.kind === "tavern" && typeof globalThis.document !== "undefined") return openSafariTavernTouch(runtime, index);
   if (event?.kind === "buried_item") return interactiveSafariBuriedItem(runtime, index);
   if (event?.kind === "egg_shop") return interactiveSafariEggShop(runtime, index);
-  if (!event || event.kind !== "center") return activateSafariDayBoardCellBase(runtime, index);
+  if (!event || event.kind !== "center") {
+    const previousDay = Number(state?.day ?? 0);
+    const result = activateSafariDayBoardCellBase(runtime, index);
+    if (result && typeof result.then === "function") {
+      return result.then((resolved) => applyScheduledBoardContinuation(runtime, event, resolved, previousDay));
+    }
+    return applyScheduledBoardContinuation(runtime, event, result, previousDay);
+  }
 
   const owner = resolveMaplessPokemonCenterHealing({ player: runtime?.player });
   if (!owner.healed) {
