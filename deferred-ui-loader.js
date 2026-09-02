@@ -114,7 +114,7 @@ async function loadMenuUi() {
     loadModule("./game-menu-bridge.js?v=20260821-0936"),
     loadModule("./party-panel-bridge.js?v=20260821-1535"),
     loadModule("./battle-party-voluntary-switch-bridge.js?v=20260821-1535"),
-    loadModule("./storage-panel-bridge.js"),
+    loadModule(`./storage-panel-bridge.js?v=${MENU_SPRITE_PRESENTATION_PUBLIC_REVISION}`),
     loadModule("./party-storage-controls-bridge.js?v=20260822-0734"),
     loadModule(`./species-form-metadata-bridge.js?v=${MENU_SPRITE_PRESENTATION_PUBLIC_REVISION}`),
     loadModule(`./species-sprite-atlas-bridge.js?v=${MENU_SPRITE_PRESENTATION_PUBLIC_REVISION}`),
