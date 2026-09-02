@@ -1,5 +1,5 @@
 import { resolveMaplessPokemonCenterHealing } from "./mapless-pokemon-center-healing.js";
-import { placeSafariBountyTargetForDayV108 } from "./mapless-bounty-target-board-placement-v108.js";
+import { placeSafariBountyTargetForDayV108 } from "./mapless-bounty-target-board-placement-v108.js?v=20260902-1028";
 import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
 import {
   pokemonMoveTotalPp,
