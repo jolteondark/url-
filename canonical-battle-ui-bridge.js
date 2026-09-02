@@ -24,6 +24,13 @@ const TYPE_ICON_ROWS = Object.freeze({
   FAIRY: 18,
 });
 
+const COMMAND_CURSOR_ROWS = Object.freeze({
+  fight: 0,
+  party: 1,
+  bag: 2,
+  flee: 3,
+});
+
 const CANONICAL_BATTLE_UI_CSS_ASSETS = Object.freeze({
   "--canonical-battle-databox-foe": "databox_normal_foe.png",
   "--canonical-battle-databox-player": "databox_normal.png",
@@ -39,6 +46,7 @@ const CANONICAL_BATTLE_UI_CSS_ASSETS = Object.freeze({
 });
 
 const grid = document.getElementById("moves");
+const commandRoot = document.getElementById("dppt-command-root");
 let syncScheduled = false;
 
 function cssUrl(value) {
@@ -56,6 +64,65 @@ function applyCanonicalBattleUiSources() {
     }
     card.style.setProperty(property, cssUrl(assetUrl));
   }
+}
+
+function commandButtons() {
+  if (!commandRoot) return [];
+  return Array.from(commandRoot.querySelectorAll("button[data-dppt-command]"));
+}
+
+function applyCanonicalCommandCursor(button, row, selected) {
+  const cursorUrl = canonicalBattleUiAssetUrl("cursor_command.png");
+  if (!button || !cursorUrl) {
+    button?.style.removeProperty("background-image");
+    button?.style.removeProperty("background-size");
+    button?.style.removeProperty("background-position");
+    button?.style.removeProperty("background-repeat");
+    return;
+  }
+  const clampedRow = Math.max(0, Math.min(9, Number(row) || 0));
+  const y = (clampedRow / 9) * 100;
+  button.style.backgroundImage = cssUrl(cursorUrl);
+  button.style.backgroundSize = "200% 1000%";
+  button.style.backgroundPosition = `${selected ? 100 : 0}% ${y}%`;
+  button.style.backgroundRepeat = "no-repeat";
+}
+
+function selectCommandButton(button, buttons = commandButtons()) {
+  for (const candidate of buttons) {
+    const command = String(candidate.dataset.dpptCommand ?? "").trim().toLowerCase();
+    const row = COMMAND_CURSOR_ROWS[command];
+    if (row === undefined) {
+      applyCanonicalCommandCursor(candidate, 0, false);
+      candidate.style.removeProperty("background-image");
+      candidate.style.removeProperty("background-size");
+      candidate.style.removeProperty("background-position");
+      candidate.style.removeProperty("background-repeat");
+      continue;
+    }
+    candidate.classList.toggle("canonical-command-selected", candidate === button);
+    applyCanonicalCommandCursor(candidate, row, candidate === button);
+  }
+}
+
+function bindCommandButton(button, buttons) {
+  if (button.dataset.canonicalCommandCursorBound === "1") return;
+  button.dataset.canonicalCommandCursorBound = "1";
+  const select = () => selectCommandButton(button, commandButtons());
+  button.addEventListener("focus", select);
+  button.addEventListener("pointerenter", select, { passive: true });
+  button.addEventListener("pointerdown", select, { passive: true });
+}
+
+function syncCommandMenu() {
+  const buttons = commandButtons();
+  if (buttons.length === 0) return;
+  for (const button of buttons) bindCommandButton(button, buttons);
+  const active = buttons.find((button) => button === document.activeElement)
+    ?? buttons.find((button) => button.classList.contains("canonical-command-selected"))
+    ?? buttons.find((button) => !button.disabled)
+    ?? buttons[0];
+  selectCommandButton(active, buttons);
 }
 
 function moveButtons() {
@@ -168,11 +235,16 @@ function scheduleSync() {
   requestAnimationFrame(() => {
     syncScheduled = false;
     applyCanonicalBattleUiSources();
+    syncCommandMenu();
     syncFightMenu();
   });
 }
 
 applyCanonicalBattleUiSources();
+if (commandRoot) {
+  new MutationObserver(scheduleSync).observe(commandRoot, { childList: true, subtree: true });
+  syncCommandMenu();
+}
 if (grid) {
   new MutationObserver(scheduleSync).observe(grid, { childList: true });
   syncFightMenu();
