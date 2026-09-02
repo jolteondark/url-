@@ -1,0 +1,1 @@
+export const SAFARI_BERRY_CONTEST_TOUCH_BRIDGE = true;
