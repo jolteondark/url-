@@ -1,4 +1,4 @@
-import { resolveSafariCanonicalHpZone } from "./runtime/safari-canonical-hp-zone.js";
+import { resolveSafariCanonicalHpZone } from "./runtime/safari-canonical-hp-zone.js?v=20260902-0900";
 
 const battleCard = document.getElementById("battle-card");
 const STATUS_LABELS = Object.freeze({
