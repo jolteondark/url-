@@ -8,6 +8,7 @@ let trainerBattlePresentationPromise = null;
 
 const BATTLE_PRESENTATION_PUBLIC_REVISION = "20260902-1131";
 const battlePresentationUrl = (path) => `${path}?v=${BATTLE_PRESENTATION_PUBLIC_REVISION}`;
+const MENU_SPRITE_PRESENTATION_PUBLIC_REVISION = "20260902-1800";
 
 const boardPresentationFallbackModules = [
   "./berry-juice-shop-touch-presentation.js?v=20260901-1327",
@@ -115,8 +116,8 @@ async function loadMenuUi() {
     loadModule("./battle-party-voluntary-switch-bridge.js?v=20260821-1535"),
     loadModule("./storage-panel-bridge.js"),
     loadModule("./party-storage-controls-bridge.js?v=20260822-0734"),
-    loadModule("./species-form-metadata-bridge.js"),
-    loadModule("./species-sprite-atlas-bridge.js"),
+    loadModule(`./species-form-metadata-bridge.js?v=${MENU_SPRITE_PRESENTATION_PUBLIC_REVISION}`),
+    loadModule(`./species-sprite-atlas-bridge.js?v=${MENU_SPRITE_PRESENTATION_PUBLIC_REVISION}`),
   ]);
   if (modules[0]) window.dispatchEvent(new CustomEvent("safari-game-menu-ui-ready"));
   return modules;
