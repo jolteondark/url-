@@ -8,29 +8,33 @@ function canonicalFieldMessageUrl() {
   return path ? new URL(path, import.meta.url).href : null;
 }
 
+function clearCanonicalBattleCommandBarArt(commandPanel) {
+  if (commandPanel.dataset.canonicalBattlebackMessage !== CANONICAL_FIELD_MESSAGE) return;
+  commandPanel.style.removeProperty("background-image");
+  commandPanel.style.removeProperty("background-repeat");
+  commandPanel.style.removeProperty("background-position");
+  commandPanel.style.removeProperty("background-size");
+  delete commandPanel.dataset.canonicalBattlebackMessage;
+  delete commandPanel.dataset.canonicalBattlebackMessagePath;
+}
+
 function applyCanonicalBattleMessageArt() {
   const card = document.getElementById("battle-card");
-  const message = document.getElementById("battle-message");
-  if (!card || !message) return false;
+  const commandPanel = card?.querySelector(".battle-command-panel");
+  if (!card || !commandPanel) return false;
 
   const url = canonicalFieldMessageUrl();
   if (!url) {
-    if (message.dataset.canonicalBattlebackMessage !== CANONICAL_FIELD_MESSAGE) return false;
-    message.style.removeProperty("background-image");
-    message.style.removeProperty("background-repeat");
-    message.style.removeProperty("background-position");
-    message.style.removeProperty("background-size");
-    delete message.dataset.canonicalBattlebackMessage;
-    delete message.dataset.canonicalBattlebackMessagePath;
+    clearCanonicalBattleCommandBarArt(commandPanel);
     return false;
   }
 
-  message.style.backgroundImage = `url("${url}")`;
-  message.style.backgroundRepeat = "no-repeat";
-  message.style.backgroundPosition = "center";
-  message.style.backgroundSize = "100% 100%";
-  message.dataset.canonicalBattlebackMessage = CANONICAL_FIELD_MESSAGE;
-  message.dataset.canonicalBattlebackMessagePath = url;
+  commandPanel.style.backgroundImage = `url("${url}")`;
+  commandPanel.style.backgroundRepeat = "no-repeat";
+  commandPanel.style.backgroundPosition = "center";
+  commandPanel.style.backgroundSize = "100% 100%";
+  commandPanel.dataset.canonicalBattlebackMessage = CANONICAL_FIELD_MESSAGE;
+  commandPanel.dataset.canonicalBattlebackMessagePath = url;
   return true;
 }
 
