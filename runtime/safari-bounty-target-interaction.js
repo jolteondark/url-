@@ -20,8 +20,12 @@ function stateOf(runtime) {
   return state;
 }
 
+function operation(owner, op) {
+  return (owner.operations ?? []).find((entry) => entry?.op === op) ?? null;
+}
+
 function battleOperation(owner) {
-  return (owner.operations ?? []).find((operation) => operation?.op === "start_trainer_battle") ?? null;
+  return operation(owner, "start_trainer_battle");
 }
 
 function battleWon(summary = {}) {
@@ -35,18 +39,19 @@ function addMoney(runtime, amount) {
   return { op:"runtime_add_money", amount:value };
 }
 
-function hasGuaranteedLargeRewardCapacity(runtime) {
-  return (runtime.bag?.slots ?? []).filter(Boolean).length < SAFARI_BAG_MAX_SLOTS;
+function hasGuaranteedLargeRewardCapacity(runtime, quantity = 1) {
+  const emptySlots = Math.max(0, SAFARI_BAG_MAX_SLOTS - (runtime.bag?.slots ?? []).filter(Boolean).length);
+  return emptySlots >= Math.max(1, Math.trunc(Number(quantity) || 1));
 }
 
-function sharedLargeReward(runtime) {
+function sharedLargeReward(runtime, quantity = 1) {
   const state = stateOf(runtime);
   ensureSafariEncounterSeed(state);
   return preflightSafariSharedLargeItemReward(
     runtime,
     state.day,
     (limit) => borrowSafariSharedRunRandomInt(runtime, limit),
-    1,
+    Math.max(1, Math.trunc(Number(quantity) || 1)),
   );
 }
 
@@ -60,33 +65,41 @@ registerSafariNormalEventBattleContinuation("bounty_target", (runtime, continuat
   }
 
   const victory = battleWon(continuation.battleReturn);
-  let reward = null;
-  let applied = [];
-  let moneyOp = null;
-  if (victory) {
-    reward = sharedLargeReward(runtime);
-    if (!reward.success) throw new Error("bounty_target large reward no longer fits in Bag");
-    applied = applySafariLargeItemReward(runtime, reward);
-    moneyOp = addMoney(runtime, Number(event.normal_data?.reward ?? 0));
-  }
-
   const owner = resolveBountyTarget({
     event,
     battle_outcome:victory ? 1 : 0,
     held_items:[],
   });
+  const moneyOperation = operation(owner, "add_money");
+  const rewardOperation = operation(owner, "grant_random");
+  const clearBountyOperation = operation(owner, "clear_bounty");
+  if (!clearBountyOperation) throw new Error("bounty_target canonical clear_bounty operation is required");
+  if (victory && (!moneyOperation || rewardOperation?.tier !== "large")) {
+    throw new Error("bounty_target canonical victory rewards are unresolved");
+  }
+
+  let reward = null;
+  let applied = [];
+  let moneyOp = null;
+  if (victory) {
+    reward = sharedLargeReward(runtime, rewardOperation.quantity);
+    if (!reward.success) throw new Error("bounty_target large reward no longer fits in Bag");
+    applied = applySafariLargeItemReward(runtime, reward);
+    moneyOp = addMoney(runtime, Number(moneyOperation.amount));
+  }
+
   state.board_events[index] = owner.event;
   state.board_consumed[index] = Boolean(owner.event.normal_resolved);
   state.mapless_bounty = null;
   state.last_operations = [
-    ...(owner.operations ?? []).filter((operation) => !["start_trainer_battle", "grant_random", "add_money"].includes(operation?.op)).map((operation) => structuredClone(operation)),
-    ...(reward?.operations ?? []).map((operation) => structuredClone(operation)),
+    ...(owner.operations ?? []).filter((entry) => !["start_trainer_battle", "grant_random", "add_money"].includes(entry?.op)).map((entry) => structuredClone(entry)),
+    ...(reward?.operations ?? []).map((entry) => structuredClone(entry)),
     ...applied,
     ...(moneyOp ? [moneyOp] : []),
     { op:"request_save", reason:"normal_event_post_battle" },
   ];
   state.notice = victory
-    ? `賞金首を倒し、${Math.max(0, Math.trunc(Number(event.normal_data?.reward ?? 0)))}円と報酬を受け取りました。`
+    ? `賞金首を倒し、${Math.max(0, Math.trunc(Number(moneyOperation.amount) || 0))}円と報酬を受け取りました。`
     : "賞金首との戦いは終わりました。";
   return {
     runtime,
@@ -109,14 +122,17 @@ export async function startSafariBountyTargetBattle(runtime, index) {
   if (state.shop) return { runtime, result:"shop_active", operations:[] };
   if (state.board_consumed?.[index]) return { runtime, result:"already_consumed", operations:[] };
 
-  if (!hasGuaranteedLargeRewardCapacity(runtime)) {
+  const victoryProjection = resolveBountyTarget({ event, battle_outcome:1, held_items:[] });
+  const projectedReward = operation(victoryProjection, "grant_random");
+  if (projectedReward?.tier !== "large") throw new Error("bounty_target canonical large reward projection is required");
+  if (!hasGuaranteedLargeRewardCapacity(runtime, projectedReward.quantity)) {
     state.board_revealed[index] = true;
-    state.notice = "賞金首を倒した後のcanonical報酬を確実に受け取れる空きがありません。バッグに空き枠を1つ作ってください。";
+    state.notice = "賞金首を倒した後のcanonical報酬を確実に受け取れる空きがありません。バッグに空き枠を作ってください。";
     return {
       runtime,
       result:"reward_capacity_required",
       completed:false,
-      operations:[{ op:"bounty_target_reward_capacity_required", required_empty_slots:1 }],
+      operations:[{ op:"bounty_target_reward_capacity_required", required_empty_slots:Math.max(1, Math.trunc(Number(projectedReward.quantity) || 1)) }],
       notice:state.notice,
       persistenceRequested:false,
     };
@@ -133,7 +149,7 @@ export async function startSafariBountyTargetBattle(runtime, index) {
     actionId:"engage",
     battleEvent,
     request:structuredClone(battleEvent),
-    payload:{ reward:Number(event.normal_data?.reward ?? 0), seed:Number(event.normal_data?.seed ?? 0) },
+    payload:{ seed:Number(event.normal_data?.seed ?? 0) },
   });
   if (started.result === "normal_event_trainer_battle_started" && state.battle) globalThis.__maplessNormalEventUi = null;
   return started;
