@@ -14,5 +14,6 @@ assert.equal(
   "shared Battle entry and nested combat-start owner must ship in one delivery generation",
 );
 assert.notEqual(parent[1], "20260901-2130", "Battle entry must not regress to the pre-#1129 Safari cache generation");
+assert.notEqual(parent[1], "20260902-1707", "Battle entry must not regress to the pre-#1133 Safari cache generation");
 
 console.log("battle entry delivery smoke: ok");
