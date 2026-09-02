@@ -60,7 +60,7 @@ async function loadBoardPresentationManifest() {
 }
 
 async function loadBoardPresentation() {
-  loadStyle("./game-presentation.css");
+  loadStyle("./game-presentation.css?v=20260902-1700");
   loadStyle("./board-event-result-flow.css?v=20260819-2252");
   const presentationModules = await loadBoardPresentationManifest();
   return Promise.all([
@@ -107,8 +107,8 @@ async function loadShopUi() {
 }
 
 async function loadMenuUi() {
-  loadStyle("./bridge-shell.css");
-  loadStyle("./game-menu.css");
+  loadStyle("./bridge-shell.css?v=20260902-1700");
+  loadStyle("./game-menu.css?v=20260902-1700");
   const modules = await Promise.all([
     loadModule("./game-menu-bridge.js?v=20260821-0936"),
     loadModule("./party-panel-bridge.js?v=20260821-1535"),
