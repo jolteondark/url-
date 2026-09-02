@@ -9,6 +9,28 @@ export const MAPLESS_V108_BERRY_IDS = Object.freeze(Object.keys(MAPLESS_V108_BER
 export const MAPLESS_V108_RARE_BERRY_IDS = Object.freeze([
   "LIECHIBERRY","GANLONBERRY","SALACBERRY","PETAYABERRY","APICOTBERRY","LANSATBERRY","STARFBERRY","ENIGMABERRY",
 ]);
+const MAPLESS_V108_RARE_BERRY_SET = new Set(MAPLESS_V108_RARE_BERRY_IDS);
+
+export function canonicalBerryGrade(itemId) {
+  const id = String(itemId ?? "");
+  if (MAPLESS_V108_RARE_BERRY_SET.has(id)) return 3;
+  const price = Number(MAPLESS_V108_BERRY_PRICES[id]);
+  if (!Number.isFinite(price)) return 0;
+  if (price >= 1000) return 2;
+  if (price >= 400) return 1;
+  return 0;
+}
+
+export function canonicalBerryRewardPool(grade, exclude = null) {
+  const wanted = Math.max(0, Math.min(3, Math.trunc(Number(grade) || 0)));
+  let pool = MAPLESS_V108_BERRY_IDS.filter((id) => canonicalBerryGrade(id) === wanted && id !== exclude);
+  if (pool.length === 0) {
+    const fallback = Math.max(wanted - 1, 0);
+    // v0.9.108 fallback rebuilds the pool without the exclude filter.
+    pool = MAPLESS_V108_BERRY_IDS.filter((id) => canonicalBerryGrade(id) === fallback);
+  }
+  return pool;
+}
 
 export function canonicalBerryEntriesFromBagSlots(slots = []) {
   const counts = new Map();
