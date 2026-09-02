@@ -7,8 +7,8 @@ const loader = fs.readFileSync(new URL("../deferred-ui-loader.js", import.meta.u
 const loaderRevision = index.match(/deferred-ui-loader\.js\?v=(\d{8}-\d{4})/)?.[1];
 const battleRevision = loader.match(/BATTLE_PRESENTATION_PUBLIC_REVISION = "(\d{8}-\d{4})"/)?.[1];
 
-assert.equal(loaderRevision, "20260902-2300", "index must fetch the refreshed deferred UI loader");
-assert.equal(battleRevision, "20260902-2300", "deferred loader must fetch refreshed Battle presentation entry modules");
+assert.equal(loaderRevision, "20260903-0557", "index must fetch the refreshed deferred UI loader");
+assert.equal(battleRevision, "20260903-0557", "deferred loader must fetch refreshed Battle presentation entry modules");
 for (const modulePath of [
   "./canonical-battle-ui-bridge.js",
   "./trainer-battle-presentation.js",
