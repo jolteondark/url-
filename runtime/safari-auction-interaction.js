@@ -1,4 +1,5 @@
 import { resolveAuctionBagEconomyStep } from "./bag-economy-auction-step-integration.js";
+import { resolveCanonicalItemPresentation } from "./canonical-item-presentation.js";
 
 const BAG_MAX_SLOTS = 20;
 const BAG_MAX_PER_SLOT = 99;
@@ -25,6 +26,10 @@ function auctionEvent(runtime, index) {
     }
   }
   return event;
+}
+
+function itemName(itemId) {
+  return resolveCanonicalItemPresentation(itemId).name;
 }
 
 function currentProductIndex(data) {
@@ -86,7 +91,7 @@ export function safariAuctionPresentation(runtime, index) {
   const product = data.products[productIndex];
   return {
     title:`オークション ${productIndex + 1} / ${data.products.length}`,
-    message:`${product.item}の現在価格は${Math.trunc(Number(product.price))}円です。`,
+    message:`${itemName(product.item)}の現在価格は${Math.trunc(Number(product.price))}円です。`,
     actions:[
       { id:"bid_10", label:"10%上乗せして入札", meta:`所持金 ${money(runtime)}円` },
       { id:"bid_25", label:"25%上乗せして入札", meta:`所持金 ${money(runtime)}円` },
@@ -143,7 +148,7 @@ export function resolveSafariAuctionInteraction(runtime, index, requestedAction)
     const blocked = (settlement.facility.operations ?? []).some((operation) => operation?.op === "message" && /所持金/.test(String(operation.text ?? "")));
     state.notice = blocked
       ? "所持金以上には入札できません。別の入札額を選んでください。"
-      : `${data.products[productIndex].item}は${Math.trunc(Number(data.products[productIndex].price))}円まで競り上がりました。`;
+      : `${itemName(data.products[productIndex].item)}は${Math.trunc(Number(data.products[productIndex].price))}円まで競り上がりました。`;
     state.last_operations = (settlement.facility.operations ?? []).map((operation) => structuredClone(operation));
     refreshUi(runtime, index);
     return {
@@ -174,7 +179,7 @@ export function resolveSafariAuctionInteraction(runtime, index, requestedAction)
   if (won) {
     const notice = settlement.result === "fake_won"
       ? "落札品は贋作でした。代金を支払い、競りを終えました。"
-      : `${settlement.product.item}を${settlement.spent}円で落札しました。`;
+      : `${itemName(settlement.product.item)}を${settlement.spent}円で落札しました。`;
     return complete(runtime, index, event, settlement.result, notice, ownerOperations);
   }
 
