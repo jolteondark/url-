@@ -48,6 +48,7 @@ function refreshUi(runtime, index) {
 
 function complete(runtime, index, event, result, notice, operations = []) {
   const state = stateOf(runtime);
+  event.normal_resolved = true;
   state.board_events[index] = event;
   state.board_revealed[index] = true;
   state.board_visited[index] = true;
@@ -191,7 +192,7 @@ export function resolveSafariAuctionInteraction(runtime, index, requestedAction)
   }
 
   state.notice = refunded
-    ? `バッグがいっぱいのため購入できませんでした。代金は減っていません。次の商品へ進みます。`
+    ? "バッグがいっぱいのため購入できませんでした。代金は減っていません。次の商品へ進みます。"
     : "この商品から降りました。次の商品へ進みます。";
   state.last_operations = ownerOperations.map((operation) => structuredClone(operation));
   refreshUi(runtime, index);
