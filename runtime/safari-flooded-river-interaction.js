@@ -3,6 +3,7 @@ import { resolveRewardTransaction } from "./bag-economy-reward-transaction.js";
 import { resolveFloodedRiver } from "./mapless-normal-events-a1-flow.js";
 import { resolveMaplessV108FloodedRiverReward } from "./mapless-v108-event-local-item-reward.js";
 import { RubyMT19937Random } from "./ruby-mt19937-random.js";
+import { commitSafariBagEconomyReceipt } from "./safari-bag-economy-receipt.js";
 import { damageSafariPokemonPercent } from "./safari-pokemon-healing.js";
 import { hasSafariUsablePartyType, safariPokemonTypes } from "./safari-pokemon-type-membership.js";
 
@@ -156,15 +157,15 @@ export function resolveSafariFloodedRiverInteraction(runtime, index, action) {
     }
   }
   if (specialReward?.success) {
-    runtime.bag.slots = specialReward.pockets.general.slots.filter(Boolean);
-    applied.push(...specialReward.granted.map((entry) => ({ op: "runtime_grant_item", item: entry.item, quantity: entry.quantity })));
+    const receipt = commitSafariBagEconomyReceipt(runtime, { reward: specialReward });
+    if (!receipt.success) throw new Error(`canonical flooded river reward commit failed: ${receipt.result}`);
+    applied.push(...receipt.operations);
   }
 
   state.board_events[index] = owner.event;
   state.board_consumed[index] = Boolean(owner.event.normal_resolved);
   state.last_operations = [
     ...(owner.operations ?? []).map((operation) => structuredClone(operation)),
-    ...(specialReward?.operations ?? []).map((operation) => structuredClone(operation)),
     ...applied,
   ];
   state.notice = owner.outcome === "left"
