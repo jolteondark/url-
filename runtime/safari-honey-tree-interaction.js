@@ -4,6 +4,7 @@ import {
   resolveHoneyTreeHoneyGrantV108,
 } from "./mapless-honey-tree-v108.js";
 import { hasMaplessV108ItemMetadata } from "./mapless-v108-item-metadata.js";
+import { commitSafariBagEconomyReceipt } from "./safari-bag-economy-receipt.js";
 import { borrowSafariSharedRunRandomInt } from "./safari-encounter-randomization.js";
 import { registerSafariNormalEventBattleContinuation } from "./safari-normal-event-battle-continuation.js";
 import { hasSafariUsablePartyType, safariPokemonTypes } from "./safari-pokemon-type-membership.js";
@@ -44,10 +45,11 @@ function battleSucceeded(summary = {}) {
   const decision = Number(summary.decision);
   return decision === 1 || decision === 4;
 }
-function applyReward(runtime, reward) {
-  if (!reward?.success) return [];
-  runtime.bag.slots = reward.pockets.general.slots.filter(Boolean);
-  return reward.granted.map((entry) => ({ op:"runtime_grant_item", item:entry.item, quantity:entry.quantity }));
+function alreadyConsumed(state, index, event) {
+  return Boolean(state.board_consumed?.[index] || event?.normal_resolved);
+}
+function commitReward(runtime, reward) {
+  return reward ? commitSafariBagEconomyReceipt(runtime, { reward }) : null;
 }
 
 registerSafariNormalEventBattleContinuation("honey_tree", (runtime, continuation) => {
@@ -56,19 +58,28 @@ registerSafariNormalEventBattleContinuation("honey_tree", (runtime, continuation
   const index = Number(continuation.boardIndex);
   const event = state.board_events?.[index];
   if (!event || event.kind !== "normal_event" || event.normal_event_id !== "honey_tree") throw new Error("honey_tree continuation requires the originating board event");
+  if (alreadyConsumed(state, index, event)) {
+    return {
+      runtime,
+      result:"already_consumed",
+      completed:true,
+      terminal:true,
+      operations:[],
+      persistenceRequested:false,
+    };
+  }
 
   const success = battleSucceeded(continuation.battleReturn);
   const reward = success && hasMaplessV108ItemMetadata("HONEY") ? preflightHoney(runtime, 1) : null;
   if (reward && !reward.success) throw new Error("honey_tree post-battle reward no longer fits in Bag");
 
   const owner = shakeProjection(event, success);
-  const applied = applyReward(runtime, reward);
+  const receipt = commitReward(runtime, reward);
   state.board_events[index] = owner.event;
   state.board_consumed[index] = Boolean(owner.event.normal_resolved);
   state.last_operations = [
-    ...(owner.operations ?? []).filter((operation) => operation?.op !== "start_wild_battle").map((operation) => structuredClone(operation)),
-    ...(reward?.operations ?? []).map((operation) => structuredClone(operation)),
-    ...applied,
+    ...(owner.operations ?? []).filter((operation) => operation?.op !== "start_wild_battle" && operation?.op !== "grant_items").map((operation) => structuredClone(operation)),
+    ...(receipt?.operations ?? []).map((operation) => structuredClone(operation)),
     { op:"request_save", reason:"normal_event_post_battle" },
   ];
   state.notice = success
@@ -90,7 +101,7 @@ export async function startSafariHoneyTreeShakeBattle(runtime, index) {
   const state = stateOf(runtime);
   const event = state.board_events?.[index];
   if (!event || event.kind !== "normal_event" || event.normal_event_id !== "honey_tree") throw new Error("honey_tree board event is required");
-  if (state.board_consumed?.[index]) return { runtime, result:"already_consumed", completed:false, operations:[] };
+  if (alreadyConsumed(state, index, event)) return { runtime, result:"already_consumed", completed:false, operations:[] };
 
   state.board_revealed[index] = true;
   state.board_visited[index] = true;
@@ -136,7 +147,7 @@ export function resolveSafariHoneyTreeInteraction(runtime, index, requestedActio
   if (!event || event.kind !== "normal_event" || event.normal_event_id !== "honey_tree") throw new Error("honey_tree board event is required");
   if (state.battle && !state.battle.completed) return { runtime, result:"battle_active", operations:[] };
   if (state.shop) return { runtime, result:"shop_active", operations:[] };
-  if (state.board_consumed?.[index]) return { runtime, result:"already_consumed", operations:[] };
+  if (alreadyConsumed(state, index, event)) return { runtime, result:"already_consumed", operations:[] };
 
   state.board_revealed[index] = true;
   state.board_visited[index] = true;
@@ -164,13 +175,12 @@ export function resolveSafariHoneyTreeInteraction(runtime, index, requestedActio
     reward_items:action === "bark" && Number(event.normal_data?.bark_roll) < 50 ? projected.selectedItems : undefined,
   });
 
-  const applied = applyReward(runtime, reward);
+  const receipt = commitReward(runtime, reward);
   state.board_events[index] = owner.event;
   state.board_consumed[index] = Boolean(owner.event.normal_resolved);
   state.last_operations = [
-    ...(owner.operations ?? []).map((operation) => structuredClone(operation)),
-    ...(reward?.operations ?? []).map((operation) => structuredClone(operation)),
-    ...applied,
+    ...(owner.operations ?? []).filter((operation) => operation?.op !== "grant_items" && operation?.op !== "grant_random").map((operation) => structuredClone(operation)),
+    ...(receipt?.operations ?? []).map((operation) => structuredClone(operation)),
   ];
   state.notice = owner.outcome === "left" ? "ハチミツの木をそのままにして立ち去りました。"
     : owner.outcome === "bug_safe_reward" ? "むしタイプが安全に木を調べ、ハチミツを回収しました。"
