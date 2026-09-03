@@ -113,19 +113,28 @@ registerSafariNormalEventBattleContinuation("pokemon_nest", (runtime, continuati
       seed:Number(event.normal_seed ?? 0) + 1,
     });
     if (!granted.success) {
-      state.notice = "手持ちもボックスもいっぱいです。空きを作れば、巣のタマゴを保護できます。";
-      state.last_operations = [
-        ...(granted.operations ?? []).map((operation) => structuredClone(operation)),
-        { op:"request_save", reason:"normal_event_post_battle_capacity" },
-      ];
+      const owner = resolvePokemonNest({
+        event,
+        action:"egg",
+        current_day:state.day,
+        battle_success:true,
+        add_egg_success:false,
+      });
+      commitOwner(state, index, owner, [
+        ...(granted.operations ?? []),
+        { op:"request_save", reason:"normal_event_post_battle" },
+      ]);
+      state.notice = "手持ちもボックスもいっぱいで、巣のタマゴを保護できませんでした。";
       return {
         runtime,
-        result:"egg_storage_full",
-        completed:false,
+        result:owner.outcome,
+        completed:true,
         terminal:true,
         operations:state.last_operations,
         notice:state.notice,
         persistenceRequested:true,
+        owner,
+        granted,
       };
     }
 
