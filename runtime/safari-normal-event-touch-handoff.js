@@ -8,6 +8,7 @@ import { safariMeteorFragmentRockChoices } from "./safari-meteor-fragment-intera
 import { safariLostPokemonBerryChoices } from "./safari-lost-pokemon-interaction.js";
 import { safariPhotographerPartyChoices } from "./safari-photographer-interaction.js";
 import { safariBerryThiefBerryChoices } from "./safari-berry-thief-interaction.js";
+import { safariAuctionPresentation } from "./safari-auction-interaction.js";
 
 const SUPPORTED = new Set([
   "street_performer",
@@ -24,6 +25,7 @@ const SUPPORTED = new Set([
   "pokemon_nest",
   "sleeping_giant",
   "berry_thief",
+  "auction",
   "wounded_pokemon",
 ]);
 
@@ -259,6 +261,7 @@ function definition(runtime, eventId, index) {
       actions,
     };
   }
+  if (eventId === "auction") return safariAuctionPresentation(runtime, index);
   if (eventId === "wounded_pokemon") return woundedDefinition(runtime, index);
   throw new RangeError(`unsupported normal-event touch id: ${eventId}`);
 }
