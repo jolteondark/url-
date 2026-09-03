@@ -55,6 +55,17 @@ function hiddenRoll(event) {
   const rng = new RubyMT19937Random((Number(event.normal_seed) + 1) & 0x7fffffff);
   return rng.randInt(100);
 }
+function reserveHiddenSmallReward(runtime) {
+  const reservation = resolveMaplessNormalEventSmallReward({
+    count:1,
+    randomInt:(max) => borrowSafariSharedRunRandomInt(runtime, max),
+    itemMeta:SMALL_ITEM_META,
+    pockets:{ general:{ slots:[], maxSlots:SAFARI_BAG_MAX_SLOTS, maxPerSlot:SAFARI_BAG_MAX_PER_SLOT } },
+  });
+  const item = reservation?.selectedItems?.[0] ?? null;
+  if (!reservation?.success || !item) throw new Error("berry_thief hidden small reward selection failed");
+  return { item, operations:(reservation.operations ?? []).map((operation) => structuredClone(operation)) };
+}
 function battleOperation(owner) { return (owner.operations ?? []).find((operation) => operation?.op === "start_wild_battle") ?? null; }
 function battleSucceeded(summary={}) { const decision=Number(summary.decision); return decision===1 || decision===4; }
 
@@ -89,9 +100,15 @@ registerSafariNormalEventBattleContinuation("berry_thief", (runtime, continuatio
   if (!event || event.normal_event_id !== "berry_thief") throw new Error("berry_thief continuation requires originating event");
   const success = battleSucceeded(continuation.battleReturn);
   const restored = success ? [...(event.normal_data?.stolen ?? [])] : [];
-  const resolved = restored.length ? transaction(runtime, restored) : null;
-  if (resolved && !resolved.success) throw new Error("berry_thief post-battle reward no longer fits in Bag");
-  const roll = hiddenRoll(event);
+  const roll = Number.isFinite(Number(continuation.payload?.hidden_reward_roll))
+    ? Number(continuation.payload.hidden_reward_roll)
+    : hiddenRoll(event);
+  const bonusEligible = success && continuation.actionId === "chase" && roll < 20;
+  const bonusItem = bonusEligible ? String(continuation.payload?.hidden_reward_item ?? "") : "";
+  if (bonusEligible && !bonusItem) throw new Error("berry_thief hidden small reward reservation is missing");
+  const rewards = [...restored, ...(bonusItem ? [bonusItem] : [])];
+  const resolved = rewards.length ? transaction(runtime, rewards) : null;
+  if (resolved && !resolved.success) throw new Error("berry_thief post-battle rewards no longer fit in Bag");
   const owner = resolveBerryThief({
     event,
     action:continuation.actionId,
@@ -100,36 +117,22 @@ registerSafariNormalEventBattleContinuation("berry_thief", (runtime, continuatio
     battle_success:success,
     hidden_reward_roll:roll,
   });
-  const bonusEligible = success && continuation.actionId === "chase" && roll < 20;
-  const restoredSlots = resolved?.success ? resolved.pockets.general.slots.filter(Boolean) : bagSlots(runtime);
-  const bonus = bonusEligible
-    ? resolveMaplessNormalEventSmallReward({
-        count:1,
-        randomInt:(max) => borrowSafariSharedRunRandomInt(runtime, max),
-        itemMeta:SMALL_ITEM_META,
-        pockets:{ general:{ slots:restoredSlots, maxSlots:SAFARI_BAG_MAX_SLOTS, maxPerSlot:SAFARI_BAG_MAX_PER_SLOT } },
-      })
-    : null;
-  if (bonusEligible && !bonus?.success) throw new Error("berry_thief hidden small reward no longer fits in Bag");
 
   const applied = applyTransaction(runtime, resolved);
-  const appliedBonus = applyTransaction(runtime, bonus);
   state.board_events[index] = owner.event;
   state.board_consumed[index] = Boolean(owner.event.normal_resolved);
   state.last_operations = [
     ...(owner.operations ?? []).filter((operation) => !["start_wild_battle","grant_items","remove_item"].includes(operation?.op)).map((operation) => structuredClone(operation)),
     ...(resolved?.operations ?? []).map((operation) => structuredClone(operation)),
     ...applied,
-    ...(bonus?.operations ?? []).map((operation) => structuredClone(operation)),
-    ...appliedBonus,
     { op:"request_save", reason:"normal_event_post_battle" },
   ];
-  const bonusItem = bonus?.selectedItems?.[0] ?? null;
   state.notice = success
     ? bonusItem
       ? `きのみ泥棒を追い払い、盗まれた道具を取り戻しました。さらに${bonusItem}を見つけました。`
       : "きのみ泥棒を追い払い、盗まれた道具を取り戻しました。"
     : "きのみ泥棒との戦いは終わりました。";
+  const bonus = bonusItem ? { success:true, selectedItems:[bonusItem] } : null;
   return { runtime, result:owner.outcome, completed:true, terminal:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner, bonus };
 });
 
@@ -173,11 +176,26 @@ export async function resolveSafariBerryThiefInteraction(runtime, index, request
         return { runtime, result:"reward_bag_full", completed:false, operations:[...theft.operations, ...preflight.operations], notice:state.notice, persistenceRequested:theft.changed, availableActions };
       }
     }
+
+    const hiddenReward = action === "chase" && roll < 20 ? reserveHiddenSmallReward(runtime) : null;
     const started = await activateSafariNormalEventWildBattle(runtime, index, {
-      eventId:"berry_thief", actionId:action, battleEvent, request:structuredClone(battleEvent), payload:{ berry, hidden_reward_roll:roll },
+      eventId:"berry_thief",
+      actionId:action,
+      battleEvent,
+      request:structuredClone(battleEvent),
+      payload:{ berry, hidden_reward_roll:roll, hidden_reward_item:hiddenReward?.item ?? null },
     });
     if (started.result === "normal_event_wild_battle_started" && state.battle) globalThis.__maplessNormalEventUi = null;
-    return { ...started, persistenceRequested:true, operations:[...theft.operations, ...(state.last_operations ?? started.operations ?? []), { op:"request_save", reason:"berry_thief_battle_started" }] };
+    return {
+      ...started,
+      persistenceRequested:true,
+      operations:[
+        ...theft.operations,
+        ...(hiddenReward?.operations ?? []),
+        ...(state.last_operations ?? started.operations ?? []),
+        { op:"request_save", reason:"berry_thief_battle_started" },
+      ],
+    };
   }
 
   const rareBerry = MAPLESS_V108_RARE_BERRY_IDS[seededIndex(event.normal_seed, MAPLESS_V108_RARE_BERRY_IDS.length)];
