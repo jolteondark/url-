@@ -2,10 +2,8 @@ import { resolvePhotographer } from "./mapless-normal-events-a3-flow.js";
 import { projectMaplessNormalEventOptionalReward } from "./mapless-normal-event-optional-reward.js";
 import { registerSafariNormalEventBattleContinuation } from "./safari-normal-event-battle-continuation.js";
 import { safariPokemonTypes } from "./safari-pokemon-type-membership.js";
-import {
-  applySafariSmallItemReward,
-  preflightSafariSharedSmallItemReward,
-} from "./safari-small-item-reward.js";
+import { preflightSafariSharedSmallItemReward } from "./safari-small-item-reward.js";
+import { commitSafariBagEconomyReceipt } from "./safari-bag-economy-receipt.js";
 import {
   borrowSafariSharedRunRandomInt,
   ensureSafariEncounterSeed,
@@ -31,12 +29,6 @@ function pokemonLabel(pokemon) {
   const name = String(pokemon?.nickname || pokemon?.species || "ポケモン");
   const level = Number(pokemon?.level);
   return Number.isFinite(level) ? `${name} Lv.${level}` : name;
-}
-function addMoney(runtime, amount) {
-  runtime.bag ??= { slots:[], money:0 };
-  const value = Math.max(0, Math.trunc(Number(amount) || 0));
-  runtime.bag.money = Math.max(0, Math.trunc(Number(runtime.bag.money ?? 0))) + value;
-  return { op:"runtime_add_money", amount:value };
 }
 function sharedSmallReward(runtime) {
   const state = stateOf(runtime);
@@ -91,21 +83,25 @@ registerSafariNormalEventBattleContinuation("photographer", (runtime, continuati
   const owner = resolvePhotographer({ event, action:"wild", scaling_value:scale, battle_success:true });
   const optionalReward = projectMaplessNormalEventOptionalReward({ ownerResult:owner, rewardResult:reward });
   const money = 1200 + scale * 200;
-  const applied = reward.success ? applySafariSmallItemReward(runtime, reward) : [];
-  const moneyOp = addMoney(runtime, money);
+  const receipt = commitSafariBagEconomyReceipt(runtime, { reward, money });
+  if (!receipt.success) {
+    state.preview_encounter_counter = projected.counter;
+    state.notice = `撮影に成功しましたが、バッグがいっぱいで報酬を受け取れません。`;
+    state.last_operations = [
+      ...optionalReward.rewardOperations.map((operation) => structuredClone(operation)),
+      ...receipt.operations.map((operation) => structuredClone(operation)),
+    ];
+    return { runtime, result:receipt.result, completed:false, terminal:false, reward, optionalReward, operations:state.last_operations, notice:state.notice, persistenceRequested:false, owner };
+  }
   state.board_events[index] = owner.event;
   state.board_consumed[index] = Boolean(owner.event.normal_resolved);
   state.last_operations = [
     ...(owner.operations ?? []).filter((operation) => operation?.op !== "start_wild_battle" && operation?.op !== "grant_random").map((operation) => structuredClone(operation)),
-    ...(reward.success ? (reward.operations ?? []) : optionalReward.rewardOperations).map((operation) => structuredClone(operation)),
-    ...applied,
-    moneyOp,
+    ...receipt.operations.map((operation) => structuredClone(operation)),
     { op:"request_save", reason:"normal_event_post_battle" },
   ];
-  state.notice = reward.success
-    ? `撮影に成功し、${money}円と${reward.selectedItems?.[0] ?? "道具"}を受け取りました。`
-    : `撮影に成功して${money}円受け取りましたが、バッグがいっぱいで道具は持ち帰れませんでした。`;
-  return { runtime, result:owner.outcome, completed:true, terminal:true, reward, optionalReward, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+  state.notice = `撮影に成功し、${money}円と${reward.selectedItems?.[0] ?? "道具"}を受け取りました。`;
+  return { runtime, result:owner.outcome, completed:true, terminal:true, reward, optionalReward, receipt, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
 });
 
 export async function resolveSafariPhotographerInteraction(runtime, index, requestedAction) {
@@ -153,12 +149,13 @@ export async function resolveSafariPhotographerInteraction(runtime, index, reque
       scaling_value:scale,
     });
     const money = (special ? 1200 : 600) + scale * 100;
-    const moneyOp = addMoney(runtime, money);
+    const receipt = commitSafariBagEconomyReceipt(runtime, { money });
+    if (!receipt.success) throw new Error(`photographer money receipt failed: ${receipt.result}`);
     state.board_events[index] = owner.event;
     state.board_consumed[index] = Boolean(owner.event.normal_resolved);
-    state.last_operations = [...(owner.operations ?? []).map((operation) => structuredClone(operation)), moneyOp];
+    state.last_operations = [...(owner.operations ?? []).map((operation) => structuredClone(operation)), ...receipt.operations.map((operation) => structuredClone(operation))];
     state.notice = special ? `色違いのポケモンを撮ってもらい、${money}円受け取りました。` : `ポケモンを撮ってもらい、${money}円受け取りました。`;
-    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner, receipt };
   }
 
   const owner = resolvePhotographer({ event, action:"leave", scaling_value:scale });
