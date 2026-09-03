@@ -15,17 +15,17 @@ assert.match(adapter,
   /function hiddenRoll\(event\)[\s\S]*?new RubyMT19937Random\(\(Number\(event\.normal_seed\) \+ 1\)[\s\S]*?randInt\(100\)/,
   "the canonical hidden 20% eligibility roll must remain event-seeded with normal_seed + 1");
 assert.match(adapter,
-  /bonusEligible = success && continuation\.actionId === "chase" && roll < 20/,
-  "small reward must only be selected after successful chase and hidden roll < 20");
+  /function reserveHiddenSmallReward\(runtime\)[\s\S]*?resolveMaplessNormalEventSmallReward\(\{[\s\S]*?randomInt:\(max\) => borrowSafariSharedRunRandomInt\(runtime, max\)/,
+  "eligible bonus must perform one shared-owner draw rather than reseeding from the event");
 assert.match(adapter,
-  /resolveMaplessNormalEventSmallReward\(\{[\s\S]*?count:1,[\s\S]*?randomInt:\(max\) => borrowSafariSharedRunRandomInt\(runtime, max\)/,
-  "eligible bonus must perform one shared-owner small reward draw rather than reseeding from the event");
-assert.doesNotMatch(adapter, /shared_normal_event_random_reward_pending/,
-  "the #834 pending audit placeholder must be removed");
-assert.match(adapter, /\.\.\.\(bonus\?\.operations \?\? \[\]\)/,
-  "shared selection and atomic Bag operations must be preserved in the continuation audit trail");
-assert.match(adapter, /const appliedBonus = applyTransaction\(runtime, bonus\)/,
-  "the shared owner's projected bonus must reach the runtime Bag");
+  /payload:\{ berry, hidden_reward_roll:roll, hidden_reward_item:hiddenReward\?\.item \?\? null \}/,
+  "the selected hidden reward must be persisted in the Battle continuation payload");
+assert.match(adapter,
+  /bonusItem = bonusEligible \? String\(continuation\.payload\?\.hidden_reward_item \?\? ""\) : ""/,
+  "Battle RETURN must reuse the reserved item rather than draw again");
+assert.doesNotMatch(adapter,
+  /registerSafariNormalEventBattleContinuation\("berry_thief"[\s\S]*?randomInt:\(max\) => borrowSafariSharedRunRandomInt\(runtime, max\)/,
+  "Battle RETURN must not consume shared run RNG for hidden reward selection");
 assert.match(adapter, /さらに\$\{bonusItem\}を見つけました/,
   "Safari notice must surface the granted chase bonus item");
 assert.doesNotMatch(adapter,
