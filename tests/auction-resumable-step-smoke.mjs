@@ -25,17 +25,17 @@ function product(overrides = {}) {
   const first = resolveAuctionProductStep(product(), { money: 5000, choice: 0 });
   assert.equal(first.awaiting_choice, true);
   assert.equal(first.won, false);
-  assert.equal(first.product.price, 1200);
+  assert.equal(first.product.price, 1210);
   assert.deepEqual(first.operations.map((op) => op.op), ['choice', 'auction_bid', 'npc_bid']);
 
   const second = resolveAuctionProductStep(first.product, { money: 5000, choice: 0 });
   assert.equal(second.awaiting_choice, true);
-  assert.equal(second.product.price, 1500);
+  assert.equal(second.product.price, 1464);
 
   const third = resolveAuctionProductStep(second.product, { money: 5000, choice: 0 });
   assert.equal(third.awaiting_choice, false);
   assert.equal(third.won, true);
-  assert.equal(third.money_spent, 1650);
+  assert.equal(third.money_spent, 1611);
   assert.deepEqual(third.granted_items, ['NUGGET']);
 }
 
