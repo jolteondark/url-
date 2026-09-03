@@ -49,8 +49,8 @@ registerSafariNormalEventBattleContinuation("sleeping_giant", (runtime, continua
   const success = battleSucceeded(continuation.battleReturn);
   const item = displayedItem(event);
   const rewardAttempt = success ? reward(runtime, item) : null;
-  const receipt = success ? commitSafariBagEconomyReceipt(runtime, { reward:rewardAttempt }) : null;
   const owner = resolveSleepingGiant({ event, action:continuation.actionId, battle_success:success });
+  const receipt = success ? commitSafariBagEconomyReceipt(runtime, { reward:rewardAttempt }) : null;
   state.board_events[index] = owner.event;
   state.board_consumed[index] = Boolean(owner.event.normal_resolved);
   state.last_operations = [
