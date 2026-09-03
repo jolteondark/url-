@@ -21,16 +21,16 @@ assert.match(
 assert.match(
   adapter,
   /\.dppt-command-root button:focus-visible::before/,
-  "root Battle command focus must render the canonical cursor",
+  "root Battle command focus must render the canonical command cursor",
 );
 assert.match(
   adapter,
-  /data-dppt-menu="fight"\] \.move-grid button:focus-visible::before/,
-  "fight move focus must render the canonical cursor",
+  /\.dppt-command-root button:active::before \{[\s\S]*?background-image: var\(--canonical-battle-command-cursor\)/,
+  "root Battle command active state must use the command cursor asset",
 );
 assert.match(
   preview,
-  /canonical-battle-ui-assets\.js\?v=20260904-0300/,
+  /canonical-battle-ui-assets\.js\?v=20260904-0700/,
   "preview must request the fresh canonical Battle UI adapter generation",
 );
 
