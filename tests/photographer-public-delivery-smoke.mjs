@@ -10,12 +10,16 @@ const adapter = fs.readFileSync(path.join(root, "runtime", "safari-photographer-
 
 assert.match(index,
   /"\.\/runtime\/safari-photographer-interaction\.js": "\.\/runtime\/safari-photographer-interaction\.js\?v=20260903-2000"/,
-  "Safari public import map must publish the post-#1165 Photographer generation");
-assert.match(adapter, /commitSafariBagEconomyReceipt\(runtime, \{ reward, money \}\)/,
-  "published Photographer adapter must route post-Battle reward+money through the shared receipt");
-assert.match(adapter, /if \(!receipt\.success\)[\s\S]*persistenceRequested:false/,
-  "published Photographer adapter must keep no-room settlement retry-safe");
+  "Safari public import map must retain the currently published Photographer generation until the next delivery bump");
+assert.match(adapter, /commitSafariBagEconomyReceipt\(runtime, \{ reward, money:baseMoney \}\)/,
+  "Photographer item-success settlement must use the shared reward+money receipt");
+assert.match(adapter, /commitSafariBagEconomyReceipt\(runtime, \{ money:payout \}\)/,
+  "Photographer Bag-full fallback must use the shared money receipt");
+assert.match(adapter, /const payout = baseMoney \+ \(reward\.success \? 0 : 300\)/,
+  "Photographer Bag-full fallback must preserve canonical +300 yen compensation");
+assert.doesNotMatch(adapter, /terminal:false, reward/,
+  "Photographer successful Battle RETURN must not leave a retryable continuation result");
 assert.doesNotMatch(adapter, /function addMoney\s*\(/,
-  "published Photographer adapter must not restore local money mutation");
+  "Photographer adapter must not restore local money mutation");
 
 console.log("Photographer public delivery smoke passed");
