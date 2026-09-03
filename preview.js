@@ -1,4 +1,5 @@
 import { installSafariEggHatchVisitBridgeV108 } from "./runtime/safari-egg-hatch-visits-v108.js";
+import { installCanonicalBattleUiAssets } from "./runtime/canonical-battle-ui-assets.js";
 
 let appPromise = null;
 let replacementPresentationPromise = null;
@@ -143,6 +144,9 @@ function onContinueRun() {
 }
 
 installSafariEggHatchVisitBridgeV108();
+installCanonicalBattleUiAssets().catch((error) => {
+  console.error("[Mapless] canonical Battle UI assets unavailable", error);
+});
 window.addEventListener("error", captureBattleRenderError);
 window.addEventListener("safari-runtime-changed", traceSceneAfterRuntimeChange);
 newRun?.addEventListener("click", onNewRun);
