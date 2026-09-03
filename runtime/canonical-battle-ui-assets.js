@@ -6,6 +6,7 @@ const CANONICAL_BATTLE_UI_ASSETS = Object.freeze({
   hpOverlay: "./assets/canonical-battle-ui/overlay_hp.png",
   levelOverlay: "./assets/canonical-battle-ui/overlay_lv.png",
   commandCursor: "./assets/canonical-battle-ui/cursor_command.png",
+  fightCursor: "./assets/canonical-battle-ui/cursor_fight.png",
 });
 
 function preloadCanonicalBattleUiAsset(src) {
@@ -111,7 +112,19 @@ function installCanonicalBattleUiStyle(documentRef) {
   position: relative !important;
 }
 #battle-card[data-canonical-battle-ui="ready"] .dppt-command-root button:focus-visible::before,
-#battle-card[data-canonical-battle-ui="ready"] .dppt-command-root button:active::before,
+#battle-card[data-canonical-battle-ui="ready"] .dppt-command-root button:active::before {
+  content: "" !important;
+  display: block !important;
+  position: absolute !important;
+  inset: -5px !important;
+  opacity: 1 !important;
+  pointer-events: none !important;
+  z-index: 4 !important;
+  background-image: var(--canonical-battle-command-cursor) !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  background-size: 100% 100% !important;
+}
 #battle-card[data-canonical-battle-ui="ready"][data-dppt-menu="fight"] .move-grid button:focus-visible::before,
 #battle-card[data-canonical-battle-ui="ready"][data-dppt-menu="fight"] .move-grid button:active::before {
   content: "" !important;
@@ -121,7 +134,7 @@ function installCanonicalBattleUiStyle(documentRef) {
   opacity: 1 !important;
   pointer-events: none !important;
   z-index: 4 !important;
-  background-image: var(--canonical-battle-command-cursor) !important;
+  background-image: var(--canonical-battle-fight-cursor) !important;
   background-repeat: no-repeat !important;
   background-position: center !important;
   background-size: 100% 100% !important;
@@ -156,6 +169,7 @@ export async function installCanonicalBattleUiAssets(documentRef = document) {
     card.style.setProperty("--canonical-battle-hp-overlay", `url("${CANONICAL_BATTLE_UI_ASSETS.hpOverlay}")`);
     card.style.setProperty("--canonical-battle-level-overlay", `url("${CANONICAL_BATTLE_UI_ASSETS.levelOverlay}")`);
     card.style.setProperty("--canonical-battle-command-cursor", `url("${CANONICAL_BATTLE_UI_ASSETS.commandCursor}")`);
+    card.style.setProperty("--canonical-battle-fight-cursor", `url("${CANONICAL_BATTLE_UI_ASSETS.fightCursor}")`);
     card.dataset.canonicalBattleUi = "ready";
     return CANONICAL_BATTLE_UI_ASSETS;
   } catch (error) {
