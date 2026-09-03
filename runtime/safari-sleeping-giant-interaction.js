@@ -1,5 +1,6 @@
 import { resolveRewardTransaction } from "./bag-economy-reward-transaction.js";
 import { resolveSleepingGiant } from "./mapless-normal-events-a2-flow.js";
+import { commitSafariBagEconomyReceipt } from "./safari-bag-economy-receipt.js";
 import { registerSafariNormalEventBattleContinuation } from "./safari-normal-event-battle-continuation.js";
 import { activateSafariNormalEventWildBattle } from "./safari-web-combat-start.js";
 
@@ -23,14 +24,11 @@ function reward(runtime, item) {
     items:[item],
   });
 }
-function applyReward(runtime, resolved) {
-  if (!resolved?.success) return [];
-  runtime.bag ??= { slots:[], money:0 };
-  runtime.bag.slots = resolved.pockets.general.slots.filter(Boolean);
-  return resolved.granted.map((entry) => ({ op:"runtime_grant_item", item:entry.item, quantity:entry.quantity }));
-}
 function battleOperation(owner) { return (owner.operations ?? []).find((operation) => operation?.op === "start_wild_battle") ?? null; }
 function battleSucceeded(summary={}) { const decision=Number(summary.decision); return decision===1 || decision===4; }
+function alreadyConsumed(state, index, event) {
+  return Boolean(state.board_consumed?.[index] || event?.normal_resolved);
+}
 
 registerSafariNormalEventBattleContinuation("sleeping_giant", (runtime, continuation) => {
   if (continuation.actionId !== "steal" && continuation.actionId !== "fight") throw new Error(`unsupported sleeping_giant continuation: ${continuation.actionId}`);
@@ -38,21 +36,30 @@ registerSafariNormalEventBattleContinuation("sleeping_giant", (runtime, continua
   const index = Number(continuation.boardIndex);
   const event = state.board_events?.[index];
   if (!event || event.kind !== "normal_event" || event.normal_event_id !== "sleeping_giant") throw new Error("sleeping_giant continuation requires originating event");
+  if (alreadyConsumed(state, index, event)) {
+    return {
+      runtime,
+      result:"already_consumed",
+      completed:true,
+      terminal:true,
+      operations:[],
+      persistenceRequested:false,
+    };
+  }
   const success = battleSucceeded(continuation.battleReturn);
   const item = displayedItem(event);
   const rewardAttempt = success ? reward(runtime, item) : null;
+  const receipt = success ? commitSafariBagEconomyReceipt(runtime, { reward:rewardAttempt }) : null;
   const owner = resolveSleepingGiant({ event, action:continuation.actionId, battle_success:success });
-  const applied = applyReward(runtime, rewardAttempt);
   state.board_events[index] = owner.event;
   state.board_consumed[index] = Boolean(owner.event.normal_resolved);
   state.last_operations = [
     ...(owner.operations ?? []).filter((operation) => operation?.op !== "start_wild_battle" && operation?.op !== "grant_items").map((operation) => structuredClone(operation)),
-    ...(rewardAttempt?.operations ?? []).map((operation) => structuredClone(operation)),
-    ...applied,
+    ...(receipt?.operations ?? []).map((operation) => structuredClone(operation)),
     { op:"request_save", reason:"normal_event_post_battle" },
   ];
   state.notice = success
-    ? (rewardAttempt?.success ? `巨体のポケモンを退け、${item}を回収しました。` : `巨体のポケモンを退けましたが、バッグがいっぱいで${item}は持ち帰れませんでした。`)
+    ? (receipt?.success ? `巨体のポケモンを退け、${item}を回収しました。` : `巨体のポケモンを退けましたが、バッグがいっぱいで${item}は持ち帰れませんでした。`)
     : "巨体のポケモンとの戦いから離れました。";
   return { runtime, result:owner.outcome, completed:true, terminal:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
 });
@@ -63,7 +70,7 @@ export async function resolveSafariSleepingGiantInteraction(runtime, index, requ
   if (!event || event.kind !== "normal_event" || event.normal_event_id !== "sleeping_giant") throw new Error("sleeping_giant board event is required");
   if (state.battle && !state.battle.completed) return { runtime, result:"battle_active", operations:[] };
   if (state.shop) return { runtime, result:"shop_active", operations:[] };
-  if (state.board_consumed?.[index]) return { runtime, result:"already_consumed", operations:[] };
+  if (alreadyConsumed(state, index, event)) return { runtime, result:"already_consumed", operations:[] };
   state.board_revealed[index] = true;
   state.board_visited[index] = true;
   const action = String(requestedAction ?? "");
@@ -83,15 +90,14 @@ export async function resolveSafariSleepingGiantInteraction(runtime, index, requ
   if (!battleEvent) {
     const owner = resolveSleepingGiant({ event, action });
     const rewardAttempt = reward(runtime, item);
-    const applied = applyReward(runtime, rewardAttempt);
+    const receipt = commitSafariBagEconomyReceipt(runtime, { reward:rewardAttempt });
     state.board_events[index] = owner.event;
     state.board_consumed[index] = Boolean(owner.event.normal_resolved);
     state.last_operations = [
       ...(owner.operations ?? []).filter((operation) => operation?.op !== "grant_items").map((operation) => structuredClone(operation)),
-      ...(rewardAttempt.operations ?? []).map((operation) => structuredClone(operation)),
-      ...applied,
+      ...(receipt.operations ?? []).map((operation) => structuredClone(operation)),
     ];
-    state.notice = rewardAttempt.success
+    state.notice = receipt.success
       ? `眠っている隙に${item}を回収しました。`
       : `眠っている隙に手を伸ばしましたが、バッグがいっぱいで${item}は持ち帰れませんでした。`;
     return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
