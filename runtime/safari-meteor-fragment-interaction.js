@@ -10,6 +10,7 @@ import {
   resolveMaplessV108MeteorFragmentReward,
 } from "./mapless-v108-meteor-fragment.js";
 import { updatePokemonRuntime } from "./pokemon-runtime.js";
+import { commitSafariBagEconomyReceipt } from "./safari-bag-economy-receipt.js";
 import { borrowSafariSharedRunRandomInt, ensureSafariEncounterSeed } from "./safari-encounter-randomization.js";
 import { hasSafariUsablePartyType, safariPokemonTypes } from "./safari-pokemon-type-membership.js";
 
@@ -89,12 +90,6 @@ function applyPartyDamage(runtime, percent) {
     return updatePokemonRuntime(pokemon, { hp:Math.max(1, Number(pokemon.hp) - damage) });
   });
 }
-function applyReward(runtime, reward) {
-  if (!reward?.success) return [];
-  runtime.bag ??= { slots:[], money:0 };
-  runtime.bag.slots = reward.pockets.general.slots.filter(Boolean);
-  return (reward.granted ?? []).map((entry) => ({ op:"runtime_grant_item", item:entry.item, quantity:entry.quantity }));
-}
 
 export function safariMeteorFragmentRockChoices(runtime, index) {
   const state = stateOf(runtime);
@@ -157,13 +152,13 @@ export function resolveSafariMeteorFragmentInteraction(runtime, index, requested
       applied.push({ op:"runtime_damage_party", percent:Number(operation.amount) });
     }
   }
-  if (reward?.success) applied.push(...applyReward(runtime, reward));
+  const receipt = reward?.success ? commitSafariBagEconomyReceipt(runtime, { reward }) : null;
+  if (receipt?.success) applied.push(...receipt.operations);
 
   state.board_events[index] = owner.event;
   state.board_consumed[index] = Boolean(owner.event.normal_resolved);
   state.last_operations = [
     ...(owner.operations ?? []).map((operation) => structuredClone(operation)),
-    ...(reward?.operations ?? []).map((operation) => structuredClone(operation)),
     ...applied,
   ];
   state.notice = owner.outcome === "left" ? "隕石のかけらをそのままにして立ち去りました。"
