@@ -22,6 +22,14 @@ function berryCount(current) {
 }
 
 async function displayActionsFor(current, active) {
+  if (active.eventId === "auction") {
+    const owner = await loadOwner(active.eventId);
+    const ui = owner.safariAuctionPresentation(current, active.boardIndex);
+    active.title = ui.title;
+    active.message = ui.message;
+    active.actions = ui.actions;
+    return ui.actions;
+  }
   if (active.eventId === "street_performer") {
     const owner = await loadOwner(active.eventId);
     const scale = Math.max(Math.floor((Math.max(1, Number(state()?.day) || 1) - 1) / 5), 0);
@@ -70,6 +78,7 @@ function loadOwner(eventId) {
       treasure_chest:"./runtime/safari-treasure-chest-interaction.js",
       miner:"./runtime/safari-miner-interaction.js",
       tavern:"./runtime/safari-tavern-interaction.js",
+      auction:"./runtime/safari-auction-interaction.js",
     }[eventId];
     if (!specifier) throw new RangeError(`unsupported normal-event UI owner: ${eventId}`);
     ownerModules.set(eventId, import(specifier));
@@ -111,6 +120,7 @@ async function resolveAction(current, active, actionId) {
   if (active.eventId === "treasure_chest") return owner.resolveSafariTreasureChest(current, active.boardIndex, actionId);
   if (active.eventId === "miner") return owner.resolveSafariMinerAction(current, active.boardIndex, actionId);
   if (active.eventId === "tavern") return owner.resolveSafariTavernAction(current, active.boardIndex, actionId);
+  if (active.eventId === "auction") return owner.resolveSafariAuctionInteraction(current, active.boardIndex, actionId);
   throw new RangeError(`unsupported normal-event UI owner: ${active.eventId}`);
 }
 
@@ -180,9 +190,9 @@ async function sync() {
 
   lockBoard();
   card.hidden = false;
+  const actions = await displayActionsFor(current, active);
   byId("normal-event-title").textContent = active.title;
   byId("normal-event-message").textContent = currentState.notice || active.message;
-  const actions = await displayActionsFor(current, active);
   const buttons = actions.map((action) => {
     const button = document.createElement("button");
     button.type = "button";
