@@ -4,6 +4,7 @@ const CANONICAL_BATTLE_UI_ASSETS = Object.freeze({
   messageOverlay: "./assets/canonical-battle-ui/overlay_message.png",
   fightOverlay: "./assets/canonical-battle-ui/overlay_fight.png",
   hpOverlay: "./assets/canonical-battle-ui/overlay_hp.png",
+  levelOverlay: "./assets/canonical-battle-ui/overlay_lv.png",
   commandCursor: "./assets/canonical-battle-ui/cursor_command.png",
 });
 
@@ -14,6 +15,27 @@ function preloadCanonicalBattleUiAsset(src) {
     image.onerror = () => reject(new Error(`canonical Battle UI asset failed to load: ${src}`));
     image.src = src;
   });
+}
+
+function installCanonicalBattleLevelPresentation(documentRef) {
+  const levelNodes = [documentRef.getElementById("foe-level"), documentRef.getElementById("player-level")].filter(Boolean);
+  const syncLevel = (node) => {
+    const match = String(node.textContent ?? "").match(/(?:Lv\.)?\s*(\d+)/i);
+    if (match) node.dataset.canonicalBattleLevel = match[1];
+    else delete node.dataset.canonicalBattleLevel;
+  };
+  levelNodes.forEach(syncLevel);
+
+  const MutationObserverRef = documentRef.defaultView?.MutationObserver ?? globalThis.MutationObserver;
+  if (!MutationObserverRef) throw new Error("canonical Battle level presentation requires MutationObserver");
+  const observer = new MutationObserverRef((records) => {
+    for (const record of records) {
+      const node = record.target?.nodeType === 3 ? record.target.parentElement : record.target;
+      const levelNode = node?.closest?.("#foe-level, #player-level");
+      if (levelNode) syncLevel(levelNode);
+    }
+  });
+  levelNodes.forEach((node) => observer.observe(node, { childList: true, characterData: true, subtree: true }));
 }
 
 function installCanonicalBattleUiStyle(documentRef) {
@@ -36,6 +58,23 @@ function installCanonicalBattleUiStyle(documentRef) {
 }
 #battle-card[data-canonical-battle-ui="ready"] .foe-info {
   background-image: var(--canonical-battle-foe-databox) !important;
+}
+#battle-card[data-canonical-battle-ui="ready"] #foe-level,
+#battle-card[data-canonical-battle-ui="ready"] #player-level {
+  display: inline-flex !important;
+  align-items: center !important;
+  min-height: 14px !important;
+  padding-left: 24px !important;
+  font-size: 0 !important;
+  background-image: var(--canonical-battle-level-overlay) !important;
+  background-repeat: no-repeat !important;
+  background-position: left center !important;
+  background-size: 22px 14px !important;
+}
+#battle-card[data-canonical-battle-ui="ready"] #foe-level::after,
+#battle-card[data-canonical-battle-ui="ready"] #player-level::after {
+  content: attr(data-canonical-battle-level) !important;
+  font-size: .58rem !important;
 }
 #battle-card[data-canonical-battle-ui="ready"] .hp-track {
   position: relative !important;
@@ -109,11 +148,13 @@ export async function installCanonicalBattleUiAssets(documentRef = document) {
   try {
     await Promise.all(Object.values(CANONICAL_BATTLE_UI_ASSETS).map(preloadCanonicalBattleUiAsset));
     installCanonicalBattleUiStyle(documentRef);
+    installCanonicalBattleLevelPresentation(documentRef);
     card.style.setProperty("--canonical-battle-player-databox", `url("${CANONICAL_BATTLE_UI_ASSETS.playerDatabox}")`);
     card.style.setProperty("--canonical-battle-foe-databox", `url("${CANONICAL_BATTLE_UI_ASSETS.foeDatabox}")`);
     card.style.setProperty("--canonical-battle-message-overlay", `url("${CANONICAL_BATTLE_UI_ASSETS.messageOverlay}")`);
     card.style.setProperty("--canonical-battle-fight-overlay", `url("${CANONICAL_BATTLE_UI_ASSETS.fightOverlay}")`);
     card.style.setProperty("--canonical-battle-hp-overlay", `url("${CANONICAL_BATTLE_UI_ASSETS.hpOverlay}")`);
+    card.style.setProperty("--canonical-battle-level-overlay", `url("${CANONICAL_BATTLE_UI_ASSETS.levelOverlay}")`);
     card.style.setProperty("--canonical-battle-command-cursor", `url("${CANONICAL_BATTLE_UI_ASSETS.commandCursor}")`);
     card.dataset.canonicalBattleUi = "ready";
     return CANONICAL_BATTLE_UI_ASSETS;
