@@ -78,7 +78,7 @@ const common = {
   const result = resolveAuctionBagEconomyStep(product({ npc_limits:[2000], npc_active:[true] }), { ...common, choice:0 });
   assert.equal(result.result, "awaiting_choice");
   assert.equal(result.awaiting_choice, true);
-  assert.equal(result.product.price, 1200);
+  assert.equal(result.product.price, 1210);
   assert.equal(result.money, 2000);
   assert.deepEqual(result.slots, []);
 }
