@@ -13,7 +13,12 @@ const boardCommit = source.indexOf("state.board_events[index] = owner.event", wi
 assert.ok(wildReceipt >= 0, "wild Photographer victory must use shared reward+money receipt");
 assert.ok(boardCommit > wildReceipt, "Board resolution must happen only after shared receipt success");
 
-assert.match(source, /if \(!receipt\.success\)[\s\S]*persistenceRequested:false/);
+assert.match(source, /preflightSafariSmallItemReward\(runtime, rewardItem\)/);
+assert.match(source, /payload:\{ requested_type:requestedType\(event\), reward_item:rewardItem \}/);
+assert.match(source, /reserveSharedSmallReward\(runtime\)/);
+assert.match(source, /state\.preview_encounter_counter = reserved\.counter/);
+assert.match(source, /request_save", reason:"photographer_battle_started"/);
+assert.doesNotMatch(source, /terminal:false, reward/);
 assert.match(source, /commitSafariBagEconomyReceipt\(runtime, \{ money \}\)/);
 
 console.log("photographer shared settlement smoke: ok");
