@@ -2,6 +2,7 @@ const CANONICAL_BATTLE_UI_ASSETS = Object.freeze({
   playerDatabox: "./assets/canonical-battle-ui/databox_normal.png",
   foeDatabox: "./assets/canonical-battle-ui/databox_normal_foe.png",
   messageOverlay: "./assets/canonical-battle-ui/overlay_message.png",
+  commandCursor: "./assets/canonical-battle-ui/cursor_command.png",
 });
 
 function preloadCanonicalBattleUiAsset(src) {
@@ -47,6 +48,31 @@ function installCanonicalBattleUiStyle(documentRef) {
   content: none !important;
   display: none !important;
 }
+#battle-card[data-canonical-battle-ui="ready"] .dppt-command-root button,
+#battle-card[data-canonical-battle-ui="ready"][data-dppt-menu="fight"] .move-grid button {
+  position: relative !important;
+}
+#battle-card[data-canonical-battle-ui="ready"] .dppt-command-root button:focus-visible::before,
+#battle-card[data-canonical-battle-ui="ready"] .dppt-command-root button:active::before,
+#battle-card[data-canonical-battle-ui="ready"][data-dppt-menu="fight"] .move-grid button:focus-visible::before,
+#battle-card[data-canonical-battle-ui="ready"][data-dppt-menu="fight"] .move-grid button:active::before {
+  content: "" !important;
+  display: block !important;
+  position: absolute !important;
+  inset: -5px !important;
+  opacity: 1 !important;
+  pointer-events: none !important;
+  z-index: 4 !important;
+  background-image: var(--canonical-battle-command-cursor) !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  background-size: 100% 100% !important;
+}
+#battle-card[data-canonical-battle-ui="ready"][data-dppt-menu="fight"] .move-grid button:focus-visible,
+#battle-card[data-canonical-battle-ui="ready"][data-dppt-menu="fight"] .move-grid button:active:not(:disabled) {
+  outline: 0 !important;
+  transform: none !important;
+}
 #battle-card[data-canonical-battle-ui="error"] .battle-info-panel,
 #battle-card[data-canonical-battle-ui="error"] .battle-message {
   visibility: hidden !important;
@@ -65,6 +91,7 @@ export async function installCanonicalBattleUiAssets(documentRef = document) {
     card.style.setProperty("--canonical-battle-player-databox", `url("${CANONICAL_BATTLE_UI_ASSETS.playerDatabox}")`);
     card.style.setProperty("--canonical-battle-foe-databox", `url("${CANONICAL_BATTLE_UI_ASSETS.foeDatabox}")`);
     card.style.setProperty("--canonical-battle-message-overlay", `url("${CANONICAL_BATTLE_UI_ASSETS.messageOverlay}")`);
+    card.style.setProperty("--canonical-battle-command-cursor", `url("${CANONICAL_BATTLE_UI_ASSETS.commandCursor}")`);
     card.dataset.canonicalBattleUi = "ready";
     return CANONICAL_BATTLE_UI_ASSETS;
   } catch (error) {
