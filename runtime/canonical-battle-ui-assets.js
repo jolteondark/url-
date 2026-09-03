@@ -2,6 +2,7 @@ const CANONICAL_BATTLE_UI_ASSETS = Object.freeze({
   playerDatabox: "./assets/canonical-battle-ui/databox_normal.png",
   foeDatabox: "./assets/canonical-battle-ui/databox_normal_foe.png",
   messageOverlay: "./assets/canonical-battle-ui/overlay_message.png",
+  fightOverlay: "./assets/canonical-battle-ui/overlay_fight.png",
   commandCursor: "./assets/canonical-battle-ui/cursor_command.png",
 });
 
@@ -48,6 +49,13 @@ function installCanonicalBattleUiStyle(documentRef) {
   content: none !important;
   display: none !important;
 }
+#battle-card[data-canonical-battle-ui="ready"][data-dppt-menu="fight"] .move-grid {
+  background-color: transparent !important;
+  background-image: var(--canonical-battle-fight-overlay) !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  background-size: 100% 100% !important;
+}
 #battle-card[data-canonical-battle-ui="ready"] .dppt-command-root button,
 #battle-card[data-canonical-battle-ui="ready"][data-dppt-menu="fight"] .move-grid button {
   position: relative !important;
@@ -74,7 +82,8 @@ function installCanonicalBattleUiStyle(documentRef) {
   transform: none !important;
 }
 #battle-card[data-canonical-battle-ui="error"] .battle-info-panel,
-#battle-card[data-canonical-battle-ui="error"] .battle-message {
+#battle-card[data-canonical-battle-ui="error"] .battle-message,
+#battle-card[data-canonical-battle-ui="error"][data-dppt-menu="fight"] .move-grid {
   visibility: hidden !important;
 }
 `;
@@ -91,6 +100,7 @@ export async function installCanonicalBattleUiAssets(documentRef = document) {
     card.style.setProperty("--canonical-battle-player-databox", `url("${CANONICAL_BATTLE_UI_ASSETS.playerDatabox}")`);
     card.style.setProperty("--canonical-battle-foe-databox", `url("${CANONICAL_BATTLE_UI_ASSETS.foeDatabox}")`);
     card.style.setProperty("--canonical-battle-message-overlay", `url("${CANONICAL_BATTLE_UI_ASSETS.messageOverlay}")`);
+    card.style.setProperty("--canonical-battle-fight-overlay", `url("${CANONICAL_BATTLE_UI_ASSETS.fightOverlay}")`);
     card.style.setProperty("--canonical-battle-command-cursor", `url("${CANONICAL_BATTLE_UI_ASSETS.commandCursor}")`);
     card.dataset.canonicalBattleUi = "ready";
     return CANONICAL_BATTLE_UI_ASSETS;
