@@ -3,9 +3,9 @@ import {
   registerSafariNormalEventBattleContinuation,
 } from "./safari-normal-event-battle-continuation.js";
 import {
-  applySafariLargeItemReward,
   preflightSafariSharedLargeItemReward,
 } from "./safari-large-item-reward.js";
+import { commitSafariBagEconomyReceipt } from "./safari-bag-economy-receipt.js";
 import {
   borrowSafariSharedRunRandomInt,
   ensureSafariEncounterSeed,
@@ -30,13 +30,6 @@ function battleOperation(owner) {
 
 function battleWon(summary = {}) {
   return Number(summary.decision) === 1;
-}
-
-function addMoney(runtime, amount) {
-  runtime.bag ??= { slots:[], money:0 };
-  const value = Math.max(0, Math.trunc(Number(amount) || 0));
-  runtime.bag.money = Math.max(0, Math.trunc(Number(runtime.bag.money ?? 0))) + value;
-  return { op:"runtime_add_money", amount:value };
 }
 
 function hasGuaranteedLargeRewardCapacity(runtime, quantity = 1) {
@@ -79,13 +72,14 @@ registerSafariNormalEventBattleContinuation("bounty_target", (runtime, continuat
   }
 
   let reward = null;
-  let applied = [];
-  let moneyOp = null;
+  let receipt = null;
   if (victory) {
     reward = sharedLargeReward(runtime, rewardOperation.quantity);
-    if (!reward.success) throw new Error("bounty_target large reward no longer fits in Bag");
-    applied = applySafariLargeItemReward(runtime, reward);
-    moneyOp = addMoney(runtime, Number(moneyOperation.amount));
+    receipt = commitSafariBagEconomyReceipt(runtime, {
+      reward,
+      money:Number(moneyOperation.amount),
+    });
+    if (!receipt.success) throw new Error("bounty_target reward receipt could not be committed");
   }
 
   state.board_events[index] = owner.event;
@@ -93,9 +87,7 @@ registerSafariNormalEventBattleContinuation("bounty_target", (runtime, continuat
   state.mapless_bounty = null;
   state.last_operations = [
     ...(owner.operations ?? []).filter((entry) => !["start_trainer_battle", "grant_random", "add_money"].includes(entry?.op)).map((entry) => structuredClone(entry)),
-    ...(reward?.operations ?? []).map((entry) => structuredClone(entry)),
-    ...applied,
-    ...(moneyOp ? [moneyOp] : []),
+    ...(receipt?.operations ?? []),
     { op:"request_save", reason:"normal_event_post_battle" },
   ];
   state.notice = victory

@@ -12,14 +12,15 @@ assert.match(interaction, /const moneyOperation = operation\(owner, "add_money"\
 assert.match(interaction, /const rewardOperation = operation\(owner, "grant_random"\)/);
 assert.match(interaction, /const clearBountyOperation = operation\(owner, "clear_bounty"\)/);
 assert.match(interaction, /sharedLargeReward\(runtime, rewardOperation\.quantity\)/);
-assert.match(interaction, /addMoney\(runtime, Number\(moneyOperation\.amount\)\)/);
+assert.match(interaction, /commitSafariBagEconomyReceipt\(runtime/);
 assert.match(interaction, /const victoryProjection = resolveBountyTarget\(\{ event, battle_outcome:1, held_items:\[\] \}\)/);
 assert.match(interaction, /projectedReward\.quantity/);
-assert.match(interaction, /applySafariLargeItemReward/);
 assert.match(interaction, /state\.mapless_bounty = null/);
 assert.match(interaction, /request_save", reason:"normal_event_post_battle"/);
+assert.doesNotMatch(interaction, /function addMoney/);
+assert.doesNotMatch(interaction, /applySafariLargeItemReward/);
 assert.doesNotMatch(interaction, /Number\(event\.normal_data\?\.reward/);
 assert.doesNotMatch(interaction, /startWild\(|wild_battle/);
 assert.doesNotMatch(interaction, /cannot_run\s*=|canRun\s*=|runChance/);
 
-console.log("bounty target Board→trainer Battle→owner-driven continuation smoke passed");
+console.log("bounty target Board→trainer Battle→shared settlement continuation smoke passed");
