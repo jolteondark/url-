@@ -1,4 +1,5 @@
 import { resolveCanonicalNormalEvent } from "./mapless-canonical-normal-event-dispatcher.js";
+import { persistSafariOwnerResult } from "./safari-owner-result-persistence.js";
 
 function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
@@ -74,4 +75,28 @@ export function resolveSafariBountyPosterInteraction(runtime, index, requestedAc
   else if (owner.outcome === "already_active") state.notice = "すでに別の賞金首を追っています。";
   else state.notice = "依頼を断り、手配書から離れました。";
   return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+}
+
+// Reuse the shared normal-event card without teaching its presentation layer bounty mechanics.
+// The canonical owner above remains the sole authority for accept/decline and state mutation.
+if (typeof globalThis.document !== "undefined") {
+  globalThis.document.addEventListener("click", (event) => {
+    const button = event.target?.closest?.("button[data-normal-event-action]");
+    const active = globalThis.__maplessNormalEventUi ?? null;
+    if (!button || active?.eventId !== "bounty_poster") return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const runtime = active.runtime ?? globalThis.__maplessSafariRuntime;
+    if (!runtime) return;
+    try {
+      const result = resolveSafariBountyPosterInteraction(runtime, Number(active.boardIndex), button.dataset.normalEventAction);
+      persistSafariOwnerResult(runtime, result, globalThis.window?.localStorage);
+      if (result.completed) globalThis.__maplessNormalEventUi = null;
+      globalThis.window?.dispatchEvent?.(new globalThis.CustomEvent("safari-runtime-changed"));
+    } catch (error) {
+      globalThis.__maplessLastError = error;
+      stateOf(runtime).notice = `イベントエラー: ${error?.message ?? error}`;
+      globalThis.window?.dispatchEvent?.(new globalThis.CustomEvent("safari-runtime-changed"));
+    }
+  }, true);
 }
