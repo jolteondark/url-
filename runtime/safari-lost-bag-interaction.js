@@ -10,6 +10,7 @@ import {
   borrowSafariSharedRunRandomInt,
   ensureSafariEncounterSeed,
 } from "./safari-encounter-randomization.js";
+import { commitSafariBagEconomyReceipt } from "./safari-bag-economy-receipt.js";
 import { registerSafariNormalEventBattleContinuation } from "./safari-normal-event-battle-continuation.js";
 import { hasSafariUsablePartyType } from "./safari-pokemon-type-membership.js";
 import { activateSafariNormalEventTrainerBattle } from "./safari-web-combat-start.js";
@@ -41,11 +42,9 @@ function resolveMediumReward(runtime, count, randomInt) {
     pockets:rewardPockets(runtime),
   });
 }
-function applyMediumReward(runtime, reward) {
-  if (!reward?.success) return [];
-  runtime.bag ??= { slots:[], money:0 };
-  runtime.bag.slots = reward.pockets.general.slots.filter(Boolean);
-  return (reward.granted ?? []).map((entry) => ({ op:"runtime_grant_item", item:entry.item, quantity:entry.quantity }));
+function commitMediumReward(runtime, reward) {
+  if (!reward?.success) return { success:false, operations:[] };
+  return commitSafariBagEconomyReceipt(runtime, { reward });
 }
 function sharedMediumReward(runtime, count) {
   const state = stateOf(runtime);
@@ -54,12 +53,6 @@ function sharedMediumReward(runtime, count) {
   const reward = resolveMediumReward(runtime, count, (max) => borrowSafariSharedRunRandomInt(runtime, max));
   if (!reward.success) state.preview_encounter_counter = counter;
   return reward;
-}
-function addMoney(runtime, amount) {
-  const value = Math.max(0, Math.trunc(Number(amount) || 0));
-  runtime.bag ??= { slots:[], money:0 };
-  runtime.bag.money = Math.max(0, Math.trunc(Number(runtime.bag.money ?? 0))) + value;
-  return { op:"runtime_add_money", amount:value };
 }
 function commit(runtime, index, owner, applied = []) {
   const state = stateOf(runtime);
@@ -114,11 +107,19 @@ registerSafariNormalEventBattleContinuation("lost_bag", (runtime, continuation) 
   });
   const optionalReward = rewardProjection(owner, reward);
   const applied = rewardOperations(reward, optionalReward);
-  if (reward?.success) applied.push(...applyMediumReward(runtime, reward));
+  if (reward?.success) {
+    const receipt = commitMediumReward(runtime, reward);
+    if (!receipt.success) throw new Error(`lost_bag Bag receipt failed: ${receipt.result ?? "unknown"}`);
+    applied.push(...(receipt.operations ?? []));
+  }
   const moneyOperation = success && continuation.actionId === "wait"
     ? (owner.operations ?? []).find((operation) => operation?.op === "add_money") ?? null
     : null;
-  if (moneyOperation) applied.push(addMoney(runtime, moneyOperation.amount));
+  if (moneyOperation) {
+    const receipt = commitSafariBagEconomyReceipt(runtime, { money:moneyOperation.amount });
+    if (!receipt.success) throw new Error(`lost_bag money receipt failed: ${receipt.result ?? "unknown"}`);
+    applied.push(...(receipt.operations ?? []));
+  }
   commit(runtime, index, owner, applied);
   const itemText = reward?.success && reward.selectedItems?.length ? ` ${reward.selectedItems.join("・")}を受け取りました。` : "";
   state.notice = success
@@ -207,7 +208,11 @@ export async function resolveSafariLostBagInteraction(runtime, index, requestedA
     const owner = resolveLostBag({ event, choice:"open", has_dark_or_psychic:warned, current_day:day, scaling_value:scale, grant_random_result:reward.success });
     const optionalReward = rewardProjection(owner, reward);
     const applied = rewardOperations(reward, optionalReward);
-    if (reward.success) applied.push(...applyMediumReward(runtime, reward));
+    if (reward.success) {
+      const receipt = commitMediumReward(runtime, reward);
+      if (!receipt.success) throw new Error(`lost_bag Bag receipt failed: ${receipt.result ?? "unknown"}`);
+      applied.push(...(receipt.operations ?? []));
+    }
     commit(runtime, index, owner, applied);
     state.notice = reward.success
       ? `落とし物を開け、${reward.selectedItems.join("・")}を手に入れました。`
@@ -228,9 +233,17 @@ export async function resolveSafariLostBagInteraction(runtime, index, requestedA
   });
   const optionalReward = rewardProjection(owner, reward);
   const applied = rewardOperations(reward, optionalReward);
-  if (reward?.success) applied.push(...applyMediumReward(runtime, reward));
+  if (reward?.success) {
+    const receipt = commitMediumReward(runtime, reward);
+    if (!receipt.success) throw new Error(`lost_bag Bag receipt failed: ${receipt.result ?? "unknown"}`);
+    applied.push(...(receipt.operations ?? []));
+  }
   const moneyOperation = (owner.operations ?? []).find((operation) => operation?.op === "add_money");
-  if (moneyOperation) applied.push(addMoney(runtime, moneyOperation.amount));
+  if (moneyOperation) {
+    const receipt = commitSafariBagEconomyReceipt(runtime, { money:moneyOperation.amount });
+    if (!receipt.success) throw new Error(`lost_bag money receipt failed: ${receipt.result ?? "unknown"}`);
+    applied.push(...(receipt.operations ?? []));
+  }
   commit(runtime, index, owner, applied);
   state.notice = owner.outcome === "owner_returned"
     ? reward && !reward.success
