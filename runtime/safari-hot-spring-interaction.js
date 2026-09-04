@@ -3,6 +3,7 @@ import { resolveHotSpring } from "./mapless-normal-events-a1-flow.js";
 import { RubyMT19937Random } from "./ruby-mt19937-random.js";
 import { resolveMaplessV108HotSpringBottleReward } from "./mapless-v108-event-local-item-reward.js";
 import { ensureMaplessRunLifecycleState, finishMaplessRun, maplessPartyAllFainted } from "./mapless-run-end-lifecycle.js";
+import { commitSafariBagEconomyReceipt } from "./safari-bag-economy-receipt.js";
 import {
   damageSafariPokemonFlat,
   healSafariPartyFull,
@@ -116,15 +117,14 @@ export function resolveSafariHotSpringInteraction(runtime, index, action) {
     }
   }
   if (bottleReward?.success) {
-    runtime.bag.slots = bottleReward.pockets.general.slots.filter(Boolean);
-    applied.push(...bottleReward.granted.map((entry) => ({ op:"runtime_grant_item", item:entry.item, quantity:entry.quantity })));
+    const committed = commitSafariBagEconomyReceipt(runtime, { reward:bottleReward });
+    applied.push(...(committed.operations ?? []));
   }
 
   state.board_events[index] = owner.event;
   state.board_consumed[index] = Boolean(owner.event.normal_resolved);
   const eventOperations = [
     ...(owner.operations ?? []).map((operation) => structuredClone(operation)),
-    ...(bottleReward?.operations ?? []).map((operation) => structuredClone(operation)),
     ...applied,
   ];
   state.last_operations = eventOperations;
