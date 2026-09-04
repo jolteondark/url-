@@ -1,5 +1,6 @@
 import * as legacy from "./safari-tavern-interaction-legacy.js";
 import { healSafariPartyPercent } from "./safari-pokemon-healing.js";
+import { commitSafariBagEconomyReceipt } from "./safari-bag-economy-receipt.js";
 
 export * from "./safari-tavern-interaction-legacy.js";
 
@@ -47,13 +48,20 @@ export function resolveSafariTavernAction(runtime, index, action, options = {}) 
     return { runtime, result:"insufficient_money", completed:false, consumed:false, operations:[] };
   }
 
+  const receipt = commitSafariBagEconomyReceipt(runtime, { moneyDelta:-legacy.MAPLESS_TAVERN_REST_COST_V108 });
+  if (!receipt.success) {
+    state.notice = "休憩には600円必要です。";
+    refreshRestUi(runtime, index, state.notice);
+    return { runtime, result:receipt.result ?? "insufficient_money", completed:false, consumed:false, operations:receipt.operations ?? [] };
+  }
+
   const before = (runtime.player?.party ?? []).map((pokemon) => pokemon ? { hp:pokemon.hp, status:pokemon.status } : null);
   healSafariPartyPercent(runtime, 50, { cureStatus:true });
   const healed = restChanged(before, runtime.player?.party ?? []);
-  runtime.bag.money = Number(runtime.bag.money ?? 0) - legacy.MAPLESS_TAVERN_REST_COST_V108;
   event.tavern_rest_used = true;
   state.notice = "静かな席で身体を休め、手持ちのHPを回復し、状態異常を治しました。";
   const operations = [
+    ...receipt.operations,
     { op:"tavern_rest", cost:legacy.MAPLESS_TAVERN_REST_COST_V108, healed },
     { op:"request_save", reason:"tavern_rest" },
   ];
