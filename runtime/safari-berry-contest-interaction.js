@@ -15,6 +15,7 @@ import {
   canonicalBerryRewardPool,
 } from "./mapless-v108-berry-catalog.js";
 import { RubyMT19937Random } from "./ruby-mt19937-random.js";
+import { commitSafariBagEconomyReceipt } from "./safari-bag-economy-receipt.js";
 import {
   borrowSafariSharedRunRandomInt,
   ensureSafariEncounterSeed,
@@ -47,15 +48,6 @@ function transaction(runtime, items = [], costs = []) {
     items,
     costs,
   });
-}
-function applyTransaction(runtime, resolved) {
-  if (!resolved?.success) return [];
-  runtime.bag ??= { slots:[], money:0 };
-  runtime.bag.slots = resolved.pockets.general.slots.filter(Boolean);
-  return [
-    ...(resolved.consumed ?? []).map((entry) => ({ op:"runtime_remove_item", item:entry.item, quantity:entry.quantity })),
-    ...(resolved.granted ?? []).map((entry) => ({ op:"runtime_grant_item", item:entry.item, quantity:entry.quantity })),
-  ];
 }
 function seededBulkRewardCount(event) {
   const rng = new RubyMT19937Random(Number(event?.normal_seed ?? 0) & 0x7fffffff);
@@ -97,18 +89,18 @@ function costsFromOwner(owner) {
 }
 function commit(runtime, index, owner, resolved, selectionOperations) {
   const state = stateOf(runtime);
-  const applied = applyTransaction(runtime, resolved);
+  const receipt = commitSafariBagEconomyReceipt(runtime, { reward:resolved });
+  if (!receipt.success) return receipt;
   state.board_events[index] = owner.event;
   state.board_visited[index] = true;
   state.board_consumed[index] = Boolean(owner.event.normal_resolved);
   state.last_operations = [
     ...(owner.operations ?? []).filter((operation) => !["remove_item","reward_berry_grade","grant_random"].includes(operation?.op)).map((operation) => structuredClone(operation)),
     ...selectionOperations,
-    ...(resolved?.operations ?? []).map((operation) => structuredClone(operation)),
-    ...applied,
+    ...receipt.operations.map((operation) => structuredClone(operation)),
     { op:"request_save", reason:"berry_contest_resolved" },
   ];
-  return applied;
+  return receipt;
 }
 
 export function safariBerryContestBerryChoices(runtime) {
@@ -171,8 +163,20 @@ export function resolveSafariBerryContestInteraction(runtime, index, requestedAc
     };
   }
 
-  commit(runtime, index, owner, resolved, projected.selectionOperations);
-  const awarded = (resolved.granted ?? []).map((entry) => entry.item);
+  const receipt = commit(runtime, index, owner, resolved, projected.selectionOperations);
+  if (!receipt.success) {
+    state.preview_encounter_counter = counter;
+    return {
+      runtime,
+      result:receipt.result ?? "reward_commit_failed",
+      completed:false,
+      availableActions,
+      operations:receipt.operations ?? [],
+      persistenceRequested:false,
+      owner,
+    };
+  }
+  const awarded = (receipt.granted ?? []).map((entry) => entry.item);
   state.notice = owner.outcome === "winner"
     ? `きのみ品評会で優勝しました。${awarded.length ? ` ${awarded.join("・")}を受け取りました。` : ""}`
     : owner.outcome === "placed"
