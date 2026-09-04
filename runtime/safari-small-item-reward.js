@@ -1,5 +1,6 @@
 import { resolveRewardTransaction } from "./bag-economy-reward-transaction.js";
 import { RubyMT19937Random } from "./ruby-mt19937-random.js";
+import { commitSafariBagEconomyReceipt } from "./safari-bag-economy-receipt.js";
 import {
   MAPLESS_NORMAL_EVENT_SMALL_REWARD_ITEMS,
   pickMaplessNormalEventSmallRewards,
@@ -52,7 +53,7 @@ export function preflightSafariSharedSmallItemReward(runtime, randomInt, count =
 
 export function applySafariSmallItemReward(runtime, reward) {
   if (!reward?.success) return [];
-  runtime.bag ??= { slots:[], money:0 };
-  runtime.bag.slots = reward.pockets.general.slots.filter(Boolean);
-  return reward.granted.map((entry) => ({ op:"runtime_grant_item", item:entry.item, quantity:entry.quantity }));
+  const receipt = commitSafariBagEconomyReceipt(runtime, { reward });
+  if (!receipt.success) throw new Error(`small item reward commit failed: ${receipt.result}`);
+  return receipt.granted.map((entry) => ({ op:"runtime_grant_item", item:entry.item, quantity:entry.quantity }));
 }
