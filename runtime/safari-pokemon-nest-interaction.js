@@ -1,4 +1,5 @@
 import { resolveRewardTransaction } from "./bag-economy-reward-transaction.js";
+import { commitSafariBagEconomyReceipt } from "./safari-bag-economy-receipt.js";
 import { resolveMaplessV108PokemonNestSearchReward } from "./mapless-v108-pokemon-nest.js";
 import { resolvePokemonNest } from "./mapless-normal-events-a3-flow.js";
 import { registerSafariNormalEventBattleContinuation } from "./safari-normal-event-battle-continuation.js";
@@ -44,13 +45,6 @@ function rewardTransaction(runtime, items) {
     itemMeta:Object.fromEntries(items.map((itemId) => [itemId, { valid:true, pocket:"general" }])),
     items,
   });
-}
-
-function applyReward(runtime, transaction) {
-  if (!transaction?.success) return [];
-  runtime.bag ??= { slots:[], money:0 };
-  runtime.bag.slots = transaction.pockets.general.slots.filter(Boolean);
-  return transaction.granted.map((entry) => ({ op:"runtime_grant_item", item:entry.item, quantity:entry.quantity }));
 }
 
 function commitOwner(state, index, owner, extraOperations = []) {
@@ -254,11 +248,11 @@ export async function resolveSafariPokemonNestInteraction(runtime, index, reques
         availableActions,
       };
     }
-    const applied = applyReward(runtime, transaction);
-    commitOwner(state, index, owner, [
-      ...(transaction?.operations ?? []),
-      ...applied,
-    ]);
+    const receipt = transaction
+      ? commitSafariBagEconomyReceipt(runtime, { reward:transaction })
+      : { success:true, operations:[] };
+    if (!receipt.success) throw new Error(`pokemon_nest reward receipt failed: ${receipt.result}`);
+    commitOwner(state, index, owner, receipt.operations ?? []);
     state.notice = owner.outcome === "search_reward"
       ? "巣を調べて道具を見つけました。"
       : "巣を調べましたが、何も見つかりませんでした。";
