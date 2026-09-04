@@ -4,9 +4,12 @@ import { resolveSafariTreasureChest } from "../runtime/safari-treasure-chest-int
 
 const source = await readFile(new URL("../runtime/safari-treasure-chest-interaction.js", import.meta.url), "utf8");
 assert.match(source, /resolveRewardTransaction/);
+assert.match(source, /commitSafariBagEconomyReceipt/);
 assert.doesNotMatch(source, /from \"\.\/bag-economy-mart-flow\.js\"/);
 assert.doesNotMatch(source, /function canGrantBag/);
-assert.match(source, /rewardAttempt\.operations/);
+assert.doesNotMatch(source, /runtime\.bag\.slots\s*=/);
+assert.doesNotMatch(source, /runtime\.bag\.money\s*=/);
+assert.match(source, /receipt\.operations/);
 
 function runtime(maxSlots) {
   return {
@@ -39,6 +42,12 @@ assert.equal(success.variables.mapless.board_consumed[0], true);
 assert.ok(success.bag.money > 100);
 assert.ok(success.bag.slots.length > 0);
 assert.ok(successResult.operations.some((operation) => operation.op === "bag_add_all" && operation.result === true));
+assert.ok(successResult.operations.some((operation) => operation.op === "runtime_grant_item"));
+assert.ok(successResult.operations.some((operation) => operation.op === "runtime_add_money"));
 assert.equal(successResult.operations.at(-1)?.op, "request_save");
 
-console.log("treasure chest uses shared atomic Bag reward transaction");
+const replay = resolveSafariTreasureChest(success, 0, "open");
+assert.equal(replay.result, "already_consumed");
+assert.equal(replay.operations.length, 0);
+
+console.log("treasure chest uses shared Bag/Economy receipt with atomic no-room and replay guard");
