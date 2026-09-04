@@ -48,7 +48,8 @@ for (const species of backSpecies) {
 
 const preview = readFileSync(new URL("../preview.js", import.meta.url), "utf8");
 const index = readFileSync(new URL("../index.html", import.meta.url), "utf8");
-assert.match(preview, /canonical-battle-battler-assets\.js\?v=20260904-0800/, "reachable preview must request the published battler adapter generation");
+assert.match(preview, /canonical-battle-battler-assets\.js\?v=20260904-1800/, "reachable preview must request the post-back-sprite battler adapter generation");
+assert.doesNotMatch(preview, /canonical-battle-battler-assets\.js\?v=20260904-0800/, "reachable preview must not retain the stale pre-back-sprite battler adapter generation");
 assert.match(index, /preview\.js\?v=20260904-1000/, "public entry point must deliver the current preview generation");
 
 console.log(`canonical Battle battler public delivery smoke: ${frontSpecies.length} front + ${backSpecies.length} back PNGs ok`);
