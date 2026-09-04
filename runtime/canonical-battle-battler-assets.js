@@ -19,7 +19,12 @@ const CANONICAL_BATTLE_FRONT_SPECIES = Object.freeze([
   "TROPIUS",
 ]);
 
-const CANONICAL_BATTLE_BACK_SPECIES = Object.freeze(["DWEBBLE"]);
+const CANONICAL_BATTLE_BACK_SPECIES = Object.freeze([
+  "CATERPIE",
+  "CHARMANDER",
+  "DWEBBLE",
+  "PICHU",
+]);
 const observedDocuments = new WeakSet();
 
 function canonicalSpeciesIdentifier(species) {
