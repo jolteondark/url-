@@ -5,6 +5,7 @@ import {
   resolveMaplessV108ScaledEnemyLevel,
 } from "./mapless-v108-enemy-scaling.js";
 import { resolveMaplessV108SpeciesPoolByCategoryAndStages } from "./mapless-v108-species-evolution.js";
+import { commitSafariBagEconomyReceipt } from "./safari-bag-economy-receipt.js";
 import { grantNormalEventPokemonFromSpeciesLevel } from "./safari-normal-event-pokemon-grant.js";
 import { borrowSafariSharedRunRandomInt, ensureSafariEncounterSeed } from "./safari-encounter-randomization.js";
 
@@ -53,8 +54,7 @@ function grantItem(runtime, itemId) {
     costs:[],
   });
   if (!transaction.success) return false;
-  runtime.bag.slots = transaction.pockets.general.slots.filter(Boolean);
-  return true;
+  return commitSafariBagEconomyReceipt(runtime, { reward:transaction }).success;
 }
 
 function outcomeFromRoll(roll) {
@@ -119,8 +119,16 @@ export async function resolveSafariMinerAction(runtime, index, action, { randomI
   const workRandomInt = injectedRandomInt ?? ((max) => borrowSafariSharedRunRandomInt(runtime, max));
   if (injectedRandomInt == null) ensureSafariEncounterSeed(state);
 
-  runtime.bag.money = Number(runtime.bag.money ?? 0) - MAPLESS_MINER_DIG_COST_V108;
-  const operations = [{ op:"miner_payment", amount:MAPLESS_MINER_DIG_COST_V108 }];
+  const payment = commitSafariBagEconomyReceipt(runtime, { moneyDelta:-MAPLESS_MINER_DIG_COST_V108 });
+  if (!payment.success) {
+    state.notice = "依頼料の1000円を支払えませんでした。";
+    refreshMinerUi(runtime, index);
+    return { runtime, result:payment.result ?? "payment_failed", completed:false, consumed:false, operations:payment.operations ?? [] };
+  }
+  const operations = [
+    ...payment.operations.map((operation) => structuredClone(operation)),
+    { op:"miner_payment", amount:MAPLESS_MINER_DIG_COST_V108 },
+  ];
   const collapseRoll = Number(workRandomInt(100));
   let collapse = null;
   if (collapseRoll < MAPLESS_MINER_COLLAPSE_PERCENT_V108) {
