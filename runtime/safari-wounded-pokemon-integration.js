@@ -5,6 +5,7 @@ import { prepareWoundedPokemonSnapshot, scaledWoundedNormalLevel } from "./wound
 import { safariWoundedGeneralSpeciesPoolV108 } from "./safari-wounded-general-species-pool-v108.js";
 import { createResolvedWoundedPokemonIndividualV108 } from "./wounded-pokemon-resolved-individual.js";
 import { borrowSafariSharedRunRandomInt, ensureSafariEncounterSeed } from "./safari-encounter-randomization.js";
+import { commitSafariBagEconomyReceipt } from "./safari-bag-economy-receipt.js";
 import { grantNormalEventPokemon } from "./safari-normal-event-pokemon-grant.js";
 import { materializePreparedWoundedPokemon } from "./wounded-pokemon-materialization-runtime.js";
 
@@ -162,8 +163,17 @@ export function resolveSafariWoundedPokemonDecision(runtime, index, input = {}) 
         persistenceRequested: false,
       };
     }
-    runtime.bag.slots = resolved.slots;
-    routedOperations = routed.operations.map((operation) => structuredClone(operation));
+    const bagReceipt = commitSafariBagEconomyReceipt(runtime, {
+      reward: {
+        success:true,
+        pockets:{ general:{ slots:resolved.slots } },
+      },
+    });
+    if (!bagReceipt.success) throw new Error(`wounded_pokemon Bag receipt failed: ${bagReceipt.result}`);
+    routedOperations = [
+      ...routed.operations.map((operation) => structuredClone(operation)),
+      ...bagReceipt.operations.map((operation) => structuredClone(operation)),
+    ];
   }
   const save = resolved.event?.normal_resolved ? [{ op: "request_save", reason: "wounded_pokemon_resolved" }] : [];
   const operations = commitResolution(runtime, index, resolved, [...routedOperations, ...save]);
