@@ -1,7 +1,7 @@
 import { resolveMushroomField } from "./mapless-normal-events-a1-flow.js";
 import { maplessCarryMoneyGain } from "./mapless-carry-class-rules.js";
 import { ensureMaplessRunLifecycleState, finishMaplessRun, maplessPartyAllFainted } from "./mapless-run-end-lifecycle.js";
-import { setMoney } from "./bag-economy-mart-flow.js";
+import { commitSafariBagEconomyReceipt } from "./safari-bag-economy-receipt.js";
 import { damageSafariPokemonFlat, healSafariPokemonFull, inflictSafariOverworldStatus } from "./safari-pokemon-healing.js";
 import { safariPokemonTypes } from "./safari-pokemon-type-membership.js";
 import { addPokemonRuntimeMaplessBonusStat } from "./pokemon-runtime.js";
@@ -81,10 +81,12 @@ export function resolveSafariMushroomFieldInteraction(runtime, index, requestedA
     const requested = owner.operations.find((operation) => operation.op === "add_money")?.amount ?? 0;
     const carryClass = state.mapless_carry_class ?? "general";
     const adjusted = maplessCarryMoneyGain(requested, carryClass);
-    runtime.bag ??= { slots: [], money: 0 };
-    const before = Math.trunc(Number(runtime.bag.money ?? 0));
-    runtime.bag.money = setMoney(before + adjusted, 9999999);
-    applied.push({ op: "runtime_add_money", source: "normal_event:mushroom_field", requested, adjusted, carryClass, applied: runtime.bag.money - before });
+    const receipt = commitSafariBagEconomyReceipt(runtime, { money: adjusted });
+    if (!receipt.success) {
+      state.notice = "売却報酬を安全に反映できませんでした。";
+      return { runtime, result: receipt.result, completed: false, operations: receipt.operations ?? [], notice: state.notice, persistenceRequested: false };
+    }
+    applied.push(...(receipt.operations ?? []).map((operation) => structuredClone(operation)));
   }
   if (owner.result && parsed.targetIndex != null) {
     for (const operation of owner.operations ?? []) {
@@ -114,8 +116,9 @@ export function resolveSafariMushroomFieldInteraction(runtime, index, requestedA
   state.last_operations = eventOperations;
   const label = pokemonLabel(target);
   const stat = String(event.normal_data?.eat_stat ?? "能力");
+  const soldAmount = applied.find((operation) => operation.op === "runtime_add_money")?.amount ?? 0;
   state.notice = owner.outcome === "sold"
-    ? `怪しいキノコを売り、${applied[0]?.applied ?? 0}円を得ました。`
+    ? `怪しいキノコを売り、${soldAmount}円を得ました。`
     : owner.outcome === "poison_appraised_bonus"
       ? `どくタイプが安全なキノコを見分け、${label}の${stat}が1上がりました。`
       : owner.outcome === "eat_bonus"
