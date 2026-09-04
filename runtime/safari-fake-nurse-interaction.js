@@ -1,6 +1,7 @@
 import { resolveFakeNurse } from "./mapless-fake-nurse-flow.js";
 import { projectMaplessNormalEventOptionalReward } from "./mapless-normal-event-optional-reward.js";
 import { RubyMT19937Random } from "./ruby-mt19937-random.js";
+import { commitSafariBagEconomyReceipt } from "./safari-bag-economy-receipt.js";
 import {
   healSafariPartyFull,
   healSafariPartyPercent,
@@ -24,7 +25,6 @@ function scalingValue(day){return Math.max(Math.floor((Math.max(1,Number(day)||1
 function warned(runtime,event){return event?.normal_data?.fake===true&&hasSafariUsablePartyType(runtime,"DARK","PSYCHIC");}
 function battleSucceeded(summary={}){const decision=Number(summary.decision);return decision===1||decision===4;}
 function trainerRequest(owner){return (owner.operations??[]).find((operation)=>operation?.op==="start_trainer_battle_request")??null;}
-function addSpend(runtime,amount){runtime.bag??={slots:[],money:0};runtime.bag.money=Math.max(0,Math.trunc(Number(runtime.bag.money??0))-amount);return {op:"runtime_spend_money",amount};}
 function sharedSmallReward(runtime){
   const state=stateOf(runtime);ensureSafariEncounterSeed(state);const counter=state.preview_encounter_counter;
   const reward=preflightSafariSharedSmallItemReward(runtime,(limit)=>borrowSafariSharedRunRandomInt(runtime,limit),1);
@@ -74,7 +74,9 @@ export async function resolveSafariFakeNurseInteraction(runtime,index,choice){
     const randomStatus=event.normal_data?.fake===true?RANDOM_STATUSES[new RubyMT19937Random(Number(event.normal_seed??0)&0x7fffffff).randInt(4)]:null;
     const owner=resolveFakeNurse({event,choice:"pay",has_dark_or_psychic:isWarned,scaling_value:scale,spend_money_result:spendSuccess,random_status:randomStatus});
     if(!owner.result){state.notice=`治療には${price}円必要です。`;return {runtime,result:owner.outcome,completed:false,price,operations:owner.operations??[],notice:state.notice,persistenceRequested:false,owner};}
-    const applied=[addSpend(runtime,price)];
+    const receipt=commitSafariBagEconomyReceipt(runtime,{moneyDelta:-price});
+    if(!receipt.success){state.notice=`治療には${price}円必要です。`;return {runtime,result:receipt.result,completed:false,price,operations:receipt.operations??[],notice:state.notice,persistenceRequested:false,owner};}
+    const applied=[...(receipt.operations??[])];
     if(owner.outcome==="real_paid_heal"){healSafariPartyFull(runtime);applied.push({op:"runtime_full_heal_party"});}
     else if(owner.outcome==="fake_paid_trap"){
       const partyIndex=(runtime.player?.party??[]).findIndex((pokemon)=>Number(pokemon?.hp??0)>0);
@@ -90,7 +92,11 @@ export async function resolveSafariFakeNurseInteraction(runtime,index,choice){
     const halfPrice=Math.max(Math.floor(price/2),1),spendSuccess=idCheckChoice!=="heal"||Number(runtime.bag?.money??0)>=halfPrice;
     const owner=resolveFakeNurse({event,choice:"check_id",has_dark_or_psychic:isWarned,scaling_value:scale,id_check_choice:idCheckChoice,half_spend_money_result:spendSuccess});
     const applied=[];
-    if(idCheckChoice==="heal"&&spendSuccess){applied.push(addSpend(runtime,halfPrice));healSafariPartyPercent(runtime,50);applied.push({op:"runtime_heal_party_percent",percent:50,revive:false});}
+    if(idCheckChoice==="heal"&&spendSuccess){
+      const receipt=commitSafariBagEconomyReceipt(runtime,{moneyDelta:-halfPrice});
+      if(!receipt.success){state.notice=`本物でしたが、半額治療には${halfPrice}円必要です。`;return {runtime,result:receipt.result,completed:false,halfPrice,operations:receipt.operations??[],notice:state.notice,persistenceRequested:false,owner};}
+      applied.push(...(receipt.operations??[]));healSafariPartyPercent(runtime,50);applied.push({op:"runtime_heal_party_percent",percent:50,revive:false});
+    }
     commit(runtime,index,owner,applied);
     state.notice=idCheckChoice==="heal"&&spendSuccess?`身分証を確認し、${halfPrice}円で手持ちを50%回復しました。`:idCheckChoice==="heal"?`本物でしたが、半額治療には${halfPrice}円必要です。`:"身分証を確認すると本物でした。治療は断りました。";
     return {runtime,result:owner.outcome,completed:true,halfPrice,operations:state.last_operations,notice:state.notice,persistenceRequested:true,owner};
