@@ -6,6 +6,7 @@ import {
 } from "./mapless-v108-event-local-item-reward.js";
 import { ensureMaplessRunLifecycleState, finishMaplessRun, maplessPartyAllFainted } from "./mapless-run-end-lifecycle.js";
 import { updatePokemonRuntime } from "./pokemon-runtime.js";
+import { commitSafariBagEconomyReceipt } from "./safari-bag-economy-receipt.js";
 import { borrowSafariSharedRunRandomInt, ensureSafariEncounterSeed } from "./safari-encounter-randomization.js";
 import { inflictSafariOverworldStatus } from "./safari-pokemon-healing.js";
 import { hasSafariUsablePartyType, safariPokemonTypes } from "./safari-pokemon-type-membership.js";
@@ -178,8 +179,9 @@ export function resolveSafariBurningWagonInteraction(runtime, index, action) {
     applied.push(...applySafariSmallItemReward(runtime, manualSharedReward));
   }
   if (reward?.success) {
-    runtime.bag.slots = reward.pockets.general.slots.filter(Boolean);
-    applied.push(...reward.granted.map((entry) => ({ op:"runtime_grant_item", item:entry.item, quantity:entry.quantity })));
+    const receipt = commitSafariBagEconomyReceipt(runtime, { reward });
+    if (!receipt.success) throw new Error(`canonical burning wagon reward commit failed: ${receipt.result}`);
+    applied.push(...receipt.operations);
   }
 
   state.board_events[index] = owner.event;
