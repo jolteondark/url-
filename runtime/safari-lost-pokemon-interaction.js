@@ -13,6 +13,7 @@ import {
   resolveMaplessV108LostPokemonBerryThanks,
   resolveMaplessV108LostPokemonGiftRoll,
 } from "./mapless-v108-lost-pokemon.js";
+import { commitSafariBagEconomyReceipt } from "./safari-bag-economy-receipt.js";
 import { borrowSafariSharedRunRandomInt, ensureSafariEncounterSeed } from "./safari-encounter-randomization.js";
 import { registerSafariNormalEventBattleContinuation } from "./safari-normal-event-battle-continuation.js";
 import { grantNormalEventPokemonFromPreparedEncounter } from "./safari-normal-event-pokemon-grant.js";
@@ -51,14 +52,6 @@ function rewardTransaction(runtime, items, costs = []) {
     items,
     costs,
   });
-}
-function applyReward(runtime, transaction) {
-  if (!transaction?.success) return [];
-  runtime.bag.slots = transaction.pockets.general.slots.filter(Boolean);
-  return [
-    ...transaction.consumed.map((entry) => ({ op:"runtime_remove_item", item:entry.item, quantity:entry.quantity })),
-    ...transaction.granted.map((entry) => ({ op:"runtime_grant_item", item:entry.item, quantity:entry.quantity })),
-  ];
 }
 function searchBattleOperation(owner) {
   return (owner.operations ?? []).find((operation) => operation?.op === "start_wild_battle") ?? null;
@@ -164,17 +157,16 @@ export async function resolveSafariLostPokemonInteraction(runtime, index, reques
       ? projectMaplessNormalEventOptionalReward({ ownerResult:preview, rewardResult:transaction })
       : null;
     if (transaction && !transaction.success && sharedCounter !== null) state.preview_encounter_counter = sharedCounter;
-    const applied = applyReward(runtime, transaction);
+    const receipt = transaction ? commitSafariBagEconomyReceipt(runtime, { reward:transaction }) : null;
     state.board_events[index] = preview.event;
     state.board_consumed[index] = Boolean(preview.event.normal_resolved);
     state.last_operations = [
       ...preview.operations.map((operation) => structuredClone(operation)),
-      ...(transaction?.success ? selectedMedium.operations : []).map((operation) => structuredClone(operation)),
-      ...(transaction?.operations ?? []).map((operation) => structuredClone(operation)),
-      ...applied,
+      ...(receipt?.success ? selectedMedium.operations : []).map((operation) => structuredClone(operation)),
+      ...(receipt?.operations ?? []).map((operation) => structuredClone(operation)),
     ];
     state.notice = preview.outcome === "search_trainer_reward"
-      ? transaction?.success
+      ? receipt?.success
         ? "飼い主を見つけ、お礼に道具を受け取りました。"
         : "飼い主を見つけましたが、バッグがいっぱいでお礼の道具は持ち帰れませんでした。"
       : "迷子のポケモンを親元へ返しました。";
@@ -217,14 +209,19 @@ export async function resolveSafariLostPokemonInteraction(runtime, index, reques
       rare_thanks:rareThanks,
       rare_reward_items:rareThanks ? selectedReward.items : undefined,
     });
-    const applied = applyReward(runtime, transaction);
+    const receipt = commitSafariBagEconomyReceipt(runtime, { reward:transaction });
+    if (!receipt.success) {
+      if (sharedCounter !== null) state.preview_encounter_counter = sharedCounter;
+      state.notice = "きのみとお礼の道具をバッグへ反映できませんでした。イベントと共有RNGは消費していません。";
+      state.last_operations = receipt.operations.map((operation) => structuredClone(operation));
+      return { runtime, result:receipt.result, completed:false, operations:state.last_operations, notice:state.notice, persistenceRequested:false, availableActions };
+    }
     state.board_events[index] = owner.event;
     state.board_consumed[index] = Boolean(owner.event.normal_resolved);
     state.last_operations = [
       ...owner.operations.map((operation) => structuredClone(operation)),
       ...selectedReward.operations.map((operation) => structuredClone(operation)),
-      ...transaction.operations.map((operation) => structuredClone(operation)),
-      ...applied,
+      ...receipt.operations.map((operation) => structuredClone(operation)),
     ];
     state.notice = rareThanks
       ? "きのみを渡すと、迷子のポケモンが珍しいきのみをお礼に残しました。"
