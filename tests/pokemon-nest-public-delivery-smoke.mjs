@@ -10,13 +10,25 @@ const adapter = fs.readFileSync(path.join(root, "runtime", "safari-pokemon-nest-
 
 assert.match(
   index,
-  /"\.\/runtime\/safari-pokemon-nest-interaction\.js": "\.\/runtime\/safari-pokemon-nest-interaction\.js\?v=20260903-2200"/,
-  "Safari import map must publish the post-#1170 Pokemon Nest interaction generation",
+  /"\.\/runtime\/safari-pokemon-nest-interaction\.js": "\.\/runtime\/safari-pokemon-nest-interaction\.js\?v=20260904-2030"/,
+  "Safari import map must publish the shared Bag receipt Pokemon Nest generation",
+);
+assert.doesNotMatch(
+  index,
+  /safari-pokemon-nest-interaction\.js\?v=20260903-2200/,
+  "Safari import map must not retain the pre-shared-receipt Pokemon Nest generation",
 );
 assert.match(
   adapter,
+  /import \{ commitSafariBagEconomyReceipt \} from "\.\/safari-bag-economy-receipt\.js";/,
+  "published Pokemon Nest adapter must use the shared Bag/Economy receipt owner",
+);
+assert.doesNotMatch(adapter, /runtime\.bag\.slots\s*=/, "Pokemon Nest must not directly replace Bag slots");
+assert.doesNotMatch(adapter, /runtime\.bag\.money\s*=/, "Pokemon Nest must not directly replace Bag money");
+assert.match(
+  adapter,
   /if \(!granted\.success\) \{[\s\S]*?resolvePokemonNest\(\{[\s\S]*?add_egg_success:false,[\s\S]*?\}\)[\s\S]*?completed:true,[\s\S]*?terminal:true/,
-  "published Pokemon Nest adapter must include the canonical no-capacity terminal path",
+  "published Pokemon Nest adapter must preserve the canonical no-capacity terminal path",
 );
 assert.doesNotMatch(
   adapter,
