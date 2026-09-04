@@ -81,11 +81,25 @@ function installCanonicalBattleUiStyle(documentRef) {
   position: relative !important;
   border: 0 !important;
   box-shadow: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+#battle-card[data-canonical-battle-ui="ready"] .hp-track span {
+  display: block !important;
+  height: 100% !important;
+  border-radius: 0 !important;
   background-color: transparent !important;
   background-image: var(--canonical-battle-hp-overlay) !important;
   background-repeat: no-repeat !important;
-  background-position: center !important;
-  background-size: 100% 100% !important;
+  background-position: center top !important;
+  background-size: 100% 300% !important;
+}
+#battle-card[data-canonical-battle-ui="ready"] .battle-info-panel[data-hp-zone="yellow"] .hp-track span {
+  background-position: center 50% !important;
+}
+#battle-card[data-canonical-battle-ui="ready"] .battle-info-panel[data-hp-zone="red"] .hp-track span {
+  background-position: center bottom !important;
 }
 #battle-card[data-canonical-battle-ui="ready"] .battle-message {
   border: 0 !important;
