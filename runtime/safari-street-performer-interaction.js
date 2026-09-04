@@ -6,6 +6,7 @@ import { registerSafariNormalEventBattleContinuation } from "./safari-normal-eve
 import { safariPokemonTypes } from "./safari-pokemon-type-membership.js";
 import { healSafariPartyPercent } from "./safari-pokemon-healing.js";
 import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
+import { commitSafariBagEconomyReceipt } from "./safari-bag-economy-receipt.js";
 import {
   applySafariSmallItemReward,
   preflightSafariSharedSmallItemReward,
@@ -35,12 +36,6 @@ function sameTypeMove(pokemon, type) {
     const id = moveId(move);
     return id && String(SAFARI_MOVE_MASTERS[id]?.type ?? "").trim().toUpperCase() === wanted;
   });
-}
-function addMoney(runtime, amount) {
-  const value = Math.max(0, Math.trunc(Number(amount) || 0));
-  runtime.bag ??= { slots: [], money: 0 };
-  runtime.bag.money = Math.max(0, Math.trunc(Number(runtime.bag.money ?? 0))) + value;
-  return { op:"runtime_add_money", amount:value };
 }
 function sharedSmallReward(runtime) {
   const state = stateOf(runtime);
@@ -170,7 +165,9 @@ export async function resolveSafariStreetPerformerInteraction(runtime, index, re
       if (hasSameTypeMove) rollbackSharedSmallReward(runtime, rewardCounter);
       throw error;
     }
-    const appliedOperations = [addMoney(runtime, Number(moneyOperation.amount))];
+    const moneyReceipt = commitSafariBagEconomyReceipt(runtime, { money:Number(moneyOperation.amount) });
+    if (!moneyReceipt.success) throw new Error(`street_performer money reward commit failed: ${moneyReceipt.result}`);
+    const appliedOperations = [...moneyReceipt.operations];
     appliedOperations.push(...exp.operations.map((operation) => ({ ...structuredClone(operation), scope:"street_performer" })));
     if (reward) {
       appliedOperations.push(...(reward.success ? reward.operations : optionalReward.rewardOperations).map((operation) => structuredClone(operation)));
@@ -192,12 +189,12 @@ export async function resolveSafariStreetPerformerInteraction(runtime, index, re
       state.notice = `大道芸を見るには${viewingPrice}円必要です。`;
       return { runtime, result:owner.outcome, completed:false, viewingPrice, operations:owner.operations ?? [], notice:state.notice, persistenceRequested:false, owner };
     }
-    runtime.bag ??= { slots: [], money: 0 };
-    runtime.bag.money = Math.max(0, Math.trunc(Number(runtime.bag.money ?? 0)) - viewingPrice);
+    const moneyReceipt = commitSafariBagEconomyReceipt(runtime, { moneyDelta:-viewingPrice });
+    if (!moneyReceipt.success) throw new Error(`street_performer viewing fee commit failed: ${moneyReceipt.result}`);
     healSafariPartyPercent(runtime, 10);
     state.mapless_exp_show_battles = 1;
     commitResolvedEvent(runtime, index, owner, [
-      { op:"runtime_spend_money", amount:viewingPrice },
+      ...moneyReceipt.operations,
       { op:"runtime_heal_party_percent", amount:10, revive:false },
       { op:"runtime_set_exp_show", battles:1 },
     ]);
