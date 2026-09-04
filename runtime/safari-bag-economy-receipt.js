@@ -31,6 +31,11 @@ export function commitSafariBagEconomyReceipt(runtime, { reward = null, money = 
   runtime.bag.slots = nextSlots;
   runtime.bag.money = nextMoney;
 
+  const consumed = (reward?.consumed ?? []).map((entry) => ({
+    op:"runtime_remove_item",
+    item:entry.item,
+    quantity:entry.quantity,
+  }));
   const granted = (reward?.granted ?? []).map((entry) => ({
     op:"runtime_grant_item",
     item:entry.item,
@@ -38,6 +43,7 @@ export function commitSafariBagEconomyReceipt(runtime, { reward = null, money = 
   }));
   const operations = [
     ...(reward?.operations ?? []).map((entry) => structuredClone(entry)),
+    ...consumed,
     ...granted,
     ...(delta > 0 ? [{ op:"runtime_add_money", amount:delta }] : []),
     ...(delta < 0 ? [{ op:"runtime_spend_money", amount:-delta }] : []),
@@ -46,6 +52,7 @@ export function commitSafariBagEconomyReceipt(runtime, { reward = null, money = 
     success:true,
     result:"committed",
     operations,
+    consumed:(reward?.consumed ?? []).map((entry) => structuredClone(entry)),
     granted:(reward?.granted ?? []).map((entry) => structuredClone(entry)),
     money:delta,
   };
