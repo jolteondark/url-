@@ -1,4 +1,5 @@
 import { resolveRewardTransaction } from "./bag-economy-reward-transaction.js";
+import { commitSafariBagEconomyReceipt } from "./safari-bag-economy-receipt.js";
 import {
   MAPLESS_V108_TREASURE_CHEST_TIER_CONFIG,
   prepareMaplessV108TreasureChest,
@@ -53,14 +54,6 @@ function resolveTreasureBagReward(runtime, reward) {
     itemMeta,
     items,
   });
-}
-
-function applyTreasureReward(runtime, reward, resolved) {
-  if (!resolved?.success) return false;
-  runtime.bag ??= { slots:[], money:0 };
-  runtime.bag.slots = resolved.pockets.general.slots.filter(Boolean);
-  runtime.bag.money = Math.max(0, Number(runtime.bag.money ?? 0) + reward.money);
-  return true;
 }
 
 function hydrationMissing(runtime) {
@@ -131,7 +124,8 @@ export function resolveSafariTreasureChest(runtime, index, action) {
 
   const reward = resolveMaplessV108TreasureChestReward(event, state.day);
   const rewardAttempt = resolveTreasureBagReward(runtime, reward);
-  if (!applyTreasureReward(runtime, reward, rewardAttempt)) {
+  const receipt = commitSafariBagEconomyReceipt(runtime, { reward:rewardAttempt, money:reward.money });
+  if (!receipt.success) {
     state.notice = "バッグに空きがなく、宝箱の中身を受け取れませんでした。";
     return {
       runtime,
@@ -139,14 +133,14 @@ export function resolveSafariTreasureChest(runtime, index, action) {
       completed:true,
       consumed:false,
       reward,
-      operations:(rewardAttempt.operations ?? []).map((operation) => structuredClone(operation)),
+      operations:(receipt.operations ?? []).map((operation) => structuredClone(operation)),
     };
   }
   state.board_consumed[index] = true;
   state.notice = `${reward.tierName}を開けました。`;
   state.last_operations = [
     { op:"treasure_reward", tier:reward.tier, money:reward.money, items:reward.items.map((entry) => ({ ...entry })) },
-    ...(rewardAttempt.operations ?? []).map((operation) => structuredClone(operation)),
+    ...(receipt.operations ?? []).map((operation) => structuredClone(operation)),
     { op:"request_save", reason:"treasure_opened" },
   ];
   return {
