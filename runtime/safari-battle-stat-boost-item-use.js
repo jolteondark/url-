@@ -25,7 +25,7 @@ export function canSafariUseBattleStatBoostItem(runtime, { itemId, partyIndex = 
   const battle = state.battle;
   const id = normalizedId(itemId);
   if (!isSafariBattleStatBoostItem(id)) return false;
-  if (!battle || battle.completed || battle.origin === "boundary_trial" || battle.player_replacement_required || state.shop) return false;
+  if (!battle || battle.completed || battle.player_replacement_required || state.shop) return false;
   if (quantity(runtime.bag?.slots ?? [], id) <= 0) return false;
   const activeIndex = Number(battle.player_party_index ?? 0);
   const targetIndex = partyIndex === undefined ? activeIndex : Number(partyIndex);
@@ -43,7 +43,6 @@ export function useSafariBattleStatBoostItem(runtime, { itemId, partyIndex = und
   const id = normalizedId(itemId);
   if (!isSafariBattleStatBoostItem(id)) return { runtime, itemId: id, result: "unsupported_item", used: false, operations: [] };
   if (!battle || battle.completed) return { runtime, itemId: id, result: "battle_missing", used: false, operations: [] };
-  if (battle.origin === "boundary_trial") return { runtime, itemId: id, result: "boundary_owner_required", used: false, operations: [] };
   if (battle.player_replacement_required) return { runtime, itemId: id, result: "replacement_required", used: false, operations: [] };
   if (state.shop) return { runtime, itemId: id, result: "shop_active", used: false, operations: [] };
   if (quantity(runtime.bag?.slots ?? [], id) <= 0) return { runtime, itemId: id, result: "item_missing", used: false, operations: [] };
