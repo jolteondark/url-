@@ -5,7 +5,7 @@ const index = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 
 assert.match(
   index,
-  /"\.\/runtime\/safari-web-playable-integration\.js": "\.\/runtime\/safari-web-playable-integration\.js\?v=20260905-2230"/,
+  /"\.\/runtime\/safari-web-playable-integration\.js": "\.\/runtime\/safari-web-playable-integration\.js\?v=20260906-0330"/,
 );
 assert.match(
   index,
