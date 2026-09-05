@@ -159,9 +159,7 @@ function installCanonicalBattleUiStyle(documentRef) {
   transform: none !important;
 }
 #battle-card[data-canonical-battle-ui="error"] .battle-info-panel,
-#battle-card[data-canonical-battle-ui="error"] .hp-track,
-#battle-card[data-canonical-battle-ui="error"] .battle-message,
-#battle-card[data-canonical-battle-ui="error"][data-dppt-menu="fight"] .move-grid {
+#battle-card[data-canonical-battle-ui="error"] .battle-command-panel {
   visibility: hidden !important;
 }
 `;
