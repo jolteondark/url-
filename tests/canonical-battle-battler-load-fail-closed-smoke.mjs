@@ -9,6 +9,10 @@ const previewSource = readFileSync(
   new URL("../preview.js", import.meta.url),
   "utf8",
 );
+const indexSource = readFileSync(
+  new URL("../index.html", import.meta.url),
+  "utf8",
+);
 
 assert.match(
   source,
@@ -29,6 +33,16 @@ assert.doesNotMatch(
   previewSource,
   /canonical-battle-battler-assets\.js\?v=20260905-1000/,
   "public preview must not retain the stale pre-#1261 canonical battler adapter generation",
+);
+assert.match(
+  indexSource,
+  /preview\.js\?v=20260906-0600/,
+  "outer Safari/Web entry must request the post-#1264 preview generation",
+);
+assert.doesNotMatch(
+  indexSource,
+  /preview\.js\?v=20260906-0100/,
+  "outer Safari/Web entry must not retain the stale pre-#1264 preview generation",
 );
 
 console.log("canonical Battle battler load fail-closed smoke: ok");
