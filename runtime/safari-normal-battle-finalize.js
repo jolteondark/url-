@@ -1,5 +1,5 @@
 import { resolveSafariBattleExpGrowthInput } from "./safari-battle-exp-growth-owner.js";
-import { resolveItemReceipt } from "./bag-economy-item-receipt.js";
+import { resolveRewardTransaction } from "./bag-economy-reward-transaction.js";
 import { setMoney } from "./bag-economy-mart-flow.js";
 import { maplessCarryMoneyGain } from "./mapless-carry-class-rules.js";
 import { resolveDayBoardPlayableTurn } from "./mapless-day-board-playable-turn.js";
@@ -8,6 +8,7 @@ import { resolvePokemonAfterBattleEvolution } from "./pokemon-after-battle-evolu
 import { resolvePokemonLevelEvolutionWithLocationContext } from "./pokemon-level-evolution-location-context.js";
 import { resolvePokemonRuntimeMasters } from "./pokemon-runtime-masters.js";
 import { applyShedinjaAfterEvolution } from "./pokemon-shedinja-after-evolution.js";
+import { commitSafariBagEconomyReceipt } from "./safari-bag-economy-receipt.js";
 import { SAFARI_MOVE_MASTERS, SAFARI_NATURE_MASTERS, SAFARI_SPECIES_MASTERS } from "./safari-playable-data.js";
 
 const moveId = (move) => typeof move === "string" ? move : move?.id;
@@ -82,19 +83,18 @@ export function normalBattleExpInput(player, defeatedFoe, trainerBattle = false)
 }
 
 function givePotion(runtime, battle) {
-  const receipt = resolveItemReceipt({
-    slots: runtime.bag.slots,
-    maxSlots: 20,
-    maxPerSlot: 99,
-    item: "POTION",
-    quantity: 1,
-    itemValid: true,
-    kind: "prize",
-    pocket: "MEDICINE",
+  const reward = resolveRewardTransaction({
+    pockets: { general: { slots: runtime.bag.slots, maxSlots: 20, maxPerSlot: 99 } },
+    itemMeta: { POTION: { valid: true, pocket: "general" } },
+    items: ["POTION"],
   });
-  runtime.bag.slots = receipt.slots;
+  if (!reward.success) {
+    battle.reward = null;
+    return (reward.operations ?? []).map((operation) => ({ ...operation, scope: "reward" }));
+  }
+  const receipt = commitSafariBagEconomyReceipt(runtime, { reward });
   battle.reward = receipt.success ? { item: "POTION", quantity: 1 } : null;
-  return receipt.operations.map((operation) => ({ ...operation, scope: "reward" }));
+  return (receipt.operations ?? reward.operations ?? []).map((operation) => ({ ...operation, scope: "reward" }));
 }
 
 function completeBoardEvent(state, battle) {
