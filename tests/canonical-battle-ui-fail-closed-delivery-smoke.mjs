@@ -5,8 +5,11 @@ const adapter = readFileSync(new URL("../runtime/canonical-battle-ui-assets.js",
 const preview = readFileSync(new URL("../preview.js", import.meta.url), "utf8");
 const index = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 
-const errorSelector = /#battle-card\[data-canonical-battle-ui=\\?"error\\?"\][\s\S]*?visibility:\s*hidden\s*!important/;
-assert.match(adapter, errorSelector, "canonical Battle UI error state must hide synthetic fallback presentation");
+assert.match(
+  adapter,
+  /#battle-card\[data-canonical-battle-ui=\\?"error\\?"\] \.battle-info-panel,[\s\S]*?#battle-card\[data-canonical-battle-ui=\\?"error\\?"\] \.battle-command-panel[\s\S]*?visibility:\s*hidden\s*!important/,
+  "canonical Battle UI error state must hide both databoxes and the complete synthetic command panel",
+);
 
 const catchBlock = adapter.match(/catch \(error\) \{([\s\S]*?)\n  \}/)?.[1] ?? "";
 assert.match(catchBlock, /installCanonicalBattleUiStyle\(documentRef\);/, "asset delivery failure must install fail-closed style before surfacing the error state");
@@ -18,9 +21,9 @@ const readyStyleIndex = adapter.indexOf("installCanonicalBattleUiStyle(documentR
 const readyIndex = adapter.indexOf('card.dataset.canonicalBattleUi = "ready";', readyStyleIndex);
 assert.ok(preloadIndex >= 0 && readyStyleIndex > preloadIndex && readyIndex > readyStyleIndex, "success path must still preload canonical assets before exposing ready presentation");
 
-assert.match(preview, /canonical-battle-ui-assets\.js\?v=20260905-1400/, "reachable preview must request the fail-closed Battle UI adapter generation");
-assert.doesNotMatch(preview, /canonical-battle-ui-assets\.js\?v=20260904-1000/, "reachable preview must not retain the stale Battle UI adapter generation");
-assert.match(index, /preview\.js\?v=20260905-1400/, "public entry point must deliver the fail-closed Battle UI preview generation");
-assert.doesNotMatch(index, /preview\.js\?v=20260905-1100/, "public entry point must not retain the stale preview generation");
+assert.match(preview, /canonical-battle-ui-assets\.js\?v=20260905-1500/, "reachable preview must request the complete fail-closed Battle UI adapter generation");
+assert.doesNotMatch(preview, /canonical-battle-ui-assets\.js\?v=20260905-1400/, "reachable preview must not retain the partial fail-closed adapter generation");
+assert.match(index, /preview\.js\?v=20260905-1500/, "public entry point must deliver the complete fail-closed Battle UI preview generation");
+assert.doesNotMatch(index, /preview\.js\?v=20260905-1400/, "public entry point must not retain the stale preview generation");
 
 console.log("canonical Battle UI fail-closed delivery smoke: ok");
