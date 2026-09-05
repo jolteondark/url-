@@ -15,6 +15,7 @@ import {
   completeSafariBattleReplacement,
   completeSafariBattleReturn,
 } from "./safari-battle-orchestrator.js";
+import { applySafariBattleItemMutation } from "./safari-battle-item-mutation-owner.js";
 import { pokemonMoveTotalPp, setPokemonRuntimeMovePp, updatePokemonRuntime } from "./pokemon-runtime.js";
 import { SAFARI_MOVE_PRESENTATION } from "./safari-playable-integration-base.js";
 import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
@@ -158,7 +159,13 @@ function commitBoundaryTrainerReplacement(runtime, result) {
   };
 }
 
-function resolveBoundaryRound(runtime, selectedMoveId) {
+function resolveBoundaryRound(runtime, selectedMoveId, {
+  playerActionConsumedWithoutMove = false,
+  commandKind = "move",
+  commandAlreadyBegun = false,
+  prefixOperations = [],
+  prefixPresentation = [],
+} = {}) {
   const state = stateOf(runtime);
   const battle = state.battle;
   const pendingReplacement = pendingPlayerReplacement(battle);
@@ -180,13 +187,15 @@ function resolveBoundaryRound(runtime, selectedMoveId) {
   const playerActiveIndex = Number(battle.player_party_index ?? 0);
   const player = runtime.player?.party?.[playerActiveIndex];
   if (!player) throw new Error("active player Pokemon is required");
-  const selected = moveId(selectedMoveId);
-  if (!player.moves.some((move) => moveId(move) === selected)) throw new RangeError("selected move is not known by the active Pokemon");
-  if (!SAFARI_MOVE_PRESENTATION[selected] || !SAFARI_MOVE_MASTERS[selected]) throw new RangeError("selected move is outside the Safari projection");
+  const selected = playerActionConsumedWithoutMove ? null : moveId(selectedMoveId);
+  if (!playerActionConsumedWithoutMove) {
+    if (!player.moves.some((move) => moveId(move) === selected)) throw new RangeError("selected move is not known by the active Pokemon");
+    if (!SAFARI_MOVE_PRESENTATION[selected] || !SAFARI_MOVE_MASTERS[selected]) throw new RangeError("selected move is outside the Safari projection");
+  }
   const foeMoveId = moveId(battle.foe?.moves?.[0]);
   if (!foeMoveId || !SAFARI_MOVE_MASTERS[foeMoveId]) throw new RangeError(`boundary foe move is outside the Safari projection: ${foeMoveId}`);
 
-  beginSafariBattleCommand(runtime, "move");
+  if (!commandAlreadyBegun) beginSafariBattleCommand(runtime, commandKind);
   let resolved;
   try {
     resolved = resolveBrowserBattleRound({
@@ -199,13 +208,15 @@ function resolveBoundaryRound(runtime, selectedMoveId) {
       selectedMoveId: selected,
       foeMoveId,
       moveMasters: SAFARI_MOVE_MASTERS,
+      playerActionConsumedWithoutMove,
     });
   } catch (error) {
-    abortSafariBattleCommand(runtime, "boundary round failed");
+    abortSafariBattleCommand(runtime, `boundary ${commandKind} failed`);
     throw error;
   }
 
-  const operations = (resolved.operations ?? []).map((operation) => ({ ...operation, battleTurn: battle.turn }));
+  const roundOperations = (resolved.operations ?? []).map((operation) => ({ ...operation, battleTurn: battle.turn }));
+  const operations = [...clone(prefixOperations), ...roundOperations];
   const continuationHandoff = resolved.battleContinuationHandoff;
   if (Array.isArray(continuationHandoff?.playerParty)) runtime.player.party = clone(continuationHandoff.playerParty);
   else runtime.player.party[playerActiveIndex] = resolved.player;
@@ -220,7 +231,7 @@ function resolveBoundaryRound(runtime, selectedMoveId) {
   battle.decision = Number(resolved.decision);
   battle.turn += 1;
   battle.last_operations = operations;
-  battle.presentation = battlePresentation(operations);
+  battle.presentation = [...clone(prefixPresentation), ...battlePresentation(roundOperations)];
   state.last_operations = operations;
 
   let handoff = null;
@@ -242,7 +253,7 @@ function resolveBoundaryRound(runtime, selectedMoveId) {
     replacementApplied: false,
     persistenceRequested: requestsSave(battle.last_operations),
   };
-  const committed = commitSafariBattleResolution(runtime, resolution, "move", {
+  const committed = commitSafariBattleResolution(runtime, resolution, commandKind, {
     replacementCommit: (result) => commitBoundaryTrainerReplacement(runtime, result),
     rewardGrowthCommit: battle.decision > 0 ? (result) => {
       handoff = finalizeBoundaryBattle(runtime, battle, battle.decision);
@@ -269,6 +280,56 @@ function resolveBoundaryRound(runtime, selectedMoveId) {
     playerReplacementRequired: Boolean(battle.player_replacement_required),
     boundaryTrialHandoff: handoff,
     persistenceRequested: Boolean(committed.persistenceRequested || requestsSave(battle.last_operations)),
+  };
+}
+
+export function useSafariBoundaryBattleItem(runtime, options = {}) {
+  const state = stateOf(runtime);
+  const battle = state.battle;
+  if (battle?.origin !== "boundary_trial" || battle.completed) throw new Error("active boundary battle is required");
+  if (battle.player_replacement_required) throw new Error("player replacement is required before another battle command");
+
+  const turnBefore = Number(battle.turn ?? 1);
+  beginSafariBattleCommand(runtime, "item");
+  let itemUse;
+  try {
+    itemUse = applySafariBattleItemMutation(runtime, options);
+  } catch (error) {
+    abortSafariBattleCommand(runtime, `boundary item failed:${error?.message ?? error}`);
+    throw error;
+  }
+  if (!itemUse.used) {
+    abortSafariBattleCommand(runtime, "boundary item had no effect");
+    return {
+      ...itemUse,
+      turnConsumed: false,
+      turnBefore,
+      turnAfter: Number(battle.turn ?? turnBefore),
+      opponentResponse: null,
+      persistenceRequested: false,
+    };
+  }
+
+  const opponentResponse = resolveBoundaryRound(runtime, null, {
+    playerActionConsumedWithoutMove: true,
+    commandKind: "item",
+    commandAlreadyBegun: true,
+    prefixOperations: itemUse.operations ?? [],
+    prefixPresentation: itemUse.presentation ?? [],
+  });
+  return {
+    ...itemUse,
+    runtime,
+    turnConsumed: true,
+    turnBefore,
+    turnAfter: Number(battle.turn),
+    opponentResponse,
+    decision: opponentResponse.decision,
+    operations: clone(opponentResponse.operations ?? []),
+    presentation: clone(opponentResponse.presentation ?? []),
+    playerReplacementRequired: Boolean(opponentResponse.playerReplacementRequired),
+    boundaryTrialHandoff: opponentResponse.boundaryTrialHandoff ?? null,
+    persistenceRequested: Boolean(opponentResponse.persistenceRequested),
   };
 }
 

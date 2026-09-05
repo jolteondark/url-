@@ -204,24 +204,25 @@ function finishRound(runtime, result, battleKind, preparedBoundary) {
   return trainerAi ? { ...result, trainerAi } : result;
 }
 
-export function resolveSafariBattleRound(runtime, selectedMoveId) {
+function resolveBoundaryOwnedAction(runtime, action) {
   const battle = stateOf(runtime).battle;
   if (battleNeedsGeneralData(battle) && !safariGeneralDataReady()) {
-    return ensureSafariGeneralData().then(() => resolveSafariBattleRound(runtime, selectedMoveId));
+    return ensureSafariGeneralData().then(() => resolveBoundaryOwnedAction(runtime, action));
   }
   const battleKind = battle?.kind ?? null;
   const preparedBoundary = prepareBoundaryTrainerMove(runtime);
-  const result = playable.resolveSafariBattleRound(runtime, selectedMoveId);
-  const finalize = (resolved) => finishRound(
-    runtime,
-    resolved,
-    battleKind,
-    preparedBoundary,
-  );
-  if (result && typeof result.then === "function") {
-    return result.then(finalize);
-  }
+  const result = action();
+  const finalize = (resolved) => finishRound(runtime, resolved, battleKind, preparedBoundary);
+  if (result && typeof result.then === "function") return result.then(finalize);
   return finalize(result);
+}
+
+export function resolveSafariBattleRound(runtime, selectedMoveId) {
+  return resolveBoundaryOwnedAction(runtime, () => playable.resolveSafariBattleRound(runtime, selectedMoveId));
+}
+
+export function useSafariBoundaryBattleItem(runtime, options = {}) {
+  return resolveBoundaryOwnedAction(runtime, () => playable.useSafariBoundaryBattleItem(runtime, options));
 }
 
 export function returnSafariToDayBoard(runtime) {

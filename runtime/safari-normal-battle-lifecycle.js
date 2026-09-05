@@ -1,5 +1,4 @@
-import { applySafariBagItemToPartyPokemon } from "./safari-bag-item-use.js";
-import { isSafariBattleStatBoostItem, useSafariBattleStatBoostItem } from "./safari-battle-stat-boost-item-use.js";
+import { applySafariBattleItemMutation } from "./safari-battle-item-mutation-owner.js";
 import { resolveCaptureFlow } from "./battle-capture-flow.js";
 import { routeCaughtQueueToPartyStorage } from "./caught-queue-party-storage.js";
 import { safariCarryoverPartyLimit } from "./mapless-carry-class-rules.js";
@@ -147,23 +146,15 @@ export function commitSafariCapturedWildRewardGrowth(runtime, result = {}) {
   return result;
 }
 
-export function useSafariNormalBattleItem(runtime, { itemId = "POTION", partyIndex = undefined, moveIndex = undefined } = {}) {
+export function useSafariNormalBattleItem(runtime, options = {}) {
   const state = stateOf(runtime);
   const battle = state.battle;
   if (!battle || battle.completed) throw new Error("active battle is required");
   if (battle.origin === "boundary_trial") throw new Error("boundary battle must use the boundary owner");
   if (battle.player_replacement_required) throw new Error("player replacement is required before another battle command");
 
-  const targetIndex = partyIndex === undefined ? Number(battle.player_party_index ?? 0) : Number(partyIndex);
   const turnBefore = Number(battle.turn ?? 1);
-  const itemUse = isSafariBattleStatBoostItem(itemId)
-    ? useSafariBattleStatBoostItem(runtime, { itemId, partyIndex: targetIndex })
-    : applySafariBagItemToPartyPokemon(runtime, {
-        itemId,
-        partyIndex: targetIndex,
-        moveIndex,
-        context: "battle",
-      });
+  const itemUse = applySafariBattleItemMutation(runtime, options);
   if (!itemUse.used) {
     return {
       ...itemUse,
@@ -179,19 +170,7 @@ export function useSafariNormalBattleItem(runtime, { itemId = "POTION", partyInd
   const operations = [...itemUse.operations, ...(opponentResponse.operations ?? [])];
   battle.last_operations = operations;
   state.last_operations = operations;
-  const presentation = [
-    {
-      type: "battle_item",
-      actor: "player",
-      itemId: itemUse.itemId,
-      partyIndex: itemUse.partyIndex,
-      moveIndex: itemUse.moveIndex ?? null,
-      ppChanges: itemUse.ppChanges ?? null,
-      hpBefore: itemUse.hpBefore,
-      hpAfter: itemUse.hpAfter,
-    },
-    ...(opponentResponse.presentation ?? []),
-  ];
+  const presentation = [...(itemUse.presentation ?? []), ...(opponentResponse.presentation ?? [])];
   battle.presentation = presentation;
   return {
     ...itemUse,

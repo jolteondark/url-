@@ -235,7 +235,13 @@ export async function replaceSafariBattlePlayer(runtime, replacementPartyIndex, 
 }
 
 export async function useSafariBattleItem(runtime, options = {}) {
-  if (needsFullBattleIntegration(runtime)) throw new Error("boundary battle item owner is unavailable");
+  if (needsFullBattleIntegration(runtime)) {
+    const module = await full();
+    if (typeof module.useSafariBoundaryBattleItem !== "function") throw new Error("boundary battle item owner is unavailable");
+    const result = await module.useSafariBoundaryBattleItem(runtime, options);
+    publishRuntimeChanged();
+    return result;
+  }
   const commandAttempt = beginNormalBattleCommand(runtime, "item");
   try {
     let result = useSafariNormalBattleItem(runtime, options);
