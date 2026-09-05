@@ -73,3 +73,13 @@
   background-position:center;
   background-size:contain;
 }
+
+/* Canonical battlebacks are published, but Presentation must not invent DAY/EVE/NIGHT.
+   Until an owner time-of-day identifier is handed off, remove the synthetic arena imitation
+   and leave a diagnosable fail-closed surface rather than showing the wrong canonical scene. */
+#battle-card[data-canonical-battleback="unavailable"].battle-scene,
+#battle-card[data-canonical-battleback="unavailable"].battle-scene::before,
+#battle-card[data-canonical-battleback="unavailable"] .arena,
+#battle-card[data-canonical-battleback="unavailable"] .battle-platform{
+  background:none!important;
+}
