@@ -187,6 +187,7 @@ export async function installCanonicalBattleUiAssets(documentRef = document) {
     card.dataset.canonicalBattleUi = "ready";
     return CANONICAL_BATTLE_UI_ASSETS;
   } catch (error) {
+    installCanonicalBattleUiStyle(documentRef);
     card.dataset.canonicalBattleUi = "error";
     globalThis.__maplessLastError = error instanceof Error ? error : new Error(String(error));
     throw globalThis.__maplessLastError;
