@@ -86,11 +86,13 @@ function syncCanonicalBattleBattler(documentRef, side) {
   image.alt = species;
   image.decoding = "async";
   image.draggable = false;
+  image.hidden = true;
   image.addEventListener("load", () => {
     if (placeholder.dataset.canonicalBattleSpriteRequest !== requestKey) return;
     placeholder.dataset.canonicalBattleSprite = "ready";
     placeholder.dataset.canonicalBattleSpriteSrc = src;
     combatant.dataset.canonicalBattleSprite = "ready";
+    image.hidden = false;
     rememberDiagnostic(side, species, "ready", src);
   }, { once: true });
   image.addEventListener("error", () => {
