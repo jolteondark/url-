@@ -142,11 +142,16 @@ function payTrainerPrize(runtime, battle) {
   const carryClass = stateOf(runtime).mapless_carry_class ?? "general";
   const adjusted = maplessCarryMoneyGain(requested, carryClass);
   const before = Number(runtime.bag.money ?? 0);
-  runtime.bag.money = setMoney(before + adjusted, 999999);
-  const gained = runtime.bag.money - before;
+  const cappedTarget = setMoney(before + adjusted, 999999);
+  const gained = cappedTarget - before;
+  const receipt = commitSafariBagEconomyReceipt(runtime, { moneyDelta: gained });
+  if (!receipt.success) return receipt.operations ?? [];
   battle.trainer_prize_paid = true;
   battle.money_gained = gained;
-  return [{ op: "trainer_prize_money", requested, adjusted, applied: gained, carryClass, trainer: battle.trainer?.trainer_full_name ?? null }];
+  return [
+    ...(receipt.operations ?? []),
+    { op: "trainer_prize_money", requested, adjusted, applied: gained, carryClass, trainer: battle.trainer?.trainer_full_name ?? null },
+  ];
 }
 
 function evolutionContextOf(battle = {}) {
