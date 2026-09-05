@@ -27,6 +27,7 @@ assert.match(catchBlock, /globalThis\.__maplessLastError =/, "asset delivery fai
 
 assert.match(preview, /canonical-battle-ui-assets\.js\?v=20260905-1600/, "reachable preview must request the loading fail-closed Battle UI adapter generation");
 assert.doesNotMatch(preview, /canonical-battle-ui-assets\.js\?v=20260905-1500/, "reachable preview must not retain the stale Battle UI adapter generation");
-assert.match(index, /preview\.js\?v=20260905-1500/, "public entry point still identifies the current outer preview generation pending its next cache refresh");
+assert.match(index, /preview\.js\?v=20260905-1600/, "public entry point must deliver the loading fail-closed preview generation");
+assert.doesNotMatch(index, /preview\.js\?v=20260905-1500/, "public entry point must not retain the stale preview generation");
 
 console.log("canonical Battle UI fail-closed delivery smoke: ok");
