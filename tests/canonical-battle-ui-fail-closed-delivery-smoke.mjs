@@ -34,7 +34,7 @@ assert.match(adapter, /background-size:\s*200%\s+1000%\s*!important/, "canonical
 
 assert.match(preview, /canonical-battle-ui-assets\.js\?v=20260906-0700/, "reachable preview must request the command-cursor-fixed Battle UI adapter generation");
 assert.doesNotMatch(preview, /canonical-battle-ui-assets\.js\?v=20260906-0100/, "reachable preview must not retain the stale Battle UI adapter generation");
-assert.match(index, /preview\.js\?v=20260906-0600/, "public entry point must retain the latest outer preview generation");
-assert.doesNotMatch(index, /preview\.js\?v=20260906-0100/, "public entry point must not regress to the stale preview generation");
+assert.match(index, /preview\.js\?v=20260906-0700/, "public entry point must deliver the preview generation that requests the command-cursor-fixed Battle UI adapter");
+assert.doesNotMatch(index, /preview\.js\?v=20260906-0600/, "public entry point must not retain the stale outer preview generation");
 
 console.log("canonical Battle UI fail-closed delivery smoke: ok");
