@@ -160,8 +160,10 @@ function installCanonicalBattleUiStyle(documentRef) {
 }
 #battle-card[data-canonical-battle-ui="loading"] .battle-info-panel,
 #battle-card[data-canonical-battle-ui="loading"] .battle-command-panel,
+#battle-card[data-canonical-battle-ui="loading"] .battle-message,
 #battle-card[data-canonical-battle-ui="error"] .battle-info-panel,
-#battle-card[data-canonical-battle-ui="error"] .battle-command-panel {
+#battle-card[data-canonical-battle-ui="error"] .battle-command-panel,
+#battle-card[data-canonical-battle-ui="error"] .battle-message {
   visibility: hidden !important;
 }
 `;
