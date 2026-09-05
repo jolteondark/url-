@@ -1,6 +1,7 @@
 import { installSafariEggHatchVisitBridgeV108 } from "./runtime/safari-egg-hatch-visits-v108.js";
 import { installCanonicalBattleUiAssets } from "./runtime/canonical-battle-ui-assets.js?v=20260905-1600";
 import { installCanonicalBattleBattlerAssets } from "./runtime/canonical-battle-battler-assets.js?v=20260905-1000";
+import { rememberCanonicalBattlebackDiagnostic } from "./runtime/canonical-battleback-assets.js?v=20260906-0000";
 
 let appPromise = null;
 let replacementPresentationPromise = null;
@@ -11,6 +12,13 @@ const SAVE_KEY = "mapless.safari.playable.v4";
 const byId = (id) => document.getElementById(id);
 const newRun = byId("new-run");
 const continueRun = byId("continue-run");
+
+function installCanonicalBattlebackFailClosedState() {
+  const card = byId("battle-card");
+  if (!card) return;
+  card.dataset.canonicalBattleback = "unavailable";
+  rememberCanonicalBattlebackDiagnostic(null, "unavailable", "missing_owner_time_of_day");
+}
 
 function traceBattleStart(stage, detail = {}) {
   const trace = Array.isArray(globalThis.__maplessBattleStartLifecycleTrace)
@@ -145,6 +153,7 @@ function onContinueRun() {
 }
 
 installSafariEggHatchVisitBridgeV108();
+installCanonicalBattlebackFailClosedState();
 installCanonicalBattleBattlerAssets();
 installCanonicalBattleUiAssets().catch((error) => {
   console.error("[Mapless] canonical Battle UI assets unavailable", error);
