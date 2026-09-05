@@ -5,14 +5,14 @@ const CANONICAL_BATTLEBACK_VARIANTS = Object.freeze({
     foeBase: "./assets/canonical-battlebacks/field_base1.png",
   }),
   eve: Object.freeze({
-    background: "./assets/canonical-battlebacks/field_eve_bg.png",
-    playerBase: "./assets/canonical-battlebacks/field_eve_base0.png",
-    foeBase: "./assets/canonical-battlebacks/field_eve_base1.png",
+    background: "./assets/canonical-battlebacks/field_bg_eve.png",
+    playerBase: "./assets/canonical-battlebacks/field_base0_eve.png",
+    foeBase: "./assets/canonical-battlebacks/field_base1_eve.png",
   }),
   night: Object.freeze({
-    background: "./assets/canonical-battlebacks/field_night_bg.png",
-    playerBase: "./assets/canonical-battlebacks/field_night_base0.png",
-    foeBase: "./assets/canonical-battlebacks/field_night_base1.png",
+    background: "./assets/canonical-battlebacks/field_bg_night.png",
+    playerBase: "./assets/canonical-battlebacks/field_base0_night.png",
+    foeBase: "./assets/canonical-battlebacks/field_base1_night.png",
   }),
 });
 
