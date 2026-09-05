@@ -4,6 +4,7 @@ import fs from "node:fs";
 const shared = fs.readFileSync(new URL("../runtime/safari-battle-item-mutation-owner.js", import.meta.url), "utf8");
 const normal = fs.readFileSync(new URL("../runtime/safari-normal-battle-lifecycle.js", import.meta.url), "utf8");
 const boundary = fs.readFileSync(new URL("../runtime/safari-playable-integration-boundary.js", import.meta.url), "utf8");
+const full = fs.readFileSync(new URL("../runtime/safari-playable-integration.js", import.meta.url), "utf8");
 const web = fs.readFileSync(new URL("../runtime/safari-web-playable-integration.js", import.meta.url), "utf8");
 
 assert.match(shared, /export function applySafariBattleItemMutation/);
@@ -23,6 +24,11 @@ assert.match(boundary, /commandKind: "item"/);
 assert.match(boundary, /commitSafariBattleResolution\(runtime, resolution, commandKind/);
 assert.match(boundary, /finalizeBoundaryBattle\(runtime, battle, battle\.decision\)/);
 assert.match(boundary, /abortSafariBattleCommand\(runtime, "boundary item had no effect"\)/);
+
+assert.match(full, /function resolveBoundaryOwnedAction/);
+assert.match(full, /const preparedBoundary = prepareBoundaryTrainerMove\(runtime\)/);
+assert.match(full, /export function useSafariBoundaryBattleItem/);
+assert.match(full, /playable\.useSafariBoundaryBattleItem\(runtime, options\)/);
 
 assert.doesNotMatch(web, /if \(needsFullBattleIntegration\(runtime\)\) throw new Error\("boundary battle item owner is unavailable"\)/);
 assert.match(web, /module\.useSafariBoundaryBattleItem\(runtime, options\)/);
