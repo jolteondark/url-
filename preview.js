@@ -1,6 +1,6 @@
 import { installSafariEggHatchVisitBridgeV108 } from "./runtime/safari-egg-hatch-visits-v108.js";
 import { installCanonicalBattleUiAssets } from "./runtime/canonical-battle-ui-assets.js?v=20260904-1000";
-import { installCanonicalBattleBattlerAssets } from "./runtime/canonical-battle-battler-assets.js?v=20260904-1800";
+import { installCanonicalBattleBattlerAssets } from "./runtime/canonical-battle-battler-assets.js?v=20260905-1000";
 
 let appPromise = null;
 let replacementPresentationPromise = null;
