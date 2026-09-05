@@ -22,7 +22,10 @@ const CANONICAL_BATTLE_FRONT_SPECIES = Object.freeze([
 const CANONICAL_BATTLE_BACK_SPECIES = Object.freeze([
   "CATERPIE",
   "CHARMANDER",
+  "DRUDDIGON",
   "DWEBBLE",
+  "GASTLY",
+  "HERACROSS",
   "PICHU",
 ]);
 const observedDocuments = new WeakSet();
