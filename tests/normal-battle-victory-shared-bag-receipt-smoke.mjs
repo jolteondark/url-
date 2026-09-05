@@ -6,6 +6,9 @@ const source = readFileSync(new URL("../runtime/safari-normal-battle-finalize.js
 assert.match(source, /resolveRewardTransaction/);
 assert.match(source, /commitSafariBagEconomyReceipt/);
 assert.doesNotMatch(source, /runtime\.bag\.slots\s*=\s*receipt\.slots/);
+assert.doesNotMatch(source, /runtime\.bag\.money\s*=/);
+assert.match(source, /commitSafariBagEconomyReceipt\(runtime, \{ moneyDelta: gained \}\)/);
+assert.match(source, /const cappedTarget = setMoney\(before \+ adjusted, 999999\)/);
 assert.match(source, /items:\s*\["POTION"\]/);
 assert.match(source, /normal_terminal_reward_growth_committed === true/);
 assert.match(source, /normal_terminal_reward_growth_committed = true/);
