@@ -80,6 +80,8 @@
 #battle-card[data-canonical-battleback="unavailable"].battle-scene,
 #battle-card[data-canonical-battleback="unavailable"].battle-scene::before,
 #battle-card[data-canonical-battleback="unavailable"] .arena,
+#battle-card[data-canonical-battleback="unavailable"] .arena::after,
 #battle-card[data-canonical-battleback="unavailable"] .battle-platform{
   background:none!important;
+  border:0!important;
 }
