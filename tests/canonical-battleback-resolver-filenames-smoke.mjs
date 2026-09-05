@@ -11,14 +11,14 @@ const expected = {
     foeBase: "./assets/canonical-battlebacks/field_base1.png",
   },
   eve: {
-    background: "./assets/canonical-battlebacks/field_bg_eve.png",
-    playerBase: "./assets/canonical-battlebacks/field_base0_eve.png",
-    foeBase: "./assets/canonical-battlebacks/field_base1_eve.png",
+    background: "./assets/canonical-battlebacks/field_eve_bg.png",
+    playerBase: "./assets/canonical-battlebacks/field_eve_base0.png",
+    foeBase: "./assets/canonical-battlebacks/field_eve_base1.png",
   },
   night: {
-    background: "./assets/canonical-battlebacks/field_bg_night.png",
-    playerBase: "./assets/canonical-battlebacks/field_base0_night.png",
-    foeBase: "./assets/canonical-battlebacks/field_base1_night.png",
+    background: "./assets/canonical-battlebacks/field_night_bg.png",
+    playerBase: "./assets/canonical-battlebacks/field_night_base0.png",
+    foeBase: "./assets/canonical-battlebacks/field_night_base1.png",
   },
 };
 
@@ -28,7 +28,8 @@ assert.deepEqual(resolveCanonicalBattlebackAssets(2), expected.night);
 assert.equal(resolveCanonicalBattlebackAssets("unknown"), null);
 
 const serialized = JSON.stringify(CANONICAL_BATTLEBACK_VARIANTS);
-assert.doesNotMatch(serialized, /field_eve_(?:bg|base[01])\.png/);
-assert.doesNotMatch(serialized, /field_night_(?:bg|base[01])\.png/);
+assert.match(serialized, /field_eve_bg\.png/);
+assert.match(serialized, /field_night_base0\.png/);
+assert.doesNotMatch(serialized, /field_(?:bg|base[01])_(?:eve|night)\.png/);
 
 console.log("canonical battleback resolver filenames smoke: ok");
