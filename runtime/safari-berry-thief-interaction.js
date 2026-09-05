@@ -6,6 +6,7 @@ import {
 } from "./mapless-normal-event-small-reward.js";
 import { MAPLESS_V108_RARE_BERRY_IDS } from "./mapless-v108-berry-catalog.js";
 import { RubyMT19937Random } from "./ruby-mt19937-random.js";
+import { commitSafariBagEconomyReceipt } from "./safari-bag-economy-receipt.js";
 import { borrowSafariSharedRunRandomInt } from "./safari-encounter-randomization.js";
 import { registerSafariNormalEventBattleContinuation } from "./safari-normal-event-battle-continuation.js";
 import { grantNormalEventPokemonFromEncounter } from "./safari-normal-event-pokemon-grant.js";
@@ -37,15 +38,6 @@ function transaction(runtime, items = [], costs = []) {
     items,
     costs,
   });
-}
-function applyTransaction(runtime, resolved) {
-  if (!resolved?.success) return [];
-  runtime.bag ??= { slots:[], money:0 };
-  runtime.bag.slots = resolved.pockets.general.slots.filter(Boolean);
-  return [
-    ...resolved.consumed.map((entry) => ({ op:"runtime_remove_item", item:entry.item, quantity:entry.quantity })),
-    ...resolved.granted.map((entry) => ({ op:"runtime_grant_item", item:entry.item, quantity:entry.quantity })),
-  ];
 }
 function seededIndex(seed, poolLength) {
   const rng = new RubyMT19937Random(Number(seed) & 0x7fffffff);
@@ -82,8 +74,10 @@ function applyInitialTheft(runtime, index) {
     const resolved = transaction(runtime, [], [{ item, quantity:1 }]);
     const ok = resolved?.success === true;
     results[item] = ok;
-    if (resolved) operations.push(...resolved.operations.map((operation) => structuredClone(operation)));
-    if (ok) operations.push(...applyTransaction(runtime, resolved));
+    if (resolved) {
+      const receipt = ok ? commitSafariBagEconomyReceipt(runtime, { reward:resolved }) : null;
+      operations.push(...(receipt?.operations ?? resolved.operations ?? []).map((operation) => structuredClone(operation)));
+    }
   }
   const owner = resolveBerryThief({ event, action:null, stolen_remove_results:results });
   state.board_events[index] = owner.event;
@@ -118,13 +112,12 @@ registerSafariNormalEventBattleContinuation("berry_thief", (runtime, continuatio
     hidden_reward_roll:roll,
   });
 
-  const applied = applyTransaction(runtime, resolved);
+  const receipt = resolved ? commitSafariBagEconomyReceipt(runtime, { reward:resolved }) : null;
   state.board_events[index] = owner.event;
   state.board_consumed[index] = Boolean(owner.event.normal_resolved);
   state.last_operations = [
     ...(owner.operations ?? []).filter((operation) => !["start_wild_battle","grant_items","remove_item"].includes(operation?.op)).map((operation) => structuredClone(operation)),
-    ...(resolved?.operations ?? []).map((operation) => structuredClone(operation)),
-    ...applied,
+    ...(receipt?.operations ?? []).map((operation) => structuredClone(operation)),
     { op:"request_save", reason:"normal_event_post_battle" },
   ];
   state.notice = success
@@ -167,8 +160,8 @@ export async function resolveSafariBerryThiefInteraction(runtime, index, request
         return { runtime, result:preflight?.result ?? "bait_failed", completed:false, operations:[...theft.operations, ...(preflight?.operations ?? [])], notice:state.notice, persistenceRequested:theft.changed, availableActions };
       }
       const debit = transaction(runtime, [], [{ item:berry, quantity:1 }]);
-      const applied = applyTransaction(runtime, debit);
-      state.last_operations = [...theft.operations, ...debit.operations.map((operation) => structuredClone(operation)), ...applied, { op:"request_save", reason:"berry_thief_bait_committed" }];
+      const receipt = commitSafariBagEconomyReceipt(runtime, { reward:debit });
+      state.last_operations = [...theft.operations, ...receipt.operations.map((operation) => structuredClone(operation)), { op:"request_save", reason:"berry_thief_bait_committed" }];
     } else {
       const preflight = possibleRewards.length ? transaction(runtime, possibleRewards) : null;
       if (preflight && !preflight.success) {
@@ -218,10 +211,10 @@ export async function resolveSafariBerryThiefInteraction(runtime, index, request
       state.notice = `${rareBerry}を受け取る空きがありません。イベントはまだ完了していません。`;
       return { runtime, result:"reward_bag_full", completed:false, operations:[...theft.operations, ...(resolved?.operations ?? [])], notice:state.notice, persistenceRequested:theft.changed, availableActions };
     }
-    const applied = applyTransaction(runtime, resolved);
+    const receipt = commitSafariBagEconomyReceipt(runtime, { reward:resolved });
     state.board_events[index] = owner.event;
     state.board_consumed[index] = true;
-    state.last_operations = [...theft.operations, ...owner.operations.filter((operation) => operation?.op !== "grant_items").map((operation) => structuredClone(operation)), ...resolved.operations.map((operation) => structuredClone(operation)), ...applied];
+    state.last_operations = [...theft.operations, ...owner.operations.filter((operation) => operation?.op !== "grant_items").map((operation) => structuredClone(operation)), ...receipt.operations.map((operation) => structuredClone(operation))];
     state.notice = `立ち去ろうとすると、${rareBerry}を見つけました。`;
     return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
   }
