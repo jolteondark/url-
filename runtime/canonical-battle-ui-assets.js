@@ -158,6 +158,8 @@ function installCanonicalBattleUiStyle(documentRef) {
   outline: 0 !important;
   transform: none !important;
 }
+#battle-card[data-canonical-battle-ui="loading"] .battle-info-panel,
+#battle-card[data-canonical-battle-ui="loading"] .battle-command-panel,
 #battle-card[data-canonical-battle-ui="error"] .battle-info-panel,
 #battle-card[data-canonical-battle-ui="error"] .battle-command-panel {
   visibility: hidden !important;
@@ -170,9 +172,9 @@ export async function installCanonicalBattleUiAssets(documentRef = document) {
   const card = documentRef.getElementById("battle-card");
   if (!card) throw new Error("canonical Battle UI install failed: #battle-card missing");
   card.dataset.canonicalBattleUi = "loading";
+  installCanonicalBattleUiStyle(documentRef);
   try {
     await Promise.all(Object.values(CANONICAL_BATTLE_UI_ASSETS).map(preloadCanonicalBattleUiAsset));
-    installCanonicalBattleUiStyle(documentRef);
     installCanonicalBattleLevelPresentation(documentRef);
     card.style.setProperty("--canonical-battle-player-databox", `url("${CANONICAL_BATTLE_UI_ASSETS.playerDatabox}")`);
     card.style.setProperty("--canonical-battle-foe-databox", `url("${CANONICAL_BATTLE_UI_ASSETS.foeDatabox}")`);
@@ -185,7 +187,6 @@ export async function installCanonicalBattleUiAssets(documentRef = document) {
     card.dataset.canonicalBattleUi = "ready";
     return CANONICAL_BATTLE_UI_ASSETS;
   } catch (error) {
-    installCanonicalBattleUiStyle(documentRef);
     card.dataset.canonicalBattleUi = "error";
     globalThis.__maplessLastError = error instanceof Error ? error : new Error(String(error));
     throw globalThis.__maplessLastError;
