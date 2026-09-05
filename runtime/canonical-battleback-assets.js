@@ -17,16 +17,17 @@ const CANONICAL_BATTLEBACK_VARIANTS = Object.freeze({
 });
 
 function canonicalBattlebackTimeIdentifier(value) {
+  if (value == null) return null;
   if (value === 1 || value === "1") return "eve";
   if (value === 2 || value === "2") return "night";
-  const identifier = String(value ?? "day").trim().toLowerCase();
+  const identifier = String(value).trim().toLowerCase();
   if (identifier === "eve" || identifier === "evening") return "eve";
   if (identifier === "night") return "night";
-  if (identifier === "day" || identifier === "daytime" || identifier === "0" || identifier === "") return "day";
+  if (identifier === "day" || identifier === "daytime" || identifier === "0") return "day";
   return null;
 }
 
-export function resolveCanonicalBattlebackAssets(timeOfDay = "day") {
+export function resolveCanonicalBattlebackAssets(timeOfDay) {
   const identifier = canonicalBattlebackTimeIdentifier(timeOfDay);
   if (!identifier) return null;
   return CANONICAL_BATTLEBACK_VARIANTS[identifier] ?? null;
