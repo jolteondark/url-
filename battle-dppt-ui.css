@@ -32,7 +32,7 @@
 #battle-card .battle-command-panel{min-height:170px;border-top:0;background:#cdd1ce;grid-template-columns:44% 56%}
 #battle-card .battle-message{min-height:104px;border:2px solid #23292c;border-radius:0;padding:11px 13px 14px;background:linear-gradient(180deg,#fffef8,#ecece1);color:#202020;font-size:.86rem;font-weight:400;line-height:1.36;box-shadow:inset 0 0 0 2px #c8d9df}
 #battle-card .battle-message::after{color:#3a403e;font-size:.58rem}
-#battle-card #turn,#battle-card #battle-phase{display:none!important}
+#battle-card .battle-topline,#battle-card #turn,#battle-card #battle-phase{display:none!important}
 #battle-card .canonical-status-badge{border-radius:1px;min-width:28px;padding:1px 3px;font-size:.48rem}
 @media(max-width:540px) and (orientation:portrait){
  #battle-card.battle-scene{min-height:calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 4px)}
