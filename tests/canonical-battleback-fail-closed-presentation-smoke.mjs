@@ -15,7 +15,7 @@ assert.match(css, /\.arena::after,/);
 assert.match(css, /\.battle-platform\s*\{\s*\n?\s*background:none!important;\s*\n?\s*border:0!important;/);
 assert.match(css, /\.arena,[\s\S]*?\.arena::after,[\s\S]*?\.battle-platform\{[\s\S]*?background:none!important;[\s\S]*?border:0!important;/);
 
-assert.match(index, /battle-dppt-ui\.css\?v=20260906-0030/);
+assert.match(index, /battle-dppt-ui\.css\?v=20260906-0300/);
 assert.match(index, /preview\.js\?v=20260906-0100/);
 
 console.log("canonical battleback fail-closed presentation smoke: ok");
