@@ -21,7 +21,15 @@ const frontSpecies = [
   "STUNFISK",
   "TROPIUS",
 ];
-const backSpecies = ["CATERPIE", "CHARMANDER", "DWEBBLE", "PICHU"];
+const backSpecies = [
+  "CATERPIE",
+  "CHARMANDER",
+  "DRUDDIGON",
+  "DWEBBLE",
+  "GASTLY",
+  "HERACROSS",
+  "PICHU",
+];
 const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 function assertPublishedPng(relativePath) {
@@ -48,9 +56,9 @@ for (const species of backSpecies) {
 
 const preview = readFileSync(new URL("../preview.js", import.meta.url), "utf8");
 const index = readFileSync(new URL("../index.html", import.meta.url), "utf8");
-assert.match(preview, /canonical-battle-battler-assets\.js\?v=20260904-1800/, "reachable preview must request the post-back-sprite battler adapter generation");
-assert.doesNotMatch(preview, /canonical-battle-battler-assets\.js\?v=20260904-0800/, "reachable preview must not retain the stale pre-back-sprite battler adapter generation");
-assert.match(index, /preview\.js\?v=20260905-0100/, "public entry point must deliver the post-back-sprite preview generation");
-assert.doesNotMatch(index, /preview\.js\?v=20260904-1000/, "public entry point must not retain the stale preview shell generation");
+assert.match(preview, /canonical-battle-battler-assets\.js\?v=20260905-1000/, "reachable preview must request the recovered-back-sprite battler adapter generation");
+assert.doesNotMatch(preview, /canonical-battle-battler-assets\.js\?v=20260904-1800/, "reachable preview must not retain the stale pre-recovery battler adapter generation");
+assert.match(index, /preview\.js\?v=20260905-1100/, "public entry point must deliver the recovered-back-sprite preview generation");
+assert.doesNotMatch(index, /preview\.js\?v=20260905-0100/, "public entry point must not retain the stale preview shell generation");
 
 console.log(`canonical Battle battler public delivery smoke: ${frontSpecies.length} front + ${backSpecies.length} back PNGs ok`);
