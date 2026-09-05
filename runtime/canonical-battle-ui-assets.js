@@ -125,6 +125,10 @@ function installCanonicalBattleUiStyle(documentRef) {
 #battle-card[data-canonical-battle-ui="ready"][data-dppt-menu="fight"] .move-grid button {
   position: relative !important;
 }
+#battle-card[data-canonical-battle-ui="ready"] .dppt-command-root button[data-dppt-command="fight"] { --canonical-command-cursor-y: 0%; }
+#battle-card[data-canonical-battle-ui="ready"] .dppt-command-root button[data-dppt-command="party"] { --canonical-command-cursor-y: 11.111111%; }
+#battle-card[data-canonical-battle-ui="ready"] .dppt-command-root button[data-dppt-command="bag"] { --canonical-command-cursor-y: 22.222222%; }
+#battle-card[data-canonical-battle-ui="ready"] .dppt-command-root button[data-dppt-command="flee"] { --canonical-command-cursor-y: 33.333333%; }
 #battle-card[data-canonical-battle-ui="ready"] .dppt-command-root button:focus-visible::before,
 #battle-card[data-canonical-battle-ui="ready"] .dppt-command-root button:active::before {
   content: "" !important;
@@ -136,8 +140,8 @@ function installCanonicalBattleUiStyle(documentRef) {
   z-index: 4 !important;
   background-image: var(--canonical-battle-command-cursor) !important;
   background-repeat: no-repeat !important;
-  background-position: center !important;
-  background-size: 100% 100% !important;
+  background-position: 100% var(--canonical-command-cursor-y, 0%) !important;
+  background-size: 200% 1000% !important;
 }
 #battle-card[data-canonical-battle-ui="ready"][data-dppt-menu="fight"] .move-grid button:focus-visible::before,
 #battle-card[data-canonical-battle-ui="ready"][data-dppt-menu="fight"] .move-grid button:active::before {
