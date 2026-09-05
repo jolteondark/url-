@@ -23,8 +23,12 @@ const expected = {
 };
 
 assert.deepEqual(CANONICAL_BATTLEBACK_VARIANTS, expected);
+assert.deepEqual(resolveCanonicalBattlebackAssets("day"), expected.day);
 assert.deepEqual(resolveCanonicalBattlebackAssets("evening"), expected.eve);
 assert.deepEqual(resolveCanonicalBattlebackAssets(2), expected.night);
+assert.equal(resolveCanonicalBattlebackAssets(), null);
+assert.equal(resolveCanonicalBattlebackAssets(null), null);
+assert.equal(resolveCanonicalBattlebackAssets(""), null);
 assert.equal(resolveCanonicalBattlebackAssets("unknown"), null);
 
 const serialized = JSON.stringify(CANONICAL_BATTLEBACK_VARIANTS);
