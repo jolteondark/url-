@@ -117,6 +117,7 @@ function installCanonicalBattleBattlerStyle(documentRef) {
   color: transparent !important;
   font-size: 0 !important;
   line-height: 0 !important;
+  opacity: 1 !important;
 }
 #battle-card .text-mon[data-canonical-battle-sprite="missing"],
 #battle-card .text-mon[data-canonical-battle-sprite="error"] {
