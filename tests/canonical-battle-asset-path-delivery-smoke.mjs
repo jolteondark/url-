@@ -11,6 +11,7 @@ const requireFile = (path, label) => assert.ok(existsSync(join(root, path)), `${
 const battler = read("runtime/canonical-battle-battler-assets.js");
 const ui = read("runtime/canonical-battle-ui-assets.js");
 const battleback = read("runtime/canonical-battleback-assets.js");
+const trainer = read("runtime/canonical-trainer-sources.js");
 
 function extractFrozenArray(source, name) {
   const body = source.match(new RegExp(`const ${name} = Object\\.freeze\\(\\[([\\s\\S]*?)\\]\\);`))?.[1] ?? "";
@@ -33,7 +34,13 @@ const battlebackPaths = [...battleback.matchAll(/"(\.\/assets\/canonical-battleb
 assert.equal(new Set(battlebackPaths).size, 9, "canonical DAY/EVE/NIGHT battleback resolver must retain all 9 published PNGs");
 for (const path of new Set(battlebackPaths)) requireFile(path, "canonical Battle background/base asset");
 
-for (const source of [battler, ui, battleback]) {
+const trainerNames = [...trainer.matchAll(/^\s*'([^'\n]+\.png)': Object\.freeze\(/gm)].map((match) => match[1]);
+assert.ok(trainerNames.length >= 1, "canonical trainer resolver must expose verified trainer PNG names");
+for (const name of trainerNames) {
+  requireFile(`assets/canonical-trainers/${name}`, `canonical trainer sprite ${name}`);
+}
+
+for (const source of [battler, ui, battleback, trainer]) {
   assert.doesNotMatch(source, /assets\/canonical-[^"'`]+\.(?:PNG|Png|pNg|pnG)/, "canonical asset URLs must preserve exact lowercase .png extension");
 }
 
