@@ -1,3 +1,5 @@
+import { SAFARI_MOVE_PRESENTATION } from "./safari-move-presentation-live.js";
+
 const CANONICAL_BATTLE_UI_ASSETS = Object.freeze({
   playerDatabox: "./assets/canonical-battle-ui/databox_normal.png",
   foeDatabox: "./assets/canonical-battle-ui/databox_normal_foe.png",
@@ -18,6 +20,29 @@ const CANONICAL_BATTLE_UI_REQUIRED_ASSET_KEYS = Object.freeze([
   "levelOverlay",
   "commandCursor",
 ]);
+
+const CANONICAL_FIGHT_CURSOR_ICON_POSITION = Object.freeze({
+  NORMAL: 0,
+  FIGHTING: 1,
+  FLYING: 2,
+  POISON: 3,
+  GROUND: 4,
+  ROCK: 5,
+  BUG: 6,
+  GHOST: 7,
+  STEEL: 8,
+  QMARKS: 9,
+  FIRE: 10,
+  WATER: 11,
+  GRASS: 12,
+  ELECTRIC: 13,
+  PSYCHIC: 14,
+  ICE: 15,
+  DRAGON: 16,
+  DARK: 17,
+  FAIRY: 18,
+});
+const CANONICAL_FIGHT_CURSOR_ROW_COUNT = 19;
 
 function preloadCanonicalBattleUiAsset(src) {
   return new Promise((resolve, reject) => {
@@ -50,6 +75,33 @@ async function installCanonicalBattleFightCursor(card) {
     card.dataset.canonicalBattleFightCursor = "error";
     rememberCanonicalBattleUiDiagnostic("fightCursor", "unavailable", src, error);
   }
+}
+
+function syncCanonicalFightCursorType(button) {
+  const moveId = button?.dataset?.moveId;
+  const type = moveId ? SAFARI_MOVE_PRESENTATION[moveId]?.type : null;
+  const iconPosition = type == null ? null : CANONICAL_FIGHT_CURSOR_ICON_POSITION[type];
+  if (!Number.isInteger(iconPosition)) {
+    button?.style?.removeProperty("--canonical-fight-cursor-y");
+    if (button?.dataset) delete button.dataset.canonicalFightCursorType;
+    return;
+  }
+  button.dataset.canonicalFightCursorType = type;
+  button.style.setProperty(
+    "--canonical-fight-cursor-y",
+    `${(iconPosition / (CANONICAL_FIGHT_CURSOR_ROW_COUNT - 1)) * 100}%`,
+  );
+}
+
+function installCanonicalFightCursorTypePresentation(documentRef) {
+  const moves = documentRef.getElementById("moves");
+  if (!moves) throw new Error("canonical fight cursor presentation requires #moves");
+  const syncAll = () => moves.querySelectorAll("button[data-move-id]").forEach(syncCanonicalFightCursorType);
+  syncAll();
+  const MutationObserverRef = documentRef.defaultView?.MutationObserver ?? globalThis.MutationObserver;
+  if (!MutationObserverRef) throw new Error("canonical fight cursor presentation requires MutationObserver");
+  const observer = new MutationObserverRef(syncAll);
+  observer.observe(moves, { childList: true, subtree: true });
 }
 
 function installCanonicalBattleLevelPresentation(documentRef) {
@@ -177,8 +229,8 @@ function installCanonicalBattleUiStyle(documentRef) {
   background-position: 100% var(--canonical-command-cursor-y, 0%) !important;
   background-size: 200% 1000% !important;
 }
-#battle-card[data-canonical-battle-ui="ready"][data-canonical-battle-fight-cursor="ready"][data-dppt-menu="fight"] .move-grid button:focus-visible::before,
-#battle-card[data-canonical-battle-ui="ready"][data-canonical-battle-fight-cursor="ready"][data-dppt-menu="fight"] .move-grid button:active::before {
+#battle-card[data-canonical-battle-ui="ready"][data-canonical-battle-fight-cursor="ready"][data-dppt-menu="fight"] .move-grid button[data-canonical-fight-cursor-type]:focus-visible::before,
+#battle-card[data-canonical-battle-ui="ready"][data-canonical-battle-fight-cursor="ready"][data-dppt-menu="fight"] .move-grid button[data-canonical-fight-cursor-type]:active::before {
   content: "" !important;
   display: block !important;
   position: absolute !important;
@@ -188,11 +240,11 @@ function installCanonicalBattleUiStyle(documentRef) {
   z-index: 4 !important;
   background-image: var(--canonical-battle-fight-cursor) !important;
   background-repeat: no-repeat !important;
-  background-position: center !important;
-  background-size: 100% 100% !important;
+  background-position: 100% var(--canonical-fight-cursor-y) !important;
+  background-size: 200% 1900% !important;
 }
-#battle-card[data-canonical-battle-ui="ready"][data-canonical-battle-fight-cursor="ready"][data-dppt-menu="fight"] .move-grid button:focus-visible,
-#battle-card[data-canonical-battle-ui="ready"][data-canonical-battle-fight-cursor="ready"][data-dppt-menu="fight"] .move-grid button:active:not(:disabled) {
+#battle-card[data-canonical-battle-ui="ready"][data-canonical-battle-fight-cursor="ready"][data-dppt-menu="fight"] .move-grid button[data-canonical-fight-cursor-type]:focus-visible,
+#battle-card[data-canonical-battle-ui="ready"][data-canonical-battle-fight-cursor="ready"][data-dppt-menu="fight"] .move-grid button[data-canonical-fight-cursor-type]:active:not(:disabled) {
   outline: 0 !important;
   transform: none !important;
 }
@@ -216,6 +268,7 @@ export async function installCanonicalBattleUiAssets(documentRef = document) {
   try {
     await Promise.all(CANONICAL_BATTLE_UI_REQUIRED_ASSET_KEYS.map((key) => preloadCanonicalBattleUiAsset(CANONICAL_BATTLE_UI_ASSETS[key])));
     installCanonicalBattleLevelPresentation(documentRef);
+    installCanonicalFightCursorTypePresentation(documentRef);
     card.style.setProperty("--canonical-battle-player-databox", `url("${CANONICAL_BATTLE_UI_ASSETS.playerDatabox}")`);
     card.style.setProperty("--canonical-battle-foe-databox", `url("${CANONICAL_BATTLE_UI_ASSETS.foeDatabox}")`);
     card.style.setProperty("--canonical-battle-message-overlay", `url("${CANONICAL_BATTLE_UI_ASSETS.messageOverlay}")`);
@@ -233,4 +286,4 @@ export async function installCanonicalBattleUiAssets(documentRef = document) {
   }
 }
 
-export { CANONICAL_BATTLE_UI_ASSETS };
+export { CANONICAL_BATTLE_UI_ASSETS, CANONICAL_FIGHT_CURSOR_ICON_POSITION };
