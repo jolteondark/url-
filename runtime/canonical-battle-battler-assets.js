@@ -26,6 +26,7 @@ const CANONICAL_BATTLE_BACK_SPECIES = Object.freeze([
   "DWEBBLE",
   "GASTLY",
   "HERACROSS",
+  "KANGASKHAN",
   "PICHU",
 ]);
 const observedDocuments = new WeakSet();
