@@ -25,24 +25,29 @@ assert.match(
   "canonical battler load failure must remain fail-closed and diagnosable",
 );
 assert.match(
+  source,
+  /#battle-card \.text-mon\[data-canonical-battle-sprite\][\s\S]*?opacity:\s*1\s*!important/,
+  "loaded canonical battlers must override the legacy placeholder opacity instead of rendering at 18% opacity",
+);
+assert.match(
   previewSource,
-  /canonical-battle-battler-assets\.js\?v=20260906-0500/,
-  "public preview must request the post-#1261 canonical battler adapter generation",
+  /canonical-battle-battler-assets\.js\?v=20260906-1500/,
+  "public preview must request the full-opacity canonical battler adapter generation",
 );
 assert.doesNotMatch(
   previewSource,
-  /canonical-battle-battler-assets\.js\?v=20260905-1000/,
-  "public preview must not retain the stale pre-#1261 canonical battler adapter generation",
+  /canonical-battle-battler-assets\.js\?v=20260906-0500/,
+  "public preview must not retain the faded canonical battler adapter generation",
 );
 assert.match(
   indexSource,
-  /preview\.js\?v=20260906-0600/,
-  "outer Safari/Web entry must request the post-#1264 preview generation",
+  /preview\.js\?v=20260906-1430/,
+  "outer Safari/Web entry must retain the current preview generation until the next outer delivery refresh",
 );
 assert.doesNotMatch(
   indexSource,
-  /preview\.js\?v=20260906-0100/,
-  "outer Safari/Web entry must not retain the stale pre-#1264 preview generation",
+  /preview\.js\?v=20260906-0900/,
+  "outer Safari/Web entry must not regress to the pre-status preview generation",
 );
 
 console.log("canonical Battle battler load fail-closed smoke: ok");
