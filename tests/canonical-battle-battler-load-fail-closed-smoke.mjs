@@ -41,13 +41,13 @@ assert.doesNotMatch(
 );
 assert.match(
   indexSource,
-  /preview\.js\?v=20260906-1430/,
-  "outer Safari/Web entry must retain the current preview generation until the next outer delivery refresh",
+  /preview\.js\?v=20260906-1530/,
+  "outer Safari/Web entry must publish the preview generation that imports the full-opacity battler adapter",
 );
 assert.doesNotMatch(
   indexSource,
-  /preview\.js\?v=20260906-0900/,
-  "outer Safari/Web entry must not regress to the pre-status preview generation",
+  /preview\.js\?v=20260906-1430/,
+  "outer Safari/Web entry must not retain the pre-full-opacity preview generation",
 );
 
 console.log("canonical Battle battler load fail-closed smoke: ok");
