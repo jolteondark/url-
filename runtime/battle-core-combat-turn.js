@@ -20,6 +20,12 @@ import {
   createBattleStatStageStateCanonical,
   injectBattleStatStagesIntoActionCanonical,
 } from "./battle-core-stat-stages.js";
+import {
+  advanceBattleWeatherEnvironmentEndOfRoundCanonical,
+  commitResolvedMoveWeatherCanonical,
+  createBattleWeatherEnvironmentState,
+  injectLiveBattleWeatherIntoActionCanonical,
+} from "./battle-weather-environment-state.js";
 
 function resolveTryUseMoveInputCanonical(action) {
   if (action?.kind !== "move" || !action.useMoveInput?.tryUseMoveInput) return { action, resolution: null };
@@ -238,10 +244,24 @@ function applyResolvedActionStagesCanonical(resolvedAction, inputStatStages) {
   return { action: actionAfter.action, statStages: actionAfter.statStages };
 }
 
+function activeWeatherBattlersCanonical(actions) {
+  const firstMove = actions.find((action) => action?.kind === "move" && action?.abilityItemActionBefore?.modifiers);
+  if (!firstMove) return [];
+  const modifiers = firstMove.abilityItemActionBefore.modifiers ?? {};
+  return [
+    { ability: modifiers.userAbility ?? "NONE" },
+    { ability: modifiers.targetAbility ?? "NONE" },
+  ];
+}
+
 function resolveRoundActionsCanonical(round) {
   const actions = (Array.isArray(round?.actions) ? round.actions : []).map((action) => structuredClone(action));
   let statStages = createBattleStatStageStateCanonical(round?.statStages);
-  if (actions.length === 0) return { actions, statStages };
+  let weatherState = createBattleWeatherEnvironmentState(round?.weatherState);
+  const activeWeatherBattlers = Array.isArray(round?.activeBattlers)
+    ? round.activeBattlers
+    : activeWeatherBattlersCanonical(actions);
+  if (actions.length === 0) return { actions, statStages, weatherState };
   const order = Array.isArray(round?.priorityOrder)
     ? round.priorityOrder.map(Number).filter((index) => Number.isInteger(index) && index >= 0 && index < actions.length)
     : actions.map((_, index) => index);
@@ -253,10 +273,12 @@ function resolveRoundActionsCanonical(round) {
 
   for (const actionIndex of order) {
     if (acted.has(actionIndex)) continue;
-    const staged = injectBattleStatStagesIntoActionCanonical(actions[actionIndex], statStages);
+    const stageInjected = injectBattleStatStagesIntoActionCanonical(actions[actionIndex], statStages);
+    const staged = injectLiveBattleWeatherIntoActionCanonical(stageInjected, weatherState, activeWeatherBattlers);
     const resolved = applyResolvedActionStagesCanonical(resolveCombatActionCanonical(staged), statStages);
     statStages = resolved.statStages;
     actions[actionIndex] = resolved.action;
+    weatherState = commitResolvedMoveWeatherCanonical(weatherState, resolved.action);
     acted.add(actionIndex);
     if (!triggeredDirectFlinch(resolved.action)) continue;
     const targetActionIndex = battlerActionIndex.get(Number(resolved.action.targetBattlerIndex));
@@ -265,22 +287,27 @@ function resolveRoundActionsCanonical(round) {
   }
   for (let actionIndex = 0; actionIndex < actions.length; actionIndex += 1) {
     if (acted.has(actionIndex)) continue;
-    const staged = injectBattleStatStagesIntoActionCanonical(actions[actionIndex], statStages);
+    const stageInjected = injectBattleStatStagesIntoActionCanonical(actions[actionIndex], statStages);
+    const staged = injectLiveBattleWeatherIntoActionCanonical(stageInjected, weatherState, activeWeatherBattlers);
     const resolved = applyResolvedActionStagesCanonical(resolveCombatActionCanonical(staged), statStages);
     statStages = resolved.statStages;
     actions[actionIndex] = resolved.action;
+    weatherState = commitResolvedMoveWeatherCanonical(weatherState, resolved.action);
   }
-  return { actions, statStages };
+  weatherState = advanceBattleWeatherEnvironmentEndOfRoundCanonical(weatherState);
+  return { actions, statStages, weatherState };
 }
 
 export function prepareCombatTurnInputCanonical(input = {}) {
   let seeded = input.combatRandomSeed === undefined ? input : materializeSeededAccuracyDamageCanonical(input);
   seeded = seeded.secondaryEffectRandomSeed === undefined ? seeded : materializeSeededSecondaryEffectsCanonical(seeded);
+  let weatherState = createBattleWeatherEnvironmentState(seeded.weatherState);
   const rounds = (Array.isArray(seeded.rounds) ? seeded.rounds : []).map((round) => {
-    const resolved = resolveRoundActionsCanonical(round);
-    return { ...round, actions: resolved.actions, statStages: resolved.statStages };
+    const resolved = resolveRoundActionsCanonical({ ...round, weatherState: round?.weatherState ?? weatherState });
+    weatherState = resolved.weatherState;
+    return { ...round, actions: resolved.actions, statStages: resolved.statStages, weatherState: resolved.weatherState };
   });
-  return { ...seeded, rounds };
+  return { ...seeded, rounds, weatherState };
 }
 
 export function resolveCombatTurnVerticalSlice(input = {}) {
