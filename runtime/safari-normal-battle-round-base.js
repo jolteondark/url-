@@ -217,6 +217,7 @@ function resolveTrainer(runtime, selectedMoveId, playerActionConsumedWithoutMove
       playerBattleExpInput: playerActionConsumedWithoutMove ? null : normalBattleExpInput(player, defeatedFoe, true),
       playerActionConsumedWithoutMove,
       battleStatStages: ensureBattleStatStages(battle),
+      battleWeatherState: battle.battle_weather_state ?? null,
     },
     ownedOpponentInput: {
       battleKind: "trainer",
@@ -247,6 +248,7 @@ function resolveTrainer(runtime, selectedMoveId, playerActionConsumedWithoutMove
   battle.trainer_party_order = structuredClone(next?.partyOrder ?? battle.trainer_party_order ?? null);
   battle.foe = structuredClone(resolved.foe);
   battle.stat_stages = createBattleStatStageStateCanonical(resolved.statStages ?? battle.stat_stages);
+  battle.battle_weather_state = structuredClone(resolved.battleWeatherState ?? null);
   if (resolved.foeReplacementApplied) battle.stat_stages = resetBattleStatStagesForBattlerCanonical(battle.stat_stages, 1);
   if (resolved.playerReplacementApplied) battle.stat_stages = resetBattleStatStagesForBattlerCanonical(battle.stat_stages, 0);
   battle.decision = Number(next?.decision ?? resolved.decision ?? 0);
@@ -282,6 +284,7 @@ function applyWildResolved(runtime, resolved, playerIndex) {
   battle.player_party_order = structuredClone(handoff?.playerPartyOrder ?? battle.player_party_order ?? null);
   battle.foe = structuredClone(resolved.foe);
   battle.stat_stages = createBattleStatStageStateCanonical(resolved.statStages ?? battle.stat_stages);
+  battle.battle_weather_state = structuredClone(resolved.battleWeatherState ?? null);
   battle.decision = Number(resolved.decision);
   projectPlayerReplacement(battle, handoff);
   const roundExpGained = (resolved.expIntegration?.commits ?? []).reduce((sum, commit) => sum + Number(commit.expGained ?? 0), 0);
@@ -350,6 +353,7 @@ function resolveWild(runtime, selectedMoveId, playerActionConsumedWithoutMove = 
     playerBattleExpInput: playerActionConsumedWithoutMove ? null : normalBattleExpInput(player, defeatedFoe, false),
     playerActionConsumedWithoutMove,
     battleStatStages: ensureBattleStatStages(battle),
+    battleWeatherState: battle.battle_weather_state ?? null,
   });
   return applyWildResolved(runtime, {
     ...resolved,
