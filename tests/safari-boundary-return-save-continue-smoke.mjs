@@ -1,4 +1,9 @@
 import assert from "node:assert/strict";
+import {
+  advanceBattleWeatherEnvironmentEndOfRoundCanonical,
+  commitResolvedMoveWeatherCanonical,
+  createBattleWeatherEnvironmentState,
+} from "../runtime/battle-weather-environment-state.js";
 
 class MemoryStorage {
   constructor() { this.map = new Map(); }
@@ -16,6 +21,17 @@ const web = await import("../runtime/safari-web-playable-integration.js");
 const runtime = web.createSafariPlayableRuntime();
 const state = runtime.variables.mapless;
 
+let weather = createBattleWeatherEnvironmentState();
+weather = commitResolvedMoveWeatherCanonical(weather, {
+  kind: "move",
+  functionCode: "StartRainWeather",
+  moveSkipped: false,
+  lastMoveFailed: false,
+});
+weather = advanceBattleWeatherEnvironmentEndOfRoundCanonical(weather);
+assert.deepEqual(weather, { weather: "Rain", turns: 4 },
+  "the completed boundary Battle fixture must carry authoritative live weather owner state");
+
 state.day = 10;
 state.location = "boundary_trial";
 state.boundary_trial = {
@@ -31,6 +47,7 @@ state.battle = {
   completed: true,
   decision: 1,
   return_target: "day_board",
+  battle_weather_state: structuredClone(weather),
 };
 
 const returned = await web.returnSafariToDayBoard(runtime);
@@ -39,7 +56,7 @@ assert.equal(returned.phase, "RETURN", "boundary Result return must pass through
 assert.equal(returned.phaseTrace.at(-1)?.phase, "RETURN");
 assert.equal(state.location, "day_board");
 assert.equal(state.day, 11, "boundary Result return must materialize DAY 11");
-assert.equal(state.battle, null, "boundary Result return must clear the completed Battle");
+assert.equal(state.battle, null, "boundary Result return must clear the completed Battle, including live weather state");
 assert.equal(state.board_events.length, 8, "DAY 11 return must own a complete Board");
 assert.ok(state.board_events.some((event) => event?.kind === "next_day"), "DAY 11 Board must retain stairs/next_day");
 assert.equal(returned.persistenceRequested, true, "DAY 11 return must explicitly request persistence");
@@ -62,7 +79,7 @@ const restored = loaded.state;
 const restoredState = restored.variables.mapless;
 assert.equal(restoredState.location, "day_board", "fresh Continue must not resurrect the boundary Result scene");
 assert.equal(restoredState.day, 11, "fresh Continue must resume the committed DAY 11 Board");
-assert.equal(restoredState.battle, null, "fresh Continue must keep boundary Battle cleared");
+assert.equal(restoredState.battle, null, "fresh Continue must not resurrect completed Battle weather state");
 assert.deepEqual(restoredState.board_events, expectedBoardEvents);
 assert.deepEqual(restoredState.board_revealed, expectedRevealed);
 assert.deepEqual(restoredState.board_consumed, expectedConsumed);
@@ -71,4 +88,4 @@ assert.deepEqual(restored.player.party, expectedParty, "boundary return/Continue
 assert.deepEqual(restored.bag, expectedBag, "boundary return/Continue must preserve Bag/Money state");
 assert.equal(globalThis.__maplessSafariRuntime, restored, "Continue must install the restored shared runtime identity");
 
-console.log("Safari boundary Result -> DAY 11 -> save -> fresh Continue: ok");
+console.log("Safari weather Battle Result -> DAY 11 -> save -> fresh Continue: ok");
