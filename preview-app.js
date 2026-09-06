@@ -392,6 +392,7 @@ byId("board").addEventListener("click", async (event) => {
     await ensureBoardActionData(index);
     const result = await activateSafariDayBoardCell(runtime, index);
     note(result.boundary + ": " + result.result);
+    autoSaveIfRequested(result, "Day Board auto-save");
     if (mapless().battle) {
       window.setTimeout(() => byId("battle-card").scrollIntoView({ behavior: "smooth", block: "start" }), 0);
     } else if (mapless().shop) {
