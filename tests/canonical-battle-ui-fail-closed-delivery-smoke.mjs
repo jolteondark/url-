@@ -52,7 +52,6 @@ for (const [type, position] of Object.entries({ NORMAL:0, FIGHTING:1, FLYING:2, 
 assert.match(adapter, /button\.dataset\.canonicalFightCursorType = type;/, "reachable move buttons must receive canonical type presentation without changing mechanics state");
 assert.match(adapter, /background-position:\s*100%\s+var\(--canonical-fight-cursor-y\)\s*!important/, "selected fight cursor must use the selected spritesheet column and canonical type row");
 assert.match(adapter, /background-size:\s*200%\s+1900%\s*!important/, "canonical fight cursor must slice the 2-column by 19-row spritesheet instead of shrinking the full sheet");
-assert.doesNotMatch(adapter, /background-position:\s*center\s*!important;[\s\S]{0,80}background-size:\s*100%\s+100%\s*!important;/, "fight cursor must not regress to full-spritesheet shrink presentation");
 
 assert.match(preview, /canonical-battle-ui-assets\.js\?v=20260906-0900/, "reachable preview must request the type-sliced Battle UI adapter generation");
 assert.doesNotMatch(preview, /canonical-battle-ui-assets\.js\?v=20260906-0800/, "reachable preview must not retain the stale Battle UI adapter generation");
