@@ -91,3 +91,27 @@ export function advanceBattleWeatherEnvironmentEndOfRoundCanonical(state) {
     ? Object.freeze({ weather: current.weather, turns })
     : Object.freeze({ weather: null, turns: 0 });
 }
+
+export function projectExecutedBattleWeatherCanonical(initialState, preparedBattleInput = {}, turnResult = {}) {
+  let state = createBattleWeatherEnvironmentState(initialState);
+  const rounds = Array.isArray(preparedBattleInput?.rounds) ? preparedBattleInput.rounds : [];
+  const operations = Array.isArray(turnResult?.operations) ? turnResult.operations : [];
+  const advancedRounds = new Set();
+
+  for (const operation of operations) {
+    const roundIndex = Number(operation?.round) - 1;
+    if (!Number.isInteger(roundIndex) || roundIndex < 0 || roundIndex >= rounds.length) continue;
+    const round = rounds[roundIndex];
+    if (operation.op === "use_move") {
+      const actionIndex = Number(operation.action);
+      const action = Array.isArray(round?.actions) ? round.actions[actionIndex] : null;
+      state = commitResolvedMoveWeatherCanonical(state, action);
+      continue;
+    }
+    if (operation.op === "end_of_round_phase" && !advancedRounds.has(roundIndex)) {
+      state = advanceBattleWeatherEnvironmentEndOfRoundCanonical(state);
+      advancedRounds.add(roundIndex);
+    }
+  }
+  return state;
+}
