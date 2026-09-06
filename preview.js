@@ -1,6 +1,7 @@
 import { installSafariEggHatchVisitBridgeV108 } from "./runtime/safari-egg-hatch-visits-v108.js";
 import { installCanonicalBattleUiAssets } from "./runtime/canonical-battle-ui-assets.js?v=20260906-0900";
 import { installCanonicalBattleBattlerAssets } from "./runtime/canonical-battle-battler-assets.js?v=20260906-0500";
+import { installCanonicalBattleStatusAssets } from "./runtime/canonical-battle-status-assets.js?v=20260906-1400";
 import { rememberCanonicalBattlebackDiagnostic } from "./runtime/canonical-battleback-assets.js?v=20260906-0000";
 
 let appPromise = null;
@@ -157,6 +158,10 @@ installCanonicalBattlebackFailClosedState();
 installCanonicalBattleBattlerAssets();
 installCanonicalBattleUiAssets().catch((error) => {
   console.error("[Mapless] canonical Battle UI assets unavailable", error);
+});
+installCanonicalBattleStatusAssets().catch((error) => {
+  globalThis.__maplessLastError = error instanceof Error ? error : new Error(String(error));
+  console.error("[Mapless] canonical Battle status assets unavailable", globalThis.__maplessLastError);
 });
 window.addEventListener("error", captureBattleRenderError);
 window.addEventListener("safari-runtime-changed", traceSceneAfterRuntimeChange);
