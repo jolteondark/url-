@@ -209,6 +209,7 @@ function resolveBoundaryRound(runtime, selectedMoveId, {
       foeMoveId,
       moveMasters: SAFARI_MOVE_MASTERS,
       playerActionConsumedWithoutMove,
+      battleWeatherState: battle.battle_weather_state ?? null,
     });
   } catch (error) {
     abortSafariBattleCommand(runtime, `boundary ${commandKind} failed`);
@@ -218,6 +219,7 @@ function resolveBoundaryRound(runtime, selectedMoveId, {
   const roundOperations = (resolved.operations ?? []).map((operation) => ({ ...operation, battleTurn: battle.turn }));
   const operations = [...clone(prefixOperations), ...roundOperations];
   const continuationHandoff = resolved.battleContinuationHandoff;
+  battle.battle_weather_state = clone(resolved.battleWeatherState ?? null);
   if (Array.isArray(continuationHandoff?.playerParty)) runtime.player.party = clone(continuationHandoff.playerParty);
   else runtime.player.party[playerActiveIndex] = resolved.player;
   battle.player_party_index = Number(continuationHandoff?.playerActivePartyIndex ?? playerActiveIndex);
