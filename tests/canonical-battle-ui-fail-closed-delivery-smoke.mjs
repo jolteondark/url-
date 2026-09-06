@@ -54,8 +54,8 @@ assert.match(adapter, /background-position:\s*100%\s+var\(--canonical-fight-curs
 assert.match(adapter, /background-size:\s*200%\s+1900%\s*!important/, "canonical fight cursor must slice the 2-column by 19-row spritesheet instead of shrinking the full sheet");
 
 assert.match(preview, /canonical-battle-ui-assets\.js\?v=20260906-0900/, "reachable preview must request the type-sliced Battle UI adapter generation");
-assert.doesNotMatch(preview, /canonical-battle-ui-assets\.js\?v=20260906-0800/, "reachable preview must not retain the stale Battle UI adapter generation");
-assert.match(index, /preview\.js\?v=20260906-0900/, "public entry point must deliver the preview generation that requests the type-sliced adapter");
-assert.doesNotMatch(index, /preview\.js\?v=20260906-0800/, "public entry point must not retain the stale outer preview generation");
+assert.match(preview, /canonical-battle-status-assets\.js\?v=20260906-1400/, "reachable preview must request the canonical Battle status adapter generation");
+assert.match(index, /preview\.js\?v=20260906-1430/, "public entry point must deliver the preview generation that requests canonical Battle status assets");
+assert.doesNotMatch(index, /preview\.js\?v=20260906-0900/, "public entry point must not retain the pre-status outer preview generation");
 
 console.log("canonical Battle UI fail-closed delivery smoke: ok");
