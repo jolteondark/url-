@@ -19,6 +19,7 @@ import { openSafariMinerTouch } from "./safari-miner-interaction.js";
 import { openSafariTavernTouch } from "./safari-tavern-interaction.js";
 import { openSafariNormalEventTouch, supportsSafariNormalEventTouch } from "./safari-normal-event-touch-handoff.js";
 import { openSafariCrumblingBridgeTouch } from "./safari-crumbling-bridge-interaction.js";
+import { safariOldStatuePresentation } from "./safari-old-statue-interaction.js";
 import { openSafariBerryContestTouch } from "./safari-berry-contest-touch.js";
 import { openSafariBountyPosterTouch } from "./safari-bounty-poster-interaction.js";
 import { startSafariBountyTargetBattle } from "./safari-bounty-target-interaction.js";
@@ -64,12 +65,28 @@ function applyScheduledBoardContinuation(runtime, event, result, previousDay) {
   };
 }
 
-function openCrumblingBridge(runtime, index) {
-  const result = openSafariCrumblingBridgeTouch(runtime, index);
+function signalNormalEventUi() {
   if (typeof globalThis.dispatchEvent === "function" && typeof globalThis.CustomEvent === "function") {
     globalThis.dispatchEvent(new CustomEvent("safari-normal-event-ui"));
   }
+}
+
+function openCrumblingBridge(runtime, index) {
+  const result = openSafariCrumblingBridgeTouch(runtime, index);
+  signalNormalEventUi();
   return result;
+}
+
+function openOldStatue(runtime, index) {
+  const state = runtime?.variables?.mapless;
+  if (state?.board_consumed?.[index]) return { runtime, result:"already_consumed", operations:[] };
+  const presentation = safariOldStatuePresentation(runtime, index);
+  state.board_revealed[index] = true;
+  state.board_visited[index] = true;
+  state.notice = presentation.message;
+  globalThis.__maplessNormalEventUi = { runtime, boardIndex:index, eventId:"old_statue", ...presentation };
+  signalNormalEventUi();
+  return { runtime, result:"old_statue_ready", boundary:"normal_event", notice:state.notice, operations:[] };
 }
 
 export function activateSafariDayBoardCell(runtime, index) {
@@ -80,6 +97,7 @@ export function activateSafariDayBoardCell(runtime, index) {
     if (event.normal_event_id === "bounty_poster") return openSafariBountyPosterTouch(runtime, index);
     if (event.normal_event_id === "berry_contest" && typeof globalThis.document !== "undefined") return openSafariBerryContestTouch(runtime, index);
     if (event.normal_event_id === "crumbling_bridge" && typeof globalThis.document !== "undefined") return openCrumblingBridge(runtime, index);
+    if (event.normal_event_id === "old_statue" && typeof globalThis.document !== "undefined") return openOldStatue(runtime, index);
     if (typeof globalThis.document !== "undefined" && supportsSafariNormalEventTouch(event.normal_event_id)) {
       return openSafariNormalEventTouch(runtime, index);
     }
