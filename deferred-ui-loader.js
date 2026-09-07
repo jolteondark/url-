@@ -12,7 +12,7 @@ const MENU_SPRITE_PRESENTATION_PUBLIC_REVISION = "20260902-1800";
 
 const boardPresentationFallbackModules = [
   "./berry-juice-shop-touch-presentation.js?v=20260908-0330",
-  "./trainer-camp-touch-presentation.js?v=20260901-1327",
+  "./trainer-camp-touch-presentation.js?v=20260908-0700",
   "./old-statue-touch-presentation.js?v=20260901-1327",
   "./machine-gacha-touch-presentation.js?v=20260908-0530",
   "./wishing-fountain-touch-presentation.js?v=20260901-1327",
