@@ -61,6 +61,9 @@ export function startSafariVillageBounty(runtime) {
 
 function battleNeedsGeneralData(battle) {
   if (!battle || battle.completed) return false;
+  // Normal GENERAL wild/trainer battles install only the selected species and
+  // their moves before Battle start. The boundary owner may project arbitrary
+  // leader content, so keep the full-master fallback for that path only.
   return battle.origin === "boundary_trial";
 }
 
