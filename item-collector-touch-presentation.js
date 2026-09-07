@@ -2,7 +2,7 @@ import {
   resolveSafariItemCollectorInteraction,
   safariItemCollectorPresentation,
 } from "./runtime/safari-item-collector-interaction.js?v=20260825-2355";
-import { saveSafariPlayableRun } from "./runtime/safari-web-startup.js";
+import { persistSafariOwnerResult } from "./runtime/safari-owner-result-persistence.js";
 
 let resolving = false;
 function runtime() { return globalThis.__maplessSafariRuntime ?? null; }
@@ -90,9 +90,7 @@ document.addEventListener("click", async (event) => {
   button.disabled = true;
   try {
     const result = resolveSafariItemCollectorInteraction(current, active.boardIndex, action);
-    if (result.persistenceRequested || result.operations?.some((operation) => operation.op === "request_save")) {
-      saveSafariPlayableRun(window.localStorage, current);
-    }
+    persistSafariOwnerResult(current, result, window.localStorage);
     if (result.completed) globalThis.__maplessNormalEventUi = null;
     else setUi(active.boardIndex, active.category ?? null);
     publish("safari-runtime-changed");
