@@ -24,6 +24,7 @@ import { openSafariLostBagTouch } from "./safari-lost-bag-touch.js";
 import { openSafariBerryJuiceShopTouch } from "./safari-berry-juice-shop-touch.js";
 import { openSafariMachineGachaTouch } from "./safari-machine-gacha-touch.js";
 import { openSafariTrainerCampTouch } from "./safari-trainer-camp-touch.js";
+import { openSafariWishingFountainTouch } from "./safari-wishing-fountain-touch.js";
 import { openSafariBerryContestTouch } from "./safari-berry-contest-touch.js";
 import { openSafariBountyPosterTouch } from "./safari-bounty-poster-interaction.js";
 import { startSafariBountyTargetBattle } from "./safari-bounty-target-interaction.js";
@@ -79,6 +80,7 @@ export function activateSafariDayBoardCell(runtime, index) {
     if (event.normal_event_id === "berry_juice_shop" && typeof globalThis.document !== "undefined") return openSafariBerryJuiceShopTouch(runtime, index);
     if (event.normal_event_id === "machine_gacha" && typeof globalThis.document !== "undefined") return openSafariMachineGachaTouch(runtime, index);
     if (event.normal_event_id === "trainer_camp" && typeof globalThis.document !== "undefined") return openSafariTrainerCampTouch(runtime, index);
+    if (event.normal_event_id === "wishing_fountain" && typeof globalThis.document !== "undefined") return openSafariWishingFountainTouch(runtime, index);
     if (typeof globalThis.document !== "undefined" && supportsSafariNormalEventTouch(event.normal_event_id)) return openSafariNormalEventTouch(runtime, index);
     if (event.normal_event_id === "street_performer") return interactiveSafariStreetPerformer(runtime, index);
     if (event.normal_event_id === "mushroom_field") return interactiveSafariMushroomField(runtime, index);
