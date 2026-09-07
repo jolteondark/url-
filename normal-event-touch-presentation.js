@@ -75,6 +75,7 @@ function loadOwner(eventId) {
       berry_contest:"./runtime/safari-berry-contest-interaction.js",
       lost_bag:"./runtime/safari-lost-bag-interaction.js",
       wounded_pokemon:"./runtime/safari-wounded-pokemon-integration.js",
+      crumbling_bridge:"./runtime/safari-crumbling-bridge-interaction.js",
       treasure_chest:"./runtime/safari-treasure-chest-interaction.js",
       miner:"./runtime/safari-miner-interaction.js",
       tavern:"./runtime/safari-tavern-interaction.js",
@@ -117,6 +118,7 @@ async function resolveAction(current, active, actionId) {
     const result = owner.resolveSafariWoundedPokemonDecision(current, active.boardIndex, input);
     return { ...result, completed:Boolean(current.variables?.mapless?.board_consumed?.[active.boardIndex]) };
   }
+  if (active.eventId === "crumbling_bridge") return owner.resolveSafariCrumblingBridgeInteraction(current, active.boardIndex, actionId);
   if (active.eventId === "treasure_chest") return owner.resolveSafariTreasureChest(current, active.boardIndex, actionId);
   if (active.eventId === "miner") return owner.resolveSafariMinerAction(current, active.boardIndex, actionId);
   if (active.eventId === "tavern") return owner.resolveSafariTavernAction(current, active.boardIndex, actionId);
