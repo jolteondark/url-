@@ -1,10 +1,10 @@
-import * as playable from "./safari-playable-integration-boundary.js";
+import * as playable from "./safari-playable-integration-entry-weather.js";
 import { resolveTrainerMoveChoiceWithPriorityFlinchCanonical } from "./battle-core-trainer-choice-priority-flinch-integration.js";
 import { maplessCarryMoneyGain } from "./mapless-carry-class-rules.js";
 import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
 import { ensureSafariGeneralData, safariGeneralDataReady } from "./safari-general-data-demand.js";
 
-export * from "./safari-playable-integration-boundary.js";
+export * from "./safari-playable-integration-entry-weather.js";
 export { SAFARI_MOVE_PRESENTATION } from "./safari-move-presentation-live.js";
 export { activateSafariDayBoardCell } from "./safari-pokemon-center-command.js";
 export { attemptSafariCapture } from "./safari-capture-command.js";
@@ -61,9 +61,6 @@ export function startSafariVillageBounty(runtime) {
 
 function battleNeedsGeneralData(battle) {
   if (!battle || battle.completed) return false;
-  // Normal GENERAL wild/trainer battles install only the selected species and
-  // their moves before Battle start. The boundary owner may project arbitrary
-  // leader content, so keep the full-master fallback for that path only.
   return battle.origin === "boundary_trial";
 }
 
