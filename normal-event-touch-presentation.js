@@ -42,6 +42,14 @@ async function displayActionsFor(current, active) {
     active.actions = owner.safariMachineGachaActions(current, active.boardIndex);
     return active.actions;
   }
+  if (active.eventId === "trainer_camp") {
+    const owner = await loadOwner(active.eventId);
+    const ui = await owner.safariTrainerCampPresentation(current, active.boardIndex);
+    active.title = ui.title;
+    active.message = ui.message;
+    active.actions = ui.actions;
+    return ui.actions;
+  }
   if (active.eventId === "street_performer") {
     const owner = await loadOwner(active.eventId);
     const scale = Math.max(Math.floor((Math.max(1, Number(state()?.day) || 1) - 1) / 5), 0);
@@ -88,6 +96,7 @@ function loadOwner(eventId) {
       lost_bag:"./runtime/safari-lost-bag-interaction.js",
       berry_juice_shop:"./runtime/safari-berry-juice-shop-interaction.js",
       machine_gacha:"./runtime/safari-machine-gacha-interaction.js",
+      trainer_camp:"./runtime/safari-trainer-camp-interaction.js",
       wounded_pokemon:"./runtime/safari-wounded-pokemon-integration.js",
       crumbling_bridge:"./runtime/safari-crumbling-bridge-interaction.js",
       old_statue:"./runtime/safari-old-statue-interaction.js",
@@ -128,10 +137,9 @@ async function resolveAction(current, active, actionId) {
   if (active.eventId === "lost_bag") return owner.resolveSafariLostBagInteraction(current, active.boardIndex, actionId);
   if (active.eventId === "berry_juice_shop") return owner.resolveSafariBerryJuiceShopInteraction(current, active.boardIndex, actionId);
   if (active.eventId === "machine_gacha") return owner.resolveSafariMachineGachaInteraction(current, active.boardIndex, actionId);
+  if (active.eventId === "trainer_camp") return owner.resolveSafariTrainerCampInteraction(current, active.boardIndex, actionId);
   if (active.eventId === "wounded_pokemon") {
-    const input = actionId === "leave"
-      ? { choice:"leave" }
-      : { choice:"treat", itemId:String(actionId).startsWith("treat:") ? String(actionId).slice(6) : "" };
+    const input = actionId === "leave" ? { choice:"leave" } : { choice:"treat", itemId:String(actionId).startsWith("treat:") ? String(actionId).slice(6) : "" };
     const result = owner.resolveSafariWoundedPokemonDecision(current, active.boardIndex, input);
     return { ...result, completed:Boolean(current.variables?.mapless?.board_consumed?.[active.boardIndex]) };
   }
@@ -207,7 +215,6 @@ async function sync() {
     }
     return;
   }
-
   lockBoard();
   card.hidden = false;
   const actions = await displayActionsFor(current, active);
