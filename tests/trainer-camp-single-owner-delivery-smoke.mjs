@@ -3,13 +3,14 @@ import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-const [legacy, command, touch, ui, manifest, deferred] = await Promise.all([
+const [legacy, command, touch, ui, manifest, deferred, index] = await Promise.all([
   read("trainer-camp-touch-presentation.js"),
   read("runtime/safari-pokemon-center-command.js"),
   read("runtime/safari-trainer-camp-touch.js"),
   read("normal-event-touch-presentation.js"),
   read("board-presentation-manifest.json"),
   read("deferred-ui-loader.js"),
+  read("index.html"),
 ]);
 
 assert.ok(!legacy.includes("addEventListener"), "legacy Trainer Camp presentation must not own clicks");
@@ -20,5 +21,10 @@ assert.match(ui, /resolveSafariTrainerCampInteraction/);
 assert.match(ui, /persistSafariOwnerResult\(current, result, window\.localStorage\)/);
 assert.match(manifest, /trainer-camp-touch-presentation\.js\?v=20260908-0700/);
 assert.match(deferred, /trainer-camp-touch-presentation\.js\?v=20260908-0700/);
+assert.match(index, /safari-pokemon-center-command\.js\?v=20260908-0710/);
+assert.match(index, /safari-trainer-camp-interaction\.js\?v=20260908-0710/);
+assert.match(index, /safari-trainer-camp-touch\.js\?v=20260908-0710/);
+assert.match(index, /deferred-ui-loader\.js\?v=20260908-0710/);
+assert.match(index, /normal-event-touch-presentation\.js\?v=20260908-0710/);
 
 console.log("trainer camp single-owner delivery smoke: ok");
