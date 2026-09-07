@@ -2,8 +2,10 @@ export * from "./safari-normal-battle-round-pre-gems.js";
 
 import {
   resolveSafariNormalBattleOpponentResponse as resolveSafariNormalBattleOpponentResponseBase,
+  resolveSafariNormalBattlePlayerReplacement as resolveSafariNormalBattlePlayerReplacementBase,
   resolveSafariNormalBattleRound as resolveSafariNormalBattleRoundBase,
 } from "./safari-normal-battle-round-pre-gems.js";
+import { commitSwitchInEntryWeatherCanonical } from "./battle-switch-in-entry-weather-commit.js";
 import { consumeHeldGemCanonical } from "./item-held-gem-effects.js";
 
 function stateOf(runtime) {
@@ -32,6 +34,18 @@ function gemHitActionForBattler(result, battlerIndex) {
 function commitGemOntoPokemon(current, action) {
   const consumed = consumeHeldGemCanonical(current, action?.abilityItemActionBefore?.userGem ?? null);
   return consumed.consumed ? consumed : null;
+}
+
+function applyCommittedFoeEntryWeather(runtime, result) {
+  const battle = stateOf(runtime).battle;
+  if (!result?.foeReplacementApplied || battle?.kind !== "trainer" || !battle?.foe) return result;
+  const entryWeather = commitSwitchInEntryWeatherCanonical({ battle, pokemon: battle.foe });
+  if (!entryWeather?.triggered) return result;
+  return {
+    ...result,
+    battleWeatherState: structuredClone(battle.battle_weather_state ?? null),
+    foeEntryWeather: structuredClone(entryWeather),
+  };
 }
 
 function applyGemConsumption(runtime, before, result) {
@@ -88,16 +102,32 @@ function prepare(runtime) {
 
 export function resolveSafariNormalBattleRound(runtime, selectedMoveId) {
   const before = prepare(runtime);
-  return applyGemConsumption(runtime, before, resolveSafariNormalBattleRoundBase(runtime, selectedMoveId));
+  const resolved = applyCommittedFoeEntryWeather(runtime, resolveSafariNormalBattleRoundBase(runtime, selectedMoveId));
+  return applyGemConsumption(runtime, before, resolved);
 }
 
 export function resolveSafariNormalBattleOpponentResponse(runtime) {
   const before = prepare(runtime);
-  return applyGemConsumption(runtime, before, resolveSafariNormalBattleOpponentResponseBase(runtime));
+  const resolved = applyCommittedFoeEntryWeather(runtime, resolveSafariNormalBattleOpponentResponseBase(runtime));
+  return applyGemConsumption(runtime, before, resolved);
 }
 
 export function resolveSafariNormalWildOpponentResponse(runtime) {
   const battle = stateOf(runtime).battle;
   if (!battle || battle.completed || battle.kind !== "wild") throw new Error("active wild battle is required");
   return resolveSafariNormalBattleOpponentResponse(runtime);
+}
+
+export function resolveSafariNormalBattlePlayerReplacement(runtime, replacementPartyIndex) {
+  const result = resolveSafariNormalBattlePlayerReplacementBase(runtime, replacementPartyIndex);
+  if (result?.result !== "replaced") return result;
+  const battle = stateOf(runtime).battle;
+  const active = runtime?.player?.party?.[Number(battle?.player_party_index ?? -1)] ?? null;
+  const entryWeather = commitSwitchInEntryWeatherCanonical({ battle, pokemon: active });
+  if (!entryWeather?.triggered) return result;
+  return {
+    ...result,
+    battleWeatherState: structuredClone(battle.battle_weather_state ?? null),
+    playerEntryWeather: structuredClone(entryWeather),
+  };
 }

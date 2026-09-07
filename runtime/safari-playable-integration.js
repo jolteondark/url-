@@ -1,10 +1,10 @@
-import * as playable from "./safari-playable-integration-boundary.js";
+import * as playable from "./safari-playable-integration-entry-weather.js";
 import { resolveTrainerMoveChoiceWithPriorityFlinchCanonical } from "./battle-core-trainer-choice-priority-flinch-integration.js";
 import { maplessCarryMoneyGain } from "./mapless-carry-class-rules.js";
 import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
 import { ensureSafariGeneralData, safariGeneralDataReady } from "./safari-general-data-demand.js";
 
-export * from "./safari-playable-integration-boundary.js";
+export * from "./safari-playable-integration-entry-weather.js";
 export { SAFARI_MOVE_PRESENTATION } from "./safari-move-presentation-live.js";
 export { activateSafariDayBoardCell } from "./safari-pokemon-center-command.js";
 export { attemptSafariCapture } from "./safari-capture-command.js";
