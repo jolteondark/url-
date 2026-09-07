@@ -36,6 +36,12 @@ async function displayActionsFor(current, active) {
     active.actions = owner.safariBerryJuiceShopActions(current, active.boardIndex);
     return active.actions;
   }
+  if (active.eventId === "machine_gacha") {
+    const owner = await loadOwner(active.eventId);
+    active.message = owner.safariMachineGachaMessage(current, active.boardIndex);
+    active.actions = owner.safariMachineGachaActions(current, active.boardIndex);
+    return active.actions;
+  }
   if (active.eventId === "street_performer") {
     const owner = await loadOwner(active.eventId);
     const scale = Math.max(Math.floor((Math.max(1, Number(state()?.day) || 1) - 1) / 5), 0);
@@ -81,6 +87,7 @@ function loadOwner(eventId) {
       berry_contest:"./runtime/safari-berry-contest-interaction.js",
       lost_bag:"./runtime/safari-lost-bag-interaction.js",
       berry_juice_shop:"./runtime/safari-berry-juice-shop-interaction.js",
+      machine_gacha:"./runtime/safari-machine-gacha-interaction.js",
       wounded_pokemon:"./runtime/safari-wounded-pokemon-integration.js",
       crumbling_bridge:"./runtime/safari-crumbling-bridge-interaction.js",
       old_statue:"./runtime/safari-old-statue-interaction.js",
@@ -120,6 +127,7 @@ async function resolveAction(current, active, actionId) {
   if (active.eventId === "berry_contest") return owner.resolveSafariBerryContestInteraction(current, active.boardIndex, actionId);
   if (active.eventId === "lost_bag") return owner.resolveSafariLostBagInteraction(current, active.boardIndex, actionId);
   if (active.eventId === "berry_juice_shop") return owner.resolveSafariBerryJuiceShopInteraction(current, active.boardIndex, actionId);
+  if (active.eventId === "machine_gacha") return owner.resolveSafariMachineGachaInteraction(current, active.boardIndex, actionId);
   if (active.eventId === "wounded_pokemon") {
     const input = actionId === "leave"
       ? { choice:"leave" }
