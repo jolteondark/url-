@@ -2,16 +2,11 @@ import {
   resolveSafariWishingFountainInteraction,
   safariWishingFountainBonusCandidates,
   safariWishingFountainPresentation,
-} from "./runtime/safari-wishing-fountain-final-routes.js?v=20260826-0245";
-import { persistSafariOwnerResult } from "./day-board-direct-persistence-handoff.js?v=20260829-1710";
+} from "./runtime/safari-wishing-fountain-final-routes.js?v=20260908-0630";
+import { persistSafariOwnerResult } from "./runtime/safari-owner-result-persistence.js";
 
 let resolving = false;
 function runtime() { return globalThis.__maplessSafariRuntime ?? null; }
-function state() { return runtime()?.variables?.mapless ?? null; }
-function fountainAt(index) {
-  const event = state()?.board_events?.[index];
-  return event?.kind === "normal_event" && event?.normal_event_id === "wishing_fountain" ? event : null;
-}
 function activeUi() {
   const active = globalThis.__maplessNormalEventUi ?? null;
   return active?.runtime === runtime() && active?.eventId === "wishing_fountain" ? active : null;
@@ -20,12 +15,11 @@ function publish(name) {
   if (typeof globalThis.CustomEvent !== "function") return;
   globalThis.window?.dispatchEvent?.(new CustomEvent(name));
 }
-function setUi(index) {
-  const current = runtime();
-  const currentState = state();
-  if (!current || !currentState || !fountainAt(index)) return false;
+function refreshUi(current, index) {
+  const state = current?.variables?.mapless;
+  if (!state || state.board_consumed?.[index]) return false;
   const presentation = safariWishingFountainPresentation(current, index);
-  currentState.notice = presentation.message;
+  state.notice = presentation.message;
   globalThis.__maplessNormalEventUi = {
     runtime:current,
     boardIndex:index,
@@ -35,22 +29,11 @@ function setUi(index) {
     actions:presentation.actions,
   };
   publish("safari-normal-event-ui");
-  publish("safari-runtime-changed");
   return true;
 }
-
-function openFountain(index) {
-  const currentState = state();
-  if (!currentState || !fountainAt(index)) return false;
-  if (currentState.location !== "day_board" || currentState.battle || currentState.shop || currentState.board_consumed?.[index]) return false;
-  currentState.board_revealed[index] = true;
-  currentState.board_visited[index] = true;
-  return setUi(index);
-}
-
 function bonusSelectionOptions(current, index, action) {
   if (action !== "large_wish") return {};
-  const event = fountainAt(index);
+  const event = current?.variables?.mapless?.board_events?.[index];
   const roll = Number(event?.normal_data?.large_roll ?? 0);
   if (!(roll >= 45 && roll < 65)) return {};
   const candidates = safariWishingFountainBonusCandidates(current);
@@ -63,22 +46,6 @@ function bonusSelectionOptions(current, index, action) {
   const chosen = Number(raw) - 1;
   return { pokemonIndex:candidates.some((entry) => entry.index === chosen) ? chosen : NaN };
 }
-
-document.addEventListener("click", (event) => {
-  const button = event.target.closest("button[data-board-index]");
-  if (!button || button.disabled) return;
-  const index = Number(button.dataset.boardIndex);
-  if (!Number.isInteger(index) || !fountainAt(index)) return;
-  event.preventDefault();
-  event.stopImmediatePropagation();
-  try { openFountain(index); }
-  catch (error) {
-    globalThis.__maplessLastError = error;
-    const currentState = state();
-    if (currentState) currentState.notice = `イベントエラー: ${error?.message ?? error}`;
-    publish("safari-runtime-changed");
-  }
-}, { capture:true });
 
 document.addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-normal-event-action]");
@@ -97,17 +64,16 @@ document.addEventListener("click", async (event) => {
       action,
       bonusSelectionOptions(current, active.boardIndex, action),
     );
-    persistSafariOwnerResult(current, result);
+    persistSafariOwnerResult(current, result, globalThis.localStorage);
     if (result.completed || result.result === "normal_event_wild_battle_started") globalThis.__maplessNormalEventUi = null;
-    else setUi(active.boardIndex);
+    else refreshUi(current, active.boardIndex);
     publish("safari-runtime-changed");
-    if (!result.completed && result.result !== "normal_event_wild_battle_started") publish("safari-normal-event-ui");
   } catch (error) {
     globalThis.__maplessLastError = error;
-    const currentState = state();
-    if (currentState) currentState.notice = `イベントエラー: ${error?.message ?? error}`;
+    const state = current?.variables?.mapless;
+    if (state) state.notice = `イベントエラー: ${error?.message ?? error}`;
     publish("safari-runtime-changed");
   } finally {
     resolving = false;
   }
-}, { capture:true });
+});
