@@ -18,6 +18,7 @@ import { openSafariTreasureTouch } from "./safari-treasure-chest-interaction.js"
 import { openSafariMinerTouch } from "./safari-miner-interaction.js";
 import { openSafariTavernTouch } from "./safari-tavern-interaction.js";
 import { openSafariNormalEventTouch, supportsSafariNormalEventTouch } from "./safari-normal-event-touch-handoff.js";
+import { openSafariCrumblingBridgeTouch } from "./safari-crumbling-bridge-interaction.js";
 import { openSafariBerryContestTouch } from "./safari-berry-contest-touch.js";
 import { openSafariBountyPosterTouch } from "./safari-bounty-poster-interaction.js";
 import { startSafariBountyTargetBattle } from "./safari-bounty-target-interaction.js";
@@ -70,6 +71,7 @@ export function activateSafariDayBoardCell(runtime, index) {
     if (event.normal_event_id === "bounty_target") return startSafariBountyTargetBattle(runtime, index);
     if (event.normal_event_id === "bounty_poster") return openSafariBountyPosterTouch(runtime, index);
     if (event.normal_event_id === "berry_contest" && typeof globalThis.document !== "undefined") return openSafariBerryContestTouch(runtime, index);
+    if (event.normal_event_id === "crumbling_bridge" && typeof globalThis.document !== "undefined") return openSafariCrumblingBridgeTouch(runtime, index);
     if (typeof globalThis.document !== "undefined" && supportsSafariNormalEventTouch(event.normal_event_id)) {
       return openSafariNormalEventTouch(runtime, index);
     }
