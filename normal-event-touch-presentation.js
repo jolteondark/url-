@@ -42,6 +42,14 @@ async function displayActionsFor(current, active) {
     active.actions = owner.safariMachineGachaActions(current, active.boardIndex);
     return active.actions;
   }
+  if (active.eventId === "trainer_camp") {
+    const owner = await loadOwner(active.eventId);
+    const ui = await owner.safariTrainerCampPresentation(current, active.boardIndex);
+    active.title = ui.title;
+    active.message = ui.message;
+    active.actions = ui.actions;
+    return ui.actions;
+  }
   if (active.eventId === "street_performer") {
     const owner = await loadOwner(active.eventId);
     const scale = Math.max(Math.floor((Math.max(1, Number(state()?.day) || 1) - 1) / 5), 0);
