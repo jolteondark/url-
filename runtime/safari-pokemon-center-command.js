@@ -21,6 +21,7 @@ import { openSafariNormalEventTouch, supportsSafariNormalEventTouch } from "./sa
 import { openSafariCrumblingBridgeTouch } from "./safari-crumbling-bridge-interaction.js";
 import { safariOldStatuePresentation } from "./safari-old-statue-interaction.js";
 import { openSafariLostBagTouch } from "./safari-lost-bag-touch.js";
+import { openSafariBerryJuiceShopTouch } from "./safari-berry-juice-shop-touch.js";
 import { openSafariBerryContestTouch } from "./safari-berry-contest-touch.js";
 import { openSafariBountyPosterTouch } from "./safari-bounty-poster-interaction.js";
 import { startSafariBountyTargetBattle } from "./safari-bounty-target-interaction.js";
@@ -100,6 +101,7 @@ export function activateSafariDayBoardCell(runtime, index) {
     if (event.normal_event_id === "crumbling_bridge" && typeof globalThis.document !== "undefined") return openCrumblingBridge(runtime, index);
     if (event.normal_event_id === "old_statue" && typeof globalThis.document !== "undefined") return openOldStatue(runtime, index);
     if (event.normal_event_id === "lost_bag" && typeof globalThis.document !== "undefined") return openSafariLostBagTouch(runtime, index);
+    if (event.normal_event_id === "berry_juice_shop" && typeof globalThis.document !== "undefined") return openSafariBerryJuiceShopTouch(runtime, index);
     if (typeof globalThis.document !== "undefined" && supportsSafariNormalEventTouch(event.normal_event_id)) {
       return openSafariNormalEventTouch(runtime, index);
     }
