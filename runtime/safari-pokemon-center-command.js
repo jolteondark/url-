@@ -23,21 +23,15 @@ import { safariOldStatuePresentation } from "./safari-old-statue-interaction.js"
 import { openSafariLostBagTouch } from "./safari-lost-bag-touch.js";
 import { openSafariBerryJuiceShopTouch } from "./safari-berry-juice-shop-touch.js";
 import { openSafariMachineGachaTouch } from "./safari-machine-gacha-touch.js";
+import { openSafariTrainerCampTouch } from "./safari-trainer-camp-touch.js";
 import { openSafariBerryContestTouch } from "./safari-berry-contest-touch.js";
 import { openSafariBountyPosterTouch } from "./safari-bounty-poster-interaction.js";
 import { startSafariBountyTargetBattle } from "./safari-bounty-target-interaction.js";
 import { activateSafariDayBoardCell as activateSafariDayBoardCellBase } from "./safari-playable-integration-wounded.js";
 
-function moveId(move) {
-  return typeof move === "string" ? move : move?.id;
-}
-
+function moveId(move) { return typeof move === "string" ? move : move?.id; }
 function healPokemon(pokemon) {
-  let healed = updatePokemonRuntime(pokemon, {
-    hp: pokemon.max_hp ?? pokemon.hp ?? 1,
-    status: "NONE",
-    status_count: 0,
-  });
+  let healed = updatePokemonRuntime(pokemon, { hp:pokemon.max_hp ?? pokemon.hp ?? 1, status:"NONE", status_count:0 });
   for (let index = 0; index < healed.moves.length; index += 1) {
     const move = healed.moves[index];
     const master = SAFARI_MOVE_MASTERS[moveId(move)];
@@ -48,38 +42,19 @@ function healPokemon(pokemon) {
   }
   return healed;
 }
-
 function applyScheduledBoardContinuation(runtime, event, result, previousDay) {
   if (event?.kind !== "next_day") return result;
   const state = runtime?.variables?.mapless;
   if (!state || Number(state.day) <= Number(previousDay)) return result;
   const scheduled = placeSafariBountyTargetForDayV108(runtime);
   if (!scheduled.placed && !scheduled.expired) return result;
-  state.last_operations = [
-    ...(Array.isArray(state.last_operations) ? state.last_operations : []),
-    ...scheduled.operations.map((operation) => structuredClone(operation)),
-  ];
-  return {
-    ...result,
-    runtime,
-    operations:state.last_operations,
-    scheduledBountyTarget:scheduled,
-    persistenceRequested:true,
-  };
+  state.last_operations = [...(Array.isArray(state.last_operations) ? state.last_operations : []), ...scheduled.operations.map((operation) => structuredClone(operation))];
+  return { ...result, runtime, operations:state.last_operations, scheduledBountyTarget:scheduled, persistenceRequested:true };
 }
-
 function signalNormalEventUi() {
-  if (typeof globalThis.dispatchEvent === "function" && typeof globalThis.CustomEvent === "function") {
-    globalThis.dispatchEvent(new CustomEvent("safari-normal-event-ui"));
-  }
+  if (typeof globalThis.dispatchEvent === "function" && typeof globalThis.CustomEvent === "function") globalThis.dispatchEvent(new CustomEvent("safari-normal-event-ui"));
 }
-
-function openCrumblingBridge(runtime, index) {
-  const result = openSafariCrumblingBridgeTouch(runtime, index);
-  signalNormalEventUi();
-  return result;
-}
-
+function openCrumblingBridge(runtime, index) { const result = openSafariCrumblingBridgeTouch(runtime, index); signalNormalEventUi(); return result; }
 function openOldStatue(runtime, index) {
   const state = runtime?.variables?.mapless;
   if (state?.board_consumed?.[index]) return { runtime, result:"already_consumed", operations:[] };
@@ -91,7 +66,6 @@ function openOldStatue(runtime, index) {
   signalNormalEventUi();
   return { runtime, result:"old_statue_ready", boundary:"normal_event", notice:state.notice, operations:[] };
 }
-
 export function activateSafariDayBoardCell(runtime, index) {
   const state = runtime?.variables?.mapless;
   const event = state?.board_events?.[index];
@@ -104,9 +78,8 @@ export function activateSafariDayBoardCell(runtime, index) {
     if (event.normal_event_id === "lost_bag" && typeof globalThis.document !== "undefined") return openSafariLostBagTouch(runtime, index);
     if (event.normal_event_id === "berry_juice_shop" && typeof globalThis.document !== "undefined") return openSafariBerryJuiceShopTouch(runtime, index);
     if (event.normal_event_id === "machine_gacha" && typeof globalThis.document !== "undefined") return openSafariMachineGachaTouch(runtime, index);
-    if (typeof globalThis.document !== "undefined" && supportsSafariNormalEventTouch(event.normal_event_id)) {
-      return openSafariNormalEventTouch(runtime, index);
-    }
+    if (event.normal_event_id === "trainer_camp" && typeof globalThis.document !== "undefined") return openSafariTrainerCampTouch(runtime, index);
+    if (typeof globalThis.document !== "undefined" && supportsSafariNormalEventTouch(event.normal_event_id)) return openSafariNormalEventTouch(runtime, index);
     if (event.normal_event_id === "street_performer") return interactiveSafariStreetPerformer(runtime, index);
     if (event.normal_event_id === "mushroom_field") return interactiveSafariMushroomField(runtime, index);
     if (event.normal_event_id === "hot_spring") return interactiveSafariHotSpring(runtime, index);
@@ -122,37 +95,17 @@ export function activateSafariDayBoardCell(runtime, index) {
   if (!event || event.kind !== "center") {
     const previousDay = Number(state?.day ?? 0);
     const result = activateSafariDayBoardCellBase(runtime, index);
-    if (result && typeof result.then === "function") {
-      return result.then((resolved) => applyScheduledBoardContinuation(runtime, event, resolved, previousDay));
-    }
+    if (result && typeof result.then === "function") return result.then((resolved) => applyScheduledBoardContinuation(runtime, event, resolved, previousDay));
     return applyScheduledBoardContinuation(runtime, event, result, previousDay);
   }
-
   const owner = resolveMaplessPokemonCenterHealing({ player: runtime?.player });
   if (!owner.healed) {
     state.notice = "回復できませんでした。";
     state.last_operations = owner.operations;
-    return {
-      runtime,
-      result: owner.result,
-      boundary: "center",
-      notice: state.notice,
-      operations: owner.operations,
-      centerOwner: owner,
-    };
+    return { runtime, result:owner.result, boundary:"center", notice:state.notice, operations:owner.operations, centerOwner:owner };
   }
-
   const result = activateSafariDayBoardCellBase(runtime, index);
   runtime.player.party = runtime.player.party.map(healPokemon);
-  state.last_operations = [
-    ...(Array.isArray(state.last_operations) ? state.last_operations : []),
-    { op: "pokemon_center_owner", result: owner.result, operations: owner.operations.map((operation) => ({ ...operation })) },
-  ];
-  return {
-    ...result,
-    runtime,
-    operations: state.last_operations,
-    centerOwner: owner,
-    persistenceRequested: true,
-  };
+  state.last_operations = [...(Array.isArray(state.last_operations) ? state.last_operations : []), { op:"pokemon_center_owner", result:owner.result, operations:owner.operations.map((operation) => ({ ...operation })) }];
+  return { ...result, runtime, operations:state.last_operations, centerOwner:owner, persistenceRequested:true };
 }
