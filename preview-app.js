@@ -30,6 +30,7 @@ import {
   safariGeneralCombatReady,
   safariGeneralDataReady,
 } from "./runtime/safari-general-data-demand.js";
+import { persistSafariOwnerResult } from "./runtime/safari-owner-result-persistence.js?v=20260907-0930";
 import { formatSafariBattlePresentationEvent } from "./battle-presentation-narration.js";
 
 let runtime = createSafariPlayableRuntime();
@@ -102,10 +103,8 @@ function note(message) {
 }
 
 function autoSaveIfRequested(result, label) {
-  const requested = result?.persistenceRequested
-    || result?.operations?.some((operation) => operation.op === "request_save");
-  if (!requested) return;
-  const saved = saveSafariPlayableRun(window.localStorage, runtime);
+  const saved = persistSafariOwnerResult(runtime, result, window.localStorage);
+  if (!saved) return;
   note(`${label}: ${saved.key}`);
 }
 
