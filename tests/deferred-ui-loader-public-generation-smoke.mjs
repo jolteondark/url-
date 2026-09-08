@@ -6,18 +6,18 @@ const loaderSource = await readFile(new URL("../deferred-ui-loader.js", import.m
 
 assert.match(
   indexSource,
-  /deferred-ui-loader\.js\?v=20260908-2300/,
+  /deferred-ui-loader\.js\?v=20260909-0115/,
   "top-level Safari/Web entry must publish the current deferred UI loader generation",
 );
 assert.doesNotMatch(
   indexSource,
-  /deferred-ui-loader\.js\?v=20260908-1700/,
-  "retired deferred UI loader generation must not remain in the public entrypoint",
+  /deferred-ui-loader\.js\?v=20260908-2300/,
+  "retired deferred UI loader generation must not remain in the public entrypoint after loader changes",
 );
 assert.match(
   loaderSource,
-  /BATTLE_PRESENTATION_PUBLIC_REVISION = "20260908-1900"/,
-  "published loader must retain the current Battle presentation generation",
+  /BATTLE_PRESENTATION_PUBLIC_REVISION = "20260909-0015"/,
+  "published loader must retain the current canonical Battle presentation generation",
 );
 assert.match(
   loaderSource,
