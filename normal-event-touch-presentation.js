@@ -50,6 +50,14 @@ async function displayActionsFor(current, active) {
     active.actions = ui.actions;
     return ui.actions;
   }
+  if (active.eventId === "item_collector") {
+    const owner = await loadOwner(active.eventId);
+    const ui = owner.safariItemCollectorPresentation(current, active.boardIndex, active.category ?? null);
+    active.title = ui.title;
+    active.message = ui.message;
+    active.actions = ui.actions;
+    return ui.actions;
+  }
   if (active.eventId === "street_performer") {
     const owner = await loadOwner(active.eventId);
     const scale = Math.max(Math.floor((Math.max(1, Number(state()?.day) || 1) - 1) / 5), 0);
@@ -97,6 +105,7 @@ function loadOwner(eventId) {
       berry_juice_shop:"./runtime/safari-berry-juice-shop-interaction.js",
       machine_gacha:"./runtime/safari-machine-gacha-interaction.js",
       trainer_camp:"./runtime/safari-trainer-camp-interaction.js",
+      item_collector:"./runtime/safari-item-collector-interaction.js",
       wounded_pokemon:"./runtime/safari-wounded-pokemon-integration.js",
       crumbling_bridge:"./runtime/safari-crumbling-bridge-interaction.js",
       old_statue:"./runtime/safari-old-statue-interaction.js",
@@ -138,6 +147,21 @@ async function resolveAction(current, active, actionId) {
   if (active.eventId === "berry_juice_shop") return owner.resolveSafariBerryJuiceShopInteraction(current, active.boardIndex, actionId);
   if (active.eventId === "machine_gacha") return owner.resolveSafariMachineGachaInteraction(current, active.boardIndex, actionId);
   if (active.eventId === "trainer_camp") return owner.resolveSafariTrainerCampInteraction(current, active.boardIndex, actionId);
+  if (active.eventId === "item_collector") {
+    if (actionId === "category:ball") {
+      active.category = "ball";
+      return { runtime:current, result:"item_collector_category", completed:false, operations:[] };
+    }
+    if (actionId === "category:medicine") {
+      active.category = "medicine";
+      return { runtime:current, result:"item_collector_category", completed:false, operations:[] };
+    }
+    if (actionId === "back") {
+      active.category = null;
+      return { runtime:current, result:"item_collector_category", completed:false, operations:[] };
+    }
+    return owner.resolveSafariItemCollectorInteraction(current, active.boardIndex, actionId);
+  }
   if (active.eventId === "wounded_pokemon") {
     const input = actionId === "leave" ? { choice:"leave" } : { choice:"treat", itemId:String(actionId).startsWith("treat:") ? String(actionId).slice(6) : "" };
     const result = owner.resolveSafariWoundedPokemonDecision(current, active.boardIndex, input);
