@@ -149,14 +149,17 @@ export function resolveSafariAuctionInteraction(runtime, index, requestedAction)
     state.notice = blocked
       ? "所持金以上には入札できません。別の入札額を選んでください。"
       : `${itemName(data.products[productIndex].item)}は${Math.trunc(Number(data.products[productIndex].price))}円まで競り上がりました。`;
-    state.last_operations = (settlement.facility.operations ?? []).map((operation) => structuredClone(operation));
+    state.last_operations = [
+      ...(settlement.facility.operations ?? []).map((operation) => structuredClone(operation)),
+      ...(!blocked ? [{ op:"request_save", reason:"auction_progress" }] : []),
+    ];
     refreshUi(runtime, index);
     return {
       runtime,
       result:blocked ? "insufficient_money" : "awaiting_choice",
       completed:false,
       consumed:false,
-      persistenceRequested:false,
+      persistenceRequested:!blocked,
       operations:state.last_operations,
       notice:state.notice,
       settlement,
@@ -199,14 +202,17 @@ export function resolveSafariAuctionInteraction(runtime, index, requestedAction)
   state.notice = refunded
     ? "バッグがいっぱいのため購入できませんでした。代金は減っていません。次の商品へ進みます。"
     : "この商品から降りました。次の商品へ進みます。";
-  state.last_operations = ownerOperations.map((operation) => structuredClone(operation));
+  state.last_operations = [
+    ...ownerOperations.map((operation) => structuredClone(operation)),
+    { op:"request_save", reason:"auction_progress" },
+  ];
   refreshUi(runtime, index);
   return {
     runtime,
     result:refunded ? "refunded_next_product" : "next_product",
     completed:false,
     consumed:false,
-    persistenceRequested:false,
+    persistenceRequested:true,
     operations:state.last_operations,
     notice:state.notice,
     settlement,
