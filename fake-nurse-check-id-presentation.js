@@ -27,15 +27,17 @@ function enhance() {
   const actions = document.getElementById("normal-event-actions");
   if (!actions || actions.querySelector('[data-normal-event-action="check_id:heal"]')) return;
   const leave = actions.querySelector('[data-normal-event-action="leave"]');
+  if (!leave) return;
   const heal = button("check_id:heal", "身分証を確認する", "本物なら半額で50%回復 · 偽物なら逃走またはトレーナー戦");
   const decline = button("check_id:leave", "身分証だけ確認する", "本物なら治療を断る · 偽物なら正体を暴く", true);
   actions.insertBefore(heal, leave);
   actions.insertBefore(decline, leave);
   if (safariFakeNurseWarning(current, active.boardIndex)) {
     const message = document.getElementById("normal-event-message");
-    if (message) message.textContent = "手持ちのあく/エスパータイプが違和感を覚えています。身分証を確認した方がよさそうです。";
+    if (message && activeFakeNurse() === active) message.textContent = "手持ちのあく/エスパータイプが違和感を覚えています。身分証を確認した方がよさそうです。";
   }
 }
 
 window.addEventListener("safari-normal-event-rendered", enhance, { passive:true });
 window.addEventListener("pageshow", enhance, { passive:true });
+enhance();
