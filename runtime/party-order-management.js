@@ -7,9 +7,23 @@ export function movePartyPokemonToLead(party, index) {
   const pokemon = party[normalizedIndex];
   if (!pokemon) throw new Error("selected party slot is empty");
   if (normalizedIndex === 0) {
-    return { changed: false, fromIndex: 0, toIndex: 0, pokemon };
+    return {
+      changed: false,
+      fromIndex: 0,
+      toIndex: 0,
+      pokemon,
+      operations: [],
+      persistenceRequested: false,
+    };
   }
   party.splice(normalizedIndex, 1);
   party.unshift(pokemon);
-  return { changed: true, fromIndex: normalizedIndex, toIndex: 0, pokemon };
+  return {
+    changed: true,
+    fromIndex: normalizedIndex,
+    toIndex: 0,
+    pokemon,
+    operations: [{ op: "request_save", reason: "party_lead_change" }],
+    persistenceRequested: true,
+  };
 }
