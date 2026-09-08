@@ -3,6 +3,7 @@ import { resolveDayBoardCellDispatch } from "./mapless-day-board-cell-dispatch.j
 import { projectDayBoardEventName } from "./mapless-day-board-event-name-projection.js";
 import { resolveBrowserMaplessWildEncounter } from "./browser-mapless-wild-encounter-runtime.js";
 import { resolveBattleStartCore } from "./battle-core-start-handoff.js";
+import { commitInitialEntryWeatherCanonical } from "./battle-initial-entry-weather-commit.js";
 import { resolvePokemonRuntimeMasters } from "./pokemon-runtime-masters.js";
 import { movePartyPokemonToLead } from "./party-order-management.js";
 import { ensureSafariEncounterSeed, nextSafariEncounterSpeciesIndex } from "./safari-encounter-randomization.js";
@@ -51,8 +52,10 @@ function materializePokemon(input) {
   return resolvePokemonRuntimeMasters({ ...input, hp: input.hp ?? 1, nature_id: natureId, iv: input.iv ?? { ...SAFARI_ZERO_STAT_VALUES }, ev: input.ev ?? { ...SAFARI_ZERO_STAT_VALUES }, moves }, { species_master: speciesMaster, nature_master: SAFARI_NATURE_MASTERS[natureId], move_masters: SAFARI_MOVE_MASTERS });
 }
 function setBattle(runtime, index, kind, opponent, operations, trainer = null, encounterResolution = null, generated = null) {
-  const state = stateOf(runtime); const battleStart = resolveBattleStartCore({ sendOuts: [[0, runtime.player.party[0]], [1, opponent]] }); const lastOperations = [...operations, ...(encounterResolution?.operations ?? []), ...battleStart.operations];
-  state.battle = { kind, board_index: index, turn: 1, decision: 0, completed: false, captured: false, foe: opponent, trainer, trainer_party: trainer?.party?.map(materializePokemon) ?? null, trainer_party_index: trainer ? 0 : null, trainer_seed: trainer?.seed ?? null, prize_money: trainer?.prize_money ?? null, skill_level: trainer?.skill_level ?? null, encounter_request: encounterResolution?.request ?? null, encounter: encounterResolution?.encounter ?? null, encounter_cleanup: encounterResolution?.cleanup ?? [], general_selection: generated?.selection ?? null, last_operations: lastOperations, presentation: [{ type: "battle_started", actor: "foe", species: opponent.species, trainer: trainer?.trainer_full_name ?? null }] };
+  const state = stateOf(runtime); const player = runtime.player.party[0]; const battleStart = resolveBattleStartCore({ sendOuts: [[0, player], [1, opponent]] }); const lastOperations = [...operations, ...(encounterResolution?.operations ?? []), ...battleStart.operations];
+  const nextBattle = { kind, board_index: index, turn: 1, decision: 0, completed: false, captured: false, foe: opponent, trainer, trainer_party: trainer?.party?.map(materializePokemon) ?? null, trainer_party_index: trainer ? 0 : null, trainer_seed: trainer?.seed ?? null, prize_money: trainer?.prize_money ?? null, skill_level: trainer?.skill_level ?? null, encounter_request: encounterResolution?.request ?? null, encounter: encounterResolution?.encounter ?? null, encounter_cleanup: encounterResolution?.cleanup ?? [], general_selection: generated?.selection ?? null, last_operations: lastOperations, presentation: [{ type: "battle_started", actor: "foe", species: opponent.species, trainer: trainer?.trainer_full_name ?? null }] };
+  commitInitialEntryWeatherCanonical({ battle: nextBattle, entrants: [{ battlerIndex: 0, pokemon: player }, { battlerIndex: 1, pokemon: opponent }] });
+  state.battle = nextBattle;
   state.last_operations = lastOperations;
 }
 function startWild(runtime, event, index, operations) {
