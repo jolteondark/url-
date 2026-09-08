@@ -15,9 +15,14 @@ assert.ok(fallbackMatch, "board presentation fallback array must remain explicit
 const fallbackEntries = [...fallbackMatch[1].matchAll(/["']([^"']+)["']/g)].map((match) => match[1]);
 assert.deepEqual(fallbackEntries, active, "manifest failure fallback must match the active shared augmenter");
 
-for (const retired of ["fake-nurse-check-id-presentation.js", "burning-wagon-fire-presentation.js"]) {
-  assert.equal(manifest.modules.some((entry) => entry.includes(retired)), false, `${retired} must not load from the production manifest`);
-  assert.equal(fallbackEntries.some((entry) => entry.includes(retired)), false, `${retired} must not load from manifest-failure fallback`);
+for (const legacy of ["fake-nurse-check-id-presentation.js", "burning-wagon-fire-presentation.js"]) {
+  assert.equal(manifest.modules.some((entry) => entry.includes(legacy)), false, `${legacy} must not load from the production manifest`);
+  assert.equal(fallbackEntries.some((entry) => entry.includes(legacy)), false, `${legacy} must not load from manifest-failure fallback`);
+  const legacySource = await readFile(new URL(`../${legacy}`, import.meta.url), "utf8");
+  assert.match(legacySource, /Compatibility presentation loader only\./);
+  assert.match(legacySource, /normal-event-choice-augmenter\.js\?v=20260908-2130/);
+  assert.doesNotMatch(legacySource, /addEventListener\s*\(/);
+  assert.doesNotMatch(legacySource, /saveSafariPlayableRun|persistSafariOwnerResult|stopImmediatePropagation/);
 }
 assert.match(augmenterSource, /safariFakeNurseWarning/);
 assert.match(augmenterSource, /safariBurningWagonFireChoices/);
