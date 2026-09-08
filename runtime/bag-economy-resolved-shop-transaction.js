@@ -13,6 +13,7 @@ function unchanged(input, result) {
     unitPrice: input.offer?.unitPrice ?? null,
     slots: cloneSlots(input.slots),
     money: Number.isInteger(input.money) ? input.money : Number(input.money ?? 0),
+    persistenceRequested: false,
   };
 }
 
@@ -89,5 +90,6 @@ export function resolveResolvedShopTransaction(input = {}) {
     kind,
     item: offer.item,
     unitPrice: offer.unitPrice,
+    persistenceRequested: result.result === 'bought' || result.result === 'sold',
   };
 }
