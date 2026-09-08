@@ -5,11 +5,11 @@ let purchasing = false;
 let lastOpenKey = "";
 let eggModulePromise = null;
 let webModulePromise = null;
-let startupModulePromise = null;
+let persistenceModulePromise = null;
 
 const eggModule = () => eggModulePromise ??= import("./runtime/safari-egg-shop-interaction.js");
 const webModule = () => webModulePromise ??= import("./runtime/safari-web-playable-integration.js");
-const startupModule = () => startupModulePromise ??= import("./runtime/safari-web-startup.js");
+const persistenceModule = () => persistenceModulePromise ??= import("./runtime/safari-owner-result-persistence.js");
 
 function runtime() { return globalThis.__maplessSafariRuntime ?? null; }
 function state() { return runtime()?.variables?.mapless ?? null; }
@@ -138,10 +138,8 @@ document.addEventListener("click", async (event) => {
     const result = await purchaseSafariEggShopEgg(current, Number(choice.dataset.eggShopIndex), { confirmed:true });
     if (result.result === "bought") {
       closeEggShopUi();
-      if (result.persistenceRequested || result.operations?.some((operation) => operation.op === "request_save")) {
-        const { saveSafariPlayableRun } = await startupModule();
-        saveSafariPlayableRun(window.localStorage, current);
-      }
+      const { persistSafariOwnerResult } = await persistenceModule();
+      persistSafariOwnerResult(current, result, window.localStorage);
       lastOpenKey = "";
       window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
     } else {
