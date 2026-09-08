@@ -66,6 +66,14 @@ async function displayActionsFor(current, active) {
     active.actions = ui.actions;
     return ui.actions;
   }
+  if (active.eventId === "wishing_fountain") {
+    const owner = await loadOwner(active.eventId);
+    const ui = owner.safariWishingFountainPresentation(current, active.boardIndex);
+    active.title = ui.title;
+    active.message = ui.message;
+    active.actions = ui.actions;
+    return ui.actions;
+  }
   if (active.eventId === "street_performer") {
     const owner = await loadOwner(active.eventId);
     const scale = Math.max(Math.floor((Math.max(1, Number(state()?.day) || 1) - 1) / 5), 0);
@@ -118,6 +126,7 @@ function loadOwner(eventId) {
       wounded_pokemon:"./runtime/safari-wounded-pokemon-integration.js",
       crumbling_bridge:"./runtime/safari-crumbling-bridge-interaction.js",
       old_statue:"./runtime/safari-old-statue-break-rewards.js?v=20260828-2320",
+      wishing_fountain:"./runtime/safari-wishing-fountain-final-routes.js?v=20260908-1630",
       treasure_chest:"./runtime/safari-treasure-chest-interaction.js",
       miner:"./runtime/safari-miner-interaction.js",
       tavern:"./runtime/safari-tavern-interaction.js",
@@ -163,6 +172,22 @@ function oldStatueActionOptions(owner, current, index, actionId) {
     ...oldStatueOfferSelection(owner, current, index, actionId),
     ...oldStatuePokemonSelection(owner, current, index, actionId),
   };
+}
+
+function wishingFountainActionOptions(owner, current, index, actionId) {
+  if (actionId !== "large_wish") return {};
+  const event = current?.variables?.mapless?.board_events?.[index];
+  const roll = Number(event?.normal_data?.large_roll ?? 0);
+  if (!(roll >= 45 && roll < 65)) return {};
+  const candidates = owner.safariWishingFountainBonusCandidates(current);
+  if (!candidates.length) return { pokemonIndex:NaN };
+  const promptFn = typeof globalThis.prompt === "function" ? globalThis.prompt.bind(globalThis) : null;
+  if (!promptFn) return { pokemonIndex:candidates[0].index };
+  const lines = candidates.map((entry) => `${entry.index + 1}: ${entry.species}${entry.fainted ? " (ひんし)" : ""}`);
+  const raw = promptFn(`泉の力を受けるポケモンを選んでください。\n${lines.join("\n")}\nキャンセルすると強化せず願いを終えます。`, String(candidates[0].index + 1));
+  if (raw == null) return { pokemonIndex:NaN };
+  const chosen = Number(raw) - 1;
+  return { pokemonIndex:candidates.some((entry) => entry.index === chosen) ? chosen : NaN };
 }
 
 async function resolveAction(current, active, actionId) {
@@ -220,6 +245,14 @@ async function resolveAction(current, active, actionId) {
       active.boardIndex,
       actionId,
       oldStatueActionOptions(owner, current, active.boardIndex, actionId),
+    );
+  }
+  if (active.eventId === "wishing_fountain") {
+    return await owner.resolveSafariWishingFountainInteraction(
+      current,
+      active.boardIndex,
+      actionId,
+      wishingFountainActionOptions(owner, current, active.boardIndex, actionId),
     );
   }
   if (active.eventId === "treasure_chest") return owner.resolveSafariTreasureChest(current, active.boardIndex, actionId);
