@@ -1,12 +1,5 @@
 {
   "modules": [
-    "./berry-juice-shop-touch-presentation.js?v=20260908-0330",
-    "./trainer-camp-touch-presentation.js?v=20260908-0700",
-    "./old-statue-touch-presentation.js?v=20260908-1530",
-    "./machine-gacha-touch-presentation.js?v=20260908-0430",
-    "./wishing-fountain-touch-presentation.js?v=20260908-1630",
-    "./item-collector-touch-presentation.js?v=20260908-1030",
-    "./crumbling-bridge-touch-presentation.js?v=20260908-1500",
     "./fake-nurse-check-id-presentation.js?v=20260908-1400",
     "./burning-wagon-fire-presentation.js?v=20260908-1400"
   ]
