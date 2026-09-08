@@ -18,4 +18,17 @@ for (const path of [
   assert.equal((source.match(/commitInitialEntryWeatherCanonical\(\{/g) ?? []).length, 1, `${path}: Battle start must have exactly one initial-entry commit callsite`);
 }
 
+const boundaryExportChain = [
+  ["../runtime/safari-playable-integration-entry-weather.js", /export \* from "\.\/safari-playable-integration-boundary\.js";/],
+  ["../runtime/safari-playable-integration-boundary.js", /export \* from "\.\/safari-playable-integration-wounded\.js";/],
+  ["../runtime/safari-playable-integration-wounded.js", /export \* from "\.\/safari-playable-integration-pre-wounded\.js";/],
+  ["../runtime/safari-playable-integration-pre-wounded.js", /export \* from "\.\/safari-playable-integration-legacy\.js";/],
+  ["../runtime/safari-playable-integration-legacy.js", /export \* from "\.\/safari-playable-integration-core\.js";/],
+];
+for (const [path, exportPattern] of boundaryExportChain) {
+  const source = await readFile(new URL(path, import.meta.url), "utf8");
+  assert.match(source, exportPattern, `${path}: boundary/full integration must keep sharing the core Battle-start owner`);
+  assert.doesNotMatch(source, /commitInitialEntryWeatherCanonical\(\{/, `${path}: boundary wrappers must not add a second initial-entry weather commit owner`);
+}
+
 console.log("safari web/full initial entry-weather wiring smoke: ok");
