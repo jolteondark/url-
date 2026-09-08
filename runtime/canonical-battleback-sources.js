@@ -11,7 +11,10 @@ const CANONICAL_BATTLEBACKS = Object.freeze({
   'field_message.png': Object.freeze({ group: 'message', bytes: 230, gitBlobSha: 'e71553144f9f833ec2c858362ce7f01aee1ea99a', sha256: 'bd2e8b22581cc8d37c04827d6bf691e5219d5acd19e3d0bd15540badd602f148' }),
 });
 
-const PUBLISHED_EXACT = new Set(['field_message.png']);
+// All exact-case canonical Battleback payloads are published under
+// assets/canonical-battlebacks/. Keep publication truth centralized here so
+// consumers never guess from directory presence or screen-local literals.
+const PUBLISHED_EXACT = new Set(Object.keys(CANONICAL_BATTLEBACKS));
 
 export const MAPLESS_BATTLEBACK_CANONICAL_RELEASE = Object.freeze({
   release: 'source-v0.9.108',
