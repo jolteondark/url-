@@ -11,8 +11,7 @@ const battlePresentationUrl = (path) => `${path}?v=${BATTLE_PRESENTATION_PUBLIC_
 const MENU_SPRITE_PRESENTATION_PUBLIC_REVISION = "20260902-1800";
 
 const boardPresentationFallbackModules = [
-  "./fake-nurse-check-id-presentation.js?v=20260908-1400",
-  "./burning-wagon-fire-presentation.js?v=20260908-1400",
+  "./normal-event-choice-augmenter.js?v=20260908-2130",
 ];
 
 function loadStyle(href) {
