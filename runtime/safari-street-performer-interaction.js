@@ -215,12 +215,8 @@ export async function resolveSafariStreetPerformerInteraction(runtime, index, re
       });
       if (started.result === "normal_event_trainer_battle_started" && state.battle) {
         globalThis.__maplessNormalEventUi = null;
-        const operations = [
-          ...(started.operations ?? []),
-          { op:"request_save", reason:"street_performer_battle_started" },
-        ];
-        state.last_operations = operations;
-        return { ...started, operations, persistenceRequested:true };
+        state.last_operations = started.operations ?? [];
+        return started;
       }
       return started;
     }
