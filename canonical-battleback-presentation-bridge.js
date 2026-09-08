@@ -15,7 +15,8 @@ function normalizePeriod(value) {
   const text = String(value ?? "").trim().toLowerCase();
   if (text.includes("night")) return "night";
   if (text.includes("eve") || text.includes("evening") || text.includes("dusk")) return "eve";
-  return "day";
+  if (text.includes("day") || text.includes("morning") || text.includes("noon")) return "day";
+  return null;
 }
 
 function battlePeriod(state = maplessState()) {
@@ -27,7 +28,9 @@ function battlePeriod(state = maplessState()) {
 }
 
 export function canonicalBattlebackNamesForPeriod(period) {
-  const prefix = PERIOD_PREFIX[normalizePeriod(period)];
+  const normalized = normalizePeriod(period);
+  if (!normalized) return null;
+  const prefix = PERIOD_PREFIX[normalized];
   return Object.freeze({
     bg: `${prefix}_bg.png`,
     playerBase: `${prefix}_base0.png`,
@@ -55,6 +58,16 @@ function setOwnedBackground(element, path, owner) {
   delete element.dataset.canonicalBattlebackPath;
 }
 
+function releaseOwnedBackground(element) {
+  if (!element?.dataset?.canonicalBattlebackOwner) return;
+  element.style.removeProperty("background-image");
+  element.style.removeProperty("background-repeat");
+  element.style.removeProperty("background-position");
+  element.style.removeProperty("background-size");
+  delete element.dataset.canonicalBattlebackOwner;
+  delete element.dataset.canonicalBattlebackPath;
+}
+
 function suppressSceneFallback(card, suppress) {
   if (suppress) {
     card.style.backgroundImage = "none";
@@ -64,6 +77,19 @@ function suppressSceneFallback(card, suppress) {
   if (card.dataset.canonicalBattlebackSceneFallback !== "suppressed") return;
   card.style.removeProperty("background-image");
   delete card.dataset.canonicalBattlebackSceneFallback;
+}
+
+function reportMissingPeriod(card) {
+  card.dataset.canonicalBattlebackPeriod = "unresolved";
+  card.dataset.canonicalBattlebackMissing = "owner-period";
+  const signature = "unresolved:owner-period";
+  if (signature === lastMissingSignature) return;
+  lastMissingSignature = signature;
+
+  const detail = Object.freeze({ period: null, reason: "missing-owner-period" });
+  globalThis.__maplessBattlebackPresentationDiagnostic = detail;
+  console.warn("[Mapless] canonical battleback period unresolved; keeping scene fallback until owner supplies day/eve/night");
+  window.dispatchEvent(new CustomEvent("mapless-canonical-battleback-period-unresolved", { detail }));
 }
 
 function reportMissingBattlebacks(card, period, names, resolved) {
@@ -94,6 +120,18 @@ export function applyCanonicalBattlebackPresentation() {
   const card = document.getElementById("battle-card");
   if (!card) return;
   const period = battlePeriod();
+  if (!period) {
+    delete card.dataset.canonicalBattlebackBg;
+    delete card.dataset.canonicalBattlebackPlayerBase;
+    delete card.dataset.canonicalBattlebackFoeBase;
+    suppressSceneFallback(card, false);
+    releaseOwnedBackground(card.querySelector(".arena"));
+    releaseOwnedBackground(card.querySelector(".player-platform"));
+    releaseOwnedBackground(card.querySelector(".foe-platform"));
+    reportMissingPeriod(card);
+    return;
+  }
+
   const names = canonicalBattlebackNamesForPeriod(period);
   const bg = canonicalBattlebackPublishedPath(names.bg);
   const playerBase = canonicalBattlebackPublishedPath(names.playerBase);
