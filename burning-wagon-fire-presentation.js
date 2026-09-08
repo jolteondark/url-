@@ -41,12 +41,17 @@ async function expandFireChoice() {
     "canonical候補から1個",
   ));
   buttons.push(makeChoice("fire:none", "ほのおタイプで救助し、お礼は受け取らない", "報酬なし", true));
+  if (activeBurningWagon()?.active !== current.active || !fireButton.isConnected) return;
   fireButton.replaceWith(...buttons);
 }
 
-window.addEventListener("safari-normal-event-rendered", () => {
+function reconcile() {
   expandFireChoice().catch((error) => {
     globalThis.__maplessLastError = error;
     console.error("[Mapless] Burning Wagon FIRE choice presentation failed", error);
   });
-}, { passive:true });
+}
+
+window.addEventListener("safari-normal-event-rendered", reconcile, { passive:true });
+window.addEventListener("pageshow", reconcile, { passive:true });
+reconcile();
