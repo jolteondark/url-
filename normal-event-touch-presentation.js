@@ -92,8 +92,10 @@ async function displayActionsFor(current, active) {
   return [
     { id:"pay:heal", label:"回復料理をお金で頼む", meta:active.actions.find((action) => action.id === "heal")?.meta ?? "HP50%回復" },
     { id:"pay:medicine", label:"薬膳料理をお金で頼む", meta:active.actions.find((action) => action.id === "medicine")?.meta ?? "状態異常回復" },
+    { id:"pay:power", label:"力の料理をお金で頼む", meta:"次の3戦で先頭の攻撃・特攻を強化" },
     { id:"berries:heal", label:"きのみ3個で回復料理", meta:`所持きのみ ${count}個 · HP50%回復`, disabled:count < 3 },
     { id:"berries:medicine", label:"きのみ3個で薬膳料理", meta:`所持きのみ ${count}個 · 状態異常回復`, disabled:count < 3 },
+    { id:"berries:power", label:"きのみ3個で力の料理", meta:`所持きのみ ${count}個 · 次の3戦で攻撃・特攻を強化`, disabled:count < 3 },
     { id:"prototype", label:"試作品を食べてみる", meta:"回復・薬効・強化料理・混乱・ダメージのいずれか" },
     { id:"leave", label:"立ち去る", secondary:true },
   ];
