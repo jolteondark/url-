@@ -1,6 +1,5 @@
 {
   "modules": [
-    "./fake-nurse-check-id-presentation.js?v=20260908-1400",
-    "./burning-wagon-fire-presentation.js?v=20260908-1400"
+    "./normal-event-choice-augmenter.js?v=20260908-2130"
   ]
 }
