@@ -109,6 +109,12 @@ export function bindSafariNormalEventBattleContinuation(runtime, checkpoint) {
   battle.normal_event_continuation_key = pending.key;
   battle.return_target = battle.return_target ?? "day_board";
   pending.battle_started = true;
+  const operations = Array.isArray(battle.last_operations) ? battle.last_operations : [];
+  if (!operations.some((operation) => operation?.op === "request_save" && operation?.reason === "normal_event_battle_started")) {
+    operations.push({ op: "request_save", reason: "normal_event_battle_started", continuation_key: pending.key });
+  }
+  battle.last_operations = operations;
+  state.last_operations = operations;
   return pending;
 }
 
