@@ -106,6 +106,7 @@ function loadOwner(eventId) {
       machine_gacha:"./runtime/safari-machine-gacha-interaction.js",
       trainer_camp:"./runtime/safari-trainer-camp-interaction.js",
       item_collector:"./runtime/safari-item-collector-interaction.js",
+      bounty_poster:"./runtime/safari-bounty-poster-interaction.js",
       wounded_pokemon:"./runtime/safari-wounded-pokemon-integration.js",
       crumbling_bridge:"./runtime/safari-crumbling-bridge-interaction.js",
       old_statue:"./runtime/safari-old-statue-interaction.js",
@@ -162,6 +163,7 @@ async function resolveAction(current, active, actionId) {
     }
     return owner.resolveSafariItemCollectorInteraction(current, active.boardIndex, actionId);
   }
+  if (active.eventId === "bounty_poster") return owner.resolveSafariBountyPosterInteraction(current, active.boardIndex, actionId);
   if (active.eventId === "wounded_pokemon") {
     const input = actionId === "leave" ? { choice:"leave" } : { choice:"treat", itemId:String(actionId).startsWith("treat:") ? String(actionId).slice(6) : "" };
     const result = owner.resolveSafariWoundedPokemonDecision(current, active.boardIndex, input);
