@@ -38,7 +38,7 @@ async function augmentFakeNurse(active, current) {
   const leave = actions.querySelector('[data-normal-event-action="leave"]');
   if (!leave) return;
   const owner = await loadOwner("fake_nurse");
-  if (!owner || activeNormalEvent() !== active) return;
+  if (!owner || activeNormalEvent() !== active || !actions.isConnected || !leave.isConnected) return;
   actions.insertBefore(makeChoice("check_id:heal", "身分証を確認する", "本物なら半額で50%回復 · 偽物なら逃走またはトレーナー戦"), leave);
   actions.insertBefore(makeChoice("check_id:leave", "身分証だけ確認する", "本物なら治療を断る · 偽物なら正体を暴く", true), leave);
   if (owner.safariFakeNurseWarning(current, active.boardIndex)) {
