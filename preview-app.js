@@ -664,8 +664,8 @@ window.addEventListener("safari-party-lead-request", async (event) => {
   if (busy) return;
   try {
     const result = await setSafariPartyLead(runtime, Number(event.detail?.index));
-    const saved = saveSafariPlayableRun(window.localStorage, runtime);
-    note(`${result.notice} / auto-save: ${saved.key}`);
+    autoSaveIfRequested(result, "Party lead auto-save");
+    note(result.notice);
   } catch (error) {
     note("Party error: " + (error?.message ?? error));
   }
