@@ -4,6 +4,8 @@ import fs from "node:fs";
 const shared = fs.readFileSync(new URL("../normal-event-touch-presentation.js", import.meta.url), "utf8");
 const compat = fs.readFileSync(new URL("../wishing-fountain-touch-presentation.js", import.meta.url), "utf8");
 const manifest = fs.readFileSync(new URL("../board-presentation-manifest.json", import.meta.url), "utf8");
+const deferred = fs.readFileSync(new URL("../deferred-ui-loader.js", import.meta.url), "utf8");
+const index = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
 
 assert.match(shared, /wishing_fountain:\s*"\.\/runtime\/safari-wishing-fountain-final-routes\.js\?v=20260908-1630"/);
 assert.match(shared, /active\.eventId === "wishing_fountain"[\s\S]*safariWishingFountainPresentation/);
@@ -17,5 +19,8 @@ assert.doesNotMatch(compat, /persistSafariOwnerResult/);
 assert.doesNotMatch(compat, /resolveSafariWishingFountainInteraction/);
 assert.match(compat, /safari-wishing-fountain-final-routes\.js\?v=20260908-1630/);
 assert.match(manifest, /wishing-fountain-touch-presentation\.js\?v=20260908-1630/);
+assert.match(deferred, /wishing-fountain-touch-presentation\.js\?v=20260908-1630/);
+assert.match(index, /deferred-ui-loader\.js\?v=20260908-1700/);
+assert.match(index, /normal-event-touch-presentation\.js\?v=20260908-1700/);
 
 console.log("wishing fountain shared-owner smoke: ok");
