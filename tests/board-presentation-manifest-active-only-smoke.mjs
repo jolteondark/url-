@@ -23,7 +23,7 @@ for (const name of retired) {
 
 for (const name of retired) {
   const source = await readFile(new URL(`../${name}`, import.meta.url), "utf8");
-  assert.match(source, /Compatibility loader only\./);
+  assert.match(source, /Compatibility(?: presentation)? loader only\./);
   assert.doesNotMatch(source, /addEventListener\s*\(\s*["']click["']/);
   assert.doesNotMatch(source, /saveSafariPlayableRun|persistSafariOwnerResult/);
 }
