@@ -17,7 +17,7 @@ function normalizedEntrants(entrants) {
 export function commitInitialEntryWeatherCanonical({
   battle,
   entrants,
-  priorityRandomSeed = browserBattleRandomSeed(),
+  priorityRandomSeed = null,
 } = {}) {
   if (!battle || typeof battle !== "object" || Array.isArray(battle)) throw new TypeError("battle state is required");
   if (battle.completed) return Object.freeze({ committed: false, reason: "battle_completed", order: Object.freeze([]), resolutions: Object.freeze([]) });
@@ -26,6 +26,9 @@ export function commitInitialEntryWeatherCanonical({
   }
 
   const active = normalizedEntrants(entrants);
+  const seed = priorityRandomSeed === null || priorityRandomSeed === undefined
+    ? browserBattleRandomSeed()
+    : Number(priorityRandomSeed) & 0x7fffffff;
   const entries = active.map(({ actionIndex, battlerIndex, pokemon }) => ({
     actionIndex,
     battlerIndex,
@@ -33,26 +36,34 @@ export function commitInitialEntryWeatherCanonical({
   }));
   const priority = calculatePriorityCanonical(entries, {
     onlySpeedSort: true,
-    randomSeed: Number(priorityRandomSeed) & 0x7fffffff,
+    randomSeed: seed,
   });
   const byActionIndex = new Map(active.map((entry) => [entry.actionIndex, entry]));
+  const previousWeatherState = structuredClone(battle.battle_weather_state ?? null);
+  const hadWeatherState = Object.prototype.hasOwnProperty.call(battle, "battle_weather_state");
   const resolutions = [];
-  for (const actionIndex of priority.order) {
-    const entrant = byActionIndex.get(Number(actionIndex));
-    if (!entrant) throw new Error(`canonical initial-entry order references unknown action ${actionIndex}`);
-    const resolution = commitSwitchInEntryWeatherCanonical({ battle, pokemon: entrant.pokemon });
-    resolutions.push(Object.freeze({
-      actionIndex: entrant.actionIndex,
-      battlerIndex: entrant.battlerIndex,
-      triggered: Boolean(resolution?.triggered),
-      entryWeather: resolution == null ? null : structuredClone(resolution),
-    }));
+  try {
+    for (const actionIndex of priority.order) {
+      const entrant = byActionIndex.get(Number(actionIndex));
+      if (!entrant) throw new Error(`canonical initial-entry order references unknown action ${actionIndex}`);
+      const resolution = commitSwitchInEntryWeatherCanonical({ battle, pokemon: entrant.pokemon });
+      resolutions.push(Object.freeze({
+        actionIndex: entrant.actionIndex,
+        battlerIndex: entrant.battlerIndex,
+        triggered: Boolean(resolution?.triggered),
+        entryWeather: resolution == null ? null : structuredClone(resolution),
+      }));
+    }
+  } catch (error) {
+    if (hadWeatherState) battle.battle_weather_state = previousWeatherState;
+    else delete battle.battle_weather_state;
+    throw error;
   }
   battle.initial_entry_weather_committed = true;
   return Object.freeze({
     committed: true,
     reason: "committed",
-    priorityRandomSeed: Number(priorityRandomSeed) & 0x7fffffff,
+    priorityRandomSeed: seed,
     order: Object.freeze(priority.order.map(Number)),
     resolutions: Object.freeze(resolutions),
   });
