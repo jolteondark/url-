@@ -6,6 +6,8 @@ const PERIOD_PREFIX = Object.freeze({
   night: "field_night",
 });
 let lastMissingSignature = "";
+let applyGeneration = 0;
+const verifiedAssetLoads = new Map();
 
 function maplessState() {
   return globalThis.__maplessSafariRuntime?.variables?.mapless ?? null;
@@ -110,13 +112,39 @@ function reportMissingBattlebacks(card, period, names, resolved) {
   if (signature === lastMissingSignature) return;
   lastMissingSignature = signature;
 
-  const detail = Object.freeze({ period, missing: Object.freeze(missing) });
+  const detail = Object.freeze({ period, reason: "unpublished", missing: Object.freeze(missing) });
   globalThis.__maplessBattlebackPresentationDiagnostic = detail;
   console.warn(`[Mapless] canonical battleback assets unpublished (${period}): ${missing.map(({ name }) => name).join(", ")}`);
   window.dispatchEvent(new CustomEvent("mapless-canonical-battleback-missing", { detail }));
 }
 
-export function applyCanonicalBattlebackPresentation() {
+function verifyCanonicalBattlebackAsset(path) {
+  if (!path) return Promise.resolve(false);
+  if (!verifiedAssetLoads.has(path)) {
+    verifiedAssetLoads.set(path, new Promise((resolve) => {
+      const image = new Image();
+      image.decoding = "async";
+      image.onload = () => resolve(true);
+      image.onerror = () => resolve(false);
+      image.src = path;
+    }));
+  }
+  return verifiedAssetLoads.get(path);
+}
+
+function reportBattlebackLoadError(card, period, failed) {
+  card.dataset.canonicalBattlebackMissing = failed.map(({ name }) => name).join(",");
+  const signature = `${period}:load-error:${card.dataset.canonicalBattlebackMissing}`;
+  if (signature === lastMissingSignature) return;
+  lastMissingSignature = signature;
+  const detail = Object.freeze({ period, reason: "load-error", missing: Object.freeze(failed) });
+  globalThis.__maplessBattlebackPresentationDiagnostic = detail;
+  console.warn(`[Mapless] canonical battleback asset load failed (${period}): ${failed.map(({ name }) => name).join(", ")}`);
+  window.dispatchEvent(new CustomEvent("mapless-canonical-battleback-load-error", { detail }));
+}
+
+export async function applyCanonicalBattlebackPresentation() {
+  const generation = ++applyGeneration;
   const card = document.getElementById("battle-card");
   if (!card) return;
   const period = battlePeriod();
@@ -138,12 +166,50 @@ export function applyCanonicalBattlebackPresentation() {
   const foeBase = canonicalBattlebackPublishedPath(names.foeBase);
 
   card.dataset.canonicalBattlebackPeriod = period;
-  card.dataset.canonicalBattlebackBg = bg ? "published" : "missing";
-  card.dataset.canonicalBattlebackPlayerBase = playerBase ? "published" : "missing";
-  card.dataset.canonicalBattlebackFoeBase = foeBase ? "published" : "missing";
+  card.dataset.canonicalBattlebackBg = bg ? "loading" : "missing";
+  card.dataset.canonicalBattlebackPlayerBase = playerBase ? "loading" : "missing";
+  card.dataset.canonicalBattlebackFoeBase = foeBase ? "loading" : "missing";
   reportMissingBattlebacks(card, period, names, { bg, playerBase, foeBase });
-  suppressSceneFallback(card, !bg);
+  if (!bg || !playerBase || !foeBase) {
+    suppressSceneFallback(card, !bg);
+    setOwnedBackground(card.querySelector(".arena"), bg, "bg");
+    setOwnedBackground(card.querySelector(".player-platform"), playerBase, "player-base");
+    setOwnedBackground(card.querySelector(".foe-platform"), foeBase, "foe-base");
+    return;
+  }
 
+  const checks = await Promise.all([
+    verifyCanonicalBattlebackAsset(bg),
+    verifyCanonicalBattlebackAsset(playerBase),
+    verifyCanonicalBattlebackAsset(foeBase),
+  ]);
+  if (generation !== applyGeneration || document.getElementById("battle-card") !== card || battlePeriod() !== period) return;
+
+  const slots = [
+    { slot: "bg", name: names.bg, path: bg, ok: checks[0] },
+    { slot: "playerBase", name: names.playerBase, path: playerBase, ok: checks[1] },
+    { slot: "foeBase", name: names.foeBase, path: foeBase, ok: checks[2] },
+  ];
+  const failed = slots.filter(({ ok }) => !ok).map(({ slot, name }) => Object.freeze({ slot, name }));
+  if (failed.length) {
+    card.dataset.canonicalBattlebackBg = checks[0] ? "published" : "load-error";
+    card.dataset.canonicalBattlebackPlayerBase = checks[1] ? "published" : "load-error";
+    card.dataset.canonicalBattlebackFoeBase = checks[2] ? "published" : "load-error";
+    suppressSceneFallback(card, !checks[0]);
+    setOwnedBackground(card.querySelector(".arena"), checks[0] ? bg : null, "bg");
+    setOwnedBackground(card.querySelector(".player-platform"), checks[1] ? playerBase : null, "player-base");
+    setOwnedBackground(card.querySelector(".foe-platform"), checks[2] ? foeBase : null, "foe-base");
+    reportBattlebackLoadError(card, period, failed);
+    return;
+  }
+
+  delete card.dataset.canonicalBattlebackMissing;
+  lastMissingSignature = "";
+  globalThis.__maplessBattlebackPresentationDiagnostic = Object.freeze({ period, reason: "ready" });
+  card.dataset.canonicalBattlebackBg = "published";
+  card.dataset.canonicalBattlebackPlayerBase = "published";
+  card.dataset.canonicalBattlebackFoeBase = "published";
+  suppressSceneFallback(card, false);
   setOwnedBackground(card.querySelector(".arena"), bg, "bg");
   setOwnedBackground(card.querySelector(".player-platform"), playerBase, "player-base");
   setOwnedBackground(card.querySelector(".foe-platform"), foeBase, "foe-base");
@@ -155,7 +221,10 @@ function scheduleApply() {
   scheduled = true;
   requestAnimationFrame(() => {
     scheduled = false;
-    applyCanonicalBattlebackPresentation();
+    applyCanonicalBattlebackPresentation().catch((error) => {
+      globalThis.__maplessLastError = error;
+      console.error("[Mapless] canonical battleback presentation failed", error);
+    });
   });
 }
 
