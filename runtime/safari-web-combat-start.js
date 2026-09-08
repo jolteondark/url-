@@ -2,6 +2,7 @@ import { resolveDayBoardCellDispatch } from "./mapless-day-board-cell-dispatch.j
 import { resolveBrowserMaplessWildEncounter } from "./browser-mapless-wild-encounter-runtime.js";
 import { resolveBattleStartCore } from "./battle-core-start-handoff.js";
 import { createBattleStatStageStateCanonical } from "./battle-core-stat-stages.js";
+import { commitInitialEntryWeatherCanonical } from "./battle-initial-entry-weather-commit.js";
 import {
   planMaplessNormalEventExtraTrainerEncounter,
   selectMaplessNormalEventExtraTrainerType,
@@ -63,9 +64,10 @@ function materializePokemon(input) {
 }
 function setBattle(runtime, index, kind, opponent, operations, trainer = null, encounterResolution = null, generated = null, trainerParty = null) {
   const state = stateOf(runtime);
-  const battleStart = resolveBattleStartCore({ sendOuts: [[0, runtime.player.party[0]], [1, opponent]] });
+  const player = runtime.player.party[0];
+  const battleStart = resolveBattleStartCore({ sendOuts: [[0, player], [1, opponent]] });
   const lastOperations = [...operations, ...(encounterResolution?.operations ?? []), ...battleStart.operations];
-  state.battle = {
+  const nextBattle = {
     kind,
     board_index: index,
     turn: 1,
@@ -86,6 +88,14 @@ function setBattle(runtime, index, kind, opponent, operations, trainer = null, e
     last_operations: lastOperations,
     presentation: [{ type: "battle_started", actor: "foe", species: opponent.species, trainer: trainer?.trainer_full_name ?? null }],
   };
+  commitInitialEntryWeatherCanonical({
+    battle: nextBattle,
+    entrants: [
+      { battlerIndex: 0, pokemon: player },
+      { battlerIndex: 1, pokemon: opponent },
+    ],
+  });
+  state.battle = nextBattle;
   state.last_operations = lastOperations;
 }
 function wildEncounterExtraModifier(event) {
