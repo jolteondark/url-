@@ -11,6 +11,7 @@ import { buildRestStatusInputCanonical, isCanonicalFixedDamageFunction, resolveC
 import { resolveBattleAbilityItemHookCanonical } from "./battle-ability-item-hook-dispatch.js";
 import { resolveMoveOrderAbilityItemExtensionCanonical, resolveSeededMoveOrderAbilityItemExtensionCanonical } from "./battle-core-ability-item-move-order-extension.js";
 import { createBattleWeatherEnvironmentState, projectExecutedBattleWeatherCanonical } from "./battle-weather-environment-state.js";
+import { browserBattleRandomSeed } from "./battle-browser-random-seed.js";
 import {
   buildBrowserBattleConfusionTryUseInput,
   projectBrowserBattleConfusionAfterRound,
@@ -33,12 +34,6 @@ function requireBattleMoveRuntime(move, label) {
   if (!move || typeof move !== "object" || Array.isArray(move)) throw new TypeError(`${label} move must be materialized before battle`);
   if (!Number.isInteger(move.pp) || move.pp < 0) throw new TypeError(`${label} move pp must be a non-negative integer`);
   return move;
-}
-function browserCombatSeed() {
-  if (globalThis.crypto && typeof globalThis.crypto.getRandomValues === "function") {
-    const value = new Uint32Array(1); globalThis.crypto.getRandomValues(value); return value[0] & 0x7fffffff;
-  }
-  return Math.floor(Math.random() * 0x80000000) & 0x7fffffff;
 }
 function moveOrderSeed(priorityRandomSeed, battlerIndex) {
   const seed = Number(priorityRandomSeed) & 0x7fffffff;
@@ -298,7 +293,7 @@ export function applyBrowserBattleTurnEndStatStagesCanonical({ statStages, playe
   return Object.freeze({ state, applied: Object.freeze(applied) });
 }
 
-export function resolveBrowserBattleRound({ player, foe, playerParty = null, foeParty = null, playerActivePartyIndex = 0, foeActivePartyIndex = 0, selectedMoveId, foeMoveId, moveMasters, combatRandomSeed = browserCombatSeed(), priorityRandomSeed = browserCombatSeed(), playerRandomRoll = null, foeRandomRoll = null, playerConfusionRandomRoll = null, foeConfusionRandomRoll = null, playerBattleExpInput = null, postBattlePersistenceInput = null, reflectedPartyIndex = 0, playerActionConsumedWithoutMove = false, battleStatStages = null, battleWeatherState = null } = {}) {
+export function resolveBrowserBattleRound({ player, foe, playerParty = null, foeParty = null, playerActivePartyIndex = 0, foeActivePartyIndex = 0, selectedMoveId, foeMoveId, moveMasters, combatRandomSeed = browserBattleRandomSeed(), priorityRandomSeed = browserBattleRandomSeed(), playerRandomRoll = null, foeRandomRoll = null, playerConfusionRandomRoll = null, foeConfusionRandomRoll = null, playerBattleExpInput = null, postBattlePersistenceInput = null, reflectedPartyIndex = 0, playerActionConsumedWithoutMove = false, battleStatStages = null, battleWeatherState = null } = {}) {
   requireBattleStats(player, "player"); requireBattleStats(foe, "foe");
   const statStages = createBattleStatStageStateCanonical(battleStatStages);
   const weatherState = createBattleWeatherEnvironmentState(battleWeatherState);
