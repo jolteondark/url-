@@ -13,13 +13,11 @@ const MENU_SPRITE_PRESENTATION_PUBLIC_REVISION = "20260902-1800";
 const boardPresentationFallbackModules = [
   "./berry-juice-shop-touch-presentation.js?v=20260908-0330",
   "./trainer-camp-touch-presentation.js?v=20260908-0700",
-  "./old-statue-touch-presentation.js?v=20260901-1327",
+  "./old-statue-touch-presentation.js?v=20260908-1431",
   "./machine-gacha-touch-presentation.js?v=20260908-0530",
   "./wishing-fountain-touch-presentation.js?v=20260908-0730",
   "./item-collector-touch-presentation.js?v=20260908-1030",
-  "./day-board-direct-persistence-handoff.js?v=20260901-1327",
-  "./board-special-event-ui-handoff.js?v=20260901-1327",
-  "./crumbling-bridge-touch-presentation.js?v=20260902-0312",
+  "./crumbling-bridge-touch-presentation.js?v=20260908-1500",
   "./fake-nurse-check-id-presentation.js?v=20260908-1400",
   "./burning-wagon-fire-presentation.js?v=20260908-1400",
 ];
