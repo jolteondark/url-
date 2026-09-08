@@ -2,6 +2,7 @@ import {
   resolveSafariItemCollectorInteraction,
   safariItemCollectorPresentation,
 } from "./runtime/safari-item-collector-interaction.js?v=20260825-2355";
+import { openSafariItemCollectorTouch } from "./runtime/safari-item-collector-touch.js";
 import { persistSafariOwnerResult } from "./runtime/safari-owner-result-persistence.js";
 
 let resolving = false;
@@ -21,30 +22,10 @@ function publish(name) {
 }
 function setUi(index, category = null) {
   const current = runtime();
-  const currentState = state();
-  if (!current || !currentState || !collectorAt(index)) return false;
-  const presentation = safariItemCollectorPresentation(current, index, category);
-  currentState.notice = presentation.message;
-  globalThis.__maplessNormalEventUi = {
-    runtime:current,
-    boardIndex:index,
-    eventId:"item_collector",
-    category,
-    title:presentation.title,
-    message:presentation.message,
-    actions:presentation.actions,
-  };
-  publish("safari-normal-event-ui");
+  if (!current || !collectorAt(index)) return false;
+  openSafariItemCollectorTouch(current, index, category);
   publish("safari-runtime-changed");
   return true;
-}
-function openCollector(index) {
-  const currentState = state();
-  if (!currentState || !collectorAt(index)) return false;
-  if (currentState.location !== "day_board" || currentState.battle || currentState.shop || currentState.board_consumed?.[index]) return false;
-  currentState.board_revealed[index] = true;
-  currentState.board_visited[index] = true;
-  return setUi(index, null);
 }
 
 document.addEventListener("click", (event) => {
@@ -55,7 +36,8 @@ document.addEventListener("click", (event) => {
   event.preventDefault();
   event.stopImmediatePropagation();
   try {
-    openCollector(index);
+    openSafariItemCollectorTouch(runtime(), index, null);
+    publish("safari-runtime-changed");
   } catch (error) {
     globalThis.__maplessLastError = error;
     const currentState = state();
@@ -92,7 +74,12 @@ document.addEventListener("click", async (event) => {
     const result = resolveSafariItemCollectorInteraction(current, active.boardIndex, action);
     persistSafariOwnerResult(current, result, window.localStorage);
     if (result.completed) globalThis.__maplessNormalEventUi = null;
-    else setUi(active.boardIndex, active.category ?? null);
+    else {
+      const presentation = safariItemCollectorPresentation(current, active.boardIndex, active.category ?? null);
+      active.title = presentation.title;
+      active.message = presentation.message;
+      active.actions = presentation.actions;
+    }
     publish("safari-runtime-changed");
     if (!result.completed) publish("safari-normal-event-ui");
   } catch (error) {
