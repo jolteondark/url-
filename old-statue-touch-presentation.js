@@ -6,15 +6,11 @@ import {
   safariOldStatuePrayNeedsPokemon,
   safariOldStatuePresentation,
 } from "./runtime/safari-old-statue-break-rewards.js?v=20260828-2320";
-import { persistSafariOwnerResult } from "./day-board-direct-persistence-handoff.js?v=20260829-1710";
+import { persistSafariOwnerResult } from "./runtime/safari-owner-result-persistence.js";
 
 let resolving = false;
 function runtime() { return globalThis.__maplessSafariRuntime ?? null; }
 function state() { return runtime()?.variables?.mapless ?? null; }
-function statueAt(index) {
-  const event = state()?.board_events?.[index];
-  return event?.kind === "normal_event" && event?.normal_event_id === "old_statue" ? event : null;
-}
 function activeUi() {
   const active = globalThis.__maplessNormalEventUi ?? null;
   return active?.runtime === runtime() && active?.eventId === "old_statue" ? active : null;
@@ -26,7 +22,9 @@ function publish(name) {
 function setUi(index) {
   const current = runtime();
   const currentState = state();
-  if (!current || !currentState || !statueAt(index)) return false;
+  if (!current || !currentState) return false;
+  const event = currentState.board_events?.[index];
+  if (event?.kind !== "normal_event" || event?.normal_event_id !== "old_statue") return false;
   const presentation = safariOldStatuePresentation(current, index);
   currentState.notice = presentation.message;
   globalThis.__maplessNormalEventUi = {
@@ -40,14 +38,6 @@ function setUi(index) {
   publish("safari-normal-event-ui");
   publish("safari-runtime-changed");
   return true;
-}
-function openStatue(index) {
-  const currentState = state();
-  if (!currentState || !statueAt(index)) return false;
-  if (currentState.location !== "day_board" || currentState.battle || currentState.shop || currentState.board_consumed?.[index]) return false;
-  currentState.board_revealed[index] = true;
-  currentState.board_visited[index] = true;
-  return setUi(index);
 }
 function pokemonSelectionOptions(current, index, action) {
   const needsPokemon = action === "pray"
@@ -82,22 +72,6 @@ function actionSelectionOptions(current, index, action) {
     ...pokemonSelectionOptions(current, index, action),
   };
 }
-
-document.addEventListener("click", (event) => {
-  const button = event.target.closest("button[data-board-index]");
-  if (!button || button.disabled) return;
-  const index = Number(button.dataset.boardIndex);
-  if (!Number.isInteger(index) || !statueAt(index)) return;
-  event.preventDefault();
-  event.stopImmediatePropagation();
-  try { openStatue(index); }
-  catch (error) {
-    globalThis.__maplessLastError = error;
-    const currentState = state();
-    if (currentState) currentState.notice = `イベントエラー: ${error?.message ?? error}`;
-    publish("safari-runtime-changed");
-  }
-}, { capture:true });
 
 document.addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-normal-event-action]");
