@@ -213,7 +213,15 @@ export async function resolveSafariStreetPerformerInteraction(runtime, index, re
         request:structuredClone(trainerBattle),
         payload:{ canonicalOutcome:owner.outcome },
       });
-      if (started.result === "normal_event_trainer_battle_started" && state.battle) globalThis.__maplessNormalEventUi = null;
+      if (started.result === "normal_event_trainer_battle_started" && state.battle) {
+        globalThis.__maplessNormalEventUi = null;
+        const operations = [
+          ...(started.operations ?? []),
+          { op:"request_save", reason:"street_performer_battle_started" },
+        ];
+        state.last_operations = operations;
+        return { ...started, operations, persistenceRequested:true };
+      }
       return started;
     }
     commitResolvedEvent(runtime, index, owner, []);
