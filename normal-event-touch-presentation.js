@@ -58,6 +58,14 @@ async function displayActionsFor(current, active) {
     active.actions = ui.actions;
     return ui.actions;
   }
+  if (active.eventId === "old_statue") {
+    const owner = await loadOwner(active.eventId);
+    const ui = owner.safariOldStatuePresentation(current, active.boardIndex);
+    active.title = ui.title;
+    active.message = ui.message;
+    active.actions = ui.actions;
+    return ui.actions;
+  }
   if (active.eventId === "street_performer") {
     const owner = await loadOwner(active.eventId);
     const scale = Math.max(Math.floor((Math.max(1, Number(state()?.day) || 1) - 1) / 5), 0);
@@ -109,7 +117,7 @@ function loadOwner(eventId) {
       bounty_poster:"./runtime/safari-bounty-poster-interaction.js",
       wounded_pokemon:"./runtime/safari-wounded-pokemon-integration.js",
       crumbling_bridge:"./runtime/safari-crumbling-bridge-interaction.js",
-      old_statue:"./runtime/safari-old-statue-interaction.js",
+      old_statue:"./runtime/safari-old-statue-break-rewards.js?v=20260828-2320",
       treasure_chest:"./runtime/safari-treasure-chest-interaction.js",
       miner:"./runtime/safari-miner-interaction.js",
       tavern:"./runtime/safari-tavern-interaction.js",
@@ -119,6 +127,42 @@ function loadOwner(eventId) {
     ownerModules.set(eventId, import(specifier));
   }
   return ownerModules.get(eventId);
+}
+
+function oldStatuePokemonSelection(owner, current, index, actionId) {
+  const needsPokemon = actionId === "pray"
+    ? owner.safariOldStatuePrayNeedsPokemon(current, index)
+    : actionId === "offer" && owner.safariOldStatueOfferNeedsPokemon(current, index);
+  if (!needsPokemon) return {};
+  const candidates = owner.safariOldStatueBonusCandidates(current);
+  if (!candidates.length) return { pokemonIndex:NaN };
+  const promptFn = typeof globalThis.prompt === "function" ? globalThis.prompt.bind(globalThis) : null;
+  if (!promptFn) return { pokemonIndex:candidates[0].index };
+  const lines = candidates.map((entry) => `${entry.index + 1}: ${entry.species}${entry.fainted ? " (ひんし)" : ""}`);
+  const raw = promptFn(`石像の加護を受けるポケモンを選んでください。\n${lines.join("\n")}\nキャンセルするとイベントは消費しません。`, String(candidates[0].index + 1));
+  if (raw == null) return { pokemonIndex:NaN };
+  const chosen = Number(raw) - 1;
+  return { pokemonIndex:candidates.some((entry) => entry.index === chosen) ? chosen : NaN };
+}
+
+function oldStatueOfferSelection(owner, current, index, actionId) {
+  if (actionId !== "offer") return {};
+  const entries = owner.safariOldStatueOfferEntries(current, index);
+  if (!entries.length) return { offeredItem:"" };
+  const promptFn = typeof globalThis.prompt === "function" ? globalThis.prompt.bind(globalThis) : null;
+  if (!promptFn) return { offeredItem:entries[0].id };
+  const lines = entries.map((entry, entryIndex) => `${entryIndex + 1}: ${entry.id} ×${entry.qty}`);
+  const raw = promptFn(`石像に供える道具を1個選んでください。\n${lines.join("\n")}\nキャンセルすると道具もイベントも消費しません。`, "1");
+  if (raw == null) return { offeredItem:"" };
+  const chosen = Number(raw) - 1;
+  return { offeredItem:Number.isInteger(chosen) && entries[chosen] ? entries[chosen].id : "" };
+}
+
+function oldStatueActionOptions(owner, current, index, actionId) {
+  return {
+    ...oldStatueOfferSelection(owner, current, index, actionId),
+    ...oldStatuePokemonSelection(owner, current, index, actionId),
+  };
 }
 
 async function resolveAction(current, active, actionId) {
@@ -170,7 +214,14 @@ async function resolveAction(current, active, actionId) {
     return { ...result, completed:Boolean(current.variables?.mapless?.board_consumed?.[active.boardIndex]) };
   }
   if (active.eventId === "crumbling_bridge") return owner.resolveSafariCrumblingBridgeInteraction(current, active.boardIndex, actionId);
-  if (active.eventId === "old_statue") return owner.resolveSafariOldStatueInteraction(current, active.boardIndex, actionId);
+  if (active.eventId === "old_statue") {
+    return await owner.resolveSafariOldStatueInteraction(
+      current,
+      active.boardIndex,
+      actionId,
+      oldStatueActionOptions(owner, current, active.boardIndex, actionId),
+    );
+  }
   if (active.eventId === "treasure_chest") return owner.resolveSafariTreasureChest(current, active.boardIndex, actionId);
   if (active.eventId === "miner") return owner.resolveSafariMinerAction(current, active.boardIndex, actionId);
   if (active.eventId === "tavern") return owner.resolveSafariTavernAction(current, active.boardIndex, actionId);
@@ -285,7 +336,7 @@ document.addEventListener("click", async (event) => {
   try {
     const result = await resolveAction(current, active, button.dataset.normalEventAction);
     persistSafariOwnerResult(current, result, window.localStorage);
-    if (result.completed) closeNormalEventUi();
+    if (result.completed || result.result === "normal_event_wild_battle_started") closeNormalEventUi();
     window.dispatchEvent(new CustomEvent("safari-runtime-changed"));
   } catch (error) {
     globalThis.__maplessLastError = error;
