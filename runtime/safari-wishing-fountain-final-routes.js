@@ -100,7 +100,7 @@ registerSafariNormalEventBattleContinuation("wishing_fountain", (runtime, contin
   state.notice = battleSucceeded(continuation.battleReturn)
     ? "泉から現れたポケモンとの戦いを終え、泉を離れました。"
     : "泉での戦いは終わりました。";
-  return { runtime, result:owner.outcome, completed:true, terminal:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+  return { runtime, result:owner.outcome, completed:true, terminal:true, operations:state.last_operations, notice:state.notice, owner };
 });
 
 export function safariWishingFountainBonusCandidates(runtime) {
@@ -155,7 +155,7 @@ export async function resolveSafariWishingFountainInteraction(runtime, index, re
       state.notice = selected && bonus?.success
         ? `${price}円を捧げると、${selected.species}の${event.normal_data?.bonus_stat}ボーナスが1上がりました。`
         : `${price}円を捧げましたが、強化するポケモンを選ばず泉を離れました。`;
-      return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner, bonus };
+      return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, owner, bonus };
     }
   }
 
@@ -191,7 +191,7 @@ export async function resolveSafariWishingFountainInteraction(runtime, index, re
       state.notice = appliedStatus.success
         ? `泉の冷気で先頭のポケモンが${status}になりました。`
         : "泉の冷気がまとわりつきましたが、状態異常は変化しませんでした。";
-      return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner, status, statusApplied:appliedStatus.success };
+      return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, owner, status, statusApplied:appliedStatus.success };
     }
   }
 
