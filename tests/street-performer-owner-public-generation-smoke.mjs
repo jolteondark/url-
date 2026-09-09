@@ -5,8 +5,13 @@ const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
 assert.match(
   html,
-  /"\.\/runtime\/safari-street-performer-interaction\.js": "\.\/runtime\/safari-street-performer-interaction\.js\?v=20260909-0600"/,
-  'reachable Safari Street Performer owner must be delivered through a fresh import-map generation after Battle-start persistence change',
+  /"\.\/runtime\/safari-street-performer-interaction\.js": "\.\/runtime\/safari-street-performer-interaction\.js\?v=20260909-0830"/,
+  'reachable Safari Street Performer owner must be delivered through the current public import-map generation after shared Battle-start persistence ownership convergence',
+);
+assert.doesNotMatch(
+  html,
+  /safari-street-performer-interaction\.js\?v=20260909-0600/,
+  'do not reintroduce the pre-#1364 Street Performer owner generation',
 );
 assert.doesNotMatch(
   html,
