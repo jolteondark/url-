@@ -168,6 +168,9 @@ export function resolveSafariFloodedRiverInteraction(runtime, index, action) {
     ...(owner.operations ?? []).map((operation) => structuredClone(operation)),
     ...applied,
   ];
+  if (owner.result && !state.last_operations.some((operation) => operation?.op === "request_save")) {
+    state.last_operations = [...state.last_operations, { op: "request_save", reason: "flooded_river_resolved" }];
+  }
   state.notice = owner.outcome === "left"
     ? "川を渡らず引き返しました。"
     : owner.outcome === "water_crossing"
@@ -185,7 +188,7 @@ export function resolveSafariFloodedRiverInteraction(runtime, index, action) {
     completed: Boolean(owner.result),
     operations: state.last_operations,
     notice: state.notice,
-    persistenceRequested: Boolean(owner.result),
+    persistenceRequested: state.last_operations.some((operation) => operation?.op === "request_save"),
     owner,
   };
 }
