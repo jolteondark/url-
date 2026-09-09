@@ -176,6 +176,7 @@ export function resolveSafariMachineGachaInteraction(runtime, index, decisions =
     result = resolved.outcome;
     if (!canContinue) break;
   }
+  if (draws > 0) operations.push({ op: "request_save", reason: "machine_gacha_purchase" });
   state.notice = rewards.length > 0
     ? `技術端末から${rewards[rewards.length - 1]}を受け取りました。`
     : result === "insufficient_money" ? "お金が足りません。"
