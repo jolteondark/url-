@@ -192,6 +192,9 @@ export function resolveSafariBurningWagonInteraction(runtime, index, action) {
     ...(reward?.operations ?? []).map((operation) => structuredClone(operation)),
     ...applied,
   ];
+  if (owner.result && !eventOperations.some((operation) => operation?.op === "request_save")) {
+    eventOperations.push({ op:"request_save", reason:"burning_wagon_resolved" });
+  }
   state.last_operations = eventOperations;
   state.notice = owner.outcome === "left"
     ? "燃える荷馬車を離れました。"
@@ -221,7 +224,7 @@ export function resolveSafariBurningWagonInteraction(runtime, index, action) {
     completed:Boolean(owner.result),
     operations:state.last_operations,
     notice:state.notice,
-    persistenceRequested:Boolean(owner.result) || runEnd.finished,
+    persistenceRequested:state.last_operations.some((operation) => operation?.op === "request_save"),
     owner,
     runEnd,
   };
