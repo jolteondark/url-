@@ -47,13 +47,21 @@ function rewardTransaction(runtime, items) {
   });
 }
 
-function commitOwner(state, index, owner, extraOperations = []) {
-  state.board_events[index] = owner.event;
-  state.board_consumed[index] = Boolean(owner.event.normal_resolved);
-  state.last_operations = [
+function commitOwner(state, index, owner, extraOperations = [], reason = "pokemon_nest_resolved") {
+  const operations = [
     ...(owner.operations ?? []).filter((operation) => operation?.op !== "start_wild_battle").map((operation) => structuredClone(operation)),
     ...extraOperations.map((operation) => structuredClone(operation)),
   ];
+  if (owner.result && !operations.some((operation) => operation?.op === "request_save")) {
+    operations.push({ op:"request_save", reason });
+  }
+  state.board_events[index] = owner.event;
+  state.board_consumed[index] = Boolean(owner.event.normal_resolved);
+  state.last_operations = operations;
+}
+
+function persistenceRequested(operations) {
+  return operations.some((operation) => operation?.op === "request_save");
 }
 
 registerSafariNormalEventBattleContinuation("pokemon_nest", (runtime, continuation) => {
@@ -69,7 +77,7 @@ registerSafariNormalEventBattleContinuation("pokemon_nest", (runtime, continuati
       current_day:state.day,
       battle_success:success,
     });
-    commitOwner(state, index, owner, [{ op:"request_save", reason:"normal_event_post_battle" }]);
+    commitOwner(state, index, owner, [], "normal_event_post_battle");
     state.notice = success
       ? "巣を調べている途中で現れた野生ポケモンを退けました。"
       : "巣を調べている途中で現れた野生ポケモンから離れました。";
@@ -80,7 +88,7 @@ registerSafariNormalEventBattleContinuation("pokemon_nest", (runtime, continuati
       terminal:true,
       operations:state.last_operations,
       notice:state.notice,
-      persistenceRequested:true,
+      persistenceRequested:persistenceRequested(state.last_operations),
       owner,
     };
   }
@@ -88,7 +96,7 @@ registerSafariNormalEventBattleContinuation("pokemon_nest", (runtime, continuati
   if (continuation.actionId === "egg") {
     if (!success) {
       const owner = resolvePokemonNest({ event, action:"egg", current_day:state.day, battle_success:false });
-      commitOwner(state, index, owner, [{ op:"request_save", reason:"normal_event_post_battle" }]);
+      commitOwner(state, index, owner, [], "normal_event_post_battle");
       state.notice = "タマゴを守っていた野生ポケモンとの戦闘を終えました。";
       return {
         runtime,
@@ -97,7 +105,7 @@ registerSafariNormalEventBattleContinuation("pokemon_nest", (runtime, continuati
         terminal:true,
         operations:state.last_operations,
         notice:state.notice,
-        persistenceRequested:true,
+        persistenceRequested:persistenceRequested(state.last_operations),
         owner,
       };
     }
@@ -114,10 +122,7 @@ registerSafariNormalEventBattleContinuation("pokemon_nest", (runtime, continuati
         battle_success:true,
         add_egg_success:false,
       });
-      commitOwner(state, index, owner, [
-        ...(granted.operations ?? []),
-        { op:"request_save", reason:"normal_event_post_battle" },
-      ]);
+      commitOwner(state, index, owner, granted.operations ?? [], "normal_event_post_battle");
       state.notice = "手持ちもボックスもいっぱいで、巣のタマゴを保護できませんでした。";
       return {
         runtime,
@@ -126,7 +131,7 @@ registerSafariNormalEventBattleContinuation("pokemon_nest", (runtime, continuati
         terminal:true,
         operations:state.last_operations,
         notice:state.notice,
-        persistenceRequested:true,
+        persistenceRequested:persistenceRequested(state.last_operations),
         owner,
         granted,
       };
@@ -139,10 +144,7 @@ registerSafariNormalEventBattleContinuation("pokemon_nest", (runtime, continuati
       battle_success:true,
       add_egg_success:true,
     });
-    commitOwner(state, index, owner, [
-      ...(granted.operations ?? []),
-      { op:"request_save", reason:"normal_event_post_battle" },
-    ]);
+    commitOwner(state, index, owner, granted.operations ?? [], "normal_event_post_battle");
     state.notice = granted.result === "party"
       ? "巣のタマゴを保護し、手持ちに加えました。"
       : "巣のタマゴを保護し、ボックスへ送りました。";
@@ -153,7 +155,7 @@ registerSafariNormalEventBattleContinuation("pokemon_nest", (runtime, continuati
       terminal:true,
       operations:state.last_operations,
       notice:state.notice,
-      persistenceRequested:true,
+      persistenceRequested:persistenceRequested(state.last_operations),
       owner,
       granted,
     };
@@ -190,7 +192,7 @@ export async function resolveSafariPokemonNestInteraction(runtime, index, reques
       completed:true,
       operations:state.last_operations,
       notice:state.notice,
-      persistenceRequested:true,
+      persistenceRequested:persistenceRequested(state.last_operations),
       owner,
       granted,
     };
@@ -262,7 +264,7 @@ export async function resolveSafariPokemonNestInteraction(runtime, index, reques
       completed:true,
       operations:state.last_operations,
       notice:state.notice,
-      persistenceRequested:true,
+      persistenceRequested:persistenceRequested(state.last_operations),
       owner,
     };
   }
