@@ -74,6 +74,10 @@ function commit(runtime, index, owner, applied = []) {
   return state;
 }
 
+function operationsRequestSave(operations = []) {
+  return operations.some((operation) => operation?.op === "request_save");
+}
+
 function activePartyLead(runtime) {
   return (runtime?.player?.party ?? []).find((pokemon) => pokemon && Number(pokemon.steps_to_hatch ?? 0) <= 0 && Number(pokemon.hp ?? 0) > 0) ?? null;
 }
@@ -128,7 +132,7 @@ export function resolveSafariOldStatueInteraction(runtime, index, requestedActio
     const owner = resolveOldStatue({ event, choice:"leave" });
     commit(runtime, index, owner);
     state.notice = "古びた石像を離れました。";
-    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:operationsRequestSave(state.last_operations), owner };
   }
 
   if (action === "offer") {
@@ -155,7 +159,7 @@ export function resolveSafariOldStatueInteraction(runtime, index, requestedActio
     healSafariPartyFull(runtime);
     commit(runtime, index, owner, [{ op:"runtime_heal_party_full" }]);
     state.notice = "石像の加護で手持ちが全回復しました。";
-    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:operationsRequestSave(state.last_operations), owner };
   }
 
   if (resolved.branch === "good" && resolved.effectIndex === 2) {
@@ -170,7 +174,7 @@ export function resolveSafariOldStatueInteraction(runtime, index, requestedActio
     ];
     commit(runtime, index, owner, applied);
     state.notice = `石像から${reward.selectedItems?.join("・") ?? "道具"}を授かりました。`;
-    return { runtime, result:owner.outcome, completed:true, reward, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+    return { runtime, result:owner.outcome, completed:true, reward, operations:state.last_operations, notice:state.notice, persistenceRequested:operationsRequestSave(state.last_operations), owner };
   }
 
   if (resolved.branch === "neutral" && resolved.effectIndex === 1) {
@@ -181,14 +185,14 @@ export function resolveSafariOldStatueInteraction(runtime, index, requestedActio
     runtime.bag.money = Math.max(0, Math.trunc(Number(runtime.bag.money ?? 0))) + amount;
     commit(runtime, index, owner, [{ op:"runtime_add_money", amount }]);
     state.notice = `石像の足元から${amount}円を見つけました。`;
-    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:operationsRequestSave(state.last_operations), owner };
   }
 
   if (resolved.branch === "neutral" && resolved.effectIndex === 2) {
     const owner = resolveOldStatue({ event, choice:"pray", outcome });
     commit(runtime, index, owner);
     state.notice = "祈りましたが、石像は静かなままでした。";
-    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:operationsRequestSave(state.last_operations), owner };
   }
 
   if (resolved.branch === "bad" && resolved.effectIndex === 0) {
@@ -196,7 +200,7 @@ export function resolveSafariOldStatueInteraction(runtime, index, requestedActio
     const applied = applyStatusToLead(runtime, resolved.status);
     commit(runtime, index, owner, applied);
     state.notice = applied.length ? `石像の災いで先頭のポケモンが${resolved.status}になりました。` : "石像から不穏な気配が漂いました。";
-    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:operationsRequestSave(state.last_operations), owner };
   }
 
   if (resolved.branch === "bad" && resolved.effectIndex === 1) {
@@ -204,7 +208,7 @@ export function resolveSafariOldStatueInteraction(runtime, index, requestedActio
     const applied = applyPartyDamage(runtime, 10);
     commit(runtime, index, owner, applied);
     state.notice = "石像の災いで手持ち全体が傷つきました。";
-    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:operationsRequestSave(state.last_operations), owner };
   }
 
   const result = `${resolved.branch}_${resolved.effectIndex}_owner_pending`;
