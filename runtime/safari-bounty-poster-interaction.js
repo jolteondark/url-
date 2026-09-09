@@ -13,6 +13,10 @@ function eventAt(runtime, index) {
   return event;
 }
 
+function operationsRequestSave(operations = []) {
+  return operations.some((operation) => operation?.op === "request_save");
+}
+
 function commitOwnerResult(runtime, index, owner) {
   const state = stateOf(runtime);
   const setBounty = (owner.operations ?? []).find((operation) => operation?.op === "set_bounty");
@@ -73,5 +77,5 @@ export function resolveSafariBountyPosterInteraction(runtime, index, requestedAc
   if (owner.outcome === "accepted") state.notice = "依頼を受けました。翌日以降、賞金首の居場所が開示されます。";
   else if (owner.outcome === "already_active") state.notice = "すでに別の賞金首を追っています。";
   else state.notice = "依頼を断り、手配書から離れました。";
-  return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+  return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:operationsRequestSave(state.last_operations), owner };
 }
