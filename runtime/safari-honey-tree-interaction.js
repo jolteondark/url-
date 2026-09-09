@@ -51,6 +51,15 @@ function alreadyConsumed(state, index, event) {
 function commitReward(runtime, reward) {
   return reward ? commitSafariBagEconomyReceipt(runtime, { reward }) : null;
 }
+function ensureResolvedSaveIntent(operations, owner, reason = "honey_tree_resolved") {
+  if (owner?.result && !operations.some((operation) => operation?.op === "request_save")) {
+    operations.push({ op:"request_save", reason });
+  }
+  return operations;
+}
+function persistenceRequested(operations) {
+  return operations.some((operation) => operation?.op === "request_save");
+}
 
 registerSafariNormalEventBattleContinuation("honey_tree", (runtime, continuation) => {
   if (continuation.actionId !== "shake") throw new Error(`unsupported honey_tree Battle continuation action: ${continuation.actionId}`);
@@ -77,11 +86,10 @@ registerSafariNormalEventBattleContinuation("honey_tree", (runtime, continuation
   const receipt = commitReward(runtime, reward);
   state.board_events[index] = owner.event;
   state.board_consumed[index] = Boolean(owner.event.normal_resolved);
-  state.last_operations = [
+  state.last_operations = ensureResolvedSaveIntent([
     ...(owner.operations ?? []).filter((operation) => operation?.op !== "start_wild_battle" && operation?.op !== "grant_items").map((operation) => structuredClone(operation)),
     ...(receipt?.operations ?? []).map((operation) => structuredClone(operation)),
-    { op:"request_save", reason:"normal_event_post_battle" },
-  ];
+  ], owner, "normal_event_post_battle");
   state.notice = success
     ? "木を揺らして現れたポケモンを退け、ハチミツを回収しました。"
     : "木を揺らして現れたポケモンから離れました。";
@@ -92,7 +100,7 @@ registerSafariNormalEventBattleContinuation("honey_tree", (runtime, continuation
     terminal:true,
     operations:state.last_operations,
     notice:state.notice,
-    persistenceRequested:true,
+    persistenceRequested:persistenceRequested(state.last_operations),
     owner,
   };
 });
@@ -110,9 +118,20 @@ export async function startSafariHoneyTreeShakeBattle(runtime, index) {
   if (!battleEvent) {
     state.board_events[index] = owner.event;
     state.board_consumed[index] = Boolean(owner.event.normal_resolved);
-    state.last_operations = (owner.operations ?? []).map((operation) => structuredClone(operation));
+    state.last_operations = ensureResolvedSaveIntent(
+      (owner.operations ?? []).map((operation) => structuredClone(operation)),
+      owner,
+    );
     state.notice = "木を揺らしましたが、何も起きませんでした。";
-    return { runtime, result:owner.outcome, completed:Boolean(owner.result), operations:state.last_operations, notice:state.notice, persistenceRequested:Boolean(owner.result), owner };
+    return {
+      runtime,
+      result:owner.outcome,
+      completed:Boolean(owner.result),
+      operations:state.last_operations,
+      notice:state.notice,
+      persistenceRequested:persistenceRequested(state.last_operations),
+      owner,
+    };
   }
 
   const reward = hasMaplessV108ItemMetadata("HONEY") ? preflightHoney(runtime, 1) : null;
@@ -178,10 +197,10 @@ export function resolveSafariHoneyTreeInteraction(runtime, index, requestedActio
   const receipt = commitReward(runtime, reward);
   state.board_events[index] = owner.event;
   state.board_consumed[index] = Boolean(owner.event.normal_resolved);
-  state.last_operations = [
+  state.last_operations = ensureResolvedSaveIntent([
     ...(owner.operations ?? []).filter((operation) => operation?.op !== "grant_items" && operation?.op !== "grant_random").map((operation) => structuredClone(operation)),
     ...(receipt?.operations ?? []).map((operation) => structuredClone(operation)),
-  ];
+  ], owner);
   state.notice = owner.outcome === "left" ? "ハチミツの木をそのままにして立ち去りました。"
     : owner.outcome === "bug_safe_reward" ? "むしタイプが安全に木を調べ、ハチミツを回収しました。"
       : owner.outcome === "bark_berry" ? "樹皮の陰からきのみを見つけました。"
@@ -193,7 +212,7 @@ export function resolveSafariHoneyTreeInteraction(runtime, index, requestedActio
     completed:Boolean(owner.result),
     operations:state.last_operations,
     notice:state.notice,
-    persistenceRequested:Boolean(owner.result),
+    persistenceRequested:persistenceRequested(state.last_operations),
     owner,
   };
 }
