@@ -68,7 +68,6 @@ function commitOntoCurrentPokemon(currentPokemon, resolvedPokemon) {
 }
 
 function applyPlayerBerry(runtime, before, result) {
-  if (result?.playerReplacementApplied) return null;
   const party = runtime?.player?.party;
   const index = Number(before.playerPartyIndex);
   const pokemon = party?.[index];
@@ -89,14 +88,19 @@ function applyPlayerBerry(runtime, before, result) {
 }
 
 function applyFoeBerry(runtime, before, result) {
-  if (result?.foeReplacementApplied) return null;
   const battle = stateOf(runtime).battle;
   if (!battle?.foe) return null;
+  const foeIndex = Number(before.foePartyIndex);
+  const trainerParty = battle.kind === "trainer" && Array.isArray(battle.trainer_party)
+    ? battle.trainer_party
+    : null;
+  const foeAtAction = trainerParty?.[foeIndex] ?? battle.foe;
+  if (!foeAtAction) return null;
   const playerAfter = result?.playerReplacementApplied ? {} : (result?.player ?? runtime?.player?.party?.[Number(before.playerPartyIndex)] ?? before.player);
-  const trigger = triggerContextForBattler(result, 1, before.foe, before.player, battle.foe, playerAfter);
+  const trigger = triggerContextForBattler(result, 1, before.foe, before.player, foeAtAction, playerAfter);
   if (!trigger.completedMoveId) return null;
   const committed = commitHeldPpRestoreBerryCanonical({
-    pokemon: battle.foe,
+    pokemon: foeAtAction,
     opposingPokemon: trigger.opposingPokemon,
     moveMasters: SAFARI_MOVE_MASTERS,
     completedMove: true,
@@ -104,11 +108,9 @@ function applyFoeBerry(runtime, before, result) {
     activeAtTrigger: trigger.activeAtTrigger,
   });
   if (!committed.resolution.triggered) return committed;
-  battle.foe = commitOntoCurrentPokemon(battle.foe, committed.pokemon);
-  if (battle.kind === "trainer" && Array.isArray(battle.trainer_party)) {
-    const foeIndex = Number(before.foePartyIndex);
-    if (battle.trainer_party[foeIndex]) battle.trainer_party[foeIndex] = structuredClone(battle.foe);
-  }
+  const committedPokemon = commitOntoCurrentPokemon(foeAtAction, committed.pokemon);
+  if (trainerParty?.[foeIndex]) trainerParty[foeIndex] = structuredClone(committedPokemon);
+  if (!result?.foeReplacementApplied && battle.foe) battle.foe = structuredClone(committedPokemon);
   return committed;
 }
 
@@ -132,8 +134,8 @@ function applyHeldPpBerries(runtime, before, result) {
   const playerRuntime = runtime?.player?.party?.[Number(before.playerPartyIndex)] ?? result?.player;
   return {
     ...result,
-    ...(playerRuntime ? { player: structuredClone(playerRuntime) } : {}),
-    ...(battle?.foe ? { foe: structuredClone(battle.foe) } : {}),
+    ...(!result?.playerReplacementApplied && playerRuntime ? { player: structuredClone(playerRuntime) } : {}),
+    ...(!result?.foeReplacementApplied && battle?.foe ? { foe: structuredClone(battle.foe) } : {}),
     heldPpRestoreBerry: Object.freeze({
       player: player?.resolution ?? null,
       foe: foe?.resolution ?? null,
