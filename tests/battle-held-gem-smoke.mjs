@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   BATTLE_HELD_GEM_COVERAGE_CANONICAL,
   HELD_GEM_ITEM_IDS_CANONICAL,
@@ -36,3 +37,14 @@ assert.equal(consumed.consumed, true);
 assert.equal(consumed.pokemon.held_item, null);
 assert.equal(consumed.pokemon.item, null);
 assert.equal(consumeHeldGemCanonical({ held_item: "WATERGEM" }, fire).consumed, false);
+
+// A Gem is armed by the resolved move action, so a later same-round replacement must not
+// suppress consumption on the battler that actually used it. Keep the commit keyed to the
+// pre-round party slots, and only suppress mirroring the old battler into the result snapshot.
+const roundSource = readFileSync(new URL("../runtime/safari-normal-battle-round.js", import.meta.url), "utf8");
+assert.match(roundSource, /const playerAtAction = runtime\?\.player\?\.party\?\.\[playerPartyIndex\]/);
+assert.match(roundSource, /const foeAtAction = trainerParty\?\.\[foePartyIndex\] \?\? battle\?\.foe \?\? null/);
+assert.doesNotMatch(roundSource, /if \(!result\?\.playerReplacementApplied\) \{\s*const action = gemHitActionForBattler/);
+assert.doesNotMatch(roundSource, /if \(!result\?\.foeReplacementApplied\) \{\s*const action = gemHitActionForBattler/);
+assert.match(roundSource, /!result\?\.playerReplacementApplied && runtime\?\.player\?\.party/);
+assert.match(roundSource, /!result\?\.foeReplacementApplied && battle\?\.foe/);
