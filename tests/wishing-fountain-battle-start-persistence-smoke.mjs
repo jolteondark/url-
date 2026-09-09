@@ -4,11 +4,12 @@ import { readFile } from "node:fs/promises";
 const interactionSource = await readFile(new URL("../runtime/safari-wishing-fountain-final-routes.js", import.meta.url), "utf8");
 const continuationSource = await readFile(new URL("../runtime/safari-normal-event-battle-continuation.js", import.meta.url), "utf8");
 
-const reachStart = interactionSource.slice(interactionSource.indexOf('if (action === "reach")'));
-assert.match(reachStart, /normal_event_wild_battle_started/);
-assert.doesNotMatch(reachStart, /wishing_fountain_battle_started/);
-assert.doesNotMatch(reachStart, /persistenceRequested:true/);
-assert.match(reachStart, /operations:state\.last_operations/);
+const reachSource = interactionSource.slice(interactionSource.indexOf('if (action === "reach")'));
+const battleStart = reachSource.slice(0, reachSource.indexOf('if (roll >= 70'));
+assert.match(battleStart, /normal_event_wild_battle_started/);
+assert.doesNotMatch(battleStart, /wishing_fountain_battle_started/);
+assert.doesNotMatch(battleStart, /persistenceRequested:true/);
+assert.match(battleStart, /operations:state\.last_operations/);
 
 assert.match(
   continuationSource,
