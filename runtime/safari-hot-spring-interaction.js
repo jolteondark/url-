@@ -142,6 +142,9 @@ export function resolveSafariHotSpringInteraction(runtime, index, action) {
     state.notice = "熱湯で手持ちが全滅したため、今回のランは終了しました。";
     state.last_operations = [...eventOperations, ...(runEnd.operations ?? [])];
   }
+  if ((owner.result || runEnd.finished) && !state.last_operations.some((operation) => operation?.op === "request_save")) {
+    state.last_operations = [...state.last_operations, { op:"request_save", reason:"hot_spring_resolved" }];
+  }
 
   return {
     runtime,
@@ -150,7 +153,7 @@ export function resolveSafariHotSpringInteraction(runtime, index, action) {
     roll: preparedEvent.normal_data.enter_roll ?? null,
     operations: state.last_operations,
     notice: state.notice,
-    persistenceRequested: Boolean(owner.result) || runEnd.finished,
+    persistenceRequested: state.last_operations.some((operation) => operation?.op === "request_save"),
     owner,
     runEnd,
   };
