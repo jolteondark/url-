@@ -73,6 +73,7 @@ export function resolveTurnEndStatusItemExtensionCanonical(pokemon = {}, context
       ability: "SHEDSKIN",
       numerator: SHED_SKIN_NUMERATOR,
       denominator: SHED_SKIN_DENOMINATOR,
+      rollContextKey: "shedSkinRoll",
     })
     : null;
 

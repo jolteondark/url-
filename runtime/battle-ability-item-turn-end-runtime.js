@@ -1,9 +1,45 @@
 import { updatePokemonRuntime } from "./pokemon-runtime.js";
 import { resolveSharedBattleAbilityItemTurnEndCanonical } from "./battle-ability-item-turn-end-shared.js";
 import { resolveWeatherChipTurnEndCanonical } from "./battle-core-weather-chip-turn-end-extension.js";
+import { RubyMT19937Random } from "./ruby-mt19937-random.js";
+
+const TURN_END_CHANCE_STREAM_SALT = 0x54454e44;
+const TURN_END_BATTLER_STREAM_SALT = 0x9e3779b1;
 
 function clampHp(value, maxHp) {
   return Math.min(Math.max(0, Math.trunc(Number(maxHp ?? 0))), Math.max(0, Math.trunc(Number(value ?? 0))));
+}
+
+function hasOwn(object, key) {
+  return Boolean(object) && Object.prototype.hasOwnProperty.call(object, key);
+}
+
+export function materializeBattleTurnEndChanceContextRuntime(hook, context = {}) {
+  const request = hook?.statusCureChanceRequest;
+  if (!request) return Object.freeze({ context, evaluated: false, roll: null });
+  const rollContextKey = String(request.rollContextKey ?? "");
+  if (!rollContextKey) throw new Error("turn-end chance request is missing rollContextKey");
+  if (hasOwn(context, rollContextKey)) {
+    return Object.freeze({ context, evaluated: true, roll: Number(context[rollContextKey]) });
+  }
+  if (context.combatRandomSeed === undefined || context.combatRandomSeed === null) {
+    throw new Error("turn-end chance request requires combatRandomSeed");
+  }
+  const denominator = Math.trunc(Number(request.denominator ?? 0));
+  if (!Number.isInteger(denominator) || denominator <= 0) {
+    throw new RangeError("turn-end chance request denominator must be a positive integer");
+  }
+  const battlerIndex = Math.trunc(Number(context.battlerIndex ?? 0));
+  const baseSeed = Number(context.combatRandomSeed) & 0x7fffffff;
+  const battlerSalt = Math.imul((Number.isFinite(battlerIndex) ? battlerIndex : 0) + 1, TURN_END_BATTLER_STREAM_SALT);
+  const seed = (baseSeed ^ TURN_END_CHANCE_STREAM_SALT ^ battlerSalt) >>> 0;
+  const rng = new RubyMT19937Random(seed);
+  const roll = rng.randInt(denominator) / denominator;
+  return Object.freeze({
+    context: Object.freeze({ ...context, [rollContextKey]: roll }),
+    evaluated: true,
+    roll,
+  });
 }
 
 export function commitBattleAbilityItemTurnEndRuntime({ pokemon, context = {} } = {}) {
@@ -14,8 +50,12 @@ export function commitBattleAbilityItemTurnEndRuntime({ pokemon, context = {} } 
   const hpAfterWeather = clampHp(hpBefore + Number(weatherChip.hpDelta ?? 0), maxHp);
   if (hpAfterWeather !== hpBefore) runtime = updatePokemonRuntime(runtime, { hp: hpAfterWeather });
 
-  const hook = resolveSharedBattleAbilityItemTurnEndCanonical({ pokemon: runtime, context });
-  if (weatherChip.triggered !== true && hook?.triggered !== true) {
+  let hook = resolveSharedBattleAbilityItemTurnEndCanonical({ pokemon: runtime, context });
+  const chance = materializeBattleTurnEndChanceContextRuntime(hook, context);
+  if (chance.evaluated) {
+    hook = resolveSharedBattleAbilityItemTurnEndCanonical({ pokemon: runtime, context: chance.context });
+  }
+  if (weatherChip.triggered !== true && hook?.triggered !== true && chance.evaluated !== true) {
     return Object.freeze({ pokemon: runtime, commit: null });
   }
 
@@ -50,6 +90,8 @@ export function commitBattleAbilityItemTurnEndRuntime({ pokemon, context = {} } 
       statusCured,
       statusRequest: hook?.statusRequest ? structuredClone(hook.statusRequest) : null,
       statusCureRequest: hook?.statusCureRequest ? structuredClone(hook.statusCureRequest) : null,
+      statusCureChanceRequest: hook?.statusCureChanceRequest ? structuredClone(hook.statusCureChanceRequest) : null,
+      statusCureChanceRoll: chance.evaluated ? chance.roll : null,
       statChanges: Object.freeze(structuredClone(hook?.statChanges ?? [])),
     }),
   });

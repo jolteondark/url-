@@ -233,11 +233,15 @@ export function resolveBattleRuntimeIntegration({ pokemon, sendOuts = [], battle
   const turnEndCommitted = decision === 0
     ? commitBattleAbilityItemTurnEndRuntime({
         pokemon: heldItemCommitted.pokemon,
-        context: { effectiveWeather: rawBattleInput?.effectiveWeather ?? reflectedBattleInput?.effectiveWeather ?? null },
+        context: {
+          effectiveWeather: rawBattleInput?.effectiveWeather ?? reflectedBattleInput?.effectiveWeather ?? null,
+          ...(preparedBattleInput?.combatRandomSeed === undefined ? {} : { combatRandomSeed: Number(preparedBattleInput.combatRandomSeed) & 0x7fffffff }),
+          battlerIndex: reflectedBattlerIndex ?? reflectedActionIndex,
+        },
       })
     : { pokemon: heldItemCommitted.pokemon, commit: null };
   const expCommitted = commitBattleSystemsExpRuntime({ battleInput: preparedBattleInput, turn, pokemon: turnEndCommitted.pokemon });
   const reflectedPokemon = expCommitted.pokemon;
-  const postBattlePersistence = resolveBattleEndPersistenceIntegration({ decision, persistenceInput: postBattlePersistenceInput, reflectedPokemon, reflectedPartyIndex, reflectMoves: ppCommitted.commits.length > 0 || expCommitted.commits.length > 0, reflectExpLevel: expCommitted.commits.length > 0, reflectStatus: statusCommitted.commits.length > 0 || reflected.tryUseStatusChanged || Boolean(turnEndCommitted.commit?.statusChanged), reflectItem: heldItemCommitted.commits.length > 0 });
+  const postBattlePersistence = resolveBattleEndPersistenceIntegration({ decision, persistenceInput: postBattlePersistenceInput, reflectedPokemon, reflectedPartyIndex, reflectMoves: ppCommitted.commits.length > 0 || expCommitted.commits.length > 0, reflectExpLevel: expCommitted.commits.length > 0, reflectStatus: statusCommitted.commits.length > 0 || reflected.tryUseStatusChanged || Boolean(turnEndCommitted.commit?.statusChanged) || Boolean(turnEndCommitted.commit?.statusCured), reflectItem: heldItemCommitted.commits.length > 0 });
   return { start, turn, pokemon: reflectedPokemon, battleResultHandoff: { decision, postBattlePersistenceApplied: postBattlePersistence !== null }, ...(useCanonicalAccuracyDamage ? { combatTrace: { rounds: structuredClone(preparedBattleInput.rounds ?? []) } } : {}), ...(ppPrepared.operations.length || ppCommitted.commits.length ? { battlePpIntegration: { prepared: ppPrepared.operations, commits: ppCommitted.commits } } : {}), ...(statusCommitted.commits.length ? { battleStatusIntegration: { commits: statusCommitted.commits } } : {}), ...(reflected.tryUseStatusChanged ? { battleTryUseStatusReflection: true } : {}), ...(heldItemCommitted.commits.length ? { battleHeldItemIntegration: { commits: heldItemCommitted.commits } } : {}), ...(turnEndCommitted.commit ? { battleAbilityItemTurnEndIntegration: turnEndCommitted.commit } : {}), ...(expCommitted.commits.length ? { battleExpIntegration: { commits: expCommitted.commits } } : {}), ...(postBattlePersistence ? { postBattlePersistence } : {}), ...(attackPhaseScheduling ? { attackPhaseScheduling } : {}) };
 }
