@@ -45,7 +45,7 @@ registerSafariNormalEventBattleContinuation("fake_nurse",(runtime,continuation)=
   const owner=resolveFakeNurse({event,choice:"check_id",has_dark_or_psychic:warned(runtime,event),scaling_value:scalingValue(state.day),battle_result:continuation.battleReturn,battle_success:success});
   commit(runtime,index,owner);
   state.notice=success?"偽看護師との勝負に勝ちました。":"偽看護師との勝負を終えました。";
-  return {runtime,result:owner.outcome,completed:true,terminal:true,operations:state.last_operations,notice:state.notice,persistenceRequested:true,owner};
+  return {runtime,result:owner.outcome,completed:true,terminal:true,operations:state.last_operations,notice:state.notice,owner};
 });
 
 export function safariFakeNurseWarning(runtime,index){
@@ -66,7 +66,7 @@ export async function resolveSafariFakeNurseInteraction(runtime,index,choice){
   if(raw==="leave"){
     const owner=resolveFakeNurse({event,choice:"leave",has_dark_or_psychic:isWarned,scaling_value:scale});
     commit(runtime,index,owner);state.notice="簡易診療所を離れました。";
-    return {runtime,result:owner.outcome,completed:true,operations:state.last_operations,notice:state.notice,persistenceRequested:true,owner};
+    return {runtime,result:owner.outcome,completed:true,operations:state.last_operations,notice:state.notice,owner};
   }
 
   if(raw==="pay"){
@@ -84,7 +84,7 @@ export async function resolveSafariFakeNurseInteraction(runtime,index,choice){
     }
     commit(runtime,index,owner,applied);
     state.notice=owner.outcome==="real_paid_heal"?"看護師の治療で手持ちが完全回復しました。":`偽看護師でした。先頭のポケモンが${randomStatus}になりました。`;
-    return {runtime,result:owner.outcome,completed:true,price,randomStatus,operations:state.last_operations,notice:state.notice,persistenceRequested:true,owner};
+    return {runtime,result:owner.outcome,completed:true,price,randomStatus,operations:state.last_operations,notice:state.notice,owner};
   }
 
   const idCheckChoice=raw.endsWith(":heal")?"heal":"leave";
@@ -99,7 +99,7 @@ export async function resolveSafariFakeNurseInteraction(runtime,index,choice){
     }
     commit(runtime,index,owner,applied);
     state.notice=idCheckChoice==="heal"&&spendSuccess?`身分証を確認し、${halfPrice}円で手持ちを50%回復しました。`:idCheckChoice==="heal"?`本物でしたが、半額治療には${halfPrice}円必要です。`:"身分証を確認すると本物でした。治療は断りました。";
-    return {runtime,result:owner.outcome,completed:true,halfPrice,operations:state.last_operations,notice:state.notice,persistenceRequested:true,owner};
+    return {runtime,result:owner.outcome,completed:true,halfPrice,operations:state.last_operations,notice:state.notice,owner};
   }
 
   const idRoll=Number(event.normal_data?.id_roll??0);
@@ -114,7 +114,7 @@ export async function resolveSafariFakeNurseInteraction(runtime,index,choice){
     state.notice=reward.success
       ? `偽看護師は逃げ出し、${reward.selectedItems?.[0]??"道具"}を落としていきました。`
       : "偽看護師は逃げ出しましたが、バッグがいっぱいで落とした道具は持ち帰れませんでした。";
-    return {runtime,result:owner.outcome,completed:true,reward,optionalReward,operations:state.last_operations,notice:state.notice,persistenceRequested:true,owner};
+    return {runtime,result:owner.outcome,completed:true,reward,optionalReward,operations:state.last_operations,notice:state.notice,owner};
   }
 
   const preview=resolveFakeNurse({event,choice:"check_id",has_dark_or_psychic:isWarned,scaling_value:scale,battle_success:false});
