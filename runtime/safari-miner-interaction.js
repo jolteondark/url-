@@ -21,6 +21,10 @@ function stateOf(runtime) {
   return state;
 }
 
+function operationsRequestSave(operations = []) {
+  return operations.some((operation) => operation?.op === "request_save");
+}
+
 export function maplessMinerFossilPoolForDayV108(day) {
   const scaling = resolveMaplessV108EffectiveScalingValue(day, "NORMAL", 0);
   if (scaling == null) return [];
@@ -145,7 +149,7 @@ export async function resolveSafariMinerAction(runtime, index, action, { randomI
     state.notice = "炭鉱夫は依頼料を持ったまま別の抜け道から逃げ去りました。";
     operations.push({ op:"miner_outcome", outcome, roll:outcomeRoll }, { op:"request_save", reason:"miner_attempt" });
     state.last_operations = operations;
-    return { runtime, result:"run_away", completed:true, consumed:true, collapse, outcome, persistenceRequested:true, operations };
+    return { runtime, result:"run_away", completed:true, consumed:true, collapse, outcome, persistenceRequested:operationsRequestSave(state.last_operations), operations };
   }
 
   if (outcome === "apology") {
@@ -191,5 +195,5 @@ export async function resolveSafariMinerAction(runtime, index, action, { randomI
   operations.push({ op:"miner_outcome", outcome, roll:outcomeRoll, reward }, { op:"request_save", reason:"miner_attempt" });
   state.last_operations = operations;
   refreshMinerUi(runtime, index);
-  return { runtime, result:reward ? "rewarded" : outcome, completed:false, consumed:false, collapse, outcome, reward, persistenceRequested:true, operations };
+  return { runtime, result:reward ? "rewarded" : outcome, completed:false, consumed:false, collapse, outcome, reward, persistenceRequested:operationsRequestSave(state.last_operations), operations };
 }
