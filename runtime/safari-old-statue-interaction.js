@@ -8,6 +8,7 @@ import {
   maplessNormalEventScalingValue,
   resolveMaplessNormalEventMediumReward,
 } from "./mapless-normal-event-medium-reward.js";
+import { ensureMaplessRunLifecycleState, finishMaplessRun, maplessPartyAllFainted } from "./mapless-run-end-lifecycle.js";
 import { borrowSafariSharedRunRandomInt, ensureSafariEncounterSeed } from "./safari-encounter-randomization.js";
 import {
   damageSafariPokemonPercent,
@@ -88,6 +89,23 @@ function applyPartyDamage(runtime, percent) {
   return [{ op:"runtime_damage_party_percent", percent }];
 }
 
+function finishPartyWipe(runtime) {
+  const state = ensureMaplessRunLifecycleState(runtime);
+  const party = runtime.player?.party ?? [];
+  if (!state.mapless_run_active || !maplessPartyAllFainted(party)) return { finished:false, operations:[] };
+  state.mapless_run_end_pending = true;
+  const finished = finishMaplessRun(runtime);
+  state.location = "home";
+  return {
+    ...finished,
+    operations:[
+      { op:"mark_run_end", reason:"party_wipe", source:"normal_event:old_statue" },
+      ...(finished.operations ?? []),
+      { op:"return_to_home", source:"normal_event:old_statue" },
+    ],
+  };
+}
+
 function applyStatusToLead(runtime, status) {
   const pokemon = activePartyLead(runtime);
   if (!pokemon) return [];
@@ -111,7 +129,7 @@ export function safariOldStatuePresentation(runtime, index) {
     actions:[
       { id:"pray", label:"祈る", meta:"回復・道具・お金・災いなど、石像の反応は様々です" },
       { id:"offer", label:"道具を供える", meta:"供物選択を含むSafari接続を準備中" },
-      { id:"break", label:"石像を壊す", meta:"守護者戦など残りの共有owner接続を準備中" },
+      { id:"break", label:"石像を壊す", meta:"守護者戦・報酬分岐は共有owner接続を準備中" },
       { id:"leave", label:"立ち去る", secondary:true },
     ],
     event,
@@ -139,7 +157,18 @@ export function resolveSafariOldStatueInteraction(runtime, index, requestedActio
     return pending(runtime, "old_statue_offer_owner_pending", "供物の選択・原子的な消費まで共有Bag ownerへ接続中です。道具もイベントも消費していません。");
   }
   if (action === "break") {
-    return pending(runtime, "old_statue_break_owner_pending", "石像を壊す分岐は守護者Battleを含む共有ownerへ接続中です。イベントは消費していません。");
+    const roll = Number(event.normal_data?.break_roll ?? 0);
+    if (roll < 95) {
+      return pending(runtime, "old_statue_break_reward_owner_pending", "石像を壊す報酬・守護者Battle分岐は共有ownerへ接続中です。イベントは消費していません。");
+    }
+    const owner = resolveOldStatue({ event, choice:"break" });
+    const applied = applyPartyDamage(runtime, 15);
+    const runEnd = finishPartyWipe(runtime);
+    commit(runtime, index, owner, [...applied, ...(runEnd.operations ?? [])]);
+    state.notice = runEnd.finished
+      ? "石像が崩れ、手持ちが全滅したため今回のランは終了しました。"
+      : "石像が崩れ、手持ち全体が傷つきました。";
+    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:operationsRequestSave(state.last_operations), owner, runEnd };
   }
   if (action !== "pray") {
     return { runtime, result:"unsupported_action", completed:false, operations:[], persistenceRequested:false };
