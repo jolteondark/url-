@@ -157,10 +157,14 @@ export function resolveSafariMeteorFragmentInteraction(runtime, index, requested
 
   state.board_events[index] = owner.event;
   state.board_consumed[index] = Boolean(owner.event.normal_resolved);
-  state.last_operations = [
+  const eventOperations = [
     ...(owner.operations ?? []).map((operation) => structuredClone(operation)),
     ...applied,
   ];
+  if (owner.result && !eventOperations.some((operation) => operation?.op === "request_save")) {
+    eventOperations.push({ op:"request_save", reason:"meteor_fragment_resolved" });
+  }
+  state.last_operations = eventOperations;
   state.notice = owner.outcome === "left" ? "隕石のかけらをそのままにして立ち去りました。"
     : owner.outcome === "rock_reward" ? "いわタイプが安全な欠片を見分け、選んだ道具を持ち帰りました。"
       : owner.outcome === "steel_reward" ? "はがねタイプが隕石を加工し、複数の道具を回収しました。"
@@ -173,7 +177,7 @@ export function resolveSafariMeteorFragmentInteraction(runtime, index, requested
     completed:Boolean(owner.result),
     operations:state.last_operations,
     notice:state.notice,
-    persistenceRequested:Boolean(owner.result),
+    persistenceRequested:state.last_operations.some((operation) => operation?.op === "request_save"),
     owner,
   };
 }
