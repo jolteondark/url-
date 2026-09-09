@@ -29,6 +29,19 @@ function battleSucceeded(summary={}) { const decision=Number(summary.decision); 
 function alreadyConsumed(state, index, event) {
   return Boolean(state.board_consumed?.[index] || event?.normal_resolved);
 }
+function resolvedOperations(owner, extraOperations=[], reason="sleeping_giant_resolved") {
+  const operations = [
+    ...(owner.operations ?? []).map((operation) => structuredClone(operation)),
+    ...extraOperations.map((operation) => structuredClone(operation)),
+  ];
+  if (owner.result && !operations.some((operation) => operation?.op === "request_save")) {
+    operations.push({ op:"request_save", reason });
+  }
+  return operations;
+}
+function persistenceRequested(operations) {
+  return operations.some((operation) => operation?.op === "request_save");
+}
 
 registerSafariNormalEventBattleContinuation("sleeping_giant", (runtime, continuation) => {
   if (continuation.actionId !== "steal" && continuation.actionId !== "fight") throw new Error(`unsupported sleeping_giant continuation: ${continuation.actionId}`);
@@ -53,15 +66,13 @@ registerSafariNormalEventBattleContinuation("sleeping_giant", (runtime, continua
   const receipt = success ? commitSafariBagEconomyReceipt(runtime, { reward:rewardAttempt }) : null;
   state.board_events[index] = owner.event;
   state.board_consumed[index] = Boolean(owner.event.normal_resolved);
-  state.last_operations = [
-    ...(owner.operations ?? []).filter((operation) => operation?.op !== "start_wild_battle" && operation?.op !== "grant_items").map((operation) => structuredClone(operation)),
-    ...(receipt?.operations ?? []).map((operation) => structuredClone(operation)),
-    { op:"request_save", reason:"normal_event_post_battle" },
-  ];
+  state.last_operations = resolvedOperations(owner, [
+    ...(receipt?.operations ?? []),
+  ], "normal_event_post_battle").filter((operation) => operation?.op !== "start_wild_battle" && operation?.op !== "grant_items");
   state.notice = success
     ? (receipt?.success ? `巨体のポケモンを退け、${item}を回収しました。` : `巨体のポケモンを退けましたが、バッグがいっぱいで${item}は持ち帰れませんでした。`)
     : "巨体のポケモンとの戦いから離れました。";
-  return { runtime, result:owner.outcome, completed:true, terminal:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+  return { runtime, result:owner.outcome, completed:true, terminal:true, operations:state.last_operations, notice:state.notice, persistenceRequested:persistenceRequested(state.last_operations), owner };
 });
 
 export async function resolveSafariSleepingGiantInteraction(runtime, index, requestedAction) {
@@ -80,9 +91,9 @@ export async function resolveSafariSleepingGiantInteraction(runtime, index, requ
     const owner = resolveSleepingGiant({ event, action:"leave" });
     state.board_events[index] = owner.event;
     state.board_consumed[index] = Boolean(owner.event.normal_resolved);
-    state.last_operations = (owner.operations ?? []).map((operation) => structuredClone(operation));
+    state.last_operations = resolvedOperations(owner);
     state.notice = "眠っている巨体を刺激せず立ち去りました。";
-    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:persistenceRequested(state.last_operations), owner };
   }
   const item = displayedItem(event);
   const preview = resolveSleepingGiant({ event, action, battle_success:false });
@@ -93,14 +104,11 @@ export async function resolveSafariSleepingGiantInteraction(runtime, index, requ
     const receipt = commitSafariBagEconomyReceipt(runtime, { reward:rewardAttempt });
     state.board_events[index] = owner.event;
     state.board_consumed[index] = Boolean(owner.event.normal_resolved);
-    state.last_operations = [
-      ...(owner.operations ?? []).filter((operation) => operation?.op !== "grant_items").map((operation) => structuredClone(operation)),
-      ...(receipt.operations ?? []).map((operation) => structuredClone(operation)),
-    ];
+    state.last_operations = resolvedOperations(owner, receipt.operations).filter((operation) => operation?.op !== "grant_items");
     state.notice = receipt.success
       ? `眠っている隙に${item}を回収しました。`
       : `眠っている隙に手を伸ばしましたが、バッグがいっぱいで${item}は持ち帰れませんでした。`;
-    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:persistenceRequested(state.last_operations), owner };
   }
   const started = await activateSafariNormalEventWildBattle(runtime, index, {
     eventId:"sleeping_giant",
