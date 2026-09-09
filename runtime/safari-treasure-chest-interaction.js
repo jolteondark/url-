@@ -19,6 +19,10 @@ function preparedTreasure(event) {
     && Number.isInteger(event.chest_generated_day));
 }
 
+function persistenceRequested(operations = []) {
+  return operations.some((operation) => operation?.op === "request_save");
+}
+
 // Compatibility export for callers/tests that need the canonical preparation owner.
 // There is deliberately no day/index fallback: production hydration must supply RNG.
 export function prepareSafariTreasureChestV108(event, { day, randomInt, forcedTier = null } = {}) {
@@ -149,7 +153,7 @@ export function resolveSafariTreasureChest(runtime, index, action) {
     completed:true,
     consumed:true,
     reward,
-    persistenceRequested:true,
+    persistenceRequested:persistenceRequested(state.last_operations),
     notice:state.notice,
     operations:state.last_operations,
   };
