@@ -56,6 +56,14 @@ function rewardTransaction(runtime, items, costs = []) {
 function searchBattleOperation(owner) {
   return (owner.operations ?? []).find((operation) => operation?.op === "start_wild_battle") ?? null;
 }
+function resolvedOperations(operations, reason = "lost_pokemon_resolved") {
+  const next = (operations ?? []).map((operation) => structuredClone(operation));
+  if (!next.some((operation) => operation?.op === "request_save")) next.push({ op:"request_save", reason });
+  return next;
+}
+function persistenceRequested(operations) {
+  return (operations ?? []).some((operation) => operation?.op === "request_save");
+}
 
 export function safariLostPokemonBerryChoices(runtime) { return berryIds(runtime); }
 
@@ -68,12 +76,11 @@ registerSafariNormalEventBattleContinuation("lost_pokemon", (runtime, continuati
   const owner = resolveLostPokemon({ event, action:"search" });
   state.board_events[index] = owner.event;
   state.board_consumed[index] = Boolean(owner.event.normal_resolved);
-  state.last_operations = [
-    ...(owner.operations ?? []).filter((operation) => operation?.op !== "start_wild_battle").map((operation) => structuredClone(operation)),
-    { op:"request_save", reason:"normal_event_post_battle" },
-  ];
+  state.last_operations = resolvedOperations([
+    ...(owner.operations ?? []).filter((operation) => operation?.op !== "start_wild_battle"),
+  ], "normal_event_post_battle");
   state.notice = "迷子のポケモンの親を探している途中で現れた野生ポケモンとの戦闘を終えました。";
-  return { runtime, result:owner.outcome, completed:true, terminal:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+  return { runtime, result:owner.outcome, completed:true, terminal:true, operations:state.last_operations, notice:state.notice, persistenceRequested:persistenceRequested(state.last_operations), owner };
 });
 
 export async function resolveSafariLostPokemonInteraction(runtime, index, requestedAction) {
@@ -109,15 +116,15 @@ export async function resolveSafariLostPokemonInteraction(runtime, index, reques
       }
       state.board_events[index] = preview.event;
       state.board_consumed[index] = Boolean(preview.event.normal_resolved);
-      state.last_operations = [...preview.operations.map((operation) => structuredClone(operation)), ...granted.operations.map((operation) => structuredClone(operation))];
+      state.last_operations = resolvedOperations([...preview.operations, ...granted.operations]);
       state.notice = granted.result === "party" ? `${granted.pokemon.species}が仲間になりました。` : `${granted.pokemon.species}をボックスへ送りました。`;
-      return { runtime, result:preview.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner:preview };
+      return { runtime, result:preview.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:persistenceRequested(state.last_operations), owner:preview };
     }
     state.board_events[index] = preview.event;
     state.board_consumed[index] = Boolean(preview.event.normal_resolved);
-    state.last_operations = preview.operations.map((operation) => structuredClone(operation));
+    state.last_operations = resolvedOperations(preview.operations);
     state.notice = "迷子のポケモンは警戒していて、仲間にはなりませんでした。";
-    return { runtime, result:preview.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner:preview };
+    return { runtime, result:preview.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:persistenceRequested(state.last_operations), owner:preview };
   }
 
   if (action === "search") {
@@ -160,17 +167,17 @@ export async function resolveSafariLostPokemonInteraction(runtime, index, reques
     const receipt = transaction ? commitSafariBagEconomyReceipt(runtime, { reward:transaction }) : null;
     state.board_events[index] = preview.event;
     state.board_consumed[index] = Boolean(preview.event.normal_resolved);
-    state.last_operations = [
-      ...preview.operations.map((operation) => structuredClone(operation)),
-      ...(receipt?.success ? selectedMedium.operations : []).map((operation) => structuredClone(operation)),
-      ...(receipt?.operations ?? []).map((operation) => structuredClone(operation)),
-    ];
+    state.last_operations = resolvedOperations([
+      ...preview.operations,
+      ...((receipt?.success ? selectedMedium.operations : [])),
+      ...(receipt?.operations ?? []),
+    ]);
     state.notice = preview.outcome === "search_trainer_reward"
       ? receipt?.success
         ? "飼い主を見つけ、お礼に道具を受け取りました。"
         : "飼い主を見つけましたが、バッグがいっぱいでお礼の道具は持ち帰れませんでした。"
       : "迷子のポケモンを親元へ返しました。";
-    return { runtime, result:preview.outcome, completed:true, optionalReward, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner:preview };
+    return { runtime, result:preview.outcome, completed:true, optionalReward, operations:state.last_operations, notice:state.notice, persistenceRequested:persistenceRequested(state.last_operations), owner:preview };
   }
 
   if (action === "berry") {
@@ -218,21 +225,21 @@ export async function resolveSafariLostPokemonInteraction(runtime, index, reques
     }
     state.board_events[index] = owner.event;
     state.board_consumed[index] = Boolean(owner.event.normal_resolved);
-    state.last_operations = [
-      ...owner.operations.map((operation) => structuredClone(operation)),
-      ...selectedReward.operations.map((operation) => structuredClone(operation)),
-      ...receipt.operations.map((operation) => structuredClone(operation)),
-    ];
+    state.last_operations = resolvedOperations([
+      ...owner.operations,
+      ...selectedReward.operations,
+      ...receipt.operations,
+    ]);
     state.notice = rareThanks
       ? "きのみを渡すと、迷子のポケモンが珍しいきのみをお礼に残しました。"
       : "きのみを渡すと、迷子のポケモンがお礼の道具を残しました。";
-    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:persistenceRequested(state.last_operations), owner };
   }
 
   const owner = resolveLostPokemon({ event, action:"leave" });
   state.board_events[index] = owner.event;
   state.board_consumed[index] = Boolean(owner.event.normal_resolved);
-  state.last_operations = owner.operations.map((operation) => structuredClone(operation));
+  state.last_operations = resolvedOperations(owner.operations);
   state.notice = "迷子のポケモンをその場に残して立ち去りました。";
-  return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+  return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:persistenceRequested(state.last_operations), owner };
 }
