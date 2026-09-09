@@ -174,9 +174,8 @@ export async function resolveSafariWishingFountainInteraction(runtime, index, re
         payload:{ reach_battle_type:type },
       });
       if (started.result === "normal_event_wild_battle_started" && state.battle) globalThis.__maplessNormalEventUi = null;
-      const operations = [...(started.operations ?? []), { op:"request_save", reason:"wishing_fountain_battle_started" }];
-      state.last_operations = operations;
-      return { ...started, operations, persistenceRequested:true };
+      state.last_operations = [...(started.operations ?? [])];
+      return { ...started, operations:state.last_operations };
     }
     if (roll >= 70 && roll < 90) {
       const status = resolveMaplessWishingFountainReachStatusV108(event.normal_seed);
