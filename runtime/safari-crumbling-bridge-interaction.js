@@ -120,11 +120,16 @@ function commit(runtime, index, owner, extraOperations, notice, runEnd = { finis
   const state = stateOf(runtime);
   state.board_events[index] = owner.event;
   state.board_consumed[index] = Boolean(owner.event?.normal_resolved);
-  state.last_operations = [
+  const eventOperations = [
     ...(owner.operations ?? []).map((operation) => structuredClone(operation)),
     ...extraOperations,
+  ];
+  if (owner.result && !eventOperations.some((operation) => operation?.op === "request_save")) {
+    eventOperations.push({ op:"request_save", reason:"crumbling_bridge_resolved" });
+  }
+  state.last_operations = [
+    ...eventOperations,
     ...(runEnd.operations ?? []),
-    ...(owner.result && !runEnd.finished ? [{ op:"request_save", reason:"crumbling_bridge" }] : []),
   ];
   state.notice = runEnd.finished ? "橋での負傷により手持ちが全滅したため、今回のランは終了しました。" : notice;
   return {
@@ -133,7 +138,7 @@ function commit(runtime, index, owner, extraOperations, notice, runEnd = { finis
     completed:Boolean(owner.result),
     operations:state.last_operations,
     notice:state.notice,
-    persistenceRequested:Boolean(owner.result) || Boolean(runEnd.finished),
+    persistenceRequested:state.last_operations.some((operation) => operation?.op === "request_save"),
     owner,
     runEnd,
   };
