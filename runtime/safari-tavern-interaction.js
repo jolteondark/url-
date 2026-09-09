@@ -10,6 +10,10 @@ function stateOf(runtime) {
   return state;
 }
 
+function operationsRequestSave(operations = []) {
+  return operations.some((operation) => operation?.op === "request_save");
+}
+
 function restChanged(before, after) {
   return before.some((entry, index) => {
     const next = after[index];
@@ -67,5 +71,5 @@ export function resolveSafariTavernAction(runtime, index, action, options = {}) 
   ];
   state.last_operations = operations;
   refreshRestUi(runtime, index, state.notice);
-  return { runtime, result:"rested", completed:false, consumed:false, healed, persistenceRequested:true, operations };
+  return { runtime, result:"rested", completed:false, consumed:false, healed, persistenceRequested:operationsRequestSave(state.last_operations), operations };
 }
