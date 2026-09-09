@@ -53,37 +53,35 @@ function applyGemConsumption(runtime, before, result) {
   let playerConsumed = null;
   let foeConsumed = null;
 
-  if (!result?.playerReplacementApplied) {
-    const action = gemHitActionForBattler(result, 0);
-    const partyIndex = Number(before.playerPartyIndex);
-    const current = runtime?.player?.party?.[partyIndex];
-    if (action && current) {
-      playerConsumed = commitGemOntoPokemon(current, action);
-      if (playerConsumed) runtime.player.party[partyIndex] = structuredClone(playerConsumed.pokemon);
-    }
+  const playerAction = gemHitActionForBattler(result, 0);
+  const playerPartyIndex = Number(before.playerPartyIndex);
+  const playerAtAction = runtime?.player?.party?.[playerPartyIndex];
+  if (playerAction && playerAtAction) {
+    playerConsumed = commitGemOntoPokemon(playerAtAction, playerAction);
+    if (playerConsumed) runtime.player.party[playerPartyIndex] = structuredClone(playerConsumed.pokemon);
   }
 
-  if (!result?.foeReplacementApplied) {
-    const action = gemHitActionForBattler(result, 1);
-    if (action && battle?.foe) {
-      foeConsumed = commitGemOntoPokemon(battle.foe, action);
-      if (foeConsumed) {
-        battle.foe = structuredClone(foeConsumed.pokemon);
-        if (battle.kind === "trainer" && Array.isArray(battle.trainer_party)) {
-          const foeIndex = Number(before.foePartyIndex);
-          if (battle.trainer_party[foeIndex]) battle.trainer_party[foeIndex] = structuredClone(battle.foe);
-        }
-      }
+  const foeAction = gemHitActionForBattler(result, 1);
+  const foePartyIndex = Number(before.foePartyIndex);
+  const trainerParty = battle?.kind === "trainer" && Array.isArray(battle?.trainer_party)
+    ? battle.trainer_party
+    : null;
+  const foeAtAction = trainerParty?.[foePartyIndex] ?? battle?.foe ?? null;
+  if (foeAction && foeAtAction) {
+    foeConsumed = commitGemOntoPokemon(foeAtAction, foeAction);
+    if (foeConsumed) {
+      if (trainerParty?.[foePartyIndex]) trainerParty[foePartyIndex] = structuredClone(foeConsumed.pokemon);
+      if (!result?.foeReplacementApplied && battle?.foe) battle.foe = structuredClone(foeConsumed.pokemon);
     }
   }
 
   if (!playerConsumed && !foeConsumed) return result;
   return {
     ...result,
-    ...(runtime?.player?.party?.[Number(before.playerPartyIndex)]
-      ? { player: structuredClone(runtime.player.party[Number(before.playerPartyIndex)]) }
+    ...(!result?.playerReplacementApplied && runtime?.player?.party?.[playerPartyIndex]
+      ? { player: structuredClone(runtime.player.party[playerPartyIndex]) }
       : {}),
-    ...(battle?.foe ? { foe: structuredClone(battle.foe) } : {}),
+    ...(!result?.foeReplacementApplied && battle?.foe ? { foe: structuredClone(battle.foe) } : {}),
     heldGemConsumption: Object.freeze({
       player: playerConsumed ? Object.freeze({ item: playerConsumed.item, consumed: true }) : null,
       foe: foeConsumed ? Object.freeze({ item: foeConsumed.item, consumed: true }) : null,
