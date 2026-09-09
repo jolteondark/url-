@@ -138,6 +138,9 @@ export function resolveSafariMushroomFieldInteraction(runtime, index, requestedA
     state.notice = "キノコの影響で手持ちが全滅したため、今回のランは終了しました。";
     state.last_operations = [...eventOperations, ...(runEnd.operations ?? [])];
   }
+  if ((owner.result || runEnd.finished) && !state.last_operations.some((operation) => operation?.op === "request_save")) {
+    state.last_operations = [...state.last_operations, { op: "request_save", reason: "mushroom_field_resolved" }];
+  }
 
   return {
     runtime,
@@ -145,7 +148,7 @@ export function resolveSafariMushroomFieldInteraction(runtime, index, requestedA
     completed: Boolean(owner.result),
     operations: state.last_operations,
     notice: state.notice,
-    persistenceRequested: Boolean(owner.result) || runEnd.finished,
+    persistenceRequested: state.last_operations.some((operation) => operation?.op === "request_save"),
     owner,
     runEnd,
   };
