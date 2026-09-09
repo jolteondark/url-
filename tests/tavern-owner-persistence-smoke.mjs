@@ -1,0 +1,11 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+
+const source = await readFile(new URL("../runtime/safari-tavern-interaction.js", import.meta.url), "utf8");
+
+assert.match(source, /function operationsRequestSave\(operations = \[\]\)/, "Tavern should derive save intent from emitted operations");
+assert.match(source, /persistenceRequested:operationsRequestSave\(state\.last_operations\)/, "resolved Tavern rest should project request_save as the persistence signal");
+assert.doesNotMatch(source, /persistenceRequested:true/, "Tavern must not keep an independent persistence boolean truth");
+assert.match(source, /\{ op:"request_save", reason:"tavern_rest" \}/, "resolved Tavern rest should still hand off save intent to shared persistence");
+
+console.log("tavern owner-persistence smoke: ok");
