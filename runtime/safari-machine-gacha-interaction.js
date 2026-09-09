@@ -43,6 +43,6 @@ export function resolveSafariMachineGachaInteraction(runtime, index, actionId) {
   return {
     ...result,
     completed,
-    persistenceRequested:true,
+    persistenceRequested: (result.operations ?? []).some((op) => op?.op === "request_save"),
   };
 }
