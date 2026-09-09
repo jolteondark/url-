@@ -41,6 +41,19 @@ function sharedSmallReward(runtime) {
 }
 function battleOperation(owner) { return (owner.operations ?? []).find((operation) => operation?.op === "start_wild_battle") ?? null; }
 function battleSucceeded(summary = {}) { const decision = Number(summary.decision); return decision === 1 || decision === 4; }
+function commitOwner(state, index, owner, extraOperations = [], reason = "photographer_resolved") {
+  const operations = [
+    ...(owner.operations ?? []).filter((operation) => operation?.op !== "start_wild_battle").map((operation) => structuredClone(operation)),
+    ...extraOperations.map((operation) => structuredClone(operation)),
+  ];
+  if (owner.result && !operations.some((operation) => operation?.op === "request_save")) {
+    operations.push({ op:"request_save", reason });
+  }
+  state.board_events[index] = owner.event;
+  state.board_consumed[index] = Boolean(owner.event.normal_resolved);
+  state.last_operations = operations;
+}
+function persistenceRequested(operations) { return operations.some((operation) => operation?.op === "request_save"); }
 
 export function safariPhotographerPartyChoices(runtime, event) {
   const type = requestedType(event);
@@ -64,14 +77,9 @@ registerSafariNormalEventBattleContinuation("photographer", (runtime, continuati
   const success = battleSucceeded(continuation.battleReturn);
   if (!success) {
     const owner = resolvePhotographer({ event, action:"wild", scaling_value:scalingValue(state.day), battle_success:false });
-    state.board_events[index] = owner.event;
-    state.board_consumed[index] = Boolean(owner.event.normal_resolved);
-    state.last_operations = [
-      ...(owner.operations ?? []).filter((operation) => operation?.op !== "start_wild_battle").map((operation) => structuredClone(operation)),
-      { op:"request_save", reason:"normal_event_post_battle" },
-    ];
+    commitOwner(state, index, owner, [], "normal_event_post_battle");
     state.notice = "撮影対象の野生ポケモンから離れました。";
-    return { runtime, result:owner.outcome, completed:true, terminal:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+    return { runtime, result:owner.outcome, completed:true, terminal:true, operations:state.last_operations, notice:state.notice, persistenceRequested:persistenceRequested(state.last_operations), owner };
   }
 
   // Canonical v0.9.108 calls grant_random only after a successful/captured Battle.
@@ -87,18 +95,16 @@ registerSafariNormalEventBattleContinuation("photographer", (runtime, continuati
     ? commitSafariBagEconomyReceipt(runtime, { reward, money:baseMoney })
     : commitSafariBagEconomyReceipt(runtime, { money:payout });
   if (!receipt.success) throw new Error(`photographer shared reward receipt failed: ${receipt.result}`);
-  state.board_events[index] = owner.event;
-  state.board_consumed[index] = Boolean(owner.event.normal_resolved);
-  state.last_operations = [
-    ...(owner.operations ?? []).filter((operation) => operation?.op !== "start_wild_battle" && operation?.op !== "grant_random" && operation?.op !== "add_money").map((operation) => structuredClone(operation)),
-    ...(!reward.success ? optionalReward.rewardOperations.map((operation) => structuredClone(operation)) : []),
-    ...receipt.operations.map((operation) => structuredClone(operation)),
-    { op:"request_save", reason:"normal_event_post_battle" },
+  const ownerOperations = (owner.operations ?? []).filter((operation) => operation?.op !== "grant_random" && operation?.op !== "add_money");
+  const extraOperations = [
+    ...(!reward.success ? optionalReward.rewardOperations : []),
+    ...receipt.operations,
   ];
+  commitOwner(state, index, { ...owner, operations:ownerOperations }, extraOperations, "normal_event_post_battle");
   state.notice = reward.success
     ? `撮影に成功し、${baseMoney}円と${reward.selectedItems?.[0] ?? "道具"}を受け取りました。`
     : `撮影に成功しました。バッグに空きがないため、追加の道具の代わりに300円を受け取り、合計${payout}円を受け取りました。`;
-  return { runtime, result:owner.outcome, completed:true, terminal:true, reward, optionalReward, receipt, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+  return { runtime, result:owner.outcome, completed:true, terminal:true, reward, optionalReward, receipt, operations:state.last_operations, notice:state.notice, persistenceRequested:persistenceRequested(state.last_operations), owner };
 });
 
 export async function resolveSafariPhotographerInteraction(runtime, index, requestedAction) {
@@ -148,17 +154,14 @@ export async function resolveSafariPhotographerInteraction(runtime, index, reque
     const money = (special ? 1200 : 600) + scale * 100;
     const receipt = commitSafariBagEconomyReceipt(runtime, { money });
     if (!receipt.success) throw new Error(`photographer money receipt failed: ${receipt.result}`);
-    state.board_events[index] = owner.event;
-    state.board_consumed[index] = Boolean(owner.event.normal_resolved);
-    state.last_operations = [...(owner.operations ?? []).filter((operation) => operation?.op !== "add_money").map((operation) => structuredClone(operation)), ...receipt.operations.map((operation) => structuredClone(operation))];
+    const ownerOperations = (owner.operations ?? []).filter((operation) => operation?.op !== "add_money");
+    commitOwner(state, index, { ...owner, operations:ownerOperations }, receipt.operations ?? []);
     state.notice = special ? `色違いのポケモンを撮ってもらい、${money}円受け取りました。` : `ポケモンを撮ってもらい、${money}円受け取りました。`;
-    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner, receipt };
+    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:persistenceRequested(state.last_operations), owner, receipt };
   }
 
   const owner = resolvePhotographer({ event, action:"leave", scaling_value:scale });
-  state.board_events[index] = owner.event;
-  state.board_consumed[index] = Boolean(owner.event.normal_resolved);
-  state.last_operations = (owner.operations ?? []).map((operation) => structuredClone(operation));
+  commitOwner(state, index, owner);
   state.notice = "撮影を断って立ち去りました。";
-  return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+  return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:persistenceRequested(state.last_operations), owner };
 }
