@@ -88,7 +88,7 @@ function scalingValue(runtime) { return maplessNormalEventScalingValue(stateOf(r
 export function safariWishingFountainPresentation(runtime, index) {
   const state = stateOf(runtime);
   const event = eventAt(runtime, index);
-  const largePrice = 1200 + scalingValue(runtime);
+  const largePrice = 1200 + scalingValue(runtime) * 200;
   return {
     title:"願いの泉",
     message:"静かな泉があります。願いを捧げるか、泉へ手を伸ばせます。",
