@@ -60,6 +60,12 @@ function reserveHiddenSmallReward(runtime) {
 }
 function battleOperation(owner) { return (owner.operations ?? []).find((operation) => operation?.op === "start_wild_battle") ?? null; }
 function battleSucceeded(summary={}) { const decision=Number(summary.decision); return decision===1 || decision===4; }
+function operationsRequestSave(operations=[]) { return operations.some((operation) => operation?.op === "request_save"); }
+function ensureResolvedSaveIntent(operations, reason) {
+  const resolved = (operations ?? []).map((operation) => structuredClone(operation));
+  if (!operationsRequestSave(resolved)) resolved.push({ op:"request_save", reason });
+  return resolved;
+}
 
 export function safariBerryThiefBerryChoices(runtime) { return berryIds(runtime); }
 
@@ -115,18 +121,17 @@ registerSafariNormalEventBattleContinuation("berry_thief", (runtime, continuatio
   const receipt = resolved ? commitSafariBagEconomyReceipt(runtime, { reward:resolved }) : null;
   state.board_events[index] = owner.event;
   state.board_consumed[index] = Boolean(owner.event.normal_resolved);
-  state.last_operations = [
+  state.last_operations = ensureResolvedSaveIntent([
     ...(owner.operations ?? []).filter((operation) => !["start_wild_battle","grant_items","remove_item"].includes(operation?.op)).map((operation) => structuredClone(operation)),
     ...(receipt?.operations ?? []).map((operation) => structuredClone(operation)),
-    { op:"request_save", reason:"normal_event_post_battle" },
-  ];
+  ], "normal_event_post_battle");
   state.notice = success
     ? bonusItem
       ? `きのみ泥棒を追い払い、盗まれた道具を取り戻しました。さらに${bonusItem}を見つけました。`
       : "きのみ泥棒を追い払い、盗まれた道具を取り戻しました。"
     : "きのみ泥棒との戦いは終わりました。";
   const bonus = bonusItem ? { success:true, selectedItems:[bonusItem] } : null;
-  return { runtime, result:owner.outcome, completed:true, terminal:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner, bonus };
+  return { runtime, result:owner.outcome, completed:true, terminal:true, operations:state.last_operations, notice:state.notice, persistenceRequested:operationsRequestSave(state.last_operations), owner, bonus };
 });
 
 export async function resolveSafariBerryThiefInteraction(runtime, index, requestedAction) {
@@ -145,7 +150,7 @@ export async function resolveSafariBerryThiefInteraction(runtime, index, request
   const berry = raw.startsWith("bait:") ? raw.slice(5) : null;
   const action = berry ? "bait" : raw;
   const availableActions = [...berryIds(runtime).map((item) => `bait:${item}`), "chase", "leave"];
-  if (!availableActions.includes(raw)) return { runtime, result:"unsupported_action", completed:false, operations:theft.operations, availableActions, persistenceRequested:theft.changed };
+  if (!availableActions.includes(raw)) return { runtime, result:"unsupported_action", completed:false, operations:theft.operations, availableActions, persistenceRequested:operationsRequestSave(theft.operations) };
 
   if (action === "chase" || action === "bait") {
     const roll = hiddenRoll(event);
@@ -157,16 +162,18 @@ export async function resolveSafariBerryThiefInteraction(runtime, index, request
       const preflight = transaction(runtime, possibleRewards, [{ item:berry, quantity:1 }]);
       if (!preflight?.success) {
         state.notice = preflight?.result === "not_enough_items" ? "そのきのみを持っていません。" : "戦闘後に盗品を戻すバッグの空きがありません。きのみは消費していません。";
-        return { runtime, result:preflight?.result ?? "bait_failed", completed:false, operations:[...theft.operations, ...(preflight?.operations ?? [])], notice:state.notice, persistenceRequested:theft.changed, availableActions };
+        const operations = [...theft.operations, ...(preflight?.operations ?? [])];
+        return { runtime, result:preflight?.result ?? "bait_failed", completed:false, operations, notice:state.notice, persistenceRequested:operationsRequestSave(operations), availableActions };
       }
       const debit = transaction(runtime, [], [{ item:berry, quantity:1 }]);
       const receipt = commitSafariBagEconomyReceipt(runtime, { reward:debit });
-      state.last_operations = [...theft.operations, ...receipt.operations.map((operation) => structuredClone(operation)), { op:"request_save", reason:"berry_thief_bait_committed" }];
+      state.last_operations = ensureResolvedSaveIntent([...theft.operations, ...receipt.operations.map((operation) => structuredClone(operation))], "berry_thief_bait_committed");
     } else {
       const preflight = possibleRewards.length ? transaction(runtime, possibleRewards) : null;
       if (preflight && !preflight.success) {
         state.notice = "戦闘後に盗品を戻すバッグの空きがありません。バッグを空けてから追ってください。";
-        return { runtime, result:"reward_bag_full", completed:false, operations:[...theft.operations, ...preflight.operations], notice:state.notice, persistenceRequested:theft.changed, availableActions };
+        const operations = [...theft.operations, ...preflight.operations];
+        return { runtime, result:"reward_bag_full", completed:false, operations, notice:state.notice, persistenceRequested:operationsRequestSave(operations), availableActions };
       }
     }
 
@@ -179,15 +186,16 @@ export async function resolveSafariBerryThiefInteraction(runtime, index, request
       payload:{ berry, hidden_reward_roll:roll, hidden_reward_item:hiddenReward?.item ?? null },
     });
     if (started.result === "normal_event_wild_battle_started" && state.battle) globalThis.__maplessNormalEventUi = null;
+    const operations = ensureResolvedSaveIntent([
+      ...theft.operations,
+      ...(hiddenReward?.operations ?? []),
+      ...(state.last_operations ?? started.operations ?? []),
+    ], "berry_thief_battle_started");
+    state.last_operations = operations;
     return {
       ...started,
-      persistenceRequested:true,
-      operations:[
-        ...theft.operations,
-        ...(hiddenReward?.operations ?? []),
-        ...(state.last_operations ?? started.operations ?? []),
-        { op:"request_save", reason:"berry_thief_battle_started" },
-      ],
+      persistenceRequested:operationsRequestSave(operations),
+      operations,
     };
   }
 
@@ -197,30 +205,32 @@ export async function resolveSafariBerryThiefInteraction(runtime, index, request
     const granted = await grantNormalEventPokemonFromEncounter(runtime, { type:event.normal_data?.type, modifier:-2, seed:Number(event.normal_seed) & 0x7fffffff });
     if (!granted.success) {
       state.notice = "手持ちもボックスもいっぱいです。空きを作れば、きのみ泥棒を仲間にできます。";
-      return { runtime, result:"leave_join_storage_full", completed:false, operations:[...theft.operations, ...(granted.operations ?? [])], notice:state.notice, persistenceRequested:theft.changed, availableActions };
+      const operations = [...theft.operations, ...(granted.operations ?? [])];
+      return { runtime, result:"leave_join_storage_full", completed:false, operations, notice:state.notice, persistenceRequested:operationsRequestSave(operations), availableActions };
     }
     state.board_events[index] = owner.event;
     state.board_consumed[index] = true;
-    state.last_operations = [...theft.operations, ...owner.operations.map((operation) => structuredClone(operation)), ...(granted.operations ?? []).map((operation) => structuredClone(operation))];
+    state.last_operations = ensureResolvedSaveIntent([...theft.operations, ...owner.operations.map((operation) => structuredClone(operation)), ...(granted.operations ?? []).map((operation) => structuredClone(operation))], "berry_thief_leave_join");
     state.notice = granted.result === "party" ? `${granted.pokemon.species}が仲間になりました。` : `${granted.pokemon.species}をボックスへ送りました。`;
-    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:operationsRequestSave(state.last_operations), owner };
   }
   if (owner.outcome === "leave_rare_berry") {
     const resolved = transaction(runtime, [rareBerry]);
     if (!resolved?.success) {
       state.notice = `${rareBerry}を受け取る空きがありません。イベントはまだ完了していません。`;
-      return { runtime, result:"reward_bag_full", completed:false, operations:[...theft.operations, ...(resolved?.operations ?? [])], notice:state.notice, persistenceRequested:theft.changed, availableActions };
+      const operations = [...theft.operations, ...(resolved?.operations ?? [])];
+      return { runtime, result:"reward_bag_full", completed:false, operations, notice:state.notice, persistenceRequested:operationsRequestSave(operations), availableActions };
     }
     const receipt = commitSafariBagEconomyReceipt(runtime, { reward:resolved });
     state.board_events[index] = owner.event;
     state.board_consumed[index] = true;
-    state.last_operations = [...theft.operations, ...owner.operations.filter((operation) => operation?.op !== "grant_items").map((operation) => structuredClone(operation)), ...receipt.operations.map((operation) => structuredClone(operation))];
+    state.last_operations = ensureResolvedSaveIntent([...theft.operations, ...owner.operations.filter((operation) => operation?.op !== "grant_items").map((operation) => structuredClone(operation)), ...receipt.operations.map((operation) => structuredClone(operation))], "berry_thief_leave_rare_berry");
     state.notice = `立ち去ろうとすると、${rareBerry}を見つけました。`;
-    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:operationsRequestSave(state.last_operations), owner };
   }
   state.board_events[index] = owner.event;
   state.board_consumed[index] = true;
-  state.last_operations = [...theft.operations, ...owner.operations.map((operation) => structuredClone(operation))];
+  state.last_operations = ensureResolvedSaveIntent([...theft.operations, ...owner.operations.map((operation) => structuredClone(operation))], "berry_thief_leave");
   state.notice = "きのみ泥棒を見送りました。盗まれた道具は戻りませんでした。";
-  return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+  return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:operationsRequestSave(state.last_operations), owner };
 }
