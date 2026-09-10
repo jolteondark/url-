@@ -29,6 +29,7 @@ import { openSafariItemCollectorTouch } from "./safari-item-collector-touch.js";
 import { openSafariBerryContestTouch } from "./safari-berry-contest-touch.js";
 import { openSafariBountyPosterTouch } from "./safari-bounty-poster-interaction.js";
 import { startSafariBountyTargetBattle } from "./safari-bounty-target-interaction.js";
+import { interactiveSafariTreasureMapSeller } from "./safari-treasure-map-interaction.js";
 import { activateSafariDayBoardCell as activateSafariDayBoardCellBase } from "./safari-playable-integration-wounded.js";
 
 function moveId(move) { return typeof move === "string" ? move : move?.id; }
@@ -83,6 +84,7 @@ export function activateSafariDayBoardCell(runtime, index) {
     if (event.normal_event_id === "trainer_camp" && typeof globalThis.document !== "undefined") return openSafariTrainerCampTouch(runtime, index);
     if (event.normal_event_id === "wishing_fountain" && typeof globalThis.document !== "undefined") return openSafariWishingFountainTouch(runtime, index);
     if (event.normal_event_id === "item_collector" && typeof globalThis.document !== "undefined") return openSafariItemCollectorTouch(runtime, index);
+    if (event.normal_event_id === "treasure_map_seller") return interactiveSafariTreasureMapSeller(runtime, index);
     if (typeof globalThis.document !== "undefined" && supportsSafariNormalEventTouch(event.normal_event_id)) return openSafariNormalEventTouch(runtime, index);
     if (event.normal_event_id === "street_performer") return interactiveSafariStreetPerformer(runtime, index);
     if (event.normal_event_id === "mushroom_field") return interactiveSafariMushroomField(runtime, index);
