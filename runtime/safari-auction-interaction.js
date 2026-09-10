@@ -41,6 +41,10 @@ function money(runtime) {
   return Math.max(0, Math.trunc(Number(runtime?.bag?.money ?? 0)));
 }
 
+function requestsPersistence(operations) {
+  return (operations ?? []).some((operation) => operation?.op === "request_save");
+}
+
 function refreshUi(runtime, index) {
   if (typeof globalThis.document === "undefined") return;
   const ui = globalThis.__maplessNormalEventUi;
@@ -68,7 +72,7 @@ function complete(runtime, index, event, result, notice, operations = []) {
     result,
     completed:true,
     consumed:true,
-    persistenceRequested:true,
+    persistenceRequested:requestsPersistence(state.last_operations),
     operations:state.last_operations,
     notice,
   };
@@ -159,7 +163,7 @@ export function resolveSafariAuctionInteraction(runtime, index, requestedAction)
       result:blocked ? "insufficient_money" : "awaiting_choice",
       completed:false,
       consumed:false,
-      persistenceRequested:!blocked,
+      persistenceRequested:requestsPersistence(state.last_operations),
       operations:state.last_operations,
       notice:state.notice,
       settlement,
@@ -212,7 +216,7 @@ export function resolveSafariAuctionInteraction(runtime, index, requestedAction)
     result:refunded ? "refunded_next_product" : "next_product",
     completed:false,
     consumed:false,
-    persistenceRequested:true,
+    persistenceRequested:requestsPersistence(state.last_operations),
     operations:state.last_operations,
     notice:state.notice,
     settlement,
