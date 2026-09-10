@@ -35,6 +35,7 @@ for (const modulePath of [
 ]) {
   assert.ok(index.includes(modulePath), `Safari public generation missing: ${modulePath}`);
 }
-assert.ok(index.includes("./runtime/safari-berry-thief-interaction.js?v=20260910-1901"), "Berry Thief #1453 must not remain on stale public generation");
+assert.ok(index.includes("./runtime/safari-berry-thief-interaction.js?v=20260910-1901"), "Berry Thief #1453 must be served from the refreshed public generation");
+assert.ok(!index.includes("./runtime/safari-berry-thief-interaction.js?v=20260905-0930"), "Berry Thief stale public generation must not remain served");
 
 console.log("canonical Battleback consumer public smoke: ok");
