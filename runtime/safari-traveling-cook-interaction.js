@@ -151,21 +151,21 @@ export function resolveSafariTravelingCookInteraction(runtime, index, action, me
 
 function chooseAction(confirmFn, promptFn, price) {
   if (promptFn) {
-    const raw = String(promptFn(`旅の料理人\n1: きのみ3個で料理\n2: ${price}円で料理\n3: 試作品（無料・危険あり）\n0: 立ち去る`, "2") ?? "0").trim();
+    const raw = String(promptFn(`旅の料理人\\n1: きのみ3個で料理\\n2: ${price}円で料理\\n3: 試作品（無料・危険あり）\\n0: 立ち去る`, "2") ?? "0").trim();
     return ({ "1":"berries", "2":"pay", "3":"prototype" })[raw] ?? "leave";
   }
-  if (confirmFn(`${price}円で料理を頼みますか？\n（キャンセルで別の方法）`)) return "pay";
-  if (confirmFn("きのみ3個で料理を作ってもらいますか？\n（キャンセルで別の方法）")) return "berries";
-  return confirmFn("無料の試作品を食べますか？\n（キャンセルで立ち去る）") ? "prototype" : "leave";
+  if (confirmFn(`${price}円で料理を頼みますか？\\n（キャンセルで別の方法）`)) return "pay";
+  if (confirmFn("きのみ3個で料理を作ってもらいますか？\\n（キャンセルで別の方法）")) return "berries";
+  return confirmFn("無料の試作品を食べますか？\\n（キャンセルで立ち去る）") ? "prototype" : "leave";
 }
 function chooseMeal(confirmFn, promptFn) {
   if (promptFn) {
-    const raw = String(promptFn("料理を選んでください。\n1: 回復料理\n2: 薬膳料理\n3: 力の料理\n0: やめる", "1") ?? "0").trim();
+    const raw = String(promptFn("料理を選んでください。\\n1: 回復料理\\n2: 薬膳料理\\n3: 力の料理\\n0: やめる", "1") ?? "0").trim();
     return ({ "1":"heal", "2":"medicine", "3":"power" })[raw] ?? null;
   }
-  if (confirmFn("回復料理にしますか？\n（キャンセルで別の料理）")) return "heal";
-  if (confirmFn("薬膳料理にしますか？\n（キャンセルで別の料理）")) return "medicine";
-  return confirmFn("力の料理にしますか？\n（キャンセルで料理選択をやめる）") ? "power" : null;
+  if (confirmFn("回復料理にしますか？\\n（キャンセルで別の料理）")) return "heal";
+  if (confirmFn("薬膳料理にしますか？\\n（キャンセルで別の料理）")) return "medicine";
+  return confirmFn("力の料理にしますか？\\n（キャンセルで料理選択をやめる）") ? "power" : null;
 }
 
 export function interactiveSafariTravelingCook(runtime, index) {
