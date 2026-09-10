@@ -68,6 +68,9 @@ function commit(runtime, index, owner, applied = []) {
   ];
   return state;
 }
+function persistenceRequested(state) {
+  return (state.last_operations ?? []).some((operation) => operation?.op === "request_save");
+}
 function battleSucceeded(summary = {}) {
   const decision = Number(summary.decision);
   return decision === 1 || decision === 4;
@@ -140,7 +143,7 @@ registerSafariNormalEventBattleContinuation("lost_bag", (runtime, continuation) 
     terminal:true,
     operations:state.last_operations,
     notice:state.notice,
-    persistenceRequested:true,
+    persistenceRequested:persistenceRequested(state),
     owner,
     reward,
     optionalReward,
@@ -175,7 +178,7 @@ export async function resolveSafariLostBagInteraction(runtime, index, requestedA
     const owner = resolveLostBag({ event, choice:"leave", has_dark_or_psychic:warned, current_day:day, scaling_value:scale });
     commit(runtime, index, owner);
     state.notice = "落とし物には触れず、その場を離れました。";
-    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:persistenceRequested(state), owner };
   }
 
   if (event.normal_data?.trap === true) {
@@ -217,7 +220,7 @@ export async function resolveSafariLostBagInteraction(runtime, index, requestedA
     state.notice = reward.success
       ? `落とし物を開け、${reward.selectedItems.join("・")}を手に入れました。`
       : "落とし物を開けましたが、バッグがいっぱいで中の道具は持ち帰れませんでした。";
-    return { runtime, result:owner.outcome, completed:true, reward, optionalReward, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+    return { runtime, result:owner.outcome, completed:true, reward, optionalReward, operations:state.last_operations, notice:state.notice, persistenceRequested:persistenceRequested(state), owner };
   }
 
   const waitRoll = Number(event.normal_data?.wait_roll ?? 0);
@@ -250,5 +253,5 @@ export async function resolveSafariLostBagInteraction(runtime, index, requestedA
       ? `持ち主が戻り、お礼に${moneyOperation?.amount ?? 0}円を受け取りましたが、バッグがいっぱいで道具は持ち帰れませんでした。`
       : `持ち主が戻り、お礼に${moneyOperation?.amount ?? 0}円${reward?.selectedItems?.length ? `と${reward.selectedItems.join("・")}` : ""}を受け取りました。`
     : "しばらく待ちましたが、持ち主は戻りませんでした。";
-  return { runtime, result:owner.outcome, completed:true, reward, optionalReward, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+  return { runtime, result:owner.outcome, completed:true, reward, optionalReward, operations:state.last_operations, notice:state.notice, persistenceRequested:persistenceRequested(state), owner };
 }
