@@ -1,6 +1,7 @@
 import { browserBattleRandomSeed } from "./battle-browser-random-seed.js";
 import { calculatePriorityCanonical } from "./battle-core-priority.js";
 import { resolveOrdinaryPokemonSpeedCanonical } from "./battle-core-speed.js";
+import { commitBattleStartTimeOfDayCanonical } from "./battle-start-time-of-day.js";
 import { commitSwitchInEntryWeatherCanonical } from "./battle-switch-in-entry-weather-commit.js";
 
 function normalizedEntrants(entrants) {
@@ -24,6 +25,10 @@ export function commitInitialEntryWeatherCanonical({
   if (battle.initial_entry_weather_committed === true) {
     return Object.freeze({ committed: false, reason: "already_committed", order: Object.freeze([]), resolutions: Object.freeze([]) });
   }
+
+  // Both reachable Safari Battle-start adapters already converge here exactly once.
+  // Keep the clock truth in its own owner; this shared entry hook only performs the handoff.
+  commitBattleStartTimeOfDayCanonical({ battle });
 
   const active = normalizedEntrants(entrants);
   const seed = priorityRandomSeed === null || priorityRandomSeed === undefined
