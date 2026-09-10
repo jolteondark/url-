@@ -12,6 +12,12 @@ function stateOf(runtime) {
   if (!state || typeof state !== "object" || Array.isArray(state)) throw new TypeError("runtime variables.mapless state is required");
   return state;
 }
+function operationsRequestSave(operations = []) { return operations.some((operation) => operation?.op === "request_save"); }
+function ensureResolvedSave(state, reason) {
+  if (!operationsRequestSave(state.last_operations)) {
+    state.last_operations = [...(state.last_operations ?? []), { op:"request_save", reason }];
+  }
+}
 function scalingValue(day) { return Math.max(Math.floor((Math.max(1, Number(day) || 1) - 1) / 5), 0); }
 function party(runtime) { return runtime.player?.party ?? []; }
 function usable(pokemon) { return Boolean(pokemon) && Number(pokemon.hp ?? 0) > 0 && pokemon.egg !== true; }
@@ -167,7 +173,8 @@ export function resolveSafariTravelingCookInteraction(runtime, index, action, me
       state.notice = "試作品のダメージで手持ちが全滅したため、今回のランは終了しました。";
       state.last_operations = [...eventOperations, ...(runEnd.operations ?? [])];
     }
-    return { runtime, result:preview.outcome, completed:true, price, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner:preview, runEnd };
+    ensureResolvedSave(state, "traveling_cook_prototype_resolved");
+    return { runtime, result:preview.outcome, completed:true, price, operations:state.last_operations, notice:state.notice, persistenceRequested:operationsRequestSave(state.last_operations), owner:preview, runEnd };
   }
 
   const spendSuccess = action !== "pay" || Number(runtime.bag?.money ?? 0) >= price;
@@ -196,6 +203,7 @@ export function resolveSafariTravelingCookInteraction(runtime, index, action, me
     ...(transaction?.operations ?? []).map((op) => structuredClone(op)),
     ...applied,
   ];
+  if (owner.result) ensureResolvedSave(state, "traveling_cook_resolved");
   state.notice = owner.outcome === "paid_heal" ? "料理人の温かい料理で手持ちが回復しました。"
     : owner.outcome === "paid_medicine" ? "薬膳料理で手持ちの状態異常が治りました。"
       : owner.outcome === "berries_heal" ? "きのみ3個で料理を作ってもらい、手持ちのHPが回復しました。"
@@ -210,7 +218,7 @@ export function resolveSafariTravelingCookInteraction(runtime, index, action, me
     price,
     operations: state.last_operations,
     notice: state.notice,
-    persistenceRequested: Boolean(owner.result),
+    persistenceRequested: operationsRequestSave(state.last_operations),
     owner,
   };
 }
