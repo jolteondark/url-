@@ -107,7 +107,7 @@ function successful(runtime, index, owner, transaction, notice) {
     completed:Boolean(owner.event.normal_resolved),
     operations:state.last_operations,
     notice,
-    persistenceRequested:true,
+    persistenceRequested:state.last_operations.some((operation) => operation?.op === "request_save"),
     owner,
     transaction,
   };
@@ -156,7 +156,7 @@ export function resolveSafariBerryJuiceShopInteraction(runtime, index, requested
     const owner = ownerFor(event, "leave");
     const committed = commit(runtime, index, owner);
     committed.notice = "きのみジュース屋を離れました。";
-    return { runtime, result:owner.outcome, completed:true, operations:committed.last_operations, notice:committed.notice, persistenceRequested:true, owner };
+    return { runtime, result:owner.outcome, completed:true, operations:committed.last_operations, notice:committed.notice, persistenceRequested:committed.last_operations.some((operation) => operation?.op === "request_save"), owner };
   }
 
   const entries = berryEntries(runtime);
