@@ -37,6 +37,9 @@ function sameTypeMove(pokemon, type) {
     return id && String(SAFARI_MOVE_MASTERS[id]?.type ?? "").trim().toUpperCase() === wanted;
   });
 }
+function operationsRequestSave(operations = []) {
+  return operations.some((operation) => operation?.op === "request_save");
+}
 function sharedSmallReward(runtime) {
   const state = stateOf(runtime);
   ensureSafariEncounterSeed(state);
@@ -57,10 +60,12 @@ function commitResolvedEvent(runtime, index, owner, appliedOperations) {
   state.board_events[index] = owner.event;
   state.board_visited[index] = true;
   state.board_consumed[index] = Boolean(owner.event.normal_resolved);
-  state.last_operations = [
+  const operations = [
     ...(owner.operations ?? []).filter((operation) => operation?.op !== "grant_random").map((operation) => structuredClone(operation)),
     ...appliedOperations,
   ];
+  if (!operationsRequestSave(operations)) operations.push({ op:"request_save", reason:"normal_event_street_performer" });
+  state.last_operations = operations;
   return state;
 }
 
@@ -95,7 +100,7 @@ registerSafariNormalEventBattleContinuation("street_performer", (runtime, contin
     terminal:true,
     operations:state.last_operations,
     notice:state.notice,
-    persistenceRequested:true,
+    persistenceRequested:operationsRequestSave(state.last_operations),
     owner,
   };
 });
@@ -179,7 +184,7 @@ export async function resolveSafariStreetPerformerInteraction(runtime, index, re
         ? `${pokemonLabel(runtime.player.party[partyIndex])}が${type}芸を披露し、${moneyOperation.amount}円・EXP ${exp.expGained}・${rewardItem}を受け取りました。`
         : `${pokemonLabel(runtime.player.party[partyIndex])}が${type}芸を披露し、${moneyOperation.amount}円とEXP ${exp.expGained}を受け取りましたが、バッグがいっぱいで追加の道具は持ち帰れませんでした。`
       : `${pokemonLabel(runtime.player.party[partyIndex])}が${type}芸を披露し、${moneyOperation.amount}円とEXP ${exp.expGained}を受け取りました。`;
-    return { runtime, result:owner.outcome, completed:true, reward, optionalReward, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+    return { runtime, result:owner.outcome, completed:true, reward, optionalReward, operations:state.last_operations, notice:state.notice, persistenceRequested:operationsRequestSave(state.last_operations), owner };
   }
 
   if (raw === "watch") {
@@ -199,7 +204,7 @@ export async function resolveSafariStreetPerformerInteraction(runtime, index, re
       { op:"runtime_set_exp_show", battles:1 },
     ]);
     state.notice = `大道芸を楽しみました。${viewingPrice}円を払い、手持ちが少し回復しました。`;
-    return { runtime, result:owner.outcome, completed:true, viewingPrice, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+    return { runtime, result:owner.outcome, completed:true, viewingPrice, operations:state.last_operations, notice:state.notice, persistenceRequested:operationsRequestSave(state.last_operations), owner };
   }
 
   if (raw === "callout") {
@@ -222,14 +227,14 @@ export async function resolveSafariStreetPerformerInteraction(runtime, index, re
     }
     commitResolvedEvent(runtime, index, owner, []);
     state.notice = "詐欺ではありませんでした。大道芸人のもとを離れました。";
-    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:operationsRequestSave(state.last_operations), owner };
   }
 
   if (raw === "leave") {
     const owner = resolveStreetPerformer({ event, action:"leave", current_day:day, scaling_value:scale });
     commitResolvedEvent(runtime, index, owner, []);
     state.notice = "大道芸人のもとを離れました。";
-    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:operationsRequestSave(state.last_operations), owner };
   }
 
   const choices = await safariStreetPerformerChoices(runtime);
