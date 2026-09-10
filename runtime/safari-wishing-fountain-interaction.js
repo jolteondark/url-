@@ -80,6 +80,9 @@ function commit(runtime, index, owner, applied = []) {
   ];
   return state;
 }
+function persistenceRequested(state) {
+  return (state?.last_operations ?? []).some((operation) => operation?.op === "request_save");
+}
 function scalingValue(runtime) { return maplessNormalEventScalingValue(stateOf(runtime).day); }
 
 export function safariWishingFountainPresentation(runtime, index) {
@@ -113,7 +116,7 @@ export function resolveSafariWishingFountainInteraction(runtime, index, requeste
     const owner = resolveWishingFountain({ event, action:"leave" });
     commit(runtime, index, owner);
     state.notice = "願いの泉を離れました。";
-    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:persistenceRequested(state), owner };
   }
 
   if (action === "large_wish") {
@@ -156,7 +159,7 @@ export function resolveSafariWishingFountainInteraction(runtime, index, requeste
       : reward
         ? `${price}円を捧げると、${reward.selectedItems?.join("・") ?? "道具"}を授かりました。`
         : `${price}円を捧げましたが、泉は静かなままでした。`;
-    return { runtime, result:owner.outcome, completed:true, reward, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+    return { runtime, result:owner.outcome, completed:true, reward, operations:state.last_operations, notice:state.notice, persistenceRequested:persistenceRequested(state), owner };
   }
 
   if (action === "reach") {
@@ -175,7 +178,7 @@ export function resolveSafariWishingFountainInteraction(runtime, index, requeste
       runtime.bag.money = Math.max(0, Math.trunc(Number(runtime.bag.money ?? 0))) + amount;
       commit(runtime, index, owner, [{ op:"runtime_add_money", amount }]);
       state.notice = `泉の底で${amount}円を見つけました。`;
-      return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+      return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:persistenceRequested(state), owner };
     }
     const reward = sharedLargeReward(runtime);
     if (!reward.success) {
@@ -189,7 +192,7 @@ export function resolveSafariWishingFountainInteraction(runtime, index, requeste
     ];
     commit(runtime, index, owner, applied);
     state.notice = `泉から${reward.selectedItems?.join("・") ?? "道具"}を拾い上げました。`;
-    return { runtime, result:owner.outcome, completed:true, reward, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+    return { runtime, result:owner.outcome, completed:true, reward, operations:state.last_operations, notice:state.notice, persistenceRequested:persistenceRequested(state), owner };
   }
 
   if (action !== "small_wish") {
@@ -232,5 +235,5 @@ export function resolveSafariWishingFountainInteraction(runtime, index, requeste
     : owner.outcome === "small_reward"
       ? `200円を捧げると、${reward?.selectedItems?.join("・") ?? "道具"}を授かりました。`
       : "200円を捧げましたが、泉は静かなままでした。";
-  return { runtime, result:owner.outcome, completed:true, reward, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+  return { runtime, result:owner.outcome, completed:true, reward, operations:state.last_operations, notice:state.notice, persistenceRequested:persistenceRequested(state), owner };
 }
