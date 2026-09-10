@@ -8,6 +8,10 @@ function stateOf(runtime) {
   return state;
 }
 
+function operationsRequestSave(operations = []) {
+  return operations.some((operation) => operation?.op === "request_save");
+}
+
 export function resolveSafariBuriedItemInteraction(runtime, index) {
   const state = stateOf(runtime);
   const event = state.board_events?.[index];
@@ -47,7 +51,7 @@ export function resolveSafariBuriedItemInteraction(runtime, index) {
     seed: owner.seed,
     notice: state.notice,
     operations: state.last_operations,
-    persistenceRequested: true,
+    persistenceRequested: operationsRequestSave(state.last_operations),
     owner,
   };
 }
