@@ -19,6 +19,10 @@ function stateOf(runtime) {
   return state;
 }
 
+function operationsRequestSave(operations) {
+  return Array.isArray(operations) && operations.some((operation) => operation?.op === "request_save");
+}
+
 function randomInt(limit) {
   const max = Number(limit);
   if (!Number.isSafeInteger(max) || max <= 0 || max > 0x100000000) throw new RangeError("random limit must be 1..2^32");
@@ -95,7 +99,7 @@ export async function purchaseSafariEggShopEgg(runtime, stockIndex, { confirmed 
     { op:"request_save", reason:"egg_shop_purchase" },
   ];
   state.last_operations = operations;
-  return { runtime, result:"bought", boundary:"egg_shop", species, level:created.level, egg:created.egg, notice:state.notice, operations, persistenceRequested:true };
+  return { runtime, result:"bought", boundary:"egg_shop", species, level:created.level, egg:created.egg, notice:state.notice, operations, persistenceRequested:operationsRequestSave(operations) };
 }
 
 export async function interactiveSafariEggShop(runtime, index) {
