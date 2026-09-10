@@ -132,7 +132,16 @@ function definition(runtime, eventId, index) {
   }
   if (eventId === "fake_nurse") {
     const price = 500 + scale * 100;
-    return { title:"簡易診療所", message:`看護師が${price}円で治療すると声をかけてきます。`, actions:[{id:"pay",label:"治療を受ける",meta:`${price}円`},{id:"leave",label:"警戒して立ち去る",secondary:true}] };
+    return {
+      title:"簡易診療所",
+      message:`看護師が${price}円で治療すると声をかけてきます。`,
+      actions:[
+        {id:"pay",label:"治療を受ける",meta:`${price}円`},
+        {id:"check_id:heal",label:"身分証を確認してから治療を受ける",meta:"確認後の治療判断は診療所側に任せる"},
+        {id:"check_id:leave",label:"身分証だけ確認する",meta:"確認後は治療せず立ち去る"},
+        {id:"leave",label:"警戒して立ち去る",secondary:true},
+      ],
+    };
   }
   if (eventId === "traveling_cook") {
     const price = 600 + scale * 100;
