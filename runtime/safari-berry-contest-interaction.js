@@ -194,7 +194,7 @@ export function resolveSafariBerryContestInteraction(runtime, index, requestedAc
     completed:true,
     operations:state.last_operations,
     notice:state.notice,
-    persistenceRequested:true,
+    persistenceRequested:state.last_operations.some((operation) => operation?.op === "request_save"),
     owner,
     reward:resolved,
   };
