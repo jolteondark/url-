@@ -74,6 +74,9 @@ function commit(runtime, index, owner, applied = []) {
   ];
   return state;
 }
+function persistenceRequested(state) {
+  return (state?.last_operations ?? []).some((operation) => operation?.op === "request_save");
+}
 function campProbe(event, scale, type = null) {
   return resolveTrainerCamp({ event, scaling_value:scale, suitable_type:type });
 }
@@ -172,7 +175,7 @@ export async function resolveSafariTrainerCampInteraction(runtime, index, reques
     applied.push(...exp.operations.map((operation) => ({ ...structuredClone(operation), scope:"trainer_camp" })));
     commit(runtime, index, owner, applied);
     state.notice = `${pokemonLabel(runtime.player.party[partyIndex])}がキャンプを手伝い、手持ちが回復しました。${reward.selectedItems.join("・")}とEXP ${exp.expGained}を受け取りました。`;
-    return { runtime, result:owner.outcome, completed:true, reward, exp, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+    return { runtime, result:owner.outcome, completed:true, reward, exp, operations:state.last_operations, notice:state.notice, persistenceRequested:persistenceRequested(state), owner };
   }
 
   if (raw === "manual") {
@@ -195,7 +198,7 @@ export async function resolveSafariTrainerCampInteraction(runtime, index, reques
     state.notice = owner.outcome === "manual_success"
       ? `キャンプを手伝い、手持ちが少し回復しました。${reward?.selectedItems?.join("・") ?? ""}を受け取りました。`
       : "キャンプを手伝いましたが、うまくいきませんでした。手持ちは少し回復しました。";
-    return { runtime, result:owner.outcome, completed:true, reward, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+    return { runtime, result:owner.outcome, completed:true, reward, operations:state.last_operations, notice:state.notice, persistenceRequested:persistenceRequested(state), owner };
   }
 
   if (raw === "buy") {
@@ -215,14 +218,14 @@ export async function resolveSafariTrainerCampInteraction(runtime, index, reques
       { op:"runtime_heal_party_percent", percent:50, cure_status:false },
     ]);
     state.notice = `${price}円で食事を買い、手持ちが50%回復しました。`;
-    return { runtime, result:owner.outcome, completed:true, mealPrice:price, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+    return { runtime, result:owner.outcome, completed:true, mealPrice:price, operations:state.last_operations, notice:state.notice, persistenceRequested:persistenceRequested(state), owner };
   }
 
   if (raw === "leave") {
     const owner = resolveTrainerCamp({ event, action:"leave", scaling_value:scale, current_day:day });
     commit(runtime, index, owner, []);
     state.notice = "トレーナーキャンプを離れました。";
-    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:true, owner };
+    return { runtime, result:owner.outcome, completed:true, operations:state.last_operations, notice:state.notice, persistenceRequested:persistenceRequested(state), owner };
   }
 
   const presentation = await safariTrainerCampPresentation(runtime, index);
