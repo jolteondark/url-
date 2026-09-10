@@ -13,6 +13,7 @@ function stateOf(runtime) {
   if (!state || typeof state !== "object" || Array.isArray(state)) throw new TypeError("runtime variables.mapless state is required");
   return state;
 }
+function operationsRequestSave(operations = []) { return operations.some((operation) => operation?.op === "request_save"); }
 function scalingValue(day) { return Math.max(Math.floor((Math.max(1, Number(day) || 1) - 1) / 5), 0); }
 function berrySlots(runtime) {
   return (runtime.bag?.slots ?? []).filter((slot) => Array.isArray(slot) && Number(slot[1]) > 0 && /BERRY$/i.test(String(slot[0] ?? "")));
@@ -58,6 +59,9 @@ function commitPowerMeal(runtime, index, owner, battles, extraOperations = []) {
     ...extraOperations,
     { op:"runtime_set_power_meal", battles:power.battles, day:power.day },
   ];
+  if (!operationsRequestSave(state.last_operations)) {
+    state.last_operations = [...state.last_operations, { op:"request_save", reason:"traveling_cook_power_meal_resolved" }];
+  }
   state.notice = battles === 1
     ? "試作品の力がみなぎり、次の戦闘で先頭の攻撃と特攻が上がります。"
     : `力の料理で、今日の次の${battles}戦は先頭の攻撃と特攻が上がります。`;
@@ -67,7 +71,7 @@ function commitPowerMeal(runtime, index, owner, battles, extraOperations = []) {
     completed:true,
     operations:state.last_operations,
     notice:state.notice,
-    persistenceRequested:true,
+    persistenceRequested:operationsRequestSave(state.last_operations),
     owner,
     powerMeal:power,
   };
@@ -147,21 +151,21 @@ export function resolveSafariTravelingCookInteraction(runtime, index, action, me
 
 function chooseAction(confirmFn, promptFn, price) {
   if (promptFn) {
-    const raw = String(promptFn(`旅の料理人\\n1: きのみ3個で料理\\n2: ${price}円で料理\\n3: 試作品（無料・危険あり）\\n0: 立ち去る`, "2") ?? "0").trim();
+    const raw = String(promptFn(`旅の料理人\n1: きのみ3個で料理\n2: ${price}円で料理\n3: 試作品（無料・危険あり）\n0: 立ち去る`, "2") ?? "0").trim();
     return ({ "1":"berries", "2":"pay", "3":"prototype" })[raw] ?? "leave";
   }
-  if (confirmFn(`${price}円で料理を頼みますか？\\n（キャンセルで別の方法）`)) return "pay";
-  if (confirmFn("きのみ3個で料理を作ってもらいますか？\\n（キャンセルで別の方法）")) return "berries";
-  return confirmFn("無料の試作品を食べますか？\\n（キャンセルで立ち去る）") ? "prototype" : "leave";
+  if (confirmFn(`${price}円で料理を頼みますか？\n（キャンセルで別の方法）`)) return "pay";
+  if (confirmFn("きのみ3個で料理を作ってもらいますか？\n（キャンセルで別の方法）")) return "berries";
+  return confirmFn("無料の試作品を食べますか？\n（キャンセルで立ち去る）") ? "prototype" : "leave";
 }
 function chooseMeal(confirmFn, promptFn) {
   if (promptFn) {
-    const raw = String(promptFn("料理を選んでください。\\n1: 回復料理\\n2: 薬膳料理\\n3: 力の料理\\n0: やめる", "1") ?? "0").trim();
+    const raw = String(promptFn("料理を選んでください。\n1: 回復料理\n2: 薬膳料理\n3: 力の料理\n0: やめる", "1") ?? "0").trim();
     return ({ "1":"heal", "2":"medicine", "3":"power" })[raw] ?? null;
   }
-  if (confirmFn("回復料理にしますか？\\n（キャンセルで別の料理）")) return "heal";
-  if (confirmFn("薬膳料理にしますか？\\n（キャンセルで別の料理）")) return "medicine";
-  return confirmFn("力の料理にしますか？\\n（キャンセルで料理選択をやめる）") ? "power" : null;
+  if (confirmFn("回復料理にしますか？\n（キャンセルで別の料理）")) return "heal";
+  if (confirmFn("薬膳料理にしますか？\n（キャンセルで別の料理）")) return "medicine";
+  return confirmFn("力の料理にしますか？\n（キャンセルで料理選択をやめる）") ? "power" : null;
 }
 
 export function interactiveSafariTravelingCook(runtime, index) {
