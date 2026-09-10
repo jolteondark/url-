@@ -22,7 +22,7 @@ assert.match(presentation, /resolveCanonicalBattlebackAssets\(timeOfDay\)/);
 assert.match(presentation, /battle\.timeOfDay/);
 assert.match(presentation, /rememberCanonicalBattlebackDiagnostic/);
 assert.match(presentation, /Promise\.all/);
-assert.match(presentation, /data-canonical-battleback=\\"ready\\"/);
+assert.match(presentation, /data-canonical-battleback="ready"/);
 assert.doesNotMatch(presentation, /new Date\s*\(/, "Presentation consumer must not own time-of-day truth");
 
 const index = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
