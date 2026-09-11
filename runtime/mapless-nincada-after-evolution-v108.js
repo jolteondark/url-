@@ -4,9 +4,8 @@ import { resolveEvolutionLabForceEvolutionContextV108 } from "./mapless-evolutio
 const id=(value)=>value==null?null:String(value).trim().toUpperCase();
 
 function healDuplicate(pokemon) {
-  pokemon.hp=Number(pokemon.totalhp ?? pokemon.total_hp ?? pokemon.hp ?? 0);
+  pokemon.hp=Number(pokemon.max_hp ?? pokemon.hp ?? 0);
   pokemon.status="NONE";
-  pokemon.statusCount=0;
   pokemon.status_count=0;
   pokemon.ready_to_evolve=false;
   if (Array.isArray(pokemon.moves)) {
@@ -28,10 +27,10 @@ export function resolveCanonicalNincadaAfterEvolutionV108({ pokemon, partyLength
   if (!pokemon||typeof pokemon!=="object") return {success:false,result:"pokemon_required",applicable:false};
   if (id(pokemon.species)!=="NINCADA") return {success:true,result:"not_applicable",applicable:false,duplicate:null,consumePokeBall:false,operations:[]};
   if (Number(partyLength)>=6) {
-    return {success:true,result:"party_full",applicable:true,duplicate:null,consumePokeBall:false,operations:[{op:"shedinja_after_evolution",result:"party_full"}]};
+    return {success:true,result:"party_full",applicable:true,duplicate:null,consumePokeBall:false,sourceContextPatch:{after_evolution_effect_owner_ready:true},operations:[{op:"shedinja_after_evolution",result:"party_full"}]};
   }
   if (!hasPokeBall) {
-    return {success:true,result:"poke_ball_missing",applicable:true,duplicate:null,consumePokeBall:false,operations:[{op:"shedinja_after_evolution",result:"poke_ball_missing"}]};
+    return {success:true,result:"poke_ball_missing",applicable:true,duplicate:null,consumePokeBall:false,sourceContextPatch:{after_evolution_effect_owner_ready:true},operations:[{op:"shedinja_after_evolution",result:"poke_ball_missing"}]};
   }
 
   const operation={op:"force_evolve",species:"SHEDINJA"};
@@ -45,7 +44,6 @@ export function resolveCanonicalNincadaAfterEvolutionV108({ pokemon, partyLength
 
   const duplicate=healDuplicate(committed.pokemon);
   duplicate.nickname=null;
-  duplicate.name=null;
   duplicate.markings=[];
   duplicate.poke_ball="POKEBALL";
   duplicate.item=null;
