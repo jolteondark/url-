@@ -2,6 +2,8 @@ import { resolveRewardTransaction } from "./bag-economy-reward-transaction.js";
 import { commitSafariBagEconomyReceipt } from "./safari-bag-economy-receipt.js";
 import { borrowSafariSharedRunRandomInt, ensureSafariEncounterSeed } from "./safari-encounter-randomization.js";
 import { resolveCanonicalEvolutionLabV108 } from "./mapless-evolution-lab-v108.js";
+import { commitCanonicalPokemonMutationV108 } from "./mapless-pokemon-mutation-v108.js";
+import { resolveEvolutionLabPokemonStatContextV108 } from "./mapless-evolution-lab-stat-context-v108.js";
 
 const SAFARI_BAG_MAX_SLOTS = 20;
 const SAFARI_BAG_MAX_PER_SLOT = 99;
@@ -119,11 +121,11 @@ export function safariEvolutionLabPresentation(runtime, index) {
   return {
     title:"進化研究所",
     message:hasEligible
-      ? "進化装置があります。安定出力は対象ポケモンの選択まで利用できます。最大出力はPokémon Runtimeのmutation commit接続待ちです。"
+      ? "進化装置があります。安定出力と最大出力を利用できます。進化rollはauthoritative evolution commit接続待ちの場合、安全に未消費で停止します。"
       : "進化装置があります。進化対象のポケモンはいません。部品回収または離脱を選べます。",
     actions:[
       { id:"stable", label:"安定出力", disabled:!hasEligible },
-      { id:"maximum", label:"最大出力", disabled:true },
+      { id:"maximum", label:"最大出力", disabled:!hasEligible },
       { id:"parts", label:"部品を回収する" },
       { id:"leave", label:"立ち去る", secondary:true },
     ],
@@ -181,22 +183,92 @@ export function resolveSafariEvolutionLabInteraction(runtime, index, action) {
 
     const mutation = (owner.operations ?? []).find((operation) => operation?.op === "force_evolve" || operation?.op === "lower_level");
     if (mutation) {
-      state.notice = mutation.op === "force_evolve"
-        ? "進化処理はPokémon Runtimeのauthoritative evolution commit接続待ちです。"
-        : "レベル変化処理はcanonical stat hydration接続待ちです。";
+      if (mutation.op === "force_evolve") {
+        state.notice = "進化処理はPokémon Runtimeのauthoritative evolution commit接続待ちです。";
+        return {
+          runtime,
+          result:"force_evolve_owner_unavailable",
+          completed:false,
+          terminal:false,
+          operations:owner.operations ?? [],
+          persistenceRequested:false,
+          notice:state.notice,
+          owner,
+        };
+      }
+
+      const pokemonIndex = Number(mutation.pokemon_index);
+      const party = partyOf(runtime);
+      const pokemon = Number.isInteger(pokemonIndex) ? party[pokemonIndex] : null;
+      if (!pokemon) {
+        state.notice = "対象ポケモンをPartyから取得できませんでした。";
+        return {
+          runtime,
+          result:"selected_pokemon_unavailable",
+          completed:false,
+          terminal:false,
+          operations:owner.operations ?? [],
+          persistenceRequested:false,
+          notice:state.notice,
+          owner,
+        };
+      }
+      const statContext = resolveEvolutionLabPokemonStatContextV108(pokemon);
+      if (!statContext.success) {
+        state.notice = "レベル変化に必要なcanonical stat contextを取得できませんでした。";
+        return {
+          runtime,
+          result:statContext.result,
+          completed:false,
+          terminal:false,
+          operations:owner.operations ?? [],
+          persistenceRequested:false,
+          notice:state.notice,
+          owner,
+          statContext,
+        };
+      }
+      const committed = commitCanonicalPokemonMutationV108(pokemon, mutation, statContext);
+      if (!committed.success) {
+        state.notice = "Pokémon Runtimeへレベル変化を反映できませんでした。";
+        return {
+          runtime,
+          result:committed.result,
+          completed:false,
+          terminal:false,
+          operations:owner.operations ?? [],
+          persistenceRequested:false,
+          notice:state.notice,
+          owner,
+          mutation:committed,
+        };
+      }
+      party[pokemonIndex] = committed.pokemon;
+      const applied = [{
+        op:"commit_pokemon_mutation",
+        pokemon_index:pokemonIndex,
+        mutation:mutation.op,
+        result:committed.result,
+        previous_level:committed.previousLevel,
+        level:committed.level,
+      }];
+      commitTerminalOwner(runtime, index, owner, applied, `evolution_lab_${owner.outcome}`);
+      const label = pokemon.nickname ?? pokemon.name ?? pokemon.species;
+      state.notice = `${label}のレベルが${committed.previousLevel}から${committed.level}に変化しました。`;
       return {
         runtime,
-        result:mutation.op === "force_evolve" ? "force_evolve_owner_unavailable" : "pokemon_stat_context_unavailable",
-        completed:false,
-        terminal:false,
-        operations:owner.operations ?? [],
-        persistenceRequested:false,
+        result:owner.outcome,
+        completed:true,
+        terminal:true,
+        operations:state.last_operations,
+        persistenceRequested:requestsSave(state.last_operations),
         notice:state.notice,
         owner,
+        mutation:committed,
       };
     }
 
-    commitTerminalOwner(runtime, index, owner, [], "evolution_lab_stable_no_change");
+    commitTerminalOwner(runtime, index, owner, [], choice.id === "maximum" ? "evolution_lab_maximum_no_change" : "evolution_lab_stable_no_change");
     state.notice = "装置は作動しましたが、ポケモンに変化はありませんでした。";
     return {
       runtime,
