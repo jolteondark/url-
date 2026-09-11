@@ -1,4 +1,5 @@
 import { RubyMT19937Random } from "./ruby-mt19937-random.js";
+import { canonicalEvolutionLabCandidatesV108 } from "./mapless-species-evolution-v108.js";
 
 export const MAPLESS_EVOLUTION_LAB_PART_ITEMS_V108 = Object.freeze([
   "FIRESTONE", "THUNDERSTONE", "WATERSTONE", "LEAFSTONE", "MOONSTONE",
@@ -19,12 +20,22 @@ function normalizedEligible(entries = []) {
   })).filter((entry) => entry.evolutions.length > 0) : [];
 }
 
+function eligibleFromParty(party) {
+  return canonicalEvolutionLabCandidatesV108(party).map(({ index, pokemon, evolutions }) => ({
+    index,
+    id:pokemon?.personal_id ?? pokemon?.id ?? null,
+    name:String(pokemon?.nickname ?? pokemon?.name ?? pokemon?.species ?? `Pokemon ${index + 1}`),
+    evolutions,
+  }));
+}
+
 /**
  * Canonical v0.9.108 Evolution Lab decision owner.
  *
  * This module deliberately does not mutate Safari Pokemon/Bag state. It owns the
  * canonical choice/RNG/result contract and emits mutation intents for the existing
- * Bag/Pokemon Runtime owners to commit.
+ * Bag/Pokemon Runtime owners to commit. When a party is supplied, canonical
+ * eligibility/target projection is delegated to mapless-species-evolution-v108.
  */
 export function resolveCanonicalEvolutionLabV108(input = {}) {
   const event = cloneEvent(input.event || {});
@@ -58,7 +69,9 @@ export function resolveCanonicalEvolutionLabV108(input = {}) {
 
   if (choice !== "stable" && choice !== "maximum") return pending("cancelled");
 
-  const eligible = normalizedEligible(input.eligible_pokemon);
+  const eligible = normalizedEligible(
+    Array.isArray(input.eligible_pokemon) ? input.eligible_pokemon : eligibleFromParty(input.party),
+  );
   operations.push({ op:"eligible_pokemon", entries:eligible.map((entry) => ({ ...entry, evolutions:[...entry.evolutions] })) });
   if (!eligible.length) return pending("no_eligible_pokemon");
 
