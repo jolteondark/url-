@@ -22,7 +22,7 @@ function levelFromExp(growthRate, exp, maxLevel = 100) {
  * This module does not own Evolution Lab decisions/RNG/species selection. It consumes
  * owner-emitted mutation intents and canonical hydrated target/stat context. Safari must
  * not reimplement the mutation. Evolution contexts with canonical after-evolution side
- * effects fail closed until their Party/Bag owner can commit those effects atomically.
+ * effects require an explicit owner-ready signal before this single-Pokémon commit runs.
  */
 export function commitCanonicalPokemonMutationV108(pokemon, operation, context = {}) {
   const current = createPokemonRuntime(pokemon);
@@ -40,7 +40,7 @@ export function commitCanonicalPokemonMutationV108(pokemon, operation, context =
     if (!context.base_stats || !context.growth_rate || !Array.isArray(context.nature_stat_changes)) {
       return { success:false, result:"force_evolution_stat_context_required", pokemon:current, operation:intent };
     }
-    if (context.after_evolution_effect === true) {
+    if (context.after_evolution_effect === true && context.after_evolution_effect_owner_ready !== true) {
       return { success:false, result:"evolution_after_effect_owner_required", pokemon:current, operation:intent };
     }
     if (current.exp == null) {
