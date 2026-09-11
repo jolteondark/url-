@@ -8,9 +8,12 @@ const owner = await readFile(new URL("../runtime/mapless-evolution-lab-v108.js",
 const mutation = await readFile(new URL("../runtime/mapless-pokemon-mutation-v108.js", import.meta.url), "utf8");
 
 assert.match(index, /\.\/runtime\/safari-pokemon-center-command\.js\?v=20260911-1902/);
-assert.match(index, /\.\/runtime\/safari-evolution-lab-interaction\.js\?v=20260911-2300/);
+assert.match(index, /\.\/runtime\/safari-evolution-lab-interaction\.js\?v=20260912-0030/);
 assert.match(index, /\.\/runtime\/mapless-evolution-lab-v108\.js\?v=20260911-2200/);
 assert.match(index, /\.\/runtime\/mapless-pokemon-mutation-v108\.js\?v=20260911-2300/);
+assert.match(index, /\.\/runtime\/mapless-evolution-lab-stat-context-v108\.js\?v=20260912-0030/);
+assert.match(index, /\.\/runtime\/mapless-evolution-lab-force-evolution-context-v108\.js\?v=20260912-0030/);
+assert.doesNotMatch(index, /\.\/runtime\/safari-evolution-lab-interaction\.js\?v=20260911-2300/);
 assert.doesNotMatch(index, /\.\/runtime\/safari-evolution-lab-interaction\.js\?v=20260911-2200/);
 assert.doesNotMatch(index, /\.\/runtime\/mapless-pokemon-mutation-v108\.js\?v=20260911-2200/);
 assert.match(command, /import \{ interactiveSafariEvolutionLab \} from "\.\/safari-evolution-lab-interaction\.js";/);
@@ -26,6 +29,7 @@ assert.match(interaction, /kind:"evolution"/);
 assert.match(interaction, /resolveCanonicalEvolutionLabV108/);
 assert.match(interaction, /commitCanonicalPokemonMutationV108/);
 assert.match(interaction, /resolveEvolutionLabPokemonStatContextV108/);
+assert.match(interaction, /resolveEvolutionLabForceEvolutionContextV108/);
 assert.match(interaction, /mutation\.op === "force_evolve"/);
 assert.match(interaction, /party\[pokemonIndex\] = committed\.pokemon/);
 assert.match(interaction, /commitTerminalOwner\(runtime, index, owner, applied/);
