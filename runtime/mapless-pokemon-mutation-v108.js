@@ -5,12 +5,24 @@ function cloneOperation(operation) {
   return operation && typeof operation === "object" ? structuredClone(operation) : operation;
 }
 
+function levelFromExp(growthRate, exp, maxLevel = 100) {
+  const points = Number(exp);
+  if (!Number.isInteger(points) || points < 0) throw new TypeError("exp must be a non-negative integer");
+  let level = 1;
+  for (let candidate = 2; candidate <= maxLevel; candidate += 1) {
+    if (minimumExpForGrowthRateLevelV108(growthRate, candidate) > points) break;
+    level = candidate;
+  }
+  return level;
+}
+
 /**
  * Shared commit seam for canonical v0.9.108 Pokémon mutation intents.
  *
- * This module does not own evolution decisions/RNG/species data. It consumes an
- * owner-emitted mutation intent and delegates stat calculation to pokemon-runtime.
- * Callers must hydrate canonical species/nature/growth-rate context; missing context fails closed.
+ * This module does not own Evolution Lab decisions/RNG/species selection. It consumes
+ * owner-emitted mutation intents and canonical hydrated target/stat context. Safari must
+ * not reimplement the mutation. Evolution contexts with canonical after-evolution side
+ * effects fail closed until their Party/Bag owner can commit those effects atomically.
  */
 export function commitCanonicalPokemonMutationV108(pokemon, operation, context = {}) {
   const current = createPokemonRuntime(pokemon);
@@ -20,11 +32,56 @@ export function commitCanonicalPokemonMutationV108(pokemon, operation, context =
   }
 
   if (intent.op === "force_evolve") {
+    const target = String(intent.species ?? "");
+    if (!target) return { success:false, result:"evolution_target_required", pokemon:current, operation:intent };
+    if (context.success !== true || context.target !== target || context.source !== current.species) {
+      return { success:false, result:"force_evolution_context_required", pokemon:current, operation:intent };
+    }
+    if (!context.base_stats || !context.growth_rate || !Array.isArray(context.nature_stat_changes)) {
+      return { success:false, result:"force_evolution_stat_context_required", pokemon:current, operation:intent };
+    }
+    if (context.after_evolution_effect === true) {
+      return { success:false, result:"evolution_after_effect_owner_required", pokemon:current, operation:intent };
+    }
+    if (current.exp == null) {
+      return { success:false, result:"evolution_exp_required", pokemon:current, operation:intent };
+    }
+
+    // Essentials v21.1 Pokemon#species= invalidates cached level because a target species
+    // may use a different growth rate. EXP itself is preserved, so derive the target level
+    // from that EXP before calc_stats. Mapless force_evolve restores pre-evolution moves
+    // after PokemonEvolutionScene, therefore move objects/PP are kept verbatim here.
+    const level = levelFromExp(context.growth_rate, current.exp);
+    const wasFainted = current.hp === 0;
+    const evolvedBase = createPokemonRuntime({
+      ...current,
+      species:target,
+      form:Number(context.target_form ?? 0),
+      forced_form:null,
+      gender:context.gender ?? current.gender,
+      ability_id:context.ability_id ?? null,
+      level,
+      ready_to_evolve:false,
+      moves:structuredClone(current.moves),
+    });
+    let evolved = recalculatePokemonStats(evolvedBase, {
+      base_stats:context.base_stats,
+      nature_stat_changes:context.nature_stat_changes,
+      disable_ivs_and_evs:context.disable_ivs_and_evs === true,
+      previous_mapless_bonus_stats:context.previous_mapless_bonus_stats ?? null,
+    });
+    if (wasFainted) evolved = createPokemonRuntime({ ...evolved, hp:0 });
     return {
-      success:false,
-      result:"force_evolve_owner_unavailable",
-      pokemon:current,
+      success:true,
+      result:"pokemon_evolved",
+      pokemon:evolved,
       operation:intent,
+      previousSpecies:current.species,
+      species:evolved.species,
+      previousForm:current.form,
+      form:evolved.form,
+      previousLevel:current.level,
+      level:evolved.level,
     };
   }
 
