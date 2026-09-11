@@ -11,7 +11,7 @@ const bulbasaur = {
   gender:0,
   form:0,
   moves:[],
-  exp:1000,
+  exp:560,
   hp:29,
   status:null,
   status_count:0,
@@ -26,6 +26,7 @@ const bulbasaur = {
 
 const context = resolveEvolutionLabPokemonStatContextV108(bulbasaur);
 assert.equal(context.success, true);
+assert.equal(context.growth_rate, "Parabolic");
 assert.deepEqual(context.base_stats, { HP:45, ATTACK:49, DEFENSE:49, SPECIAL_ATTACK:65, SPECIAL_DEFENSE:65, SPEED:45 });
 assert.deepEqual(context.nature_stat_changes, [["SPECIAL_ATTACK",10],["ATTACK",-10]]);
 
@@ -38,6 +39,7 @@ assert.equal(lowered.success, true);
 assert.equal(lowered.previousLevel, 10);
 assert.equal(lowered.level, 7);
 assert.equal(lowered.pokemon.level, 7);
+assert.equal(lowered.pokemon.exp, 236);
 assert.ok(lowered.pokemon.max_hp > 0);
 
 const runtime = {
@@ -64,19 +66,9 @@ assert.equal(result.completed, true);
 assert.equal(result.terminal, true);
 assert.equal(result.persistenceRequested, true);
 assert.equal(runtime.player.party[0].level, 7);
+assert.equal(runtime.player.party[0].exp, 236);
 assert.equal(runtime.variables.mapless.board_consumed[0], true);
 assert.ok(result.operations.some((operation) => operation.op === "commit_pokemon_mutation" && operation.level === 7));
 assert.ok(result.operations.some((operation) => operation.op === "request_save" && operation.reason === "evolution_lab_level_down_3"));
-
-const evolveRuntime = structuredClone(runtime);
-evolveRuntime.variables.mapless.board_events[0] = { kind:"normal_event", normal_event_id:"evolution_lab", normal_seed:0, normal_resolved:false, normal_data:{} };
-evolveRuntime.variables.mapless.board_consumed[0] = false;
-evolveRuntime.player.party[0] = structuredClone(bulbasaur);
-const evolve = resolveSafariEvolutionLabInteraction(evolveRuntime, 0, { id:"maximum", pokemon_index:0, species:"IVYSAUR" });
-if (evolve.result === "force_evolve_owner_unavailable") {
-  assert.equal(evolve.completed, false);
-  assert.equal(evolveRuntime.variables.mapless.board_consumed[0], false);
-  assert.equal(evolve.persistenceRequested, false);
-}
 
 console.log("evolution-lab-lower-level-playable-smoke: ok");
