@@ -5,7 +5,8 @@ const index = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const command = await readFile(new URL("../runtime/safari-pokemon-center-command.js", import.meta.url), "utf8");
 const seller = await readFile(new URL("../runtime/safari-treasure-map-interaction.js", import.meta.url), "utf8");
 
-assert.match(index, /\.\/runtime\/safari-pokemon-center-command\.js\?v=20260911-1500/);
+assert.match(index, /\.\/runtime\/safari-pokemon-center-command\.js\?v=20260911-1902/);
+assert.doesNotMatch(index, /\.\/runtime\/safari-pokemon-center-command\.js\?v=20260911-1500/);
 assert.doesNotMatch(index, /\.\/runtime\/safari-pokemon-center-command\.js\?v=20260911-1030/);
 assert.doesNotMatch(index, /\.\/runtime\/safari-pokemon-center-command\.js\?v=20260911-0905/);
 assert.doesNotMatch(index, /\.\/runtime\/safari-pokemon-center-command\.js\?v=20260908-1030/);
