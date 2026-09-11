@@ -37,7 +37,10 @@ export function resolveCanonicalNincadaAfterEvolutionV108({ pokemon, partyLength
   const operation={op:"force_evolve",species:"SHEDINJA"};
   const context=resolveEvolutionLabForceEvolutionContextV108(pokemon,operation);
   if (context.success!==true) return {...context,applicable:true};
-  const committed=commitCanonicalPokemonMutationV108(structuredClone(pokemon),operation,context);
+  const committed=commitCanonicalPokemonMutationV108(structuredClone(pokemon),operation,{
+    ...context,
+    after_evolution_effect_owner_ready:true,
+  });
   if (committed.success!==true) return {...committed,applicable:true};
 
   const duplicate=healDuplicate(committed.pokemon);
@@ -54,6 +57,7 @@ export function resolveCanonicalNincadaAfterEvolutionV108({ pokemon, partyLength
     applicable:true,
     duplicate,
     consumePokeBall:true,
+    sourceContextPatch:{after_evolution_effect_owner_ready:true},
     operations:[{
       op:"duplicate_pokemon_after_evolution",
       species:"SHEDINJA",
