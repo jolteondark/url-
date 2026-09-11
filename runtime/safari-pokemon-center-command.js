@@ -1,5 +1,6 @@
 import { resolveMaplessPokemonCenterHealing } from "./mapless-pokemon-center-healing.js";
 import { placeSafariBountyTargetForDayV108 } from "./mapless-bounty-target-board-placement-v108.js?v=20260902-1028";
+import { materializeTreasureMapForDayV108 } from "./mapless-treasure-map-board-placement-v108.js";
 import { SAFARI_MOVE_MASTERS } from "./safari-playable-data.js";
 import {
   pokemonMoveTotalPp,
@@ -49,10 +50,24 @@ function applyScheduledBoardContinuation(runtime, event, result, previousDay) {
   if (event?.kind !== "next_day") return result;
   const state = runtime?.variables?.mapless;
   if (!state || Number(state.day) <= Number(previousDay)) return result;
-  const scheduled = placeSafariBountyTargetForDayV108(runtime);
-  if (!scheduled.placed && !scheduled.expired) return result;
-  state.last_operations = [...(Array.isArray(state.last_operations) ? state.last_operations : []), ...scheduled.operations.map((operation) => structuredClone(operation))];
-  return { ...result, runtime, operations:state.last_operations, scheduledBountyTarget:scheduled, persistenceRequested:true };
+
+  const treasureMap = materializeTreasureMapForDayV108(runtime);
+  const scheduled = treasureMap.placed ? { runtime, placed:false, expired:false, index:null, operations:[] } : placeSafariBountyTargetForDayV108(runtime);
+  const scheduleOperations = [
+    ...(Array.isArray(treasureMap.operations) ? treasureMap.operations : []),
+    ...(Array.isArray(scheduled.operations) ? scheduled.operations : []),
+  ];
+  const changed = treasureMap.placed || treasureMap.expired || scheduled.placed || scheduled.expired;
+  if (!changed) return result;
+  state.last_operations = [...(Array.isArray(state.last_operations) ? state.last_operations : []), ...scheduleOperations.map((operation) => structuredClone(operation))];
+  return {
+    ...result,
+    runtime,
+    operations:state.last_operations,
+    scheduledTreasureMap:treasureMap,
+    scheduledBountyTarget:scheduled,
+    persistenceRequested:scheduleOperations.some((operation) => operation?.op === "request_save"),
+  };
 }
 function signalNormalEventUi() {
   if (typeof globalThis.dispatchEvent === "function" && typeof globalThis.CustomEvent === "function") globalThis.dispatchEvent(new CustomEvent("safari-normal-event-ui"));
