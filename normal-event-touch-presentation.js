@@ -22,6 +22,27 @@ function berryCount(current) {
 }
 
 async function displayActionsFor(current, active) {
+  if (active.eventId === "evolution_lab") {
+    const owner = await loadOwner(active.eventId);
+    if (active.selection?.kind === "pokemon") {
+      return (active.selection.entries ?? []).map((entry) => ({
+        id:`pokemon:${entry.index}`,
+        label:entry.name ?? entry.id ?? `Party ${Number(entry.index) + 1}`,
+        meta:(entry.evolutions ?? []).join(" / "),
+      }));
+    }
+    if (active.selection?.kind === "evolution") {
+      return (active.selection.entries ?? []).map((entry) => ({
+        id:`evolution:${entry.species ?? entry.id}`,
+        label:entry.name ?? entry.species ?? entry.id,
+      }));
+    }
+    const ui = owner.safariEvolutionLabPresentation(current, active.boardIndex);
+    active.title = ui.title;
+    active.message = ui.message;
+    active.actions = ui.actions;
+    return ui.actions;
+  }
   if (active.eventId === "auction") {
     const owner = await loadOwner(active.eventId);
     const ui = owner.safariAuctionPresentation(current, active.boardIndex);
@@ -94,7 +115,7 @@ async function displayActionsFor(current, active) {
     { id:"pay:medicine", label:"薬膳料理をお金で頼む", meta:active.actions.find((action) => action.id === "medicine")?.meta ?? "状態異常回復" },
     { id:"pay:power", label:"力の料理をお金で頼む", meta:"次の3戦で先頭の攻撃・特攻を強化" },
     { id:"berries:heal", label:"きのみ3個で回復料理", meta:`所持きのみ ${count}個 · HP50%回復`, disabled:count < 3 },
-    { id:"berries:medicine", label:"きのみ3個で薬膳料理", meta:`所持きのみ ${count}個 · 状態異常回復`, disabled:count < 3 },
+    { id:"berries:medicine", label:"薬膳料理をきのみ3個で頼む", meta:`所持きのみ ${count}個 · 状態異常回復`, disabled:count < 3 },
     { id:"berries:power", label:"きのみ3個で力の料理", meta:`所持きのみ ${count}個 · 次の3戦で攻撃・特攻を強化`, disabled:count < 3 },
     { id:"prototype", label:"試作品を食べてみる", meta:"回復・薬効・強化料理・混乱・ダメージのいずれか" },
     { id:"leave", label:"立ち去る", secondary:true },
@@ -133,6 +154,7 @@ function loadOwner(eventId) {
       miner:"./runtime/safari-miner-interaction.js",
       tavern:"./runtime/safari-tavern-interaction.js",
       auction:"./runtime/safari-auction-interaction.js",
+      evolution_lab:"./runtime/safari-evolution-lab-interaction.js",
     }[eventId];
     if (!specifier) throw new RangeError(`unsupported normal-event UI owner: ${eventId}`);
     ownerModules.set(eventId, import(specifier));
@@ -194,6 +216,21 @@ function wishingFountainActionOptions(owner, current, index, actionId) {
 
 async function resolveAction(current, active, actionId) {
   const owner = await loadOwner(active.eventId);
+  if (active.eventId === "evolution_lab") {
+    if (active.selection?.kind === "pokemon" && String(actionId).startsWith("pokemon:")) {
+      const pokemonIndex = Number(String(actionId).slice(8));
+      return owner.resolveSafariEvolutionLabInteraction(current, active.boardIndex, { id:active.mode, pokemonIndex });
+    }
+    if (active.selection?.kind === "evolution" && String(actionId).startsWith("evolution:")) {
+      const species = String(actionId).slice(10);
+      return owner.resolveSafariEvolutionLabInteraction(current, active.boardIndex, {
+        id:active.mode,
+        pokemonIndex:active.selection.pokemonIndex,
+        species,
+      });
+    }
+    return owner.resolveSafariEvolutionLabInteraction(current, active.boardIndex, actionId);
+  }
   if (active.eventId === "street_performer") return owner.resolveSafariStreetPerformerInteraction(current, active.boardIndex, actionId);
   if (active.eventId === "mushroom_field") return owner.resolveSafariMushroomFieldInteraction(current, active.boardIndex, actionId);
   if (active.eventId === "hot_spring") return owner.resolveSafariHotSpringInteraction(current, active.boardIndex, actionId);
