@@ -14,11 +14,19 @@ import { resolveEvolutionLabNatureStatChangesV108 } from "./mapless-evolution-la
 // an already-decided target. Nincada remains fail-closed because Essentials' evolution
 // after-effect can duplicate Shedinja into Party and consume a Poké Ball atomically.
 const META=Object.freeze({...EVO_LAB_TARGET_META_V108_1,...EVO_LAB_TARGET_META_V108_2,...EVO_LAB_TARGET_META_V108_3,...EVO_LAB_TARGET_META_V108_4,...EVO_LAB_TARGET_META_V108_5,...EVO_LAB_TARGET_META_V108_6,...EVO_LAB_TARGET_META_V108_7,...EVO_LAB_TARGET_META_V108_8});
-const STAT_KEYS=["HP","ATTACK","DEFENSE","SPECIAL_ATTACK","SPECIAL_DEFENSE","SPEED"];
 
 const id=(value)=>value==null?null:String(value).trim().toUpperCase();
+// Essentials PBS BaseStats order is HP, Attack, Defense, Speed, Special Attack, Special Defense.
+// Pokémon Runtime's stat object order is HP, Attack, Defense, Special Attack, Special Defense, Speed.
 const stats=(values)=>Array.isArray(values)&&values.length===6
-  ? Object.fromEntries(STAT_KEYS.map((key,index)=>[key,Number(values[index])]))
+  ? {
+      HP:Number(values[0]),
+      ATTACK:Number(values[1]),
+      DEFENSE:Number(values[2]),
+      SPECIAL_ATTACK:Number(values[4]),
+      SPECIAL_DEFENSE:Number(values[5]),
+      SPEED:Number(values[3]),
+    }
   : null;
 
 function resolveGender(ratio,currentGender) {
