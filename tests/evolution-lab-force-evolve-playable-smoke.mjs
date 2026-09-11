@@ -39,7 +39,7 @@ assert.equal(hydrated.growth_rate, "Parabolic");
 assert.equal(hydrated.ability_id, "OVERGROW");
 assert.equal(hydrated.gender, 0);
 assert.deepEqual(hydrated.base_stats, {
-  HP:60, ATTACK:62, DEFENSE:63, SPECIAL_ATTACK:60, SPECIAL_DEFENSE:80, SPEED:80,
+  HP:60, ATTACK:62, DEFENSE:63, SPECIAL_ATTACK:80, SPECIAL_DEFENSE:80, SPEED:60,
 });
 
 const hidden = resolveEvolutionLabForceEvolutionContextV108(
@@ -96,6 +96,8 @@ assert.equal(terminal.mutation.result, "pokemon_evolved");
 assert.equal(runtime.player.party[0].species, "IVYSAUR");
 assert.equal(runtime.player.party[0].ability_id, "OVERGROW");
 assert.equal(runtime.player.party[0].ready_to_evolve, false);
+assert.equal(runtime.player.party[0].stats.SPECIAL_ATTACK, 10);
+assert.equal(runtime.player.party[0].stats.SPEED, 8);
 assert.deepEqual(runtime.player.party[0].moves, bulbasaur.moves);
 assert.equal(runtime.variables.mapless.board_consumed[0], true);
 assert.equal(runtime.variables.mapless.board_events[0].normal_resolved, true);
