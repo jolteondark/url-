@@ -146,6 +146,26 @@ function actionAfterMoveCanonical(prepared) {
   };
 }
 
+function targetBerryStatChangesCanonical(actionAfter) {
+  if (actionAfter?.targetBerry?.triggered !== true || !actionAfter?.targetBerry?.consumeRequest) return [];
+  return (actionAfter.targetBerry.statChanges ?? []).map((change) => ({ ...change, subject: "target" }));
+}
+
+function suppressInapplicableTargetBerryCanonical(actionAfter) {
+  const berry = actionAfter?.targetBerry;
+  if (!berry) return actionAfter;
+  return Object.freeze({
+    ...actionAfter,
+    targetBerry: Object.freeze({ ...berry, triggered: false, consumeRequest: null }),
+    targetBerryAbilityAfterEffect: Object.freeze({
+      ...(actionAfter.targetBerryAbilityAfterEffect ?? {}),
+      triggered: false,
+      hpDelta: 0,
+      source: null,
+    }),
+  });
+}
+
 export function applyBattleAbilityItemActionAfterCanonical(action, inputStatStages = null) {
   const statStages = createBattleStatStageStateCanonical(inputStatStages);
   const prepared = structuredClone(action);
@@ -173,11 +193,13 @@ export function applyBattleAbilityItemActionAfterCanonical(action, inputStatStag
   });
   prepared.abilityItemActionAfter = actionAfter;
 
+  const berryChanges = targetBerryStatChangesCanonical(actionAfter);
   const changes = [
     ...(actionAfter?.typeImmunityAfterEffect?.statChanges ?? []),
     ...(actionAfter?.targetHitReactiveItem?.statChanges ?? []),
     ...(actionAfter?.contactReactive?.statChanges ?? []),
     ...(actionAfter?.koBoost?.statChanges ?? []),
+    ...berryChanges,
   ];
   if (changes.length === 0) return { action: prepared, statStages };
   const modifiers = prepared.abilityItemActionBefore?.modifiers ?? {};
@@ -193,6 +215,12 @@ export function applyBattleAbilityItemActionAfterCanonical(action, inputStatStag
       moldBreaker: Boolean(modifiers.moldBreaker),
     },
   );
+  if (berryChanges.length > 0) {
+    const berryApplied = stageResolution.applied.slice(-berryChanges.length);
+    if (!berryApplied.some((entry) => Number(entry?.appliedDelta ?? 0) !== 0)) {
+      prepared.abilityItemActionAfter = suppressInapplicableTargetBerryCanonical(actionAfter);
+    }
+  }
   prepared.abilityItemActionAfterStatStageResolution = stageResolution;
   return { action: prepared, statStages: stageResolution.state };
 }
