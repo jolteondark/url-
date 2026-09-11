@@ -43,10 +43,9 @@ function normalizeAction(action) {
   return { id:String(action ?? ""), pokemonIndex:undefined, species:undefined };
 }
 
-function publishSelectionUi(runtime, index, mode, owner) {
+function publishSelectionUi(runtime, index, mode, owner, pokemonIndex) {
   const state = stateOf(runtime);
   const eligible = ownerEligibleEntries(owner);
-  const selected = owner?.operations?.find((operation) => operation?.op === "selected_evolution");
   let selection = null;
   if (owner?.outcome === "pokemon_selection_required") {
     selection = {
@@ -61,11 +60,11 @@ function publishSelectionUi(runtime, index, mode, owner) {
     };
     state.notice = "進化装置に入れるポケモンを選んでください。";
   } else if (owner?.outcome === "evolution_selection_required") {
-    const entry = eligible.find((candidate) => candidate.index === selected?.pokemon_index) ?? null;
+    const entry = eligible.find((candidate) => candidate.index === pokemonIndex) ?? null;
     selection = {
       kind:"evolution",
       mode,
-      pokemonIndex:selected?.pokemon_index,
+      pokemonIndex,
       entries:(entry?.evolutions ?? []).map((species) => ({ id:species, species, name:species })),
     };
     state.notice = "進化先を選んでください。";
@@ -151,7 +150,7 @@ export function resolveSafariEvolutionLabInteraction(runtime, index, action) {
       selected_species:choice.species,
     });
     if (!owner.completed) {
-      const selection = publishSelectionUi(runtime, index, choice.id, owner);
+      const selection = publishSelectionUi(runtime, index, choice.id, owner, choice.pokemonIndex);
       if (selection) {
         return {
           runtime,
