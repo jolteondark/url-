@@ -24,6 +24,69 @@ function requestsSave(operations = []) {
   return operations.some((operation) => operation?.op === "request_save");
 }
 
+function partyOf(runtime) {
+  return Array.isArray(runtime?.player?.party) ? runtime.player.party : [];
+}
+
+function ownerEligibleEntries(owner) {
+  return owner?.operations?.find((operation) => operation?.op === "eligible_pokemon")?.entries ?? [];
+}
+
+function normalizeAction(action) {
+  if (action && typeof action === "object") {
+    return {
+      id:String(action.id ?? action.action ?? ""),
+      pokemonIndex:Number.isInteger(action.pokemon_index) ? action.pokemon_index : Number.isInteger(action.pokemonIndex) ? action.pokemonIndex : undefined,
+      species:action.species ? String(action.species) : undefined,
+    };
+  }
+  return { id:String(action ?? ""), pokemonIndex:undefined, species:undefined };
+}
+
+function publishSelectionUi(runtime, index, mode, owner) {
+  const state = stateOf(runtime);
+  const eligible = ownerEligibleEntries(owner);
+  const selected = owner?.operations?.find((operation) => operation?.op === "selected_evolution");
+  let selection = null;
+  if (owner?.outcome === "pokemon_selection_required") {
+    selection = {
+      kind:"pokemon",
+      mode,
+      entries:eligible.map((entry) => ({
+        id:entry.id,
+        index:entry.index,
+        name:entry.name,
+        evolutions:[...(entry.evolutions ?? [])],
+      })),
+    };
+    state.notice = "進化装置に入れるポケモンを選んでください。";
+  } else if (owner?.outcome === "evolution_selection_required") {
+    const entry = eligible.find((candidate) => candidate.index === selected?.pokemon_index) ?? null;
+    selection = {
+      kind:"evolution",
+      mode,
+      pokemonIndex:selected?.pokemon_index,
+      entries:(entry?.evolutions ?? []).map((species) => ({ id:species, species, name:species })),
+    };
+    state.notice = "進化先を選んでください。";
+  }
+  if (!selection) return null;
+  globalThis.__maplessNormalEventUi = {
+    runtime,
+    boardIndex:index,
+    eventId:"evolution_lab",
+    title:"進化研究所",
+    message:state.notice,
+    mode,
+    selection,
+    owner,
+  };
+  if (typeof globalThis.dispatchEvent === "function" && typeof globalThis.CustomEvent === "function") {
+    globalThis.dispatchEvent(new CustomEvent("safari-normal-event-ui"));
+  }
+  return selection;
+}
+
 function commitTerminalOwner(runtime, index, owner, applied = [], reason = "evolution_lab_resolved") {
   const state = stateOf(runtime);
   state.board_events[index] = owner.event;
@@ -50,16 +113,22 @@ function preflightSingleItem(runtime, item) {
 }
 
 export function safariEvolutionLabPresentation(runtime, index) {
-  evolutionLabEvent(runtime, index);
+  const event = evolutionLabEvent(runtime, index);
+  const preview = resolveCanonicalEvolutionLabV108({ event, choice:"stable", party:partyOf(runtime) });
+  const eligible = ownerEligibleEntries(preview);
+  const hasEligible = eligible.length > 0;
   return {
     title:"進化研究所",
-    message:"進化装置があります。部品回収と離脱は利用できます。安定出力／最大出力はPokémon Runtimeの進化commit接続待ちです。",
+    message:hasEligible
+      ? "進化装置があります。安定出力は対象ポケモンの選択まで利用できます。最大出力はPokémon Runtimeのmutation commit接続待ちです。"
+      : "進化装置があります。進化対象のポケモンはいません。部品回収または離脱を選べます。",
     actions:[
-      { id:"stable", label:"安定出力", disabled:true },
+      { id:"stable", label:"安定出力", disabled:!hasEligible },
       { id:"maximum", label:"最大出力", disabled:true },
       { id:"parts", label:"部品を回収する" },
       { id:"leave", label:"立ち去る", secondary:true },
     ],
+    eligiblePokemon:eligible.map((entry) => ({ ...entry, evolutions:[...(entry.evolutions ?? [])] })),
   };
 }
 
@@ -72,23 +141,80 @@ export function resolveSafariEvolutionLabInteraction(runtime, index, action) {
 
   state.board_revealed[index] = true;
   state.board_visited[index] = true;
-  const choice = String(action ?? "");
-  if (choice === "stable" || choice === "maximum") {
-    state.notice = "進化処理はPokémon Runtimeのauthoritative mutation接続待ちです。";
+  const choice = normalizeAction(action);
+  if (choice.id === "stable" || choice.id === "maximum") {
+    const owner = resolveCanonicalEvolutionLabV108({
+      event,
+      choice:choice.id,
+      party:partyOf(runtime),
+      selected_index:choice.pokemonIndex,
+      selected_species:choice.species,
+    });
+    if (!owner.completed) {
+      const selection = publishSelectionUi(runtime, index, choice.id, owner);
+      if (selection) {
+        return {
+          runtime,
+          result:owner.outcome,
+          completed:false,
+          terminal:false,
+          operations:owner.operations ?? [],
+          persistenceRequested:false,
+          notice:state.notice,
+          selection,
+          owner,
+        };
+      }
+      state.notice = owner.outcome === "no_eligible_pokemon"
+        ? "進化できるポケモンがいません。"
+        : "進化装置の選択を完了できませんでした。";
+      return {
+        runtime,
+        result:owner.outcome,
+        completed:false,
+        terminal:false,
+        operations:owner.operations ?? [],
+        persistenceRequested:false,
+        notice:state.notice,
+        owner,
+      };
+    }
+
+    const mutation = (owner.operations ?? []).find((operation) => operation?.op === "force_evolve" || operation?.op === "lower_level");
+    if (mutation) {
+      state.notice = mutation.op === "force_evolve"
+        ? "進化処理はPokémon Runtimeのauthoritative evolution commit接続待ちです。"
+        : "レベル変化処理はcanonical stat hydration接続待ちです。";
+      return {
+        runtime,
+        result:mutation.op === "force_evolve" ? "force_evolve_owner_unavailable" : "pokemon_stat_context_unavailable",
+        completed:false,
+        terminal:false,
+        operations:owner.operations ?? [],
+        persistenceRequested:false,
+        notice:state.notice,
+        owner,
+      };
+    }
+
+    commitTerminalOwner(runtime, index, owner, [], "evolution_lab_stable_no_change");
+    state.notice = "装置は作動しましたが、ポケモンに変化はありませんでした。";
     return {
       runtime,
-      result:"pokemon_mutation_owner_unavailable",
-      completed:false,
-      operations:[],
-      persistenceRequested:false,
+      result:owner.outcome,
+      completed:true,
+      terminal:true,
+      operations:state.last_operations,
+      persistenceRequested:requestsSave(state.last_operations),
       notice:state.notice,
+      owner,
     };
   }
-  if (choice !== "parts" && choice !== "leave") {
+  if (choice.id !== "parts" && choice.id !== "leave") {
     return { runtime, result:"unsupported_action", completed:false, operations:[], persistenceRequested:false };
   }
 
-  if (choice === "leave") {
+  if (choice.id === "leave") {
     const owner = resolveCanonicalEvolutionLabV108({ event, choice:"leave" });
     commitTerminalOwner(runtime, index, owner, [], "evolution_lab_left");
     state.notice = "進化研究所を立ち去りました。";
