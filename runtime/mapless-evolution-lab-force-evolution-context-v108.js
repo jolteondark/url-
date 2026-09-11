@@ -11,8 +11,8 @@ import { resolveEvolutionLabNatureStatChangesV108 } from "./mapless-evolution-la
 // Canonical v0.9.108 target-species hydration for Evolution Lab force_evolve intents.
 // Species/evolution choice and RNG remain owned by mapless-evolution-lab-v108.js. This
 // projection supplies only the Essentials species= / calc_stats context needed to commit
-// an already-decided target. Nincada remains fail-closed because Essentials' evolution
-// after-effect can duplicate Shedinja into Party and consume a Poké Ball atomically.
+// an already-decided target. Nincada's optional Shedinja Party/Bag after-effect is owned
+// separately by mapless-nincada-after-evolution-v108.js; target hydration itself is valid.
 const META=Object.freeze({...EVO_LAB_TARGET_META_V108_1,...EVO_LAB_TARGET_META_V108_2,...EVO_LAB_TARGET_META_V108_3,...EVO_LAB_TARGET_META_V108_4,...EVO_LAB_TARGET_META_V108_5,...EVO_LAB_TARGET_META_V108_6,...EVO_LAB_TARGET_META_V108_7,...EVO_LAB_TARGET_META_V108_8});
 
 const id=(value)=>value==null?null:String(value).trim().toUpperCase();
@@ -61,7 +61,6 @@ export function resolveEvolutionLabForceEvolutionContextV108(pokemon,operation) 
   const source=id(pokemon.species);
   const target=id(operation.species);
   if (!source||!target) return {success:false,result:"force_evolution_species_required"};
-  if (source==="NINCADA") return {success:false,result:"evolution_after_effect_owner_required"};
   const base=META[target];
   if (!base) return {success:false,result:"evolution_target_context_unavailable",source,target};
   const sourceForm=Number(pokemon.form??0);
@@ -86,6 +85,6 @@ export function resolveEvolutionLabForceEvolutionContextV108(pokemon,operation) 
     base_stats:baseStats,
     growth_rate:effective.r,
     nature_stat_changes:nature.nature_stat_changes,
-    after_evolution_effect:false,
+    after_evolution_effect:source==="NINCADA",
   };
 }
