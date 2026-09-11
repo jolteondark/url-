@@ -15,6 +15,7 @@ export function resolveMaplessPokemonCenterHealing({ player } = {}) {
     operations: [
       { op: "heal_party", facility: "center", result: true, restoreHp: true, clearStatus: true, restorePp: true },
       { op: "increment_stat", stat: "pokemon_center_used", amount: 1 },
+      { op: "request_save", reason: "pokemon_center_healed" },
     ],
   };
 }

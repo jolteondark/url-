@@ -132,5 +132,5 @@ export function activateSafariDayBoardCell(runtime, index) {
   const result = activateSafariDayBoardCellBase(runtime, index);
   runtime.player.party = runtime.player.party.map(healPokemon);
   state.last_operations = [...(Array.isArray(state.last_operations) ? state.last_operations : []), { op:"pokemon_center_owner", result:owner.result, operations:owner.operations.map((operation) => ({ ...operation })) }];
-  return { ...result, runtime, operations:state.last_operations, centerOwner:owner, persistenceRequested:true };
+  return { ...result, runtime, operations:state.last_operations, centerOwner:owner, persistenceRequested:owner.operations.some((operation) => operation?.op === "request_save") };
 }
