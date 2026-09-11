@@ -4,6 +4,7 @@ import { borrowSafariSharedRunRandomInt, ensureSafariEncounterSeed } from "./saf
 import { resolveCanonicalEvolutionLabV108 } from "./mapless-evolution-lab-v108.js";
 import { commitCanonicalPokemonMutationV108 } from "./mapless-pokemon-mutation-v108.js";
 import { resolveEvolutionLabPokemonStatContextV108 } from "./mapless-evolution-lab-stat-context-v108.js";
+import { resolveEvolutionLabForceEvolutionContextV108 } from "./mapless-evolution-lab-force-evolution-context-v108.js";
 
 const SAFARI_BAG_MAX_SLOTS = 20;
 const SAFARI_BAG_MAX_PER_SLOT = 99;
@@ -121,7 +122,7 @@ export function safariEvolutionLabPresentation(runtime, index) {
   return {
     title:"進化研究所",
     message:hasEligible
-      ? "進化装置があります。安定出力と最大出力を利用できます。進化rollはauthoritative evolution commit接続待ちの場合、安全に未消費で停止します。"
+      ? "進化装置があります。安定出力と最大出力を利用できます。canonical ownerが決めた結果をPokémon Runtimeへ反映します。"
       : "進化装置があります。進化対象のポケモンはいません。部品回収または離脱を選べます。",
     actions:[
       { id:"stable", label:"安定出力", disabled:!hasEligible },
@@ -183,20 +184,6 @@ export function resolveSafariEvolutionLabInteraction(runtime, index, action) {
 
     const mutation = (owner.operations ?? []).find((operation) => operation?.op === "force_evolve" || operation?.op === "lower_level");
     if (mutation) {
-      if (mutation.op === "force_evolve") {
-        state.notice = "進化処理はPokémon Runtimeのauthoritative evolution commit接続待ちです。";
-        return {
-          runtime,
-          result:"force_evolve_owner_unavailable",
-          completed:false,
-          terminal:false,
-          operations:owner.operations ?? [],
-          persistenceRequested:false,
-          notice:state.notice,
-          owner,
-        };
-      }
-
       const pokemonIndex = Number(mutation.pokemon_index);
       const party = partyOf(runtime);
       const pokemon = Number.isInteger(pokemonIndex) ? party[pokemonIndex] : null;
@@ -213,9 +200,13 @@ export function resolveSafariEvolutionLabInteraction(runtime, index, action) {
           owner,
         };
       }
-      const statContext = resolveEvolutionLabPokemonStatContextV108(pokemon);
+      const statContext = mutation.op === "force_evolve"
+        ? resolveEvolutionLabForceEvolutionContextV108(pokemon, mutation)
+        : resolveEvolutionLabPokemonStatContextV108(pokemon);
       if (!statContext.success) {
-        state.notice = "レベル変化に必要なcanonical stat contextを取得できませんでした。";
+        state.notice = mutation.op === "force_evolve"
+          ? "進化先に必要なcanonical species contextを取得できないため、イベントを未消費で停止しました。"
+          : "レベル変化に必要なcanonical stat contextを取得できませんでした。";
         return {
           runtime,
           result:statContext.result,
@@ -230,7 +221,9 @@ export function resolveSafariEvolutionLabInteraction(runtime, index, action) {
       }
       const committed = commitCanonicalPokemonMutationV108(pokemon, mutation, statContext);
       if (!committed.success) {
-        state.notice = "Pokémon Runtimeへレベル変化を反映できませんでした。";
+        state.notice = mutation.op === "force_evolve"
+          ? "Pokémon Runtimeへcanonical進化を反映できないため、イベントを未消費で停止しました。"
+          : "Pokémon Runtimeへレベル変化を反映できませんでした。";
         return {
           runtime,
           result:committed.result,
@@ -249,12 +242,16 @@ export function resolveSafariEvolutionLabInteraction(runtime, index, action) {
         pokemon_index:pokemonIndex,
         mutation:mutation.op,
         result:committed.result,
+        previous_species:committed.previousSpecies,
+        species:committed.species,
         previous_level:committed.previousLevel,
         level:committed.level,
       }];
       commitTerminalOwner(runtime, index, owner, applied, `evolution_lab_${owner.outcome}`);
       const label = pokemon.nickname ?? pokemon.name ?? pokemon.species;
-      state.notice = `${label}のレベルが${committed.previousLevel}から${committed.level}に変化しました。`;
+      state.notice = mutation.op === "force_evolve"
+        ? `${label}が${committed.species}に進化しました。`
+        : `${label}のレベルが${committed.previousLevel}から${committed.level}に変化しました。`;
       return {
         runtime,
         result:owner.outcome,
