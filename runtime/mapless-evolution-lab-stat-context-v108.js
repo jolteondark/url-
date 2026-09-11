@@ -14,6 +14,13 @@ const natureId=(value)=>value==null?null:String(value).trim().toUpperCase();
 const speciesId=(value)=>value==null?null:String(value).trim();
 const stats=(values)=>Array.isArray(values)&&values.length===6?Object.fromEntries(KEYS.map((key,index)=>[key,values[index]])):null;
 
+export function resolveEvolutionLabNatureStatChangesV108(pokemon) {
+  if (!pokemon || typeof pokemon !== "object") return { success:false, result:"pokemon_required" };
+  const resolvedNature=natureId(pokemon.nature_for_stats_id ?? pokemon.nature_id);
+  if (!resolvedNature || !Object.prototype.hasOwnProperty.call(NATURE,resolvedNature)) return { success:false, result:"nature_stat_context_unavailable" };
+  return { success:true, result:"evolution_lab_nature_stat_context_ready", nature_stat_changes:NATURE[resolvedNature].map(([stat,amount])=>[stat,amount]), nature_id:resolvedNature };
+}
+
 export function resolveEvolutionLabPokemonStatContextV108(pokemon) {
   if (!pokemon || typeof pokemon !== "object") return { success:false, result:"pokemon_required" };
   const species=speciesId(pokemon.species);
@@ -23,7 +30,7 @@ export function resolveEvolutionLabPokemonStatContextV108(pokemon) {
   if (!base_stats) return { success:false, result:"evolution_lab_base_stats_unavailable" };
   const growth_rate=resolveEvolutionLabGrowthRateV108(species);
   if (!growth_rate) return { success:false, result:"growth_rate_context_unavailable" };
-  const resolvedNature=natureId(pokemon.nature_for_stats_id ?? pokemon.nature_id);
-  if (!resolvedNature || !Object.prototype.hasOwnProperty.call(NATURE,resolvedNature)) return { success:false, result:"nature_stat_context_unavailable" };
-  return { success:true, result:"evolution_lab_stat_context_ready", base_stats, nature_stat_changes:NATURE[resolvedNature].map(([stat,amount])=>[stat,amount]), growth_rate, species, form, nature_id:resolvedNature };
+  const nature=resolveEvolutionLabNatureStatChangesV108(pokemon);
+  if (nature.success!==true) return nature;
+  return { success:true, result:"evolution_lab_stat_context_ready", base_stats, nature_stat_changes:nature.nature_stat_changes, growth_rate, species, form, nature_id:nature.nature_id };
 }
