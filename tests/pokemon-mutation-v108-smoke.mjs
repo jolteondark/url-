@@ -36,7 +36,7 @@ assert.equal(downOne.result, "level_lowered");
 assert.equal(downOne.previousLevel, 5);
 assert.equal(downOne.level, 4);
 assert.equal(downOne.pokemon.level, 4);
-assert.equal(downOne.pokemon.exp, 135);
+assert.equal(downOne.pokemon.exp, 96);
 
 const clamp = commitCanonicalPokemonMutationV108(
   { ...pokemon, level:2 },
