@@ -20,6 +20,20 @@ function berryCount(current) {
     .filter((slot) => Array.isArray(slot) && /BERRY$/i.test(String(slot[0] ?? "")))
     .reduce((sum, slot) => sum + Math.max(0, Math.trunc(Number(slot[1]) || 0)), 0);
 }
+function selectionResult(current, result, notice) {
+  if (notice && current?.variables?.mapless) current.variables.mapless.notice = notice;
+  return { runtime:current, result, completed:false, terminal:false, operations:[], persistenceRequested:false };
+}
+function pokemonSelectionActions(entries = []) {
+  return [
+    ...entries.map((entry) => ({
+      id:`pokemon:${entry.index}`,
+      label:entry.name ?? entry.species ?? entry.id ?? `Party ${Number(entry.index) + 1}`,
+      meta:entry.fainted ? "ひんし" : undefined,
+    })),
+    { id:"back", label:"戻る", secondary:true },
+  ];
+}
 
 async function displayActionsFor(current, active) {
   if (active.eventId === "evolution_lab") {
@@ -81,6 +95,19 @@ async function displayActionsFor(current, active) {
   }
   if (active.eventId === "old_statue") {
     const owner = await loadOwner(active.eventId);
+    if (active.selection?.kind === "old_statue_offer_item") {
+      active.title = "古びた石像";
+      active.message = "石像に供える道具を1個選んでください。";
+      return [
+        ...(active.selection.entries ?? []).map((entry) => ({ id:`item:${entry.id}`, label:entry.id, meta:`所持 ${entry.qty}個` })),
+        { id:"back", label:"戻る", secondary:true },
+      ];
+    }
+    if (active.selection?.kind === "old_statue_bonus_pokemon") {
+      active.title = "古びた石像";
+      active.message = "石像の加護を受けるポケモンを選んでください。";
+      return pokemonSelectionActions(active.selection.entries);
+    }
     const ui = owner.safariOldStatuePresentation(current, active.boardIndex);
     active.title = ui.title;
     active.message = ui.message;
@@ -89,6 +116,11 @@ async function displayActionsFor(current, active) {
   }
   if (active.eventId === "wishing_fountain") {
     const owner = await loadOwner(active.eventId);
+    if (active.selection?.kind === "wishing_fountain_bonus_pokemon") {
+      active.title = "願いの泉";
+      active.message = "泉の力を受けるポケモンを選んでください。";
+      return pokemonSelectionActions(active.selection.entries);
+    }
     const ui = owner.safariWishingFountainPresentation(current, active.boardIndex);
     active.title = ui.title;
     active.message = ui.message;
@@ -162,56 +194,16 @@ function loadOwner(eventId) {
   return ownerModules.get(eventId);
 }
 
-function oldStatuePokemonSelection(owner, current, index, actionId) {
-  const needsPokemon = actionId === "pray"
-    ? owner.safariOldStatuePrayNeedsPokemon(current, index)
-    : actionId === "offer" && owner.safariOldStatueOfferNeedsPokemon(current, index);
-  if (!needsPokemon) return {};
-  const candidates = owner.safariOldStatueBonusCandidates(current);
-  if (!candidates.length) return { pokemonIndex:NaN };
-  const promptFn = typeof globalThis.prompt === "function" ? globalThis.prompt.bind(globalThis) : null;
-  if (!promptFn) return { pokemonIndex:candidates[0].index };
-  const lines = candidates.map((entry) => `${entry.index + 1}: ${entry.species}${entry.fainted ? " (ひんし)" : ""}`);
-  const raw = promptFn(`石像の加護を受けるポケモンを選んでください。\n${lines.join("\n")}\nキャンセルするとイベントは消費しません。`, String(candidates[0].index + 1));
-  if (raw == null) return { pokemonIndex:NaN };
-  const chosen = Number(raw) - 1;
-  return { pokemonIndex:candidates.some((entry) => entry.index === chosen) ? chosen : NaN };
+function setSelection(active, selection) {
+  active.selection = selection;
+  return selection;
 }
-
-function oldStatueOfferSelection(owner, current, index, actionId) {
-  if (actionId !== "offer") return {};
-  const entries = owner.safariOldStatueOfferEntries(current, index);
-  if (!entries.length) return { offeredItem:"" };
-  const promptFn = typeof globalThis.prompt === "function" ? globalThis.prompt.bind(globalThis) : null;
-  if (!promptFn) return { offeredItem:entries[0].id };
-  const lines = entries.map((entry, entryIndex) => `${entryIndex + 1}: ${entry.id} ×${entry.qty}`);
-  const raw = promptFn(`石像に供える道具を1個選んでください。\n${lines.join("\n")}\nキャンセルすると道具もイベントも消費しません。`, "1");
-  if (raw == null) return { offeredItem:"" };
-  const chosen = Number(raw) - 1;
-  return { offeredItem:Number.isInteger(chosen) && entries[chosen] ? entries[chosen].id : "" };
-}
-
-function oldStatueActionOptions(owner, current, index, actionId) {
-  return {
-    ...oldStatueOfferSelection(owner, current, index, actionId),
-    ...oldStatuePokemonSelection(owner, current, index, actionId),
-  };
-}
-
-function wishingFountainActionOptions(owner, current, index, actionId) {
-  if (actionId !== "large_wish") return {};
-  const event = current?.variables?.mapless?.board_events?.[index];
-  const roll = Number(event?.normal_data?.large_roll ?? 0);
-  if (!(roll >= 45 && roll < 65)) return {};
-  const candidates = owner.safariWishingFountainBonusCandidates(current);
-  if (!candidates.length) return { pokemonIndex:NaN };
-  const promptFn = typeof globalThis.prompt === "function" ? globalThis.prompt.bind(globalThis) : null;
-  if (!promptFn) return { pokemonIndex:candidates[0].index };
-  const lines = candidates.map((entry) => `${entry.index + 1}: ${entry.species}${entry.fainted ? " (ひんし)" : ""}`);
-  const raw = promptFn(`泉の力を受けるポケモンを選んでください。\n${lines.join("\n")}\nキャンセルすると強化せず願いを終えます。`, String(candidates[0].index + 1));
-  if (raw == null) return { pokemonIndex:NaN };
-  const chosen = Number(raw) - 1;
-  return { pokemonIndex:candidates.some((entry) => entry.index === chosen) ? chosen : NaN };
+function clearSelection(active) { active.selection = null; }
+function ownerPokemonCandidates(owner, current, kind) {
+  const entries = kind === "old_statue"
+    ? owner.safariOldStatueBonusCandidates(current)
+    : owner.safariWishingFountainBonusCandidates(current);
+  return Array.isArray(entries) ? entries : [];
 }
 
 async function resolveAction(current, active, actionId) {
@@ -279,20 +271,74 @@ async function resolveAction(current, active, actionId) {
   }
   if (active.eventId === "crumbling_bridge") return owner.resolveSafariCrumblingBridgeInteraction(current, active.boardIndex, actionId);
   if (active.eventId === "old_statue") {
-    return await owner.resolveSafariOldStatueInteraction(
-      current,
-      active.boardIndex,
-      actionId,
-      oldStatueActionOptions(owner, current, active.boardIndex, actionId),
-    );
+    if (active.selection?.kind === "old_statue_offer_item") {
+      if (actionId === "back") {
+        clearSelection(active);
+        return selectionResult(current, "old_statue_selection_cancelled", "供物の選択をやめました。");
+      }
+      const itemId = String(actionId).startsWith("item:") ? String(actionId).slice(5) : "";
+      const entries = owner.safariOldStatueOfferEntries(current, active.boardIndex);
+      const offered = entries.find((entry) => entry.id === itemId);
+      if (!offered) return selectionResult(current, "old_statue_offer_unavailable", "その道具は供えられません。");
+      if (owner.safariOldStatueOfferNeedsPokemon(current, active.boardIndex)) {
+        const candidates = ownerPokemonCandidates(owner, current, "old_statue");
+        if (!candidates.length) return selectionResult(current, "old_statue_pokemon_unavailable", "加護を受けられるポケモンがいません。");
+        setSelection(active, { kind:"old_statue_bonus_pokemon", pendingAction:"offer", offeredItem:itemId, entries:candidates });
+        return selectionResult(current, "old_statue_pokemon_selection_required", "石像の加護を受けるポケモンを選んでください。");
+      }
+      clearSelection(active);
+      return await owner.resolveSafariOldStatueInteraction(current, active.boardIndex, "offer", { offeredItem:itemId });
+    }
+    if (active.selection?.kind === "old_statue_bonus_pokemon") {
+      if (actionId === "back") {
+        clearSelection(active);
+        return selectionResult(current, "old_statue_selection_cancelled", "選択をやめました。");
+      }
+      const pokemonIndex = String(actionId).startsWith("pokemon:") ? Number(String(actionId).slice(8)) : NaN;
+      const candidates = ownerPokemonCandidates(owner, current, "old_statue");
+      if (!candidates.some((entry) => entry.index === pokemonIndex)) return selectionResult(current, "old_statue_pokemon_unavailable", "そのポケモンは選べません。");
+      const pendingAction = active.selection.pendingAction;
+      const offeredItem = active.selection.offeredItem;
+      clearSelection(active);
+      return await owner.resolveSafariOldStatueInteraction(current, active.boardIndex, pendingAction, { pokemonIndex, ...(offeredItem ? { offeredItem } : {}) });
+    }
+    if (actionId === "offer") {
+      const entries = owner.safariOldStatueOfferEntries(current, active.boardIndex);
+      if (!entries.length) return selectionResult(current, "old_statue_offer_unavailable", "供えられる道具がありません。");
+      setSelection(active, { kind:"old_statue_offer_item", entries });
+      return selectionResult(current, "old_statue_offer_selection_required", "石像に供える道具を1個選んでください。");
+    }
+    if (actionId === "pray" && owner.safariOldStatuePrayNeedsPokemon(current, active.boardIndex)) {
+      const candidates = ownerPokemonCandidates(owner, current, "old_statue");
+      if (!candidates.length) return selectionResult(current, "old_statue_pokemon_unavailable", "加護を受けられるポケモンがいません。");
+      setSelection(active, { kind:"old_statue_bonus_pokemon", pendingAction:"pray", entries:candidates });
+      return selectionResult(current, "old_statue_pokemon_selection_required", "石像の加護を受けるポケモンを選んでください。");
+    }
+    return await owner.resolveSafariOldStatueInteraction(current, active.boardIndex, actionId, {});
   }
   if (active.eventId === "wishing_fountain") {
-    return await owner.resolveSafariWishingFountainInteraction(
-      current,
-      active.boardIndex,
-      actionId,
-      wishingFountainActionOptions(owner, current, active.boardIndex, actionId),
-    );
+    if (active.selection?.kind === "wishing_fountain_bonus_pokemon") {
+      if (actionId === "back") {
+        clearSelection(active);
+        return selectionResult(current, "wishing_fountain_selection_cancelled", "選択をやめました。");
+      }
+      const pokemonIndex = String(actionId).startsWith("pokemon:") ? Number(String(actionId).slice(8)) : NaN;
+      const candidates = ownerPokemonCandidates(owner, current, "wishing_fountain");
+      if (!candidates.some((entry) => entry.index === pokemonIndex)) return selectionResult(current, "wishing_fountain_pokemon_unavailable", "そのポケモンは選べません。");
+      clearSelection(active);
+      return await owner.resolveSafariWishingFountainInteraction(current, active.boardIndex, "large_wish", { pokemonIndex });
+    }
+    if (actionId === "large_wish") {
+      const event = current?.variables?.mapless?.board_events?.[active.boardIndex];
+      const roll = Number(event?.normal_data?.large_roll ?? 0);
+      if (roll >= 45 && roll < 65) {
+        const candidates = ownerPokemonCandidates(owner, current, "wishing_fountain");
+        if (!candidates.length) return selectionResult(current, "wishing_fountain_pokemon_unavailable", "泉の力を受けられるポケモンがいません。");
+        setSelection(active, { kind:"wishing_fountain_bonus_pokemon", entries:candidates });
+        return selectionResult(current, "wishing_fountain_pokemon_selection_required", "泉の力を受けるポケモンを選んでください。");
+      }
+    }
+    return await owner.resolveSafariWishingFountainInteraction(current, active.boardIndex, actionId, {});
   }
   if (active.eventId === "treasure_chest") return owner.resolveSafariTreasureChest(current, active.boardIndex, actionId);
   if (active.eventId === "miner") return owner.resolveSafariMinerAction(current, active.boardIndex, actionId);
