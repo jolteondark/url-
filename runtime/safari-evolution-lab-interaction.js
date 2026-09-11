@@ -5,6 +5,7 @@ import { resolveCanonicalEvolutionLabV108 } from "./mapless-evolution-lab-v108.j
 import { commitCanonicalPokemonMutationV108 } from "./mapless-pokemon-mutation-v108.js";
 import { resolveEvolutionLabPokemonStatContextV108 } from "./mapless-evolution-lab-stat-context-v108.js";
 import { resolveEvolutionLabForceEvolutionContextV108 } from "./mapless-evolution-lab-force-evolution-context-v108.js";
+import { resolveCanonicalNincadaAfterEvolutionV108 } from "./mapless-nincada-after-evolution-v108.js";
 
 const SAFARI_BAG_MAX_SLOTS = 20;
 const SAFARI_BAG_MAX_PER_SLOT = 99;
@@ -103,14 +104,29 @@ function commitTerminalOwner(runtime, index, owner, applied = [], reason = "evol
   return state;
 }
 
+function bagShape(runtime) {
+  return {
+    slots:runtime?.bag?.slots ?? [],
+    maxSlots:Number(runtime?.bag?.max_slots ?? runtime?.bag?.maxSlots ?? SAFARI_BAG_MAX_SLOTS),
+    maxPerSlot:Number(runtime?.bag?.max_per_slot ?? runtime?.bag?.maxPerSlot ?? SAFARI_BAG_MAX_PER_SLOT),
+  };
+}
+
 function preflightSingleItem(runtime, item) {
-  const slots = runtime?.bag?.slots ?? [];
-  const maxSlots = Number(runtime?.bag?.max_slots ?? runtime?.bag?.maxSlots ?? SAFARI_BAG_MAX_SLOTS);
-  const maxPerSlot = Number(runtime?.bag?.max_per_slot ?? runtime?.bag?.maxPerSlot ?? SAFARI_BAG_MAX_PER_SLOT);
+  const { slots, maxSlots, maxPerSlot } = bagShape(runtime);
   return resolveRewardTransaction({
     pockets:{ general:{ slots, maxSlots, maxPerSlot } },
     itemMeta:{ [item]:{ valid:true, pocket:"general" } },
     items:[item],
+  });
+}
+
+function preflightSingleItemCost(runtime, item) {
+  const { slots, maxSlots, maxPerSlot } = bagShape(runtime);
+  return resolveRewardTransaction({
+    pockets:{ general:{ slots, maxSlots, maxPerSlot } },
+    itemMeta:{ [item]:{ valid:true, pocket:"general" } },
+    costs:[{ item, quantity:1 }],
   });
 }
 
@@ -200,7 +216,7 @@ export function resolveSafariEvolutionLabInteraction(runtime, index, action) {
           owner,
         };
       }
-      const statContext = mutation.op === "force_evolve"
+      let statContext = mutation.op === "force_evolve"
         ? resolveEvolutionLabForceEvolutionContextV108(pokemon, mutation)
         : resolveEvolutionLabPokemonStatContextV108(pokemon);
       if (!statContext.success) {
@@ -219,7 +235,35 @@ export function resolveSafariEvolutionLabInteraction(runtime, index, action) {
           statContext,
         };
       }
-      const committed = commitCanonicalPokemonMutationV108(pokemon, mutation, statContext);
+
+      let afterEvolution = null;
+      let pokeBallCost = null;
+      if (mutation.op === "force_evolve" && statContext.after_evolution_effect === true) {
+        pokeBallCost = preflightSingleItemCost(runtime, "POKEBALL");
+        afterEvolution = resolveCanonicalNincadaAfterEvolutionV108({
+          pokemon:structuredClone(pokemon),
+          partyLength:party.length,
+          hasPokeBall:pokeBallCost.success === true,
+        });
+        if (afterEvolution.success !== true) {
+          state.notice = "進化後のcanonical Party/Bag副作用を準備できないため、イベントを未消費で停止しました。";
+          return {
+            runtime,
+            result:afterEvolution.result,
+            completed:false,
+            terminal:false,
+            operations:owner.operations ?? [],
+            persistenceRequested:false,
+            notice:state.notice,
+            owner,
+            afterEvolution,
+          };
+        }
+        statContext = { ...statContext, after_evolution_effect_owner_ready:true };
+      }
+
+      const mutationInput = afterEvolution?.applicable ? structuredClone(pokemon) : pokemon;
+      const committed = commitCanonicalPokemonMutationV108(mutationInput, mutation, statContext);
       if (!committed.success) {
         state.notice = mutation.op === "force_evolve"
           ? "Pokémon Runtimeへcanonical進化を反映できないため、イベントを未消費で停止しました。"
@@ -236,7 +280,7 @@ export function resolveSafariEvolutionLabInteraction(runtime, index, action) {
           mutation:committed,
         };
       }
-      party[pokemonIndex] = committed.pokemon;
+
       const applied = [{
         op:"commit_pokemon_mutation",
         pokemon_index:pokemonIndex,
@@ -247,10 +291,41 @@ export function resolveSafariEvolutionLabInteraction(runtime, index, action) {
         previous_level:committed.previousLevel,
         level:committed.level,
       }];
+
+      if (afterEvolution?.duplicate) {
+        const receipt = commitSafariBagEconomyReceipt(runtime, { reward:pokeBallCost });
+        if (!receipt.success) {
+          state.notice = "Shedinja生成に必要なモンスターボールを消費できないため、イベントを未消費で停止しました。";
+          return {
+            runtime,
+            result:receipt.result,
+            completed:false,
+            terminal:false,
+            operations:receipt.operations ?? [],
+            persistenceRequested:false,
+            notice:state.notice,
+            owner,
+            afterEvolution,
+          };
+        }
+        party.push(afterEvolution.duplicate);
+        applied.push(...(afterEvolution.operations ?? []), ...(receipt.operations ?? []), {
+          op:"party_add_pokemon",
+          species:"SHEDINJA",
+          party_index:party.length - 1,
+          result:true,
+        });
+      } else if (afterEvolution?.applicable) {
+        applied.push(...(afterEvolution.operations ?? []));
+      }
+
+      party[pokemonIndex] = committed.pokemon;
       commitTerminalOwner(runtime, index, owner, applied, `evolution_lab_${owner.outcome}`);
       const label = pokemon.nickname ?? pokemon.name ?? pokemon.species;
       state.notice = mutation.op === "force_evolve"
-        ? `${label}が${committed.species}に進化しました。`
+        ? afterEvolution?.duplicate
+          ? `${label}が${committed.species}に進化し、SHEDINJAが仲間になりました。`
+          : `${label}が${committed.species}に進化しました。`
         : `${label}のレベルが${committed.previousLevel}から${committed.level}に変化しました。`;
       return {
         runtime,
@@ -262,6 +337,7 @@ export function resolveSafariEvolutionLabInteraction(runtime, index, action) {
         notice:state.notice,
         owner,
         mutation:committed,
+        afterEvolution,
       };
     }
 
