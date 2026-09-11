@@ -4,6 +4,8 @@ import {
   resolveSafariWoundedPokemonDecision,
   safariWoundedHealingInventory,
 } from "./safari-wounded-pokemon-integration.js";
+import { ensureMaplessPlayerIdentityV108 } from "./mapless-player-identity-v108.js";
+import { resolveSafariNewPokemonCreationContextV108 } from "./safari-new-pokemon-creation-context-v108.js";
 
 export * from "./safari-playable-integration-pre-wounded.js";
 export {
@@ -18,11 +20,39 @@ function stateOf(runtime) {
   return state;
 }
 
+function randomUint16() {
+  if (globalThis.crypto && typeof globalThis.crypto.getRandomValues === "function") {
+    const value = new Uint16Array(1);
+    globalThis.crypto.getRandomValues(value);
+    return value[0];
+  }
+  return Math.floor(Math.random() * 0x10000);
+}
+
+function hydratePlayerIdentity(runtime) {
+  ensureMaplessPlayerIdentityV108(runtime.player, (limit) => {
+    if (limit !== 0x10000) throw new RangeError(`Player identity owner requested unsupported random limit: ${limit}`);
+    return randomUint16();
+  });
+  return runtime;
+}
+
+export function createSafariPlayableRuntime() {
+  return hydratePlayerIdentity(base.createSafariPlayableRuntime());
+}
+
+export function loadSafariPlayableRun(storage, currentRuntime = createSafariPlayableRuntime()) {
+  const loaded = base.loadSafariPlayableRun(storage, currentRuntime);
+  if (loaded?.found && loaded.state) hydratePlayerIdentity(loaded.state);
+  return loaded;
+}
+
 function interactiveWoundedPokemon(runtime, index) {
   const state = stateOf(runtime);
   let candidate;
   try {
-    candidate = prepareSafariWoundedPokemonCandidate(runtime, index);
+    const creationFormContext = resolveSafariNewPokemonCreationContextV108(runtime);
+    candidate = prepareSafariWoundedPokemonCandidate(runtime, index, { creationFormContext });
   } catch (error) {
     if (/creationFormContext\./.test(String(error?.message ?? ""))) {
       state.board_revealed[index] = true;
