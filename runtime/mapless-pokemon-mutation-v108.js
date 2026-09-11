@@ -1,4 +1,5 @@
 import { createPokemonRuntime, recalculatePokemonStats } from "./pokemon-runtime.js";
+import { minimumExpForGrowthRateLevelV108 } from "./mapless-evolution-lab-growth-v108.js";
 
 function cloneOperation(operation) {
   return operation && typeof operation === "object" ? structuredClone(operation) : operation;
@@ -9,7 +10,7 @@ function cloneOperation(operation) {
  *
  * This module does not own evolution decisions/RNG/species data. It consumes an
  * owner-emitted mutation intent and delegates stat calculation to pokemon-runtime.
- * Callers must hydrate canonical species/nature stat context; missing context fails closed.
+ * Callers must hydrate canonical species/nature/growth-rate context; missing context fails closed.
  */
 export function commitCanonicalPokemonMutationV108(pokemon, operation, context = {}) {
   const current = createPokemonRuntime(pokemon);
@@ -41,9 +42,14 @@ export function commitCanonicalPokemonMutationV108(pokemon, operation, context =
   if (!context.base_stats) {
     return { success:false, result:"base_stats_required", pokemon:current, operation:intent };
   }
+  if (!context.growth_rate) {
+    return { success:false, result:"growth_rate_required", pokemon:current, operation:intent };
+  }
 
   const level = Math.max(minimumLevel, current.level - levels);
-  const lowered = { ...current, level };
+  // Essentials Pokemon#level= snaps EXP to the minimum EXP for the assigned level.
+  const exp = minimumExpForGrowthRateLevelV108(context.growth_rate, level);
+  const lowered = { ...current, level, exp };
   const recalculated = recalculatePokemonStats(lowered, {
     base_stats: context.base_stats,
     nature_stat_changes: context.nature_stat_changes ?? [],
@@ -57,5 +63,7 @@ export function commitCanonicalPokemonMutationV108(pokemon, operation, context =
     operation:intent,
     previousLevel:current.level,
     level:recalculated.level,
+    previousExp:current.exp,
+    exp:recalculated.exp,
   };
 }
