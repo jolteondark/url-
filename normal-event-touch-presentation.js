@@ -181,7 +181,7 @@ function loadOwner(eventId) {
       wounded_pokemon:"./runtime/safari-wounded-pokemon-integration.js",
       crumbling_bridge:"./runtime/safari-crumbling-bridge-interaction.js",
       old_statue:"./runtime/safari-old-statue-break-rewards.js",
-      wishing_fountain:"./runtime/safari-wishing-fountain-final-routes.js",
+      wishing_fountain:"./runtime/safari-wishing-fountain-touch-owner.js",
       treasure_chest:"./runtime/safari-treasure-chest-interaction.js",
       miner:"./runtime/safari-miner-interaction.js",
       tavern:"./runtime/safari-tavern-interaction.js",
@@ -328,15 +328,11 @@ async function resolveAction(current, active, actionId) {
       clearSelection(active);
       return await owner.resolveSafariWishingFountainInteraction(current, active.boardIndex, "large_wish", { pokemonIndex });
     }
-    if (actionId === "large_wish") {
-      const event = current?.variables?.mapless?.board_events?.[active.boardIndex];
-      const roll = Number(event?.normal_data?.large_roll ?? 0);
-      if (roll >= 45 && roll < 65) {
-        const candidates = ownerPokemonCandidates(owner, current, "wishing_fountain");
-        if (!candidates.length) return selectionResult(current, "wishing_fountain_pokemon_unavailable", "泉の力を受けられるポケモンがいません。");
-        setSelection(active, { kind:"wishing_fountain_bonus_pokemon", entries:candidates });
-        return selectionResult(current, "wishing_fountain_pokemon_selection_required", "泉の力を受けるポケモンを選んでください。");
-      }
+    if (actionId === "large_wish" && owner.safariWishingFountainLargeWishNeedsPokemon(current, active.boardIndex)) {
+      const candidates = ownerPokemonCandidates(owner, current, "wishing_fountain");
+      if (!candidates.length) return selectionResult(current, "wishing_fountain_pokemon_unavailable", "泉の力を受けられるポケモンがいません。");
+      setSelection(active, { kind:"wishing_fountain_bonus_pokemon", entries:candidates });
+      return selectionResult(current, "wishing_fountain_pokemon_selection_required", "泉の力を受けるポケモンを選んでください。");
     }
     return await owner.resolveSafariWishingFountainInteraction(current, active.boardIndex, actionId, {});
   }
