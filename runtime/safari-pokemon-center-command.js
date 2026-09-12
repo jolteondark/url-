@@ -21,7 +21,7 @@ import { openSafariMinerTouch } from "./safari-miner-interaction.js";
 import { openSafariTavernTouch } from "./safari-tavern-interaction.js";
 import { openSafariNormalEventTouch, supportsSafariNormalEventTouch } from "./safari-normal-event-touch-handoff.js";
 import { openSafariCrumblingBridgeTouch } from "./safari-crumbling-bridge-interaction.js";
-import { safariOldStatuePresentation } from "./safari-old-statue-interaction.js";
+import { safariOldStatuePresentation } from "./safari-old-statue-break-rewards.js";
 import { openSafariLostBagTouch } from "./safari-lost-bag-touch.js";
 import { openSafariBerryJuiceShopTouch } from "./safari-berry-juice-shop-touch.js";
 import { openSafariMachineGachaTouch } from "./safari-machine-gacha-touch.js";
