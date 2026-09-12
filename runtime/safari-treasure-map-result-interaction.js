@@ -102,8 +102,8 @@ function finishAfterBattle(runtime, continuation) {
   const event = resultEvent(runtime, index);
   const map = mapState(runtime, event);
   const success = battleSucceeded(continuation.battleReturn);
-  const projected = success ? bonusReward(runtime, map.seed) : null;
-  const owner = resolveCanonicalNormalEvent("treasure_map_result", {
+  let projected = success ? bonusReward(runtime, map.seed) : null;
+  let owner = resolveCanonicalNormalEvent("treasure_map_result", {
     event,
     fake:true,
     seed:map.seed,
@@ -122,7 +122,23 @@ function finishAfterBattle(runtime, continuation) {
       state.notice = "宝箱を受け取れる空きがありません。";
       return { runtime, result:"treasure_map_chest_no_room", completed:false, terminal:true, operations:chest.operations, notice:state.notice, owner };
     }
-    applied.push(...commitBonus(runtime, projected), ...chest.operations.map((operation) => structuredClone(operation)));
+    // The chest owner commits first on this Safari adapter. Refresh the bonus projection
+    // from that committed Bag state so its receipt cannot overwrite chest item slots with
+    // the pre-chest snapshot. Re-resolve the canonical owner with the actual grant result.
+    projected = bonusReward(runtime, map.seed);
+    owner = resolveCanonicalNormalEvent("treasure_map_result", {
+      event,
+      fake:true,
+      seed:map.seed,
+      current_day:map.day,
+      has_survival_state:true,
+      battle_result:continuation.battleReturn,
+      battle_success:success,
+      existing_pool:BONUS_ITEMS,
+      sampled_item:projected.item,
+      grant_items_result:projected.reward.success,
+    });
+    applied.push(...chest.operations.map((operation) => structuredClone(operation)), ...commitBonus(runtime, projected));
   }
   commitResolvedResult(runtime, index, owner, applied);
   state.notice = success ? "盗賊を退け、地図の宝を回収しました。" : "盗賊との勝負を終え、地図の探索は終了しました。";
