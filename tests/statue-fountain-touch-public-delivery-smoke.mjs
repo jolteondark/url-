@@ -4,9 +4,12 @@ import { readFile } from "node:fs/promises";
 const index = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const presentation = await readFile(new URL("../normal-event-touch-presentation.js", import.meta.url), "utf8");
 
-assert.match(index, /\.\/normal-event-touch-presentation\.js\?v=20260912-0500/);
-assert.doesNotMatch(index, /\.\/normal-event-touch-presentation\.js\?v=20260912-0400/);
+assert.match(index, /\.\/normal-event-touch-presentation\.js\?v=20260912-1300/);
+assert.doesNotMatch(index, /\.\/normal-event-touch-presentation\.js\?v=20260912-0500/);
+assert.match(index, /"\.\/runtime\/safari-old-statue-break-rewards\.js": "\.\/runtime\/safari-old-statue-break-rewards\.js\?v=20260912-1208"/);
 assert.match(index, /"\.\/runtime\/safari-wishing-fountain-final-routes\.js": "\.\/runtime\/safari-wishing-fountain-final-routes\.js\?v=20260911-0120"/);
+assert.doesNotMatch(presentation, /safari-old-statue-break-rewards\.js\?v=/);
+assert.match(presentation, /old_statue:"\.\/runtime\/safari-old-statue-break-rewards\.js"/);
 assert.doesNotMatch(presentation, /safari-wishing-fountain-final-routes\.js\?v=20260908-1630/);
 assert.match(presentation, /wishing_fountain:"\.\/runtime\/safari-wishing-fountain-final-routes\.js"/);
 assert.doesNotMatch(presentation, /globalThis\.prompt|promptFn|prompt\(/);
