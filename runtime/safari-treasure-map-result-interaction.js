@@ -2,7 +2,7 @@ import { resolveRewardTransaction } from "./bag-economy-reward-transaction.js";
 import { resolveCanonicalNormalEvent } from "./mapless-canonical-normal-event-dispatcher.js";
 import { RubyMT19937Random } from "./ruby-mt19937-random.js";
 import { commitSafariBagEconomyReceipt } from "./safari-bag-economy-receipt.js";
-import { registerSafariNormalEventBattleContinuation } from "./safari-normal-event-battle-continuation.js";
+import { pendingSafariNormalEventBattleContinuation, registerSafariNormalEventBattleContinuation } from "./safari-normal-event-battle-continuation.js";
 import { resolveSafariTreasureChest } from "./safari-treasure-chest-interaction.js";
 import { activateSafariNormalEventTrainerBattle } from "./safari-web-combat-start.js";
 
@@ -122,9 +122,6 @@ function finishAfterBattle(runtime, continuation) {
       state.notice = "宝箱を受け取れる空きがありません。";
       return { runtime, result:"treasure_map_chest_no_room", completed:false, terminal:true, operations:chest.operations, notice:state.notice, owner };
     }
-    // The chest owner commits first on this Safari adapter. Refresh the bonus projection
-    // from that committed Bag state so its receipt cannot overwrite chest item slots with
-    // the pre-chest snapshot. Re-resolve the canonical owner with the actual grant result.
     projected = bonusReward(runtime, map.seed);
     owner = resolveCanonicalNormalEvent("treasure_map_result", {
       event,
@@ -145,6 +142,23 @@ function finishAfterBattle(runtime, continuation) {
   return { runtime, result:owner.result, completed:true, terminal:true, operations:state.last_operations, notice:state.notice, owner };
 }
 
+function retryCommittedPostBattleReward(runtime, index) {
+  const checkpoint = pendingSafariNormalEventBattleContinuation(runtime);
+  if (!checkpoint || checkpoint.committed !== true || checkpoint.event_id !== "treasure_map_result" || checkpoint.action_id !== "open") return null;
+  if (Number(checkpoint.board_index) !== Number(index) || checkpoint.battle_returned !== true) return null;
+  if (checkpoint.committed_result?.result !== "treasure_map_chest_no_room") return null;
+  return finishAfterBattle(runtime, {
+    key:checkpoint.key,
+    day:checkpoint.day,
+    boardIndex:checkpoint.board_index,
+    eventId:checkpoint.event_id,
+    actionId:checkpoint.action_id,
+    request:checkpoint.request,
+    payload:checkpoint.payload,
+    battleReturn:checkpoint.battle_return,
+  });
+}
+
 registerSafariNormalEventBattleContinuation("treasure_map_result", finishAfterBattle);
 
 export async function activateSafariTreasureMapResult(runtime, index) {
@@ -157,6 +171,8 @@ export async function activateSafariTreasureMapResult(runtime, index) {
   const map = mapState(runtime, event);
 
   if (map.fake) {
+    const retry = retryCommittedPostBattleReward(runtime, index);
+    if (retry) return retry;
     const preview = resolveCanonicalNormalEvent("treasure_map_result", { event, fake:true, seed:map.seed, current_day:map.day, has_survival_state:true, battle_success:false });
     const request = battleRequest(preview);
     if (!request) throw new Error("treasure_map_result fake route requires canonical trainer Battle request");
