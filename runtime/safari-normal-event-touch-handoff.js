@@ -4,6 +4,7 @@ import {
   safariWoundedHealingInventory,
 } from "./safari-wounded-pokemon-integration.js";
 import { hasSafariUsablePartyType } from "./safari-pokemon-type-membership.js";
+import { safariBurningWagonFireChoices } from "./safari-burning-wagon-interaction.js";
 import { safariMeteorFragmentRockChoices } from "./safari-meteor-fragment-interaction.js";
 import { safariLostPokemonBerryChoices } from "./safari-lost-pokemon-interaction.js";
 import { safariPhotographerPartyChoices } from "./safari-photographer-interaction.js";
@@ -163,11 +164,16 @@ function definition(runtime, eventId, index) {
   if (eventId === "burning_wagon") {
     const actions = [];
     if (hasSafariUsablePartyType(runtime, "WATER")) actions.push({id:"water",label:"みずタイプに消火させる",meta:"安全な救助 · 道具2〜3個"});
-    if (hasSafariUsablePartyType(runtime, "FIRE")) actions.push({id:"fire",label:"ほのおタイプに延焼を制御させる",meta:"安全な救助 · 道具1個"});
+    if (hasSafariUsablePartyType(runtime, "FIRE")) {
+      for (const item of safariBurningWagonFireChoices(runtime, index)) {
+        actions.push({ id:`fire:${item}`, label:`ほのおタイプで救助して${item}を受け取る`, meta:"安全な救助 · 道具1個" });
+      }
+      actions.push({ id:"fire:none", label:"ほのおタイプで救助する", meta:"安全な救助 · お礼は受け取らない" });
+    }
     actions.push({id:"manual",label:"手作業で救助する",meta:"負傷・報酬・やけどの可能性"},{id:"leave",label:"立ち去る",secondary:true});
     return {
       title:"燃える荷馬車",
-      message: actions.some((action) => action.id === "water" || action.id === "fire")
+      message: actions.some((action) => action.id === "water" || action.id.startsWith("fire:"))
         ? "炎上した荷馬車があります。手持ちのタイプを活かせば安全に救助できそうです。"
         : "炎上した荷馬車があります。危険を承知で救助するか選べます。",
       actions,
