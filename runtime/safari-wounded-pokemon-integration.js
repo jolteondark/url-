@@ -8,6 +8,7 @@ import { borrowSafariSharedRunRandomInt, ensureSafariEncounterSeed } from "./saf
 import { commitSafariBagEconomyReceipt } from "./safari-bag-economy-receipt.js";
 import { grantNormalEventPokemon } from "./safari-normal-event-pokemon-grant.js";
 import { materializePreparedWoundedPokemon } from "./wounded-pokemon-materialization-runtime.js";
+import { resolveSafariNewPokemonCreationContextV108 } from "./safari-new-pokemon-creation-context-v108.js";
 
 function stateOf(runtime) {
   const state = runtime?.variables?.mapless;
@@ -87,12 +88,14 @@ export function prepareSafariWoundedPokemonCandidate(runtime, index, options = {
     sharedCounter = Number(state.preview_encounter_counter ?? 0);
     randomInt = (limit) => borrowSafariSharedRunRandomInt(runtime, limit);
   }
+  const creationFormContext = explicitCreationFormContext(options.creationFormContext)
+    ?? (!event.normal_data?.pokemon_data ? resolveSafariNewPokemonCreationContextV108(runtime) : undefined);
   try {
     const prepared = canonicalLocalPreparation(
       event,
       day,
       typeof randomInt === "function" ? randomInt : (() => { throw new Error("wounded Pokemon shared RNG owner is unavailable"); }),
-      explicitCreationFormContext(options.creationFormContext),
+      creationFormContext,
     );
     state.board_events[index] = prepared.event;
     state.board_revealed[index] = true;
