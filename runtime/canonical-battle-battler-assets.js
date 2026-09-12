@@ -28,6 +28,7 @@ const CANONICAL_BATTLE_BACK_SPECIES = Object.freeze([
   "HERACROSS",
   "KANGASKHAN",
   "LAPRAS",
+  "MAWILE",
   "PICHU",
   "PIDGEY",
   "PLUSLE",
