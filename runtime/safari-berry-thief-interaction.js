@@ -58,6 +58,20 @@ function reserveHiddenSmallReward(runtime) {
   if (!reservation?.success || !item) throw new Error("berry_thief hidden small reward selection failed");
   return { item, operations:(reservation.operations ?? []).map((operation) => structuredClone(operation)) };
 }
+function sharedRunRngSnapshot(state) {
+  return {
+    hadSeed:Object.prototype.hasOwnProperty.call(state, "preview_encounter_seed"),
+    seed:state.preview_encounter_seed,
+    hadCounter:Object.prototype.hasOwnProperty.call(state, "preview_encounter_counter"),
+    counter:state.preview_encounter_counter,
+  };
+}
+function restoreSharedRunRng(state, snapshot) {
+  if (snapshot.hadSeed) state.preview_encounter_seed = snapshot.seed;
+  else delete state.preview_encounter_seed;
+  if (snapshot.hadCounter) state.preview_encounter_counter = snapshot.counter;
+  else delete state.preview_encounter_counter;
+}
 function battleOperation(owner) { return (owner.operations ?? []).find((operation) => operation?.op === "start_wild_battle") ?? null; }
 function battleSucceeded(summary={}) { const decision=Number(summary.decision); return decision===1 || decision===4; }
 function operationsRequestSave(operations=[]) { return operations.some((operation) => operation?.op === "request_save"); }
@@ -158,6 +172,12 @@ export async function resolveSafariBerryThiefInteraction(runtime, index, request
     const battleEvent = battleOperation(preview);
     if (!battleEvent) throw new Error("berry_thief battle route did not request Battle");
     const possibleRewards = [...(event.normal_data?.stolen ?? [])];
+    let hiddenReward = null;
+    let hiddenRewardRng = null;
+    if (action === "chase" && roll < 20) {
+      hiddenRewardRng = sharedRunRngSnapshot(state);
+      hiddenReward = reserveHiddenSmallReward(runtime);
+    }
     if (action === "bait") {
       const preflight = transaction(runtime, possibleRewards, [{ item:berry, quantity:1 }]);
       if (!preflight?.success) {
@@ -169,15 +189,18 @@ export async function resolveSafariBerryThiefInteraction(runtime, index, request
       const receipt = commitSafariBagEconomyReceipt(runtime, { reward:debit });
       state.last_operations = ensureResolvedSaveIntent([...theft.operations, ...receipt.operations.map((operation) => structuredClone(operation))], "berry_thief_bait_committed");
     } else {
-      const preflight = possibleRewards.length ? transaction(runtime, possibleRewards) : null;
+      const chaseRewards = [...possibleRewards, ...(hiddenReward ? [hiddenReward.item] : [])];
+      const preflight = chaseRewards.length ? transaction(runtime, chaseRewards) : null;
       if (preflight && !preflight.success) {
-        state.notice = "戦闘後に盗品を戻すバッグの空きがありません。バッグを空けてから追ってください。";
+        if (hiddenRewardRng) restoreSharedRunRng(state, hiddenRewardRng);
+        state.notice = hiddenReward
+          ? "戦闘後の盗品と見つかる道具をバッグに入れる空きがありません。バッグを空けてから追ってください。"
+          : "戦闘後に盗品を戻すバッグの空きがありません。バッグを空けてから追ってください。";
         const operations = [...theft.operations, ...preflight.operations];
         return { runtime, result:"reward_bag_full", completed:false, operations, notice:state.notice, persistenceRequested:operationsRequestSave(operations), availableActions };
       }
     }
 
-    const hiddenReward = action === "chase" && roll < 20 ? reserveHiddenSmallReward(runtime) : null;
     const started = await activateSafariNormalEventWildBattle(runtime, index, {
       eventId:"berry_thief",
       actionId:action,
