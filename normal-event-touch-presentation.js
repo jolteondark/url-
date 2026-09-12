@@ -180,7 +180,7 @@ function loadOwner(eventId) {
       bounty_poster:"./runtime/safari-bounty-poster-interaction.js",
       wounded_pokemon:"./runtime/safari-wounded-pokemon-integration.js",
       crumbling_bridge:"./runtime/safari-crumbling-bridge-interaction.js",
-      old_statue:"./runtime/safari-old-statue-break-rewards.js?v=20260828-2320",
+      old_statue:"./runtime/safari-old-statue-break-rewards.js",
       wishing_fountain:"./runtime/safari-wishing-fountain-final-routes.js",
       treasure_chest:"./runtime/safari-treasure-chest-interaction.js",
       miner:"./runtime/safari-miner-interaction.js",
