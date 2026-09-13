@@ -1,4 +1,4 @@
-import { resolveCanonicalNormalEventArt } from "./runtime/canonical-normal-event-art-assets.js?v=20260913-2000";
+import { hasCanonicalNormalEventArtSource, resolveCanonicalNormalEventArt } from "./runtime/canonical-normal-event-art-assets.js?v=20260913-2000";
 
 const STYLE_HREF = "./normal-event-art-presentation.css?v=20260913-2000";
 let syncQueued = false;
@@ -42,7 +42,9 @@ function syncArt() {
   const path = resolveCanonicalNormalEventArt(active.eventId);
   if (!path) {
     removeArt();
-    card.dataset.canonicalEventArt = "unpublished";
+    card.dataset.canonicalEventArt = hasCanonicalNormalEventArtSource(active.eventId)
+      ? "source-known-unpublished"
+      : "source-missing";
     delete card.dataset.canonicalEventArtPath;
     return;
   }
