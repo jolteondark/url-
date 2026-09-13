@@ -5,9 +5,13 @@ const manifest = JSON.parse(fs.readFileSync(new URL("../board-presentation-manif
 const adapter = fs.readFileSync(new URL("../normal-event-art-presentation.js", import.meta.url), "utf8");
 const resolver = fs.readFileSync(new URL("../runtime/canonical-normal-event-art-assets.js", import.meta.url), "utf8");
 
-assert.ok(manifest.modules.includes("./normal-event-art-presentation.js?v=20260913-2359"));
+assert.ok(manifest.modules.includes("./normal-event-art-presentation.js?v=20260914-0400"));
 assert.match(adapter, /resolveCanonicalNormalEventArt\(active\.eventId\)/);
-assert.match(adapter, /canonicalEventArt = "unpublished"/);
+assert.match(adapter, /hasCanonicalNormalEventArtSource\(active\.eventId\)/);
+assert.match(adapter, /canonicalEventArt = hasCanonicalNormalEventArtSource/);
+assert.match(adapter, /"source-known-unpublished"/);
+assert.match(adapter, /"source-missing"/);
+assert.doesNotMatch(adapter, /canonicalEventArt = "unpublished"/);
 assert.match(adapter, /canonicalEventArt = "load-error"/);
 assert.match(adapter, /retryingFailedPath/);
 assert.match(adapter, /\?retry=\$\{Date\.now\(\)\}/);
