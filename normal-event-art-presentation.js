@@ -22,6 +22,12 @@ function removeArt() {
   document.getElementById("normal-event-canonical-art")?.remove();
 }
 
+function clearArtState(card) {
+  if (!card) return;
+  delete card.dataset.canonicalEventArt;
+  delete card.dataset.canonicalEventArtPath;
+}
+
 function syncArt() {
   syncQueued = false;
   const card = document.getElementById("normal-event-card");
@@ -29,6 +35,7 @@ function syncArt() {
   const active = activeNormalEvent();
   if (!card || card.hidden || !message || !active) {
     removeArt();
+    clearArtState(card);
     return;
   }
 
@@ -36,12 +43,23 @@ function syncArt() {
   if (!path) {
     removeArt();
     card.dataset.canonicalEventArt = "unpublished";
+    delete card.dataset.canonicalEventArtPath;
     return;
   }
 
   ensureStyle();
-  card.dataset.canonicalEventArt = "loading";
+  const nextSrc = `./${path}`;
   let image = document.getElementById("normal-event-canonical-art");
+  const samePath = card.dataset.canonicalEventArtPath === path;
+  const retryingFailedPath = samePath && card.dataset.canonicalEventArt === "load-error";
+
+  if (image instanceof HTMLImageElement && samePath && !retryingFailedPath) return;
+  if (retryingFailedPath) {
+    image?.remove();
+    image = null;
+  }
+
+  card.dataset.canonicalEventArt = "loading";
   if (!(image instanceof HTMLImageElement)) {
     image = document.createElement("img");
     image.id = "normal-event-canonical-art";
@@ -52,8 +70,6 @@ function syncArt() {
     message.before(image);
   }
 
-  const nextSrc = `./${path}`;
-  if (image.getAttribute("src") === nextSrc) return;
   image.hidden = true;
   image.onload = () => {
     image.hidden = false;
@@ -66,7 +82,7 @@ function syncArt() {
     console.error(`[Mapless] canonical normal-event art failed to load: ${path}`);
   };
   card.dataset.canonicalEventArtPath = path;
-  image.src = nextSrc;
+  image.src = retryingFailedPath ? `${nextSrc}?retry=${Date.now()}` : nextSrc;
 }
 
 function scheduleSync() {
