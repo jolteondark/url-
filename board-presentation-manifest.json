@@ -1,5 +1,6 @@
 {
   "modules": [
-    "./normal-event-choice-augmenter.js?v=20260908-2130"
+    "./normal-event-choice-augmenter.js?v=20260908-2130",
+    "./normal-event-art-presentation.js?v=20260913-2000"
   ]
 }
