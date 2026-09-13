@@ -1,0 +1,13 @@
+.normal-event-canonical-art {
+  display: block;
+  width: min(100%, 512px);
+  height: auto;
+  max-height: min(42vh, 384px);
+  object-fit: contain;
+  margin: 0 auto 0.75rem;
+  image-rendering: auto;
+}
+
+.normal-event-canonical-art[hidden] {
+  display: none;
+}
