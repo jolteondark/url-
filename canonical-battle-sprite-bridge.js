@@ -8,7 +8,9 @@ import { applySafariSpeciesFormFrontSprite } from "./runtime/safari-species-form
 
 let scheduled = false;
 const pendingLoads = new Map();
-const failedDirectProbes = new Set();
+const directProbeFailures = new Map();
+const directProbeRetryTimers = new Map();
+const DIRECT_PROBE_RETRY_DELAYS_MS = Object.freeze([5000, 30000]);
 const SIDES = [
   { side: "player", battlerIndex: 0, nameId: "player-name", combatantId: "player-combatant" },
   { side: "foe", battlerIndex: 1, nameId: "foe-name", combatantId: "foe-combatant" },
@@ -62,16 +64,53 @@ function directProbeAsset(species, form, side) {
   const family = side === "player" ? "back" : "front";
   const suffix = form > 0 ? `_${form}` : "";
   const probeKey = `${family}:${species}:${form}`;
-  if (failedDirectProbes.has(probeKey)) return null;
+  const failure = directProbeFailures.get(probeKey);
+  if (failure) {
+    if (failure.attempts > DIRECT_PROBE_RETRY_DELAYS_MS.length) return null;
+    if (Date.now() < failure.retryAfter) return null;
+  }
+  const canonicalSrc = `./assets/canonical-battle-sprites/${family}/${species}${suffix}.png`;
+  const src = failure
+    ? `${canonicalSrc}?retry=${failure.token}-${failure.attempts}`
+    : canonicalSrc;
   return Object.freeze({
     species,
     form,
     side,
     probe: true,
     probeKey,
-    sha256: "direct-probe",
-    src: `./assets/canonical-battle-sprites/${family}/${species}${suffix}.png`,
+    sha256: failure ? `direct-probe-retry-${failure.attempts}` : "direct-probe",
+    src,
+    canonicalSrc,
   });
+}
+
+function clearDirectProbeFailure(probeKey) {
+  directProbeFailures.delete(probeKey);
+  const timer = directProbeRetryTimers.get(probeKey);
+  if (timer != null) clearTimeout(timer);
+  directProbeRetryTimers.delete(probeKey);
+}
+
+function noteDirectProbeFailure(probeKey) {
+  const previous = directProbeFailures.get(probeKey);
+  const attempts = Number(previous?.attempts ?? 0) + 1;
+  const delay = DIRECT_PROBE_RETRY_DELAYS_MS[attempts - 1];
+  const token = previous?.token ?? Date.now();
+  const retryAfter = Number.isFinite(delay) ? Date.now() + delay : Number.POSITIVE_INFINITY;
+  directProbeFailures.set(probeKey, Object.freeze({ attempts, retryAfter, token }));
+
+  const oldTimer = directProbeRetryTimers.get(probeKey);
+  if (oldTimer != null) clearTimeout(oldTimer);
+  directProbeRetryTimers.delete(probeKey);
+  if (!Number.isFinite(delay)) return;
+  const timer = setTimeout(() => {
+    directProbeRetryTimers.delete(probeKey);
+    const latest = directProbeFailures.get(probeKey);
+    if (!latest || latest.attempts !== attempts || latest.token !== token) return;
+    schedule();
+  }, delay);
+  directProbeRetryTimers.set(probeKey, timer);
 }
 
 function resolveCanonicalAsset({ species, form, battlerIndex }) {
@@ -187,17 +226,23 @@ function beginAssetLoad(combatant, currentImage, asset, species, form, side, sym
 
   const candidate = imageForAsset(asset);
   pendingLoads.set(combatant.id, candidate);
-  candidate.addEventListener("load", () => commitLoadedImage(combatant, candidate, symbol, legacy, key), { once: true });
+  candidate.addEventListener("load", () => {
+    if (asset.probe && asset.probeKey) clearDirectProbeFailure(asset.probeKey);
+    commitLoadedImage(combatant, candidate, symbol, legacy, key);
+  }, { once: true });
   candidate.addEventListener("error", () => {
     if (combatant.dataset.pendingSpriteKey !== key) return;
-    if (asset.probe && asset.probeKey) failedDirectProbes.add(asset.probeKey);
+    if (asset.probe && asset.probeKey) noteDirectProbeFailure(asset.probeKey);
     delete combatant.dataset.pendingSpriteKey;
     delete combatant.dataset.spriteLoading;
     pendingLoads.delete(combatant.id);
     showBestFallback(combatant, species, form, side, combatant.querySelector(".canonical-battle-sprite"), symbol, legacy);
   }, { once: true });
   candidate.src = asset.src;
-  if (candidate.complete && candidate.naturalWidth > 0) commitLoadedImage(combatant, candidate, symbol, legacy, key);
+  if (candidate.complete && candidate.naturalWidth > 0) {
+    if (asset.probe && asset.probeKey) clearDirectProbeFailure(asset.probeKey);
+    commitLoadedImage(combatant, candidate, symbol, legacy, key);
+  }
 }
 
 function renderSide({ side, battlerIndex, nameId, combatantId }) {
