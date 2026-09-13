@@ -2,14 +2,44 @@ import { hasCanonicalNormalEventArtSource, resolveCanonicalNormalEventArt } from
 
 const STYLE_HREF = "./normal-event-art-presentation.css?v=20260913-2000";
 let syncQueued = false;
+let styleRetryCount = 0;
+
+function styleLink() {
+  return document.querySelector('link[data-mapless-normal-event-art-style="canonical"]');
+}
+
+function styleReady() {
+  return styleLink()?.dataset.maplessLoadState === "ready";
+}
 
 function ensureStyle() {
-  if (document.querySelector(`link[data-mapless-normal-event-art="${STYLE_HREF}"]`)) return;
-  const link = document.createElement("link");
+  let link = styleLink();
+  if (link?.dataset.maplessLoadState === "load-error") {
+    link.remove();
+    link = null;
+    styleRetryCount += 1;
+  }
+  if (link) return link;
+
+  link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = STYLE_HREF;
-  link.dataset.maplessNormalEventArt = STYLE_HREF;
+  link.dataset.maplessNormalEventArtStyle = "canonical";
+  link.dataset.maplessLoadState = "loading";
+  link.href = styleRetryCount > 0 ? `${STYLE_HREF}&retry=${Date.now()}` : STYLE_HREF;
+  link.onload = () => {
+    link.dataset.maplessLoadState = "ready";
+    scheduleSync();
+  };
+  link.onerror = () => {
+    link.dataset.maplessLoadState = "load-error";
+    const card = document.getElementById("normal-event-card");
+    const image = document.getElementById("normal-event-canonical-art");
+    if (image instanceof HTMLImageElement) image.hidden = true;
+    if (card && !card.hidden) card.dataset.canonicalEventArt = "style-load-error";
+    console.error(`[Mapless] canonical normal-event art stylesheet failed to load: ${STYLE_HREF}`);
+  };
   document.head.append(link);
+  return link;
 }
 
 function activeNormalEvent() {
@@ -55,7 +85,18 @@ function syncArt() {
   const samePath = card.dataset.canonicalEventArtPath === path;
   const retryingFailedPath = samePath && card.dataset.canonicalEventArt === "load-error";
 
-  if (image instanceof HTMLImageElement && samePath && !retryingFailedPath) return;
+  if (image instanceof HTMLImageElement && samePath && !retryingFailedPath) {
+    if (image.dataset.maplessLoadState === "ready" && styleReady()) {
+      image.hidden = false;
+      card.dataset.canonicalEventArt = "ready";
+    } else {
+      image.hidden = true;
+      card.dataset.canonicalEventArt = styleLink()?.dataset.maplessLoadState === "load-error"
+        ? "style-load-error"
+        : "loading";
+    }
+    return;
+  }
   if (retryingFailedPath) {
     image?.remove();
     image = null;
@@ -73,12 +114,14 @@ function syncArt() {
   }
 
   image.hidden = true;
+  image.dataset.maplessLoadState = "loading";
   image.onload = () => {
-    image.hidden = false;
-    card.dataset.canonicalEventArt = "ready";
+    image.dataset.maplessLoadState = "ready";
+    scheduleSync();
   };
   image.onerror = () => {
     image.hidden = true;
+    image.dataset.maplessLoadState = "load-error";
     card.dataset.canonicalEventArt = "load-error";
     card.dataset.canonicalEventArtPath = path;
     console.error(`[Mapless] canonical normal-event art failed to load: ${path}`);
