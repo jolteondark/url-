@@ -10,7 +10,7 @@ let scheduled = false;
 const pendingLoads = new Map();
 const directProbeFailures = new Map();
 const directProbeRetryTimers = new Map();
-const DIRECT_PROBE_RETRY_DELAYS_MS = Object.freeze([5000, 30000]);
+const DIRECT_PROBE_RETRY_DELAYS_MS = Object.freeze([5000, 30000, 300000]);
 const SIDES = [
   { side: "player", battlerIndex: 0, nameId: "player-name", combatantId: "player-combatant" },
   { side: "foe", battlerIndex: 1, nameId: "foe-name", combatantId: "foe-combatant" },
@@ -65,10 +65,7 @@ function directProbeAsset(species, form, side) {
   const suffix = form > 0 ? `_${form}` : "";
   const probeKey = `${family}:${species}:${form}`;
   const failure = directProbeFailures.get(probeKey);
-  if (failure) {
-    if (failure.attempts > DIRECT_PROBE_RETRY_DELAYS_MS.length) return null;
-    if (Date.now() < failure.retryAfter) return null;
-  }
+  if (failure && Date.now() < failure.retryAfter) return null;
   const canonicalSrc = `./assets/canonical-battle-sprites/${family}/${species}${suffix}.png`;
   const src = failure
     ? `${canonicalSrc}?retry=${failure.token}-${failure.attempts}`
@@ -95,15 +92,14 @@ function clearDirectProbeFailure(probeKey) {
 function noteDirectProbeFailure(probeKey) {
   const previous = directProbeFailures.get(probeKey);
   const attempts = Number(previous?.attempts ?? 0) + 1;
-  const delay = DIRECT_PROBE_RETRY_DELAYS_MS[attempts - 1];
+  const delay = DIRECT_PROBE_RETRY_DELAYS_MS[Math.min(attempts - 1, DIRECT_PROBE_RETRY_DELAYS_MS.length - 1)];
   const token = previous?.token ?? Date.now();
-  const retryAfter = Number.isFinite(delay) ? Date.now() + delay : Number.POSITIVE_INFINITY;
+  const retryAfter = Date.now() + delay;
   directProbeFailures.set(probeKey, Object.freeze({ attempts, retryAfter, token }));
 
   const oldTimer = directProbeRetryTimers.get(probeKey);
   if (oldTimer != null) clearTimeout(oldTimer);
   directProbeRetryTimers.delete(probeKey);
-  if (!Number.isFinite(delay)) return;
   const timer = setTimeout(() => {
     directProbeRetryTimers.delete(probeKey);
     const latest = directProbeFailures.get(probeKey);
