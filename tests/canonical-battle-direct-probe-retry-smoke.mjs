@@ -5,6 +5,7 @@ import path from "node:path";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const source = fs.readFileSync(path.join(root, "canonical-battle-sprite-bridge.js"), "utf8");
+const deferredLoader = fs.readFileSync(path.join(root, "deferred-ui-loader.js"), "utf8");
 
 assert.match(source, /const directProbeFailures = new Map\(\);/);
 assert.match(source, /const directProbeRetryTimers = new Map\(\);/);
@@ -16,5 +17,8 @@ assert.match(source, /\?retry=\$\{failure\.token\}-\$\{failure\.attempts\}/);
 assert.match(source, /noteDirectProbeFailure\(asset\.probeKey\)/);
 assert.match(source, /clearDirectProbeFailure\(asset\.probeKey\)/);
 assert.match(source, /setTimeout\(\(\) => \{/);
+assert.match(deferredLoader, /BATTLE_PRESENTATION_PUBLIC_REVISION = "20260914-0810"/);
+assert.match(deferredLoader, /loadModule\(battlePresentationUrl\("\.\/canonical-battle-sprite-bridge\.js"\)\)/);
+assert.doesNotMatch(deferredLoader, /BATTLE_PRESENTATION_PUBLIC_REVISION = "20260909-0015"/);
 
 console.log("canonical battle direct probe retry smoke: ok");
