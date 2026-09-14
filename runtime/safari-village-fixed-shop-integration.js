@@ -67,7 +67,7 @@ function snapshotShop(shop) {
 }
 
 function resolvedVillageShop(village, facilityId, input = {}) {
-  if (village.fixed_shops[facilityId]) return village.fixed_shops[facilityId];
+  if (village.fixed_shops[facilityId]) return { shop: village.fixed_shops[facilityId], materialized: false };
   const sampleIndices = Array.isArray(input.sampleIndices)
     ? [...input.sampleIndices]
     : Array.from({ length: 12 }, () => randomUint32());
@@ -75,7 +75,7 @@ function resolvedVillageShop(village, facilityId, input = {}) {
   const resolved = resolveCanonicalVillageShop(facilityId, { sampleIndices, heldCategory });
   const snapshot = snapshotShop(resolved);
   village.fixed_shops[facilityId] = snapshot;
-  return snapshot;
+  return { shop: snapshot, materialized: true };
 }
 
 function counts(slots, items) {
@@ -134,8 +134,11 @@ export function openSafariVillageFixedShop(runtime, facilityId, input = {}) {
   const id = String(facilityId ?? '');
   if (!SAFARI_VILLAGE_FIXED_SHOP_IDS.includes(id)) throw new RangeError(`unknown village fixed shop: ${facilityId}`);
   const village = villageOf(runtime);
-  const shop = resolvedVillageShop(village, id, input);
+  const resolved = resolvedVillageShop(village, id, input);
+  const shop = resolved.shop;
   const preflight = fixedShopPreflight(runtime, shop);
+  const operations = [...preflight.operations];
+  if (resolved.materialized) operations.push({ op: 'request_save', reason: 'village_fixed_shop_stock' });
   state.shop = {
     facility_id: shop.id,
     board_index: null,
@@ -147,7 +150,7 @@ export function openSafariVillageFixedShop(runtime, facilityId, input = {}) {
     return_target: 'village',
     village_fixed_shop: true,
   };
-  state.last_operations = preflight.operations;
+  state.last_operations = operations;
   const used = Number(village.facility_uses[id] ?? 0) >= 1;
   const noActions = Number(village.actions_left ?? 0) <= 0;
   state.notice = used
@@ -155,7 +158,13 @@ export function openSafariVillageFixedShop(runtime, facilityId, input = {}) {
     : noActions
       ? '行動が残っていないため、商品確認のみできます。'
       : `${id}の商品を選んでください。購入または売却が成立すると村の行動を1消費します。`;
-  return { runtime, result: 'shop_opened', shop: structuredClone(state.shop), operations: preflight.operations };
+  return {
+    runtime,
+    result: 'shop_opened',
+    shop: structuredClone(state.shop),
+    operations,
+    persistenceRequested: resolved.materialized,
+  };
 }
 
 export function purchaseSafariVillageFixedShopItem(runtime, input = {}) {
@@ -264,6 +273,9 @@ export function leaveSafariVillageFixedShop(runtime) {
   const facilityId = state.shop.facility_id;
   state.shop = null;
   state.notice = '買い物をせず村へ戻りました。';
-  state.last_operations = [{ op: 'return_to_village', from: facilityId }];
-  return { runtime, result: 'returned', operations: state.last_operations };
+  state.last_operations = [
+    { op: 'return_to_village', from: facilityId },
+    { op: 'request_save', reason: 'village_fixed_shop_return' },
+  ];
+  return { runtime, result: 'returned', operations: state.last_operations, persistenceRequested: true };
 }
