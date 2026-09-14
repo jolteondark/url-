@@ -69,7 +69,11 @@ export function resolveDayBoardPlayableTurn(input) {
   if (kind === "next_day") {
     if (!input.next_day) throw new Error("next_day decisions are required");
     const handler = advanceDayAndRegenerateBoard({ day: input.day, selected_index: index, confirmed: input.next_day.confirmed, generation: input.next_day.generation });
-    return { state, day: handler.day, operations: nestHandler(dispatch.operations, activationOp, handler), boundary: "next_day", result: handler.board_regenerated ? "day_advanced" : "day_advance_cancelled", notice: handler.notice, day_transition: handler };
+    const operations = [
+      ...nestHandler(dispatch.operations, activationOp, handler),
+      ...(Array.isArray(handler.operations) ? handler.operations : []),
+    ];
+    return { state, day: handler.day, operations, boundary: "next_day", result: handler.board_regenerated ? "day_advanced" : "day_advance_cancelled", notice: handler.notice, day_transition: handler };
   }
 
   if ((kind === "center" || kind === "shop" || kind === "egg_shop") && input.facility) {
