@@ -24,6 +24,7 @@ function publish(runtime, index, eventId, ui, result = null) {
     runtime,
     boardIndex:index,
     eventId,
+    actions:[],
     ...ui,
     result,
   };
