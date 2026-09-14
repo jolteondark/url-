@@ -260,6 +260,9 @@ export function leaveSafariVillageFixedShop(runtime) {
   const facilityId = state.shop.facility_id;
   state.shop = null;
   state.notice = '買い物をせず村へ戻りました。';
-  state.last_operations = [{ op: 'return_to_village', from: facilityId }];
-  return { runtime, result: 'returned', operations: state.last_operations };
+  state.last_operations = [
+    { op: 'return_to_village', from: facilityId },
+    { op: 'request_save', reason: 'village_fixed_shop_return' },
+  ];
+  return { runtime, result: 'returned', operations: state.last_operations, persistenceRequested: true };
 }
