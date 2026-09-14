@@ -113,6 +113,19 @@ function fixedShopPreflight(runtime, shop) {
   });
 }
 
+function carryAdjustedOffer(runtime, shop, itemId, transactionKind) {
+  const offer = canonicalResolvedShopOffer(shop, itemId, transactionKind);
+  if (transactionKind !== 'sell') return offer;
+  const carryClass = stateOf(runtime).mapless_carry_class ?? 'general';
+  const baseUnitPrice = Number(offer.unitPrice ?? 0);
+  return {
+    ...offer,
+    unitPrice: maplessCarrySellPrice(baseUnitPrice, carryClass),
+    baseUnitPrice,
+    carryClass,
+  };
+}
+
 export function openSafariVillageFixedShop(runtime, facilityId, input = {}) {
   const state = stateOf(runtime);
   if (state.location !== 'village') throw new Error('village location is required');
