@@ -15,6 +15,7 @@ import { interactiveSafariTravelingCook } from "./safari-traveling-cook-interact
 import { interactiveSafariFloodedRiver } from "./safari-flooded-river-interaction.js";
 import { interactiveSafariEvolutionLab } from "./safari-evolution-lab-interaction.js";
 import { openSafariEvolutionLabTouch } from "./safari-evolution-lab-touch.js";
+import { openSafariFreeTeacherTouch } from "./safari-free-teacher-touch.js";
 import { interactiveSafariBuriedItem } from "./safari-buried-item-interaction.js";
 import { interactiveSafariEggShop } from "./safari-egg-shop-interaction.js";
 import { openSafariTreasureTouch } from "./safari-treasure-chest-interaction.js";
@@ -108,6 +109,7 @@ export function activateSafariDayBoardCell(runtime, index) {
     if (event.normal_event_id === "item_collector" && typeof globalThis.document !== "undefined") return openSafariItemCollectorTouch(runtime, index);
     if (event.normal_event_id === "treasure_map_seller" && typeof globalThis.document !== "undefined") return openSafariTreasureMapSellerTouch(runtime, index);
     if (event.normal_event_id === "evolution_lab" && typeof globalThis.document !== "undefined") return openSafariEvolutionLabTouch(runtime, index);
+    if ((event.normal_event_id === "bloodline_grandmother" || event.normal_event_id === "retired_warrior") && typeof globalThis.document !== "undefined") return openSafariFreeTeacherTouch(runtime, index);
     if (event.normal_event_id === "treasure_map_seller") return interactiveSafariTreasureMapSeller(runtime, index);
     if (event.normal_event_id === "treasure_map_result") return activateSafariTreasureMapResult(runtime, index);
     if (event.normal_event_id === "evolution_lab") return interactiveSafariEvolutionLab(runtime, index);
