@@ -14,7 +14,8 @@ export function advanceDayAndRegenerateBoard(input) {
       board_revealed: null,
       board_consumed: null,
       board_visited: null,
-      notice: transition.notice
+      notice: transition.notice,
+      operations: []
     };
   }
 
@@ -34,6 +35,7 @@ export function advanceDayAndRegenerateBoard(input) {
     board_revealed: board.board_revealed,
     board_consumed: board.board_consumed,
     board_visited: board.board_visited,
-    notice: transition.notice
+    notice: transition.notice,
+    operations: [{ op: "request_save", reason: "day_advanced" }]
   };
 }
