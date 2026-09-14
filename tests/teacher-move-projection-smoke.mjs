@@ -1,0 +1,10 @@
+import assert from "node:assert/strict";
+import { projectCanonicalTeacherMovesV108, MAPLESS_V108_TEACHER_PROJECTION_COUNTS } from "../runtime/mapless-teacher-move-projection-v108.js";
+assert.equal(MAPLESS_V108_TEACHER_PROJECTION_COUNTS.species,898);
+assert.equal(MAPLESS_V108_TEACHER_PROJECTION_COUNTS.form_overrides,55);
+assert.equal(MAPLESS_V108_TEACHER_PROJECTION_COUNTS.machine_moves_excluded,100);
+assert.deepEqual(projectCanonicalTeacherMovesV108({species:"RATTATA",form:0},"egg"),["BITE","COUNTER","FINALGAMBIT","FLAMEWHEEL","FURYSWIPES","LASTRESORT","REVENGE","REVERSAL","SCREECH","UPROAR"]);
+assert.deepEqual(projectCanonicalTeacherMovesV108({species:"RATTATA",form:1},"egg"),["COUNTER","FINALGAMBIT","FURYSWIPES","MEFIRST","REVENGE","REVERSAL","SNATCH","STOCKPILE","SWALLOW","SWITCHEROO","UPROAR"]);
+const tutor=projectCanonicalTeacherMovesV108({species:"PIKACHU",form:0},"tutor");assert.ok(tutor.includes("CHARM"));assert.ok(!tutor.includes("THUNDERBOLT"));
+assert.deepEqual(projectCanonicalTeacherMovesV108({species:"MISSINGNO",form:0},"egg"),[]);
+console.log("teacher move projection smoke: ok");
