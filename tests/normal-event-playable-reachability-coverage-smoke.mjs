@@ -21,7 +21,7 @@ assert.deepEqual(
 );
 
 for (const eventId of ["bloodline_grandmother", "retired_warrior"]) {
-  assert.match(commandSource, new RegExp(JSON.stringify(eventId).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.ok(commandSource.includes(JSON.stringify(eventId)), `${eventId} must stay on the dedicated free-teacher Safari dispatch path`);
 }
 
 console.log(`normal-event playable reachability coverage smoke: ${registered.length} registered events covered`);
