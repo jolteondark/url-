@@ -8,12 +8,14 @@ export function createShowdownBrowserBuildPlan(upstreamDir, outputDir = 'vendor/
   const source = inspectPinnedShowdownSource(upstreamDir);
   const root = resolve(upstreamDir);
   const outdir = resolve(outputDir);
+  const outfile = join(outdir, 'battle-engine.js');
+  const metafile = join(outdir, 'battle-engine.meta.json');
   return Object.freeze({
     source,
     cwd: root,
     entry: join(root, source.entry),
-    outfile: join(outdir, 'battle-engine.js'),
-    metafile: join(outdir, 'battle-engine.meta.json'),
+    outfile,
+    metafile,
     esbuildArgs: Object.freeze([
       join(root, source.entry),
       '--bundle',
@@ -21,8 +23,8 @@ export function createShowdownBrowserBuildPlan(upstreamDir, outputDir = 'vendor/
       '--platform=browser',
       '--target=safari16',
       '--tree-shaking=true',
-      `--outfile=${join(outdir, 'battle-engine.js')}`,
-      '--metafile=meta.json',
+      `--outfile=${outfile}`,
+      `--metafile=${metafile}`,
     ]),
   });
 }
