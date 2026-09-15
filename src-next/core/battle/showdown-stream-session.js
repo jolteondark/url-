@@ -24,8 +24,10 @@ function playerCommand(side, player, packedTeam) {
  * Creates the first executable New Core -> Showdown stream boundary.
  *
  * This module deliberately owns no Pokemon battle semantics. It only projects
- * Mapless battle inputs into Showdown's simulator protocol and submits player
- * choices to the player streams returned by Showdown itself.
+ * Mapless battle inputs into Showdown's simulator protocol, submits player
+ * choices, and exposes Showdown's own output stream for adapter/differential
+ * consumers. Parsing that output into persistent Mapless state belongs to the
+ * next boundary, not to this transport session.
  */
 export function createShowdownStreamSession(showdown, config) {
   if (!showdown?.BattleStreams?.BattleStream || !showdown?.BattleStreams?.getPlayerStreams) {
@@ -43,6 +45,9 @@ export function createShowdownStreamSession(showdown, config) {
   if (!streams?.omniscient || !streams?.p1 || !streams?.p2) {
     throw new Error('Showdown player streams are incomplete');
   }
+  if (typeof streams.omniscient[Symbol.asyncIterator] !== 'function') {
+    throw new Error('Showdown omniscient stream must be async iterable');
+  }
 
   const formatid = String(config.formatid ?? 'gen9customgame');
   const p1Team = showdown.Teams.pack(config.p1.team.map(normalizeTeamMember));
@@ -52,6 +57,7 @@ export function createShowdownStreamSession(showdown, config) {
   if (seed !== undefined) start.seed = seed;
 
   let started = false;
+  let outputClaimed = false;
   async function startBattle() {
     if (started) return false;
     started = true;
@@ -74,11 +80,19 @@ export function createShowdownStreamSession(showdown, config) {
     await choose(side, `move ${slot}`);
   }
 
+  function output() {
+    if (!started) throw new Error('Showdown battle must start before reading output');
+    if (outputClaimed) throw new Error('Showdown output stream may only be claimed once');
+    outputClaimed = true;
+    return streams.omniscient;
+  }
+
   return Object.freeze({
     battleStream,
     streams,
     start: startBattle,
     choose,
     fight,
+    output,
   });
 }
