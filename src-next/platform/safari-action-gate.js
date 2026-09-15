@@ -1,5 +1,8 @@
-export function createSafariActionGate({ now = () => performance.now() } = {}) {
+export function createSafariActionGate({ now = () => performance.now(), slowActionThresholdMs = null } = {}) {
   if (typeof now !== 'function') throw new TypeError('Safari action gate clock must be a function');
+  if (slowActionThresholdMs !== null && (!Number.isFinite(slowActionThresholdMs) || slowActionThresholdMs < 0)) {
+    throw new TypeError('Safari slow action threshold must be a non-negative finite number or null');
+  }
   return {
     active: null,
     sequence: 0,
@@ -7,11 +10,13 @@ export function createSafariActionGate({ now = () => performance.now() } = {}) {
     rejected: 0,
     completed: 0,
     cancelled: 0,
+    slowCompleted: 0,
     totalDurationMs: 0,
     lastDurationMs: null,
     maxDurationMs: 0,
     byType: Object.create(null),
     now,
+    slowActionThresholdMs,
   };
 }
 
@@ -49,6 +54,10 @@ export function releaseSafariAction(gate, token) {
   metrics.totalDurationMs += durationMs;
   metrics.lastDurationMs = durationMs;
   metrics.maxDurationMs = Math.max(metrics.maxDurationMs, durationMs);
+  if (isSlow(gate, durationMs)) {
+    gate.slowCompleted += 1;
+    metrics.slowCompleted += 1;
+  }
   return true;
 }
 
@@ -69,10 +78,13 @@ export function snapshotSafariActionGate(gate) {
     activeSequence: gate.active?.token.sequence ?? null,
     activeType: gate.active?.action.type ?? null,
     activeDurationMs,
+    activeSlow: activeDurationMs === null ? false : isSlow(gate, activeDurationMs),
     accepted: gate.accepted,
     rejected: gate.rejected,
     completed: gate.completed,
     cancelled: gate.cancelled,
+    slowCompleted: gate.slowCompleted,
+    slowActionThresholdMs: gate.slowActionThresholdMs,
     lastDurationMs: gate.lastDurationMs,
     maxDurationMs: gate.maxDurationMs,
     averageDurationMs: gate.completed ? gate.totalDurationMs / gate.completed : null,
@@ -86,6 +98,7 @@ function metricsFor(gate, type) {
     rejected: 0,
     completed: 0,
     cancelled: 0,
+    slowCompleted: 0,
     totalDurationMs: 0,
     lastDurationMs: null,
     maxDurationMs: 0,
@@ -100,6 +113,7 @@ function snapshotByType(byType) {
       rejected: metrics.rejected,
       completed: metrics.completed,
       cancelled: metrics.cancelled,
+      slowCompleted: metrics.slowCompleted,
       lastDurationMs: metrics.lastDurationMs,
       maxDurationMs: metrics.maxDurationMs,
       averageDurationMs: metrics.completed ? metrics.totalDurationMs / metrics.completed : null,
@@ -120,4 +134,8 @@ function matchesActive(gate, token) {
 
 function elapsed(gate, startedAtMs) {
   return Math.max(0, gate.now() - startedAtMs);
+}
+
+function isSlow(gate, durationMs) {
+  return gate.slowActionThresholdMs !== null && durationMs >= gate.slowActionThresholdMs;
 }
