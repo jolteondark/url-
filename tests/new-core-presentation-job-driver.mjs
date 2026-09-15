@@ -43,20 +43,25 @@ assert.deepEqual(snapshotPresentationJobDriver(driver), {
   activeSequence: null,
   activeType: null,
   activeDurationMs: null,
+  activeSlow: false,
   completed: 2,
   pending: 0,
+  slowJobThresholdMs: null,
+  slowCompleted: 0,
   lastDurationMs: 15,
   maxDurationMs: 25,
   averageDurationMs: 20,
   byType: {
     MOVE_USED: {
       completed: 1,
+      slowCompleted: 0,
       lastDurationMs: 25,
       maxDurationMs: 25,
       averageDurationMs: 25,
     },
     DAMAGE_APPLIED: {
       completed: 1,
+      slowCompleted: 0,
       lastDurationMs: 15,
       maxDurationMs: 15,
       averageDurationMs: 15,
@@ -79,9 +84,37 @@ repeatedClockMs = 40;
 assert.equal(completePresentationJob(repeatedDriver, repeatedSecond.token), true);
 assert.deepEqual(snapshotPresentationJobDriver(repeatedDriver).byType.MOVE_USED, {
   completed: 2,
+  slowCompleted: 0,
   lastDurationMs: 30,
   maxDurationMs: 30,
   averageDurationMs: 20,
 });
+
+const budgetQueue = createPresentationQueue();
+enqueuePresentationEvents(budgetQueue, [
+  { type: 'MOVE_USED', move: 'SURF' },
+  { type: 'DAMAGE_APPLIED', hp: 1 },
+]);
+let budgetClockMs = 0;
+const budgetDriver = createPresentationJobDriver(budgetQueue, {
+  now: () => budgetClockMs,
+  slowJobThresholdMs: 20,
+});
+const budgetFirst = beginNextPresentationJob(budgetDriver);
+budgetClockMs = 20;
+assert.equal(snapshotPresentationJobDriver(budgetDriver).activeSlow, true);
+assert.equal(completePresentationJob(budgetDriver, budgetFirst.token), true);
+const budgetSecond = beginNextPresentationJob(budgetDriver);
+budgetClockMs = 25;
+assert.equal(completePresentationJob(budgetDriver, budgetSecond.token), true);
+const budgetSnapshot = snapshotPresentationJobDriver(budgetDriver);
+assert.equal(budgetSnapshot.slowJobThresholdMs, 20);
+assert.equal(budgetSnapshot.slowCompleted, 1);
+assert.equal(budgetSnapshot.byType.MOVE_USED.slowCompleted, 1);
+assert.equal(budgetSnapshot.byType.DAMAGE_APPLIED.slowCompleted, 0);
+assert.throws(
+  () => createPresentationJobDriver(createPresentationQueue(), { slowJobThresholdMs: -1 }),
+  /non-negative finite number/
+);
 
 console.log('new-core presentation job driver: ok');
