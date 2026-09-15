@@ -27,11 +27,15 @@ assert.deepEqual(restored, terminal.state);
 assert.equal(restored.board[0].consumed, true);
 assert.equal(restored.boardSelectionsRemaining, 7);
 assert.deepEqual(restored.diagnostics.appliedResultIds, ['result-1']);
-
-const replay = step(restored, {
+assert.throws(() => step(restored, {
   type: 'BATTLE_TERMINAL_RESULT',
   battleId: pending.activeBattle.id,
   resultId: 'result-1',
   outcome: 'win',
-});
-assert.fail('A restored completed run must not recreate a terminal battle to replay');
+}), /active battle/);
+
+assert.throws(() => restoreNewCoreSave(JSON.stringify({
+  format: 'mapless-new-core',
+  schemaVersion: 999,
+  state: restored,
+})), /schema/);
