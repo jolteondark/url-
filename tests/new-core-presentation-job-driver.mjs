@@ -6,6 +6,7 @@ import {
 } from '../src-next/presentation/semantic-event-queue.js';
 import {
   beginNextPresentationJob,
+  cancelPresentationJob,
   completePresentationJob,
   createPresentationJobDriver,
   snapshotPresentationJobDriver,
@@ -45,6 +46,7 @@ assert.deepEqual(snapshotPresentationJobDriver(driver), {
   activeDurationMs: null,
   activeSlow: false,
   completed: 2,
+  cancelled: 0,
   pending: 0,
   slowJobThresholdMs: null,
   slowCompleted: 0,
@@ -116,5 +118,24 @@ assert.throws(
   () => createPresentationJobDriver(createPresentationQueue(), { slowJobThresholdMs: -1 }),
   /non-negative finite number/
 );
+
+const teardownQueue = createPresentationQueue();
+enqueuePresentationEvents(teardownQueue, [
+  { type: 'MOVE_USED', move: 'FLY' },
+  { type: 'DAMAGE_APPLIED', hp: 2 },
+]);
+let teardownClockMs = 0;
+const teardownDriver = createPresentationJobDriver(teardownQueue, { now: () => teardownClockMs });
+const abandoned = beginNextPresentationJob(teardownDriver);
+teardownClockMs = 500;
+assert.equal(cancelPresentationJob(teardownDriver, { sequence: 999 }), false, 'wrong teardown token cannot cancel active presentation');
+assert.equal(cancelPresentationJob(teardownDriver, abandoned.token), true);
+assert.equal(completePresentationJob(teardownDriver, abandoned.token), false, 'late animation callback after teardown must be inert');
+const afterCancel = snapshotPresentationJobDriver(teardownDriver);
+assert.equal(afterCancel.completed, 0, 'cancelled jobs are not successful presentation completions');
+assert.equal(afterCancel.cancelled, 1);
+assert.equal(afterCancel.lastDurationMs, null, 'cancelled jobs do not pollute latency metrics');
+const afterTeardown = beginNextPresentationJob(teardownDriver);
+assert.equal(afterTeardown.job.event.type, 'DAMAGE_APPLIED', 'driver can resume from the next semantic job after teardown');
 
 console.log('new-core presentation job driver: ok');
