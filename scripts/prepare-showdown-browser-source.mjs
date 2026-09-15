@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { resolve, join } from 'node:path';
+import { resolve, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SHOWDOWN_REVISION, SHOWDOWN_REPOSITORY, SHOWDOWN_LICENSE } from '../src-next/core/battle/showdown-pin.js';
 
@@ -38,8 +38,9 @@ export function inspectPinnedShowdownSource(upstreamDir) {
 
 export function writePinnedShowdownSourceManifest(upstreamDir, outputFile) {
   const manifest = inspectPinnedShowdownSource(upstreamDir);
-  mkdirSync(resolve(outputFile, '..'), { recursive: true });
-  writeFileSync(outputFile, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+  const output = resolve(outputFile);
+  mkdirSync(dirname(output), { recursive: true });
+  writeFileSync(output, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
   return manifest;
 }
 
