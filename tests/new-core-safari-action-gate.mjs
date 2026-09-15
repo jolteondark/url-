@@ -24,6 +24,17 @@ assert.deepEqual(snapshotSafariActionGate(gate), {
   lastDurationMs: null,
   maxDurationMs: 0,
   averageDurationMs: null,
+  byType: {
+    FIGHT: {
+      accepted: 1,
+      rejected: 1,
+      completed: 0,
+      cancelled: 0,
+      lastDurationMs: null,
+      maxDurationMs: 0,
+      averageDurationMs: null,
+    },
+  },
 });
 
 assert.equal(releaseSafariAction(gate, { sequence: 999 }), false, 'stale result cannot unlock a newer action');
@@ -51,6 +62,35 @@ assert.deepEqual(snapshotSafariActionGate(gate), {
   lastDurationMs: 15,
   maxDurationMs: 25,
   averageDurationMs: 20,
+  byType: {
+    FIGHT: {
+      accepted: 1,
+      rejected: 1,
+      completed: 1,
+      cancelled: 0,
+      lastDurationMs: 25,
+      maxDurationMs: 25,
+      averageDurationMs: 25,
+    },
+    BAG: {
+      accepted: 1,
+      rejected: 0,
+      completed: 0,
+      cancelled: 1,
+      lastDurationMs: null,
+      maxDurationMs: 0,
+      averageDurationMs: null,
+    },
+    RUN: {
+      accepted: 1,
+      rejected: 0,
+      completed: 1,
+      cancelled: 0,
+      lastDurationMs: 15,
+      maxDurationMs: 15,
+      averageDurationMs: 15,
+    },
+  },
 });
 
 assert.throws(() => beginSafariAction(gate, null), /object with type/);
