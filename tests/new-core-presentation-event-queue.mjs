@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   createPresentationQueue,
+  discardPendingPresentationJobs,
   enqueuePresentationEvents,
   shiftPresentationJob,
   snapshotPresentationQueue,
@@ -23,6 +24,7 @@ assert.deepEqual(snapshotPresentationQueue(queue), {
   nextSequence: 5,
   enqueued: 5,
   shifted: 0,
+  discarded: 0,
   peakPending: 5,
   jobs: [
     { sequence: 0, type: 'BATTLE_STARTED', message: false, animation: true },
@@ -45,6 +47,7 @@ unknown.day = 99;
 const snapshot = snapshotPresentationQueue(queue);
 assert.equal(snapshot.enqueued, 6);
 assert.equal(snapshot.shifted, 1);
+assert.equal(snapshot.discarded, 0);
 assert.equal(snapshot.peakPending, 5, 'peak queue pressure must remain observable after draining');
 assert.deepEqual(snapshot.jobs.at(-1), {
   sequence: 5,
@@ -52,5 +55,20 @@ assert.deepEqual(snapshot.jobs.at(-1), {
   message: false,
   animation: false,
 });
+
+const discarded = discardPendingPresentationJobs(queue);
+assert.equal(discarded, 5, 'scene teardown can drop all stale presentation-only work at once');
+const afterDiscard = snapshotPresentationQueue(queue);
+assert.equal(afterDiscard.pending, 0);
+assert.equal(afterDiscard.discarded, 5);
+assert.equal(afterDiscard.shifted, 1, 'discard is not presentation completion/dequeue');
+assert.equal(afterDiscard.nextSequence, 6, 'sequence remains monotonic across scene teardown');
+assert.equal(discardPendingPresentationJobs(queue), 0, 'repeated teardown is idempotent when no work remains');
+
+enqueuePresentationEvents(queue, [{ type: 'BATTLE_STARTED', battleId: 'fixture:2' }]);
+const nextScene = shiftPresentationJob(queue);
+assert.equal(nextScene.sequence, 6, 'new scene work cannot collide with discarded job tokens');
+assert.equal(nextScene.event.battleId, 'fixture:2');
+assert.equal(snapshotPresentationQueue(queue).discarded, 5);
 
 console.log('new-core presentation event queue: ok');
