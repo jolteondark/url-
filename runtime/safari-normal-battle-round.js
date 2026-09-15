@@ -2,7 +2,7 @@ export * from "./safari-normal-battle-round-pre-gems.js";
 
 import {
   resolveSafariNormalBattleOpponentResponse as resolveSafariNormalBattleOpponentResponseBase,
-  resolveSafariNormalBattlePlayerReplacement as resolveSafariNormalBattlePlayerReplacementBase,
+  replaceSafariNormalBattlePlayer as replaceSafariNormalBattlePlayerBase,
   resolveSafariNormalBattleRound as resolveSafariNormalBattleRoundBase,
 } from "./safari-normal-battle-round-pre-gems.js";
 import { commitSwitchInEntryWeatherCanonical } from "./battle-switch-in-entry-weather-commit.js";
@@ -116,8 +116,8 @@ export function resolveSafariNormalWildOpponentResponse(runtime) {
   return resolveSafariNormalBattleOpponentResponse(runtime);
 }
 
-export function resolveSafariNormalBattlePlayerReplacement(runtime, replacementPartyIndex) {
-  const result = resolveSafariNormalBattlePlayerReplacementBase(runtime, replacementPartyIndex);
+export function replaceSafariNormalBattlePlayer(runtime, replacementPartyIndex) {
+  const result = replaceSafariNormalBattlePlayerBase(runtime, replacementPartyIndex);
   if (result?.result !== "replaced") return result;
   const battle = stateOf(runtime).battle;
   const active = runtime?.player?.party?.[Number(battle?.player_party_index ?? -1)] ?? null;
