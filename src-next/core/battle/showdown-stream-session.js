@@ -20,12 +20,33 @@ function playerCommand(side, player, packedTeam) {
   return `>player ${side} ${JSON.stringify({ name: String(player.name ?? side), team: packedTeam })}`;
 }
 
+function maplessId(member) {
+  return String(member?.maplessId ?? member?.id ?? member?.personalId ?? member?.species ?? '');
+}
+
+function resolvedPokemon(pokemon, sourceMember) {
+  const moveSlots = pokemon?.moveSlots ?? [];
+  return Object.freeze({
+    maplessId: maplessId(sourceMember),
+    hp: Number(pokemon?.hp ?? 0),
+    maxhp: Number(pokemon?.maxhp ?? pokemon?.maxHp ?? 0),
+    status: pokemon?.status ? String(pokemon.status) : '',
+    heldItem: pokemon?.item ? String(pokemon.item) : '',
+    fainted: Boolean(pokemon?.fainted),
+    moves: moveSlots.map((move) => Object.freeze({
+      id: String(move.id ?? move.move ?? ''),
+      pp: Number(move.pp ?? 0),
+      maxpp: Number(move.maxpp ?? move.maxPP ?? move.pp ?? 0),
+    })),
+  });
+}
+
 /**
  * Creates the first executable New Core -> Showdown stream boundary.
  *
  * This module deliberately owns no Pokemon battle semantics. It only projects
- * Mapless battle inputs into Showdown's simulator protocol and submits player
- * choices to the player streams returned by Showdown itself.
+ * Mapless battle inputs into Showdown's simulator protocol, submits player
+ * choices, and observes the authoritative resolved simulator state.
  */
 export function createShowdownStreamSession(showdown, config) {
   if (!showdown?.BattleStreams?.BattleStream || !showdown?.BattleStreams?.getPlayerStreams) {
@@ -74,11 +95,28 @@ export function createShowdownStreamSession(showdown, config) {
     await choose(side, `move ${slot}`);
   }
 
+  function resolvedState() {
+    if (!started || !battleStream.battle) throw new Error('Showdown battle state is not available');
+    const sides = battleStream.battle.sides ?? [];
+    const projectSide = (sideIndex, sourceTeam) => {
+      const pokemon = sides[sideIndex]?.pokemon ?? [];
+      return pokemon.map((member, index) => resolvedPokemon(member, sourceTeam[index]));
+    };
+    return Object.freeze({
+      terminal: Boolean(battleStream.battle.ended),
+      winner: battleStream.battle.winner ? String(battleStream.battle.winner) : '',
+      turn: Number(battleStream.battle.turn ?? 0),
+      p1: projectSide(0, config.p1.team),
+      p2: projectSide(1, config.p2.team),
+    });
+  }
+
   return Object.freeze({
     battleStream,
     streams,
     start: startBattle,
     choose,
     fight,
+    resolvedState,
   });
 }
