@@ -38,7 +38,15 @@ function cloneEvent(event) {
 }
 
 export function createPresentationQueue() {
-  return { sequence: 0, jobs: [] };
+  return {
+    sequence: 0,
+    jobs: [],
+    metrics: {
+      enqueued: 0,
+      shifted: 0,
+      peakPending: 0,
+    },
+  };
 }
 
 export function enqueuePresentationEvents(queue, events) {
@@ -55,12 +63,16 @@ export function enqueuePresentationEvents(queue, events) {
       animation: ANIMATION_EVENT_TYPES.has(event.type),
     }));
   }
+  queue.metrics.enqueued += events.length;
+  queue.metrics.peakPending = Math.max(queue.metrics.peakPending, queue.jobs.length);
   return queue;
 }
 
 export function shiftPresentationJob(queue) {
   if (!queue || !Array.isArray(queue.jobs)) throw new TypeError('presentation queue is required');
-  return queue.jobs.shift() ?? null;
+  const job = queue.jobs.shift() ?? null;
+  if (job) queue.metrics.shifted += 1;
+  return job;
 }
 
 export function snapshotPresentationQueue(queue) {
@@ -68,6 +80,9 @@ export function snapshotPresentationQueue(queue) {
   return Object.freeze({
     pending: queue.jobs.length,
     nextSequence: queue.sequence,
+    enqueued: queue.metrics.enqueued,
+    shifted: queue.metrics.shifted,
+    peakPending: queue.metrics.peakPending,
     jobs: Object.freeze(queue.jobs.map((job) => Object.freeze({
       sequence: job.sequence,
       type: job.event.type,

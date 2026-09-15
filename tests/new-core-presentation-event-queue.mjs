@@ -21,6 +21,9 @@ assert.deepEqual(domainEvents, original, 'presentation enqueue must not mutate d
 assert.deepEqual(snapshotPresentationQueue(queue), {
   pending: 5,
   nextSequence: 5,
+  enqueued: 5,
+  shifted: 0,
+  peakPending: 5,
   jobs: [
     { sequence: 0, type: 'BATTLE_STARTED', message: false, animation: true },
     { sequence: 1, type: 'POKEMON_SENT_OUT', message: false, animation: true },
@@ -34,11 +37,15 @@ const first = shiftPresentationJob(queue);
 assert.equal(first.sequence, 0);
 assert.equal(first.event.type, 'BATTLE_STARTED');
 assert.equal(snapshotPresentationQueue(queue).pending, 4);
+assert.equal(snapshotPresentationQueue(queue).shifted, 1);
 
 const unknown = { type: 'BOARD_READY', day: 1 };
 enqueuePresentationEvents(queue, [unknown]);
 unknown.day = 99;
 const snapshot = snapshotPresentationQueue(queue);
+assert.equal(snapshot.enqueued, 6);
+assert.equal(snapshot.shifted, 1);
+assert.equal(snapshot.peakPending, 5, 'peak queue pressure must remain observable after draining');
 assert.deepEqual(snapshot.jobs.at(-1), {
   sequence: 5,
   type: 'BOARD_READY',
