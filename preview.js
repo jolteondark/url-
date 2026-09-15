@@ -14,6 +14,11 @@ const byId = (id) => document.getElementById(id);
 const newRun = byId("new-run");
 const continueRun = byId("continue-run");
 
+function refreshRuntimeSourceLabel() {
+  const node = document.querySelector(".runtime-source");
+  if (node) node.textContent = "canonical browser integration / v0.9.108 · main direct";
+}
+
 function installCanonicalBattlebackFailClosedState() {
   const card = byId("battle-card");
   if (!card) return;
@@ -153,6 +158,7 @@ function onContinueRun() {
   startPreview("continue");
 }
 
+refreshRuntimeSourceLabel();
 installSafariEggHatchVisitBridgeV108();
 installCanonicalBattlebackFailClosedState();
 installCanonicalBattleBattlerAssets();
