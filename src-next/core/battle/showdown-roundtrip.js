@@ -2,6 +2,7 @@ import { cloneGameState } from '../game-state.js';
 
 const PERSISTENT_FIELDS = Object.freeze(['hp', 'status', 'moves', 'heldItem']);
 const TRANSIENT_FIELDS = Object.freeze(['volatile', 'volatiles', 'statStages', 'boosts', 'battleFlags']);
+const BATTLE_SYNC_IDS = 'appliedBattleStateResultIds';
 
 function cloneMoves(moves = []) {
   return moves.map((move) => ({
@@ -53,11 +54,13 @@ function clearTransientBattleState(member) {
   return clean;
 }
 
+// Commits only persistent battle state. The Core terminal lifecycle remains owned by
+// step(... BATTLE_TERMINAL_RESULT), so this uses a distinct idempotency namespace.
 export function commitShowdownTerminalResult(state, result) {
   if (!result?.terminal) throw new Error('Only terminal Showdown results may commit to Mapless state');
   if (!result.resultId) throw new Error('Terminal Showdown result requires resultId');
   const resultId = String(result.resultId);
-  const applied = state.diagnostics?.appliedResultIds ?? [];
+  const applied = state.diagnostics?.[BATTLE_SYNC_IDS] ?? [];
   if (applied.includes(resultId)) {
     return { state, committed: false, duplicate: true };
   }
@@ -71,8 +74,8 @@ export function commitShowdownTerminalResult(state, result) {
     return resolved ? { ...clean, ...persistentPatch(resolved) } : clean;
   });
   next.diagnostics ??= {};
-  next.diagnostics.appliedResultIds ??= [];
-  next.diagnostics.appliedResultIds.push(resultId);
+  next.diagnostics[BATTLE_SYNC_IDS] ??= [];
+  next.diagnostics[BATTLE_SYNC_IDS].push(resultId);
   return { state: next, committed: true, duplicate: false };
 }
 
