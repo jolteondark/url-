@@ -48,6 +48,40 @@ assert.deepEqual(snapshotPresentationJobDriver(driver), {
   lastDurationMs: 15,
   maxDurationMs: 25,
   averageDurationMs: 20,
+  byType: {
+    MOVE_USED: {
+      completed: 1,
+      lastDurationMs: 25,
+      maxDurationMs: 25,
+      averageDurationMs: 25,
+    },
+    DAMAGE_APPLIED: {
+      completed: 1,
+      lastDurationMs: 15,
+      maxDurationMs: 15,
+      averageDurationMs: 15,
+    },
+  },
+});
+
+const repeatedQueue = createPresentationQueue();
+enqueuePresentationEvents(repeatedQueue, [
+  { type: 'MOVE_USED', move: 'EMBER' },
+  { type: 'MOVE_USED', move: 'EMBER' },
+]);
+let repeatedClockMs = 0;
+const repeatedDriver = createPresentationJobDriver(repeatedQueue, { now: () => repeatedClockMs });
+const repeatedFirst = beginNextPresentationJob(repeatedDriver);
+repeatedClockMs = 10;
+assert.equal(completePresentationJob(repeatedDriver, repeatedFirst.token), true);
+const repeatedSecond = beginNextPresentationJob(repeatedDriver);
+repeatedClockMs = 40;
+assert.equal(completePresentationJob(repeatedDriver, repeatedSecond.token), true);
+assert.deepEqual(snapshotPresentationJobDriver(repeatedDriver).byType.MOVE_USED, {
+  completed: 2,
+  lastDurationMs: 30,
+  maxDurationMs: 30,
+  averageDurationMs: 20,
 });
 
 console.log('new-core presentation job driver: ok');
