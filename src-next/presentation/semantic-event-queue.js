@@ -44,6 +44,7 @@ export function createPresentationQueue() {
     metrics: {
       enqueued: 0,
       shifted: 0,
+      discarded: 0,
       peakPending: 0,
     },
   };
@@ -75,6 +76,14 @@ export function shiftPresentationJob(queue) {
   return job;
 }
 
+export function discardPendingPresentationJobs(queue) {
+  if (!queue || !Array.isArray(queue.jobs)) throw new TypeError('presentation queue is required');
+  const discarded = queue.jobs.length;
+  queue.jobs.length = 0;
+  queue.metrics.discarded += discarded;
+  return discarded;
+}
+
 export function snapshotPresentationQueue(queue) {
   if (!queue || !Array.isArray(queue.jobs)) throw new TypeError('presentation queue is required');
   return Object.freeze({
@@ -82,6 +91,7 @@ export function snapshotPresentationQueue(queue) {
     nextSequence: queue.sequence,
     enqueued: queue.metrics.enqueued,
     shifted: queue.metrics.shifted,
+    discarded: queue.metrics.discarded,
     peakPending: queue.metrics.peakPending,
     jobs: Object.freeze(queue.jobs.map((job) => Object.freeze({
       sequence: job.sequence,
