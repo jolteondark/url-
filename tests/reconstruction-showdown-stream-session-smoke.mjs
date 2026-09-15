@@ -4,6 +4,7 @@ import { createShowdownStreamSession } from '../src-next/core/battle/showdown-st
 class FakeStream {
   constructor() { this.writes = []; }
   async write(value) { this.writes.push(value); }
+  async *[Symbol.asyncIterator]() { yield '|turn|1'; }
 }
 class FakeBattleStream extends FakeStream {}
 const omniscient = new FakeStream();
@@ -35,6 +36,7 @@ const config = {
   },
 };
 const session = createShowdownStreamSession(showdown, config);
+await assert.rejects(async () => createShowdownStreamSession(showdown, config).output(), /must start/);
 assert.equal(await session.start(), true);
 assert.equal(await session.start(), false, 'battle start must be exactly once');
 assert.equal(omniscient.writes.length, 3);
@@ -48,8 +50,16 @@ await session.fight('p2', 1);
 assert.deepEqual(p1.writes, ['move 1']);
 assert.deepEqual(p2.writes, ['move 1']);
 
+const output = session.output();
+assert.equal(output, omniscient, 'adapter must consume Showdown own omniscient result stream');
+const received = [];
+for await (const chunk of output) received.push(chunk);
+assert.deepEqual(received, ['|turn|1']);
+assert.throws(() => session.output(), /only be claimed once/, 'result stream ownership must be exactly once');
+
 await assert.rejects(async () => createShowdownStreamSession(showdown, config).fight('p1', 1), /must start/);
 await assert.rejects(session.fight('p1', 0), /positive Showdown move slot/);
 await assert.rejects(session.choose('p3', 'move 1'), /Invalid Showdown side/);
+assert.throws(() => createShowdownStreamSession({ ...showdown, BattleStreams: { ...showdown.BattleStreams, getPlayerStreams: () => ({ omniscient: { write: async () => {} }, p1, p2 }) } }, config), /async iterable/);
 
 console.log('reconstruction-showdown-stream-session-smoke: ok');
