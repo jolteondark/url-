@@ -6,6 +6,17 @@ function readClock(driver) {
   return value;
 }
 
+function snapshotTypeMetrics(metrics) {
+  return Object.freeze(Object.fromEntries(
+    Object.entries(metrics).map(([type, value]) => [type, Object.freeze({
+      completed: value.completed,
+      lastDurationMs: value.lastDurationMs,
+      maxDurationMs: value.maxDurationMs,
+      averageDurationMs: value.completed > 0 ? value.totalDurationMs / value.completed : null,
+    })])
+  ));
+}
+
 export function createPresentationJobDriver(queue, options = {}) {
   if (!queue || !Array.isArray(queue.jobs)) throw new TypeError('presentation queue is required');
   const now = options.now ?? (() => globalThis.performance?.now?.() ?? Date.now());
@@ -19,6 +30,7 @@ export function createPresentationJobDriver(queue, options = {}) {
       totalDurationMs: 0,
       maxDurationMs: 0,
       lastDurationMs: null,
+      byType: Object.create(null),
     },
   };
 }
@@ -41,9 +53,20 @@ export function completePresentationJob(driver, token) {
   if (!token || token.sequence !== driver.active.token.sequence) return false;
 
   const durationMs = Math.max(0, readClock(driver) - driver.active.startedAtMs);
+  const type = driver.active.job.event.type;
   driver.metrics.totalDurationMs += durationMs;
   driver.metrics.maxDurationMs = Math.max(driver.metrics.maxDurationMs, durationMs);
   driver.metrics.lastDurationMs = durationMs;
+  const typeMetrics = driver.metrics.byType[type] ??= {
+    completed: 0,
+    totalDurationMs: 0,
+    maxDurationMs: 0,
+    lastDurationMs: null,
+  };
+  typeMetrics.completed += 1;
+  typeMetrics.totalDurationMs += durationMs;
+  typeMetrics.maxDurationMs = Math.max(typeMetrics.maxDurationMs, durationMs);
+  typeMetrics.lastDurationMs = durationMs;
   driver.active = null;
   driver.completed += 1;
   return true;
@@ -60,5 +83,6 @@ export function snapshotPresentationJobDriver(driver) {
     lastDurationMs: driver.metrics.lastDurationMs,
     maxDurationMs: driver.metrics.maxDurationMs,
     averageDurationMs: driver.completed > 0 ? driver.metrics.totalDurationMs / driver.completed : null,
+    byType: snapshotTypeMetrics(driver.metrics.byType),
   });
 }
