@@ -30,6 +30,7 @@ export function createPresentationJobDriver(queue, options = {}) {
     queue,
     active: null,
     completed: 0,
+    cancelled: 0,
     now,
     slowJobThresholdMs,
     metrics: {
@@ -83,6 +84,16 @@ export function completePresentationJob(driver, token) {
   return true;
 }
 
+export function cancelPresentationJob(driver, token) {
+  if (!driver || !driver.queue) throw new TypeError('presentation driver is required');
+  if (!driver.active) return false;
+  if (!token || token.sequence !== driver.active.token.sequence) return false;
+
+  driver.active = null;
+  driver.cancelled += 1;
+  return true;
+}
+
 export function snapshotPresentationJobDriver(driver) {
   if (!driver || !driver.queue) throw new TypeError('presentation driver is required');
   const activeDurationMs = driver.active ? Math.max(0, readClock(driver) - driver.active.startedAtMs) : null;
@@ -94,6 +105,7 @@ export function snapshotPresentationJobDriver(driver) {
       ? activeDurationMs >= driver.slowJobThresholdMs
       : false,
     completed: driver.completed,
+    cancelled: driver.cancelled,
     pending: driver.queue.jobs.length,
     slowJobThresholdMs: driver.slowJobThresholdMs,
     slowCompleted: driver.metrics.slowCompleted,
