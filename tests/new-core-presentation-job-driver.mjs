@@ -17,27 +17,37 @@ enqueuePresentationEvents(queue, [
   { type: 'DAMAGE_APPLIED', hp: 12 },
 ]);
 
-const driver = createPresentationJobDriver(queue);
+let clockMs = 100;
+const driver = createPresentationJobDriver(queue, { now: () => clockMs });
 const first = beginNextPresentationJob(driver);
 assert.equal(first.job.event.type, 'MOVE_USED');
 assert.equal(beginNextPresentationJob(driver), null, 'active animation/message must block a second dequeue');
+clockMs = 112;
 assert.equal(snapshotPresentationJobDriver(driver).pending, 1);
+assert.equal(snapshotPresentationJobDriver(driver).activeDurationMs, 12);
 assert.equal(snapshotPresentationQueue(queue).shifted, 1);
 
 assert.equal(completePresentationJob(driver, { sequence: 999 }), false, 'stale/wrong completion cannot advance presentation');
 assert.equal(snapshotPresentationJobDriver(driver).activeType, 'MOVE_USED');
+clockMs = 125;
 assert.equal(completePresentationJob(driver, first.token), true);
 assert.equal(completePresentationJob(driver, first.token), false, 'completion is exactly once');
 
+clockMs = 200;
 const second = beginNextPresentationJob(driver);
 assert.equal(second.job.event.type, 'DAMAGE_APPLIED');
+clockMs = 215;
 assert.equal(completePresentationJob(driver, second.token), true);
 assert.equal(beginNextPresentationJob(driver), null);
 assert.deepEqual(snapshotPresentationJobDriver(driver), {
   activeSequence: null,
   activeType: null,
+  activeDurationMs: null,
   completed: 2,
   pending: 0,
+  lastDurationMs: 15,
+  maxDurationMs: 25,
+  averageDurationMs: 20,
 });
 
 console.log('new-core presentation job driver: ok');
