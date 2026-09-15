@@ -22,6 +22,8 @@ export function createStaticDexEntryPlan(upstreamDir) {
   const root = resolve(upstreamDir);
   const dataRoot = join(root, 'data');
   const base = packaging.baseModules.map(file => ({ scope: 'base', file, absolute: join(dataRoot, file) }));
+  const support = [...packaging.supportModules, ...packaging.optionalSupportModules]
+    .map(file => ({ scope: 'support', file, absolute: join(root, file) }));
   const mods = packaging.mods.map(mod => {
     const dir = join(dataRoot, 'mods', mod);
     if (!existsSync(dir)) throw new Error(`Pinned Showdown static Dex mod missing: ${mod}`);
@@ -30,21 +32,32 @@ export function createStaticDexEntryPlan(upstreamDir) {
       modules: Object.freeze(moduleFiles(dir).map(file => ({ scope: `mod_${mod}`, file, absolute: join(dir, file) }))),
     });
   });
-  return Object.freeze({ packaging, base: Object.freeze(base), mods: Object.freeze(mods) });
+  return Object.freeze({
+    packaging,
+    base: Object.freeze(base),
+    support: Object.freeze(support),
+    mods: Object.freeze(mods),
+  });
 }
 
 export function renderStaticDexEntryModule(plan) {
-  if (!plan?.packaging || !Array.isArray(plan.base) || !Array.isArray(plan.mods)) {
+  if (!plan?.packaging || !Array.isArray(plan.base) || !Array.isArray(plan.support) || !Array.isArray(plan.mods)) {
     throw new Error('Static Dex entry plan is invalid');
   }
   const imports = [];
   const baseEntries = [];
+  const supportEntries = [];
   const modEntries = [];
   let index = 0;
   for (const module of plan.base) {
     const name = importName(module.scope, moduleStem(module.file), index++);
     imports.push(`import * as ${name} from ${JSON.stringify(module.absolute)};`);
     baseEntries.push(`${JSON.stringify(moduleStem(module.file))}: ${name}`);
+  }
+  for (const module of plan.support) {
+    const name = importName(module.scope, moduleStem(module.file), index++);
+    imports.push(`import * as ${name} from ${JSON.stringify(module.absolute)};`);
+    supportEntries.push(`${JSON.stringify(moduleStem(module.file))}: ${name}`);
   }
   for (const mod of plan.mods) {
     const entries = [];
@@ -59,6 +72,7 @@ export function renderStaticDexEntryModule(plan) {
     `export const SHOWDOWN_STATIC_DEX_DATA = Object.freeze({\n` +
     `  revision: ${JSON.stringify(plan.packaging.revision)},\n` +
     `  base: Object.freeze({${baseEntries.join(',')}}),\n` +
+    `  support: Object.freeze({${supportEntries.join(',')}}),\n` +
     `  mods: Object.freeze({${modEntries.join(',')}}),\n` +
     `});\n`;
 }

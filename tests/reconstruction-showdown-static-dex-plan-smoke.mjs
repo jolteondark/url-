@@ -7,10 +7,13 @@ const rendered = renderStaticDexManifestModule({
   repository: 'smogon/pokemon-showdown',
   revision: SHOWDOWN_REVISION,
   baseModules: base.map(name => `${name}.ts`),
+  supportModules: ['config/formats.ts'],
+  optionalSupportModules: [],
   mods: ['gen9'],
   runtimePolicy: { filesystem: false, dynamicRequire: false, generatedAtBuildTime: true },
 });
 assert.match(rendered, /SHOWDOWN_STATIC_DEX_MANIFEST/);
+assert.match(rendered, /config\/formats\.ts/);
 assert.match(rendered, /"filesystem": false/);
 assert.match(rendered, /"generatedAtBuildTime": true/);
 assert.throws(
