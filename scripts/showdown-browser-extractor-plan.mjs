@@ -28,22 +28,33 @@ export function inspectBrowserExtractor(extractorDir) {
   return Object.freeze({ repository: PKMN_PS_REPOSITORY, revision: PKMN_PS_REVISION, root });
 }
 
-export function createBrowserExtractionPlan(extractorDir, showdownDir) {
-  const extractor = inspectBrowserExtractor(extractorDir);
-  const showdownRoot = resolve(showdownDir);
-  const showdownRevision = gitHead(showdownRoot);
-  if (showdownRevision !== SHOWDOWN_REVISION) {
-    throw new Error(`Showdown source revision mismatch: expected ${SHOWDOWN_REVISION}, got ${showdownRevision}`);
+export function inspectExtractorShowdownVendor(extractorDir) {
+  const root = resolve(extractorDir, 'vendor/pokemon-showdown');
+  if (!existsSync(root)) {
+    throw new Error('Pinned pkmn/ps extractor is missing vendor/pokemon-showdown');
   }
+  const revision = gitHead(root);
+  if (revision !== SHOWDOWN_REVISION) {
+    throw new Error(`Extractor Showdown vendor revision mismatch: expected ${SHOWDOWN_REVISION}, got ${revision}`);
+  }
+  return Object.freeze({ revision: SHOWDOWN_REVISION, root });
+}
+
+export function createBrowserExtractionPlan(extractorDir) {
+  const extractor = inspectBrowserExtractor(extractorDir);
+  // pkmn/ps's import script reads this exact vendor path. Validating an unrelated
+  // Showdown checkout would not constrain the mechanics actually extracted.
+  const showdown = inspectExtractorShowdownVendor(extractor.root);
   return Object.freeze({
     extractor,
-    showdown: Object.freeze({ revision: SHOWDOWN_REVISION, root: showdownRoot }),
+    showdown,
     policy: Object.freeze({
       mechanicsAuthority: 'smogon/pokemon-showdown',
       extractorOnly: true,
       browserTarget: true,
       allowFloatingDependency: false,
       requireDifferentialFixture: true,
+      requirePinnedExtractorVendor: true,
     }),
   });
 }
