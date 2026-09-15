@@ -1,6 +1,7 @@
 import { cloneGameState } from '../game-state.js';
 
 const PERSISTENT_FIELDS = Object.freeze(['hp', 'status', 'moves', 'heldItem']);
+const TRANSIENT_FIELDS = Object.freeze(['volatile', 'volatiles', 'statStages', 'boosts', 'battleFlags']);
 
 function cloneMoves(moves = []) {
   return moves.map((move) => ({
@@ -46,6 +47,12 @@ function persistentPatch(resolved) {
   };
 }
 
+function clearTransientBattleState(member) {
+  const clean = { ...member };
+  for (const field of TRANSIENT_FIELDS) delete clean[field];
+  return clean;
+}
+
 export function commitShowdownTerminalResult(state, result) {
   if (!result?.terminal) throw new Error('Only terminal Showdown results may commit to Mapless state');
   if (!result.resultId) throw new Error('Terminal Showdown result requires resultId');
@@ -58,11 +65,10 @@ export function commitShowdownTerminalResult(state, result) {
   const next = cloneGameState(state);
   const byId = new Map((result.party ?? []).map((member) => [String(member.maplessId), member]));
   next.party = next.party.map((member) => {
+    const clean = clearTransientBattleState(member);
     const id = String(member.id ?? member.personalId ?? member.species);
     const resolved = byId.get(id);
-    if (!resolved) return member;
-    const patch = persistentPatch(resolved);
-    return { ...member, ...patch };
+    return resolved ? { ...clean, ...persistentPatch(resolved) } : clean;
   });
   next.diagnostics ??= {};
   next.diagnostics.appliedResultIds ??= [];
