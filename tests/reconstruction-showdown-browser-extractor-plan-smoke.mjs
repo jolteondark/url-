@@ -8,13 +8,15 @@ assert.equal(PKMN_PS_REPOSITORY, 'pkmn/ps');
 assert.equal(PKMN_PS_REVISION, '4fec8877c83d102528929100b9c45a3a1cc160d3');
 assert.notEqual(PKMN_PS_REVISION, SHOWDOWN_REVISION);
 
-// The extractor is tooling only. The exact Showdown revision remains the mechanics authority.
+// The extractor is tooling only. Its hard-coded vendor/pokemon-showdown path must
+// itself be replaced/checked out at the mechanics-authority revision before import.
 const policy = {
   mechanicsAuthority: SHOWDOWN_REPOSITORY,
   extractorOnly: true,
   browserTarget: true,
   allowFloatingDependency: false,
   requireDifferentialFixture: true,
+  requirePinnedExtractorVendor: true,
 };
 assert.deepEqual(policy, {
   mechanicsAuthority: 'smogon/pokemon-showdown',
@@ -22,6 +24,7 @@ assert.deepEqual(policy, {
   browserTarget: true,
   allowFloatingDependency: false,
   requireDifferentialFixture: true,
+  requirePinnedExtractorVendor: true,
 });
 
 console.log('reconstruction Showdown browser extractor plan smoke: ok');
