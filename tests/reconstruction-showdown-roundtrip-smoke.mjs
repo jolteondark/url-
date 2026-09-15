@@ -54,10 +54,11 @@ assert.throws(() => commitShowdownTerminalResult(original, { ...resolved, termin
 const slots = Array.from({ length: 8 }, (_, i) => i === 0
   ? { kind: 'wild', encounter: { species: 'RATTATA' } }
   : { kind: 'event' });
-const board = step(first.state, { type: 'BOARD_GENERATED', slots }).state;
+const board = step(original, { type: 'BOARD_GENERATED', slots }).state;
 const pending = step(board, { type: 'BOARD_SELECT', slot: 0 }).state;
-const synced = commitShowdownTerminalResult(pending, resolved).state;
-const terminal = step(synced, {
+const syncedResult = commitShowdownTerminalResult(pending, resolved);
+assert.equal(syncedResult.committed, true);
+const terminal = step(syncedResult.state, {
   type: 'BATTLE_TERMINAL_RESULT',
   battleId: pending.activeBattle.id,
   resultId: resolved.resultId,
@@ -65,6 +66,7 @@ const terminal = step(synced, {
 });
 assert.equal(terminal.state.mode, 'board');
 assert.equal(terminal.state.board[0].consumed, true);
+assert.equal(terminal.state.party[0].hp, 0);
 assert.deepEqual(terminal.state.diagnostics.appliedResultIds, [resolved.resultId]);
 assert.deepEqual(terminal.effects, [{ type: 'REQUEST_SAVE', reason: 'battle_terminal_result' }]);
 
