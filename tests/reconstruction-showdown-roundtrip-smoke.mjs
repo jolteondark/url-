@@ -49,6 +49,56 @@ assert.equal(replay.duplicate, true);
 assert.equal(replay.state, first.state);
 assert.throws(() => commitShowdownTerminalResult(original, { ...resolved, terminal: false }), /Only terminal/);
 
+// Species is not identity. Two same-species members must remain independently
+// addressable across projection and terminal commit.
+const twins = createInitialGameState({
+  runId: 'showdown-twins', seed: 8,
+  party: [
+    { id: 'pika-a', species: 'PIKACHU', hp: 100, maxhp: 100, moves: [{ id: 'TACKLE', pp: 35, maxpp: 35 }] },
+    { id: 'pika-b', species: 'PIKACHU', hp: 80, maxhp: 100, moves: [{ id: 'TACKLE', pp: 34, maxpp: 35 }] },
+  ],
+});
+const twinSnapshot = createShowdownBattleSnapshot(twins, { battleId: 'b-twins' });
+assert.deepEqual(twinSnapshot.party.map((member) => member.maplessId), ['pika-a', 'pika-b']);
+const twinResolved = {
+  terminal: true, resultId: 'showdown-twins:terminal:1',
+  party: [
+    { maplessId: 'pika-b', hp: 61, status: '', heldItem: '', moves: [{ id: 'TACKLE', pp: 33, maxpp: 35 }] },
+    { maplessId: 'pika-a', hp: 7, status: 'par', heldItem: '', moves: [{ id: 'TACKLE', pp: 34, maxpp: 35 }] },
+  ],
+};
+const twinCommit = commitShowdownTerminalResult(twins, twinResolved);
+assert.deepEqual(twinCommit.state.party.map(({ id, hp, status, moves }) => ({ id, hp, status, pp: moves[0].pp })), [
+  { id: 'pika-a', hp: 7, status: 'par', pp: 34 },
+  { id: 'pika-b', hp: 61, status: '', pp: 33 },
+]);
+
+const missingId = createInitialGameState({
+  runId: 'showdown-missing-id', seed: 9,
+  party: [{ species: 'PIKACHU', hp: 10, maxhp: 10, moves: [] }],
+});
+assert.throws(() => createShowdownBattleSnapshot(missingId, { battleId: 'b-missing' }), /stable Mapless Pokémon ID/);
+
+const duplicateId = createInitialGameState({
+  runId: 'showdown-duplicate-id', seed: 10,
+  party: [
+    { id: 'same', species: 'PIKACHU', hp: 10, maxhp: 10, moves: [] },
+    { id: 'same', species: 'RAICHU', hp: 20, maxhp: 20, moves: [] },
+  ],
+});
+assert.throws(() => createShowdownBattleSnapshot(duplicateId, { battleId: 'b-duplicate' }), /duplicate stable Mapless Pokémon ID/);
+assert.throws(() => commitShowdownTerminalResult(twins, {
+  terminal: true, resultId: 'duplicate-resolved',
+  party: [
+    { maplessId: 'pika-a', hp: 1, moves: [] },
+    { maplessId: 'pika-a', hp: 2, moves: [] },
+  ],
+}), /duplicate stable Mapless Pokémon ID/);
+assert.throws(() => commitShowdownTerminalResult(twins, {
+  terminal: true, resultId: 'missing-resolved',
+  party: [{ maplessId: 'pika-a', hp: 1, moves: [] }],
+}), /missing stable Mapless Pokémon ID: pika-b/);
+
 // Persistent battle sync must not consume the Core lifecycle result ID: the same
 // terminal result still has to consume the Board slot, return to Board, and save once.
 const slots = Array.from({ length: 8 }, (_, i) => i === 0
