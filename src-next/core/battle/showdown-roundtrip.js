@@ -12,10 +12,27 @@ function cloneMoves(moves = []) {
   }));
 }
 
+function stableMaplessId(member, context = 'Battle round-trip') {
+  const raw = member?.maplessId ?? member?.id ?? member?.personalId;
+  if (raw === undefined || raw === null || String(raw).trim() === '') {
+    throw new Error(`${context} requires a stable Mapless Pokémon ID`);
+  }
+  return String(raw);
+}
+
+function assertUniqueStableIds(members = [], context) {
+  const seen = new Set();
+  for (const member of members) {
+    const id = stableMaplessId(member, context);
+    if (seen.has(id)) throw new Error(`${context} contains duplicate stable Mapless Pokémon ID: ${id}`);
+    seen.add(id);
+  }
+}
+
 export function projectMaplessPokemonToShowdown(member) {
   if (!member?.species) throw new Error('Battle projection requires species');
   return Object.freeze({
-    maplessId: String(member.id ?? member.personalId ?? member.species),
+    maplessId: stableMaplessId(member, 'Battle projection'),
     species: String(member.species),
     name: String(member.name ?? member.species),
     level: Number(member.level ?? 1),
@@ -28,6 +45,7 @@ export function projectMaplessPokemonToShowdown(member) {
 }
 
 export function projectMaplessPartyToShowdown(party = []) {
+  assertUniqueStableIds(party, 'Battle projection party');
   return party.map(projectMaplessPokemonToShowdown);
 }
 
@@ -65,13 +83,19 @@ export function commitShowdownTerminalResult(state, result) {
     return { state, committed: false, duplicate: true };
   }
 
+  assertUniqueStableIds(state.party, 'Mapless party commit source');
+  assertUniqueStableIds(result.party, 'Showdown resolved party');
+  const byId = new Map((result.party ?? []).map((member) => [stableMaplessId(member, 'Showdown resolved party'), member]));
+  for (const member of state.party ?? []) {
+    const id = stableMaplessId(member, 'Mapless party commit source');
+    if (!byId.has(id)) throw new Error(`Showdown resolved party is missing stable Mapless Pokémon ID: ${id}`);
+  }
+
   const next = cloneGameState(state);
-  const byId = new Map((result.party ?? []).map((member) => [String(member.maplessId), member]));
   next.party = next.party.map((member) => {
     const clean = clearTransientBattleState(member);
-    const id = String(member.id ?? member.personalId ?? member.species);
-    const resolved = byId.get(id);
-    return resolved ? { ...clean, ...persistentPatch(resolved) } : clean;
+    const id = stableMaplessId(member, 'Mapless party commit source');
+    return { ...clean, ...persistentPatch(byId.get(id)) };
   });
   next.diagnostics ??= {};
   next.diagnostics[BATTLE_SYNC_IDS] ??= [];
