@@ -126,16 +126,22 @@ export function createShowdownStreamSession(showdown, config) {
     if (startAttempted) {
       throw new Error('Showdown battle start previously failed; partial projection cannot be replayed');
     }
-    // Set this before the first stream write. If any later projection/hydration
-    // step fails, replaying >start/>player into the same BattleStream would
-    // violate the one-shot Mapless -> Showdown projection boundary.
     startAttempted = true;
     await streams.omniscient.write(`>start ${JSON.stringify(start)}`);
     await streams.omniscient.write(playerCommand('p1', config.p1, p1Team));
     await streams.omniscient.write(playerCommand('p2', config.p2, p2Team));
-    if (!battleStream.battle) throw new Error('Showdown battle state is unavailable after player projection');
-    hydratePersistentSide(battleStream.battle, 0, config.p1.team, identityByPokemon);
-    hydratePersistentSide(battleStream.battle, 1, config.p2.team, identityByPokemon);
+    const battle = battleStream.battle;
+    if (!battle) throw new Error('Showdown battle state is unavailable after player projection');
+    hydratePersistentSide(battle, 0, config.p1.team, identityByPokemon);
+    hydratePersistentSide(battle, 1, config.p2.team, identityByPokemon);
+    // Both >player commands can cause Showdown to build its initial move request
+    // before Mapless current HP/status/PP have been hydrated. Rebuild that request
+    // through Showdown itself so the first FIGHT UI/request observes the same
+    // authoritative state that move execution will use. This adds no battle rules.
+    if (typeof battle.makeRequest !== 'function') {
+      throw new Error('Showdown battle makeRequest surface is required after persistent hydration');
+    }
+    battle.makeRequest();
     started = true;
     return true;
   }
@@ -169,12 +175,5 @@ export function createShowdownStreamSession(showdown, config) {
     });
   }
 
-  return Object.freeze({
-    battleStream,
-    streams,
-    start: startBattle,
-    choose,
-    fight,
-    resolvedState,
-  });
+  return Object.freeze({ battleStream, streams, start: startBattle, choose, fight, resolvedState });
 }
