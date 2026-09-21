@@ -16,6 +16,14 @@ function moveId(move) {
   return String(move?.id ?? move?.move ?? move ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
+function exactSleepTurns(value, boundary) {
+  const turns = Number(value);
+  if (!Number.isInteger(turns) || turns < 1) {
+    throw new Error(`${boundary} sleep projection requires a positive integer statusTurns`);
+  }
+  return turns;
+}
+
 export function projectMaplessPokemonToShowdown(member) {
   if (!member?.species) throw new Error('Battle projection requires species');
   const projected = {
@@ -29,8 +37,8 @@ export function projectMaplessPokemonToShowdown(member) {
     heldItem: member.heldItem ? String(member.heldItem) : '',
     moves: cloneMoves(member.moves),
   };
-  if (projected.status.toLowerCase() === 'slp' && Number.isFinite(Number(member.statusTurns))) {
-    projected.statusTurns = Math.max(1, Math.trunc(Number(member.statusTurns)));
+  if (projected.status.toLowerCase() === 'slp') {
+    projected.statusTurns = exactSleepTurns(member.statusTurns, 'Persistent');
   }
   return Object.freeze(projected);
 }
@@ -68,10 +76,7 @@ function persistentPatch(source, resolved) {
     heldItem: resolved.heldItem ? String(resolved.heldItem) : '',
   };
   if (status.toLowerCase() === 'slp') {
-    if (!Number.isFinite(Number(resolved.statusTurns))) {
-      throw new Error('Terminal sleep projection requires statusTurns');
-    }
-    patch.statusTurns = Math.max(1, Math.trunc(Number(resolved.statusTurns)));
+    patch.statusTurns = exactSleepTurns(resolved.statusTurns, 'Terminal');
   } else {
     patch.statusTurns = undefined;
   }
