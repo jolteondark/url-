@@ -53,10 +53,29 @@ function hydratePersistentMember(battle, pokemon, sourceMember) {
     pokemon.fainted = pokemon.hp <= 0;
   }
   hydratePersistentStatus(battle, pokemon, sourceMember);
-  const sourceMoves = new Map((sourceMember.moves ?? []).map((move) => [moveId(move), move]));
-  for (const slot of pokemon.moveSlots ?? []) {
-    const sourceMove = sourceMoves.get(moveId(slot));
-    if (!sourceMove || !Number.isFinite(Number(sourceMove.pp))) continue;
+
+  const sourceMoves = sourceMember.moves ?? [];
+  const sourceById = new Map();
+  for (const move of sourceMoves) {
+    const id = moveId(move);
+    if (!id) throw new Error('Persistent PP projection requires a stable move id');
+    if (sourceById.has(id)) throw new Error(`Duplicate Mapless move id in Showdown projection: ${id}`);
+    if (!Number.isFinite(Number(move?.pp))) {
+      throw new Error(`Persistent PP projection requires current PP for move: ${id}`);
+    }
+    sourceById.set(id, move);
+  }
+  const slots = pokemon.moveSlots ?? [];
+  if (slots.length !== sourceMoves.length) {
+    throw new Error('Persistent PP projection requires one Showdown move slot per Mapless move');
+  }
+  const hydratedIds = new Set();
+  for (const slot of slots) {
+    const id = moveId(slot);
+    const sourceMove = sourceById.get(id);
+    if (!sourceMove) throw new Error(`Persistent PP projection could not match Showdown move slot: ${id || '<unknown>'}`);
+    if (hydratedIds.has(id)) throw new Error(`Duplicate Showdown move slot during PP projection: ${id}`);
+    hydratedIds.add(id);
     slot.pp = Math.max(0, Math.min(Number(slot.maxpp ?? sourceMove.pp), Math.trunc(Number(sourceMove.pp))));
   }
 }
