@@ -58,4 +58,16 @@ const ambiguousSleep = createShowdownStreamSession(showdown, {
 });
 await assert.rejects(() => ambiguousSleep.start(), /Persistent sleep projection requires statusTurns/);
 
-console.log('reconstruction Showdown hydrated request/status smoke: ok');
+const missingPp = createShowdownStreamSession(showdown, {
+  p1: { name: 'Mapless', team: [{ id: 'missing-pp', species: 'Pikachu', hp: 17, moves: [{ id: 'thunderbolt' }] }] },
+  p2: { name: 'Wild', team: [{ id: 'wild-4', species: 'Magikarp', hp: 11, moves: [{ id: 'splash', pp: 9 }] }] },
+});
+await assert.rejects(() => missingPp.start(), /Persistent PP projection requires current PP for move: thunderbolt/);
+
+const mismatchedMove = createShowdownStreamSession(showdown, {
+  p1: { name: 'Mapless', team: [{ id: 'wrong-move', species: 'Pikachu', hp: 17, moves: [{ id: 'quickattack', pp: 7 }] }] },
+  p2: { name: 'Wild', team: [{ id: 'wild-5', species: 'Magikarp', hp: 11, moves: [{ id: 'splash', pp: 9 }] }] },
+});
+await assert.rejects(() => mismatchedMove.start(), /Persistent PP projection could not match Showdown move slot: thunderbolt/);
+
+console.log('reconstruction Showdown hydrated request/status/PP smoke: ok');
