@@ -54,6 +54,7 @@ assert.equal(first.state.party[0].status, 'par');
 assert.equal(first.state.party[0].moves[0].pp, 12);
 assert.equal(first.state.party[0].moves[0].maxpp, 15, 'Showdown-derived maxpp must not overwrite Mapless move metadata');
 assert.equal(first.state.party[0].heldItem, '');
+assert.equal('statusTurns' in first.state.party[0], false, 'non-Sleep terminal state must clear stale Sleep counters');
 assert.equal('boosts' in first.state.party[0], false);
 assert.equal('volatile' in first.state.party[0], false);
 
@@ -80,6 +81,52 @@ assert.equal(replayAfterReload.state, restored);
 assert.equal(replayAfterReload.state.party[0].hp, 19);
 assert.equal(replayAfterReload.state.party[0].moves[0].pp, 12);
 assert.equal(replayAfterReload.state.party[0].moves[0].maxpp, 15);
+
+// Sleep owns persistent remaining-turn state. It must survive terminal commit and
+// serialization so the next Showdown projection does not reroll sleep duration.
+const sleeping = stateWithParty();
+sleeping.party[0].status = 'slp';
+sleeping.party[0].statusTurns = 3;
+const sleepSession = {
+  resolvedState() {
+    return {
+      terminal: true,
+      winner: 'p1',
+      turn: 1,
+      p1: [{
+        maplessId: 'starter-1',
+        hp: 30,
+        maxhp: 35,
+        status: 'slp',
+        statusTurns: 2,
+        heldItem: 'oranberry',
+        fainted: false,
+        moves: [{ id: 'thunderbolt', pp: 14, maxpp: 24 }],
+      }],
+      p2: [],
+    };
+  },
+};
+const sleepCommit = commitShowdownStreamTerminal(sleeping, {
+  battleId: 'battle-sleep',
+  session: sleepSession,
+});
+assert.equal(sleepCommit.committed, true);
+assert.equal(sleepCommit.state.party[0].status, 'slp');
+assert.equal(sleepCommit.state.party[0].statusTurns, 2);
+assert.equal(sleepCommit.state.party[0].moves[0].pp, 14);
+assert.equal(sleepCommit.state.party[0].moves[0].maxpp, 15);
+const sleepRestored = restoreNewCoreSave(serializeNewCoreSave(sleepCommit.state));
+assert.equal(sleepRestored.party[0].status, 'slp');
+assert.equal(sleepRestored.party[0].statusTurns, 2, 'remaining Sleep turns must survive save/reload');
+assert.deepEqual(sleepRestored.diagnostics.appliedBattleStateResultIds, ['showdown-terminal:battle-sleep']);
+const sleepReplay = commitShowdownStreamTerminal(sleepRestored, {
+  battleId: 'battle-sleep',
+  session: sleepSession,
+});
+assert.equal(sleepReplay.committed, false);
+assert.equal(sleepReplay.duplicate, true);
+assert.equal(sleepReplay.state.party[0].statusTurns, 2);
 
 assert.throws(
   () => commitShowdownStreamTerminal(stateWithParty(), {
