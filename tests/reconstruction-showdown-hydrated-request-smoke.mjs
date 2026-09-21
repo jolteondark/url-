@@ -64,6 +64,14 @@ const missingHp = createShowdownStreamSession(showdown, {
 });
 await assert.rejects(() => missingHp.start(), /Persistent HP projection requires finite current HP/);
 
+for (const [id, hp] of [['negative-hp', -1], ['over-max-hp', 36]]) {
+  const invalidHp = createShowdownStreamSession(showdown, {
+    p1: { name: 'Mapless', team: [{ id, species: 'Pikachu', hp, moves: [{ id: 'thunderbolt', pp: 3 }] }] },
+    p2: { name: 'Wild', team: [{ id: `wild-${id}`, species: 'Magikarp', hp: 11, moves: [{ id: 'splash', pp: 9 }] }] },
+  });
+  await assert.rejects(() => invalidHp.start(), /Persistent HP projection is outside Showdown bounds/);
+}
+
 const missingPp = createShowdownStreamSession(showdown, {
   p1: { name: 'Mapless', team: [{ id: 'missing-pp', species: 'Pikachu', hp: 17, moves: [{ id: 'thunderbolt' }] }] },
   p2: { name: 'Wild', team: [{ id: 'wild-4', species: 'Magikarp', hp: 11, moves: [{ id: 'splash', pp: 9 }] }] },
