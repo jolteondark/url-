@@ -29,11 +29,12 @@ const state = createInitialGameState({
     ability: 'Static',
     hp: 60,
     status: 'brn',
-    // Throat Spray gives the real engine an observable held-item consumption
-    // hook while Hyper Voice remains special, so burn does not weaken the
-    // one-turn terminal fixture.
     heldItem: 'Throat Spray',
     moves: [{ id: 'hypervoice', pp: 3, maxpp: 10 }],
+    // Deliberately dirty pre-battle state: the terminal boundary must strip
+    // battle-only state rather than accidentally carrying it into persistence.
+    boosts: { spa: -2 },
+    volatile: { seeded: true },
   }],
 });
 const persistentBeforeBattle = structuredClone(state.party);
@@ -98,8 +99,6 @@ assert.equal(starting.p1[0].heldItem, 'throatspray', 'persistent held item must 
 assert.equal(starting.p1[0].moves[0].pp, 3, 'persistent PP must hydrate into real Showdown before FIGHT');
 assert.deepEqual(state.party, persistentBeforeBattle, 'Showdown initialization must not mutate persistent Mapless party state');
 
-// Both choices are submitted to Showdown; Showdown alone owns turn order, damage,
-// PP consumption, fainting, held-item hooks, residual status damage, and terminal decision.
 await Promise.all([
   session.fight('p1', 1),
   session.fight('p2', 1),
@@ -112,6 +111,7 @@ assert.equal(terminal.p2[0].fainted, true, 'real Showdown must authoritatively r
 assert.equal(terminal.p1[0].status, 'brn', 'persistent status must survive the authoritative Showdown turn');
 assert.equal(terminal.p1[0].heldItem, '', 'real Showdown must authoritatively consume Throat Spray after Hyper Voice');
 assert.equal(terminal.p1[0].moves[0].pp, 2, 'real Showdown must authoritatively consume one PP');
+assert.equal(session.battleStream.battle.sides[0].pokemon[0].boosts.spa, 1, 'real Showdown must own the transient Throat Spray SpA boost');
 assert.deepEqual(state.party, persistentBeforeBattle, 'FIGHT must not mutate persistent Mapless party before terminal commit');
 
 const committed = commitShowdownStreamTerminal(state, {
@@ -124,12 +124,16 @@ assert.equal(committed.state.party[0].hp, terminal.p1[0].hp);
 assert.equal(committed.state.party[0].status, 'brn');
 assert.equal(committed.state.party[0].heldItem, '', 'consumed held item must commit back to Mapless');
 assert.equal(committed.state.party[0].moves[0].pp, 2);
+assert.equal('boosts' in committed.state.party[0], false, 'transient Showdown stat stages must not persist');
+assert.equal('volatile' in committed.state.party[0], false, 'transient volatile state must not persist');
 
 const restored = restoreNewCoreSave(serializeNewCoreSave(committed.state));
 assert.equal(restored.party[0].hp, terminal.p1[0].hp);
 assert.equal(restored.party[0].status, 'brn');
 assert.equal(restored.party[0].heldItem, '', 'consumed held item must remain consumed after reload');
 assert.equal(restored.party[0].moves[0].pp, 2);
+assert.equal('boosts' in restored.party[0], false, 'transient stat stages must remain absent after reload');
+assert.equal('volatile' in restored.party[0], false, 'transient volatile state must remain absent after reload');
 const replay = commitShowdownStreamTerminal(restored, {
   battleId: 'real-showdown-battle-1',
   session,
