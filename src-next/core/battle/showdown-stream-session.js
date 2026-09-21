@@ -21,7 +21,7 @@ function playerCommand(side, player, packedTeam) {
 }
 
 function maplessId(member) {
-  return String(member?.maplessId ?? member?.id ?? member?.personalId ?? member?.species ?? '');
+  return String(member?.maplessId ?? member?.id ?? member?.personalId ?? '');
 }
 
 function moveId(move) {
@@ -51,18 +51,29 @@ function hydratePersistentMember(battle, pokemon, sourceMember) {
   }
 }
 
-function hydratePersistentSide(battle, sideIndex, sourceTeam) {
+function hydratePersistentSide(battle, sideIndex, sourceTeam, identityByPokemon) {
   const pokemon = battle?.sides?.[sideIndex]?.pokemon ?? [];
   if (pokemon.length !== sourceTeam.length) {
     throw new Error('Showdown persistent hydration requires one resolved Pokemon per projected team member');
   }
-  pokemon.forEach((member, index) => hydratePersistentMember(battle, member, sourceTeam[index]));
+  const sideIds = new Set();
+  pokemon.forEach((member, index) => {
+    const sourceMember = sourceTeam[index];
+    const id = maplessId(sourceMember);
+    if (!id) throw new Error('Showdown persistent hydration requires a stable Mapless Pokemon id');
+    if (sideIds.has(id)) throw new Error(`Duplicate Mapless Pokemon id in Showdown projection: ${id}`);
+    sideIds.add(id);
+    identityByPokemon.set(member, id);
+    hydratePersistentMember(battle, member, sourceMember);
+  });
 }
 
-function resolvedPokemon(pokemon, sourceMember) {
+function resolvedPokemon(pokemon, identityByPokemon) {
+  const id = identityByPokemon.get(pokemon);
+  if (!id) throw new Error('Resolved Showdown Pokemon has no battle-local Mapless identity');
   const moveSlots = pokemon?.moveSlots ?? [];
   return Object.freeze({
-    maplessId: maplessId(sourceMember),
+    maplessId: id,
     hp: Number(pokemon?.hp ?? 0),
     maxhp: Number(pokemon?.maxhp ?? pokemon?.maxHp ?? 0),
     status: pokemon?.status ? String(pokemon.status) : '',
@@ -106,6 +117,7 @@ export function createShowdownStreamSession(showdown, config) {
   const seed = config.seed;
   const start = { formatid };
   if (seed !== undefined) start.seed = seed;
+  const identityByPokemon = new WeakMap();
 
   let started = false;
   async function startBattle() {
@@ -114,8 +126,8 @@ export function createShowdownStreamSession(showdown, config) {
     await streams.omniscient.write(playerCommand('p1', config.p1, p1Team));
     await streams.omniscient.write(playerCommand('p2', config.p2, p2Team));
     if (!battleStream.battle) throw new Error('Showdown battle state is unavailable after player projection');
-    hydratePersistentSide(battleStream.battle, 0, config.p1.team);
-    hydratePersistentSide(battleStream.battle, 1, config.p2.team);
+    hydratePersistentSide(battleStream.battle, 0, config.p1.team, identityByPokemon);
+    hydratePersistentSide(battleStream.battle, 1, config.p2.team, identityByPokemon);
     started = true;
     return true;
   }
@@ -136,16 +148,16 @@ export function createShowdownStreamSession(showdown, config) {
   function resolvedState() {
     if (!started || !battleStream.battle) throw new Error('Showdown battle state is not available');
     const sides = battleStream.battle.sides ?? [];
-    const projectSide = (sideIndex, sourceTeam) => {
+    const projectSide = (sideIndex) => {
       const pokemon = sides[sideIndex]?.pokemon ?? [];
-      return pokemon.map((member, index) => resolvedPokemon(member, sourceTeam[index]));
+      return pokemon.map((member) => resolvedPokemon(member, identityByPokemon));
     };
     return Object.freeze({
       terminal: Boolean(battleStream.battle.ended),
       winner: battleStream.battle.winner ? String(battleStream.battle.winner) : '',
       turn: Number(battleStream.battle.turn ?? 0),
-      p1: projectSide(0, config.p1.team),
-      p2: projectSide(1, config.p2.team),
+      p1: projectSide(0),
+      p2: projectSide(1),
     });
   }
 
