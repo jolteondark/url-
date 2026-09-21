@@ -78,6 +78,14 @@ const missingPp = createShowdownStreamSession(showdown, {
 });
 await assert.rejects(() => missingPp.start(), /Persistent PP projection requires current PP for move: thunderbolt/);
 
+for (const [id, pp] of [['negative-pp', -1], ['over-max-pp', 16]]) {
+  const invalidPp = createShowdownStreamSession(showdown, {
+    p1: { name: 'Mapless', team: [{ id, species: 'Pikachu', hp: 17, moves: [{ id: 'thunderbolt', pp }] }] },
+    p2: { name: 'Wild', team: [{ id: `wild-${id}`, species: 'Magikarp', hp: 11, moves: [{ id: 'splash', pp: 9 }] }] },
+  });
+  await assert.rejects(() => invalidPp.start(), /Persistent PP projection is outside Showdown bounds for thunderbolt/);
+}
+
 const mismatchedMove = createShowdownStreamSession(showdown, {
   p1: { name: 'Mapless', team: [{ id: 'wrong-move', species: 'Pikachu', hp: 17, moves: [{ id: 'quickattack', pp: 7 }] }] },
   p2: { name: 'Wild', team: [{ id: 'wild-5', species: 'Magikarp', hp: 11, moves: [{ id: 'splash', pp: 9 }] }] },
