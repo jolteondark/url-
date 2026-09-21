@@ -28,6 +28,34 @@ function moveId(move) {
   return String(move?.id ?? move?.move ?? move ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
+function hydratePersistentStatus(battle, pokemon, sourceMember) {
+  const status = sourceMember.status ? String(sourceMember.status).toLowerCase() : '';
+  pokemon.status = status;
+  pokemon.statusState = typeof battle?.initEffectState === 'function'
+    ? battle.initEffectState(status ? { id: status, target: pokemon } : {})
+    : { id: status, ...(status ? { target: pokemon } : {}) };
+
+  // Persistent status hydration bypasses Pokemon#setStatus on purpose: applying a
+  // pre-existing status again would emit protocol messages and rerun application
+  // semantics. However, some Showdown statuses keep simulator-owned state that is
+  // normally initialized by their onStart hook. Toxic is deterministic at a fresh
+  // battle boundary and must start at stage 0 or its first residual is incorrect.
+  if (status === 'tox') pokemon.statusState.stage = 0;
+
+  // Sleep's remaining-turn counter is not derivable from the status id. Silently
+  // inventing it here would make Mapless, rather than Showdown/persistent state,
+  // own battle semantics. Fail closed until the persistent model projects that
+  // counter explicitly.
+  if (status === 'slp' && !Number.isFinite(Number(sourceMember.statusTurns))) {
+    throw new Error('Persistent sleep projection requires statusTurns');
+  }
+  if (status === 'slp') {
+    const turns = Math.max(1, Math.trunc(Number(sourceMember.statusTurns)));
+    pokemon.statusState.startTime = turns;
+    pokemon.statusState.time = turns;
+  }
+}
+
 function hydratePersistentMember(battle, pokemon, sourceMember) {
   if (!pokemon || !sourceMember) throw new Error('Showdown persistent hydration requires matching Pokemon');
 
@@ -37,11 +65,7 @@ function hydratePersistentMember(battle, pokemon, sourceMember) {
     pokemon.fainted = pokemon.hp <= 0;
   }
 
-  const status = sourceMember.status ? String(sourceMember.status).toLowerCase() : '';
-  pokemon.status = status;
-  pokemon.statusState = typeof battle?.initEffectState === 'function'
-    ? battle.initEffectState(status ? { id: status, target: pokemon } : {})
-    : { id: status, target: pokemon };
+  hydratePersistentStatus(battle, pokemon, sourceMember);
 
   const sourceMoves = new Map((sourceMember.moves ?? []).map((move) => [moveId(move), move]));
   for (const slot of pokemon.moveSlots ?? []) {
