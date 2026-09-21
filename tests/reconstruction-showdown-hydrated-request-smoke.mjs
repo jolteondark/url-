@@ -30,11 +30,12 @@ const showdown = {
   Teams: { pack: () => 'PACKED' },
 };
 
-const session = createShowdownStreamSession(showdown, {
-  p1: { name: 'Mapless', team: [{ id: 'hero', species: 'Pikachu', hp: 17, status: 'tox', moves: [{ id: 'thunderbolt', pp: 3 }] }] },
-  p2: { name: 'Wild', team: [{ id: 'wild', species: 'Magikarp', hp: 11, moves: [{ id: 'splash', pp: 9 }] }] },
+const config = (member, wildId = 'wild') => ({
+  p1: { name: 'Mapless', team: [member] },
+  p2: { name: 'Wild', team: [{ id: wildId, species: 'Magikarp', hp: 11, moves: [{ id: 'splash', pp: 9 }] }] },
 });
 
+const session = createShowdownStreamSession(showdown, config({ id: 'hero', species: 'Pikachu', hp: 17, status: 'tox', moves: [{ id: 'thunderbolt', pp: 3 }] }));
 await session.start();
 assert.deepEqual(requestSnapshots, [{ hp: 17, status: 'tox', pp: 3 }], 'Showdown request must be rebuilt only after persistent hydration');
 assert.equal(statusStateSnapshot.id, 'tox');
@@ -43,53 +44,41 @@ assert.equal(session.resolvedState().p1[0].hp, 17);
 assert.equal(session.resolvedState().p1[0].status, 'tox');
 assert.equal(session.resolvedState().p1[0].moves[0].pp, 3);
 
-const sleeping = createShowdownStreamSession(showdown, {
-  p1: { name: 'Mapless', team: [{ id: 'sleepy', species: 'Pikachu', hp: 17, status: 'slp', statusTurns: 2, moves: [{ id: 'thunderbolt', pp: 3 }] }] },
-  p2: { name: 'Wild', team: [{ id: 'wild-2', species: 'Magikarp', hp: 11, moves: [{ id: 'splash', pp: 9 }] }] },
-});
+const sleeping = createShowdownStreamSession(showdown, config({ id: 'sleepy', species: 'Pikachu', hp: 17, status: 'slp', statusTurns: 2, moves: [{ id: 'thunderbolt', pp: 3 }] }, 'wild-2'));
 await sleeping.start();
 assert.equal(sleeping.battleStream.battle.sides[0].pokemon[0].statusState.time, 2);
 assert.equal(sleeping.battleStream.battle.sides[0].pokemon[0].statusState.startTime, 2);
 assert.equal(sleeping.resolvedState().p1[0].statusTurns, 2, 'remaining Showdown sleep turns must cross the terminal observation boundary');
 
-const ambiguousSleep = createShowdownStreamSession(showdown, {
-  p1: { name: 'Mapless', team: [{ id: 'sleepy-unknown', species: 'Pikachu', hp: 17, status: 'slp', moves: [{ id: 'thunderbolt', pp: 3 }] }] },
-  p2: { name: 'Wild', team: [{ id: 'wild-3', species: 'Magikarp', hp: 11, moves: [{ id: 'splash', pp: 9 }] }] },
-});
-await assert.rejects(() => ambiguousSleep.start(), /Persistent sleep projection requires statusTurns/);
+for (const [id, status] of [['unknown-status', 'confusion'], ['volatile-status', 'flinch'], ['non-showdown-status', 'frostbite']]) {
+  const invalidStatus = createShowdownStreamSession(showdown, config({ id, species: 'Pikachu', hp: 17, status, moves: [{ id: 'thunderbolt', pp: 3 }] }, `wild-${id}`));
+  await assert.rejects(() => invalidStatus.start(), /Persistent status projection requires a canonical Showdown major status/);
+}
 
-const missingHp = createShowdownStreamSession(showdown, {
-  p1: { name: 'Mapless', team: [{ id: 'missing-hp', species: 'Pikachu', moves: [{ id: 'thunderbolt', pp: 3 }] }] },
-  p2: { name: 'Wild', team: [{ id: 'wild-hp', species: 'Magikarp', hp: 11, moves: [{ id: 'splash', pp: 9 }] }] },
-});
+for (const [id, statusTurns] of [['sleep-missing', undefined], ['sleep-zero', 0], ['sleep-negative', -1], ['sleep-fractional', 1.5]]) {
+  const member = { id, species: 'Pikachu', hp: 17, status: 'slp', moves: [{ id: 'thunderbolt', pp: 3 }] };
+  if (statusTurns !== undefined) member.statusTurns = statusTurns;
+  const invalidSleep = createShowdownStreamSession(showdown, config(member, `wild-${id}`));
+  await assert.rejects(() => invalidSleep.start(), /Persistent sleep projection requires a positive integer statusTurns/);
+}
+
+const missingHp = createShowdownStreamSession(showdown, config({ id: 'missing-hp', species: 'Pikachu', moves: [{ id: 'thunderbolt', pp: 3 }] }, 'wild-hp'));
 await assert.rejects(() => missingHp.start(), /Persistent HP projection requires finite current HP/);
 
 for (const [id, hp] of [['negative-hp', -1], ['over-max-hp', 36]]) {
-  const invalidHp = createShowdownStreamSession(showdown, {
-    p1: { name: 'Mapless', team: [{ id, species: 'Pikachu', hp, moves: [{ id: 'thunderbolt', pp: 3 }] }] },
-    p2: { name: 'Wild', team: [{ id: `wild-${id}`, species: 'Magikarp', hp: 11, moves: [{ id: 'splash', pp: 9 }] }] },
-  });
+  const invalidHp = createShowdownStreamSession(showdown, config({ id, species: 'Pikachu', hp, moves: [{ id: 'thunderbolt', pp: 3 }] }, `wild-${id}`));
   await assert.rejects(() => invalidHp.start(), /Persistent HP projection is outside Showdown bounds/);
 }
 
-const missingPp = createShowdownStreamSession(showdown, {
-  p1: { name: 'Mapless', team: [{ id: 'missing-pp', species: 'Pikachu', hp: 17, moves: [{ id: 'thunderbolt' }] }] },
-  p2: { name: 'Wild', team: [{ id: 'wild-4', species: 'Magikarp', hp: 11, moves: [{ id: 'splash', pp: 9 }] }] },
-});
+const missingPp = createShowdownStreamSession(showdown, config({ id: 'missing-pp', species: 'Pikachu', hp: 17, moves: [{ id: 'thunderbolt' }] }, 'wild-4'));
 await assert.rejects(() => missingPp.start(), /Persistent PP projection requires current PP for move: thunderbolt/);
 
 for (const [id, pp] of [['negative-pp', -1], ['over-max-pp', 16]]) {
-  const invalidPp = createShowdownStreamSession(showdown, {
-    p1: { name: 'Mapless', team: [{ id, species: 'Pikachu', hp: 17, moves: [{ id: 'thunderbolt', pp }] }] },
-    p2: { name: 'Wild', team: [{ id: `wild-${id}`, species: 'Magikarp', hp: 11, moves: [{ id: 'splash', pp: 9 }] }] },
-  });
+  const invalidPp = createShowdownStreamSession(showdown, config({ id, species: 'Pikachu', hp: 17, moves: [{ id: 'thunderbolt', pp }] }, `wild-${id}`));
   await assert.rejects(() => invalidPp.start(), /Persistent PP projection is outside Showdown bounds for thunderbolt/);
 }
 
-const mismatchedMove = createShowdownStreamSession(showdown, {
-  p1: { name: 'Mapless', team: [{ id: 'wrong-move', species: 'Pikachu', hp: 17, moves: [{ id: 'quickattack', pp: 7 }] }] },
-  p2: { name: 'Wild', team: [{ id: 'wild-5', species: 'Magikarp', hp: 11, moves: [{ id: 'splash', pp: 9 }] }] },
-});
+const mismatchedMove = createShowdownStreamSession(showdown, config({ id: 'wrong-move', species: 'Pikachu', hp: 17, moves: [{ id: 'quickattack', pp: 7 }] }, 'wild-5'));
 await assert.rejects(() => mismatchedMove.start(), /Persistent PP projection could not match Showdown move slot: thunderbolt/);
 
 console.log('reconstruction Showdown hydrated request/status/HP/PP smoke: ok');
