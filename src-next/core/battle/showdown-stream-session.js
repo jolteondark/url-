@@ -34,18 +34,7 @@ function hydratePersistentStatus(battle, pokemon, sourceMember) {
   pokemon.statusState = typeof battle?.initEffectState === 'function'
     ? battle.initEffectState(status ? { id: status, target: pokemon } : {})
     : { id: status, ...(status ? { target: pokemon } : {}) };
-
-  // Persistent status hydration bypasses Pokemon#setStatus on purpose: applying a
-  // pre-existing status again would emit protocol messages and rerun application
-  // semantics. However, some Showdown statuses keep simulator-owned state that is
-  // normally initialized by their onStart hook. Toxic is deterministic at a fresh
-  // battle boundary and must start at stage 0 or its first residual is incorrect.
   if (status === 'tox') pokemon.statusState.stage = 0;
-
-  // Sleep's remaining-turn counter is not derivable from the status id. Silently
-  // inventing it here would make Mapless, rather than Showdown/persistent state,
-  // own battle semantics. Fail closed until the persistent model projects that
-  // counter explicitly.
   if (status === 'slp' && !Number.isFinite(Number(sourceMember.statusTurns))) {
     throw new Error('Persistent sleep projection requires statusTurns');
   }
@@ -58,15 +47,12 @@ function hydratePersistentStatus(battle, pokemon, sourceMember) {
 
 function hydratePersistentMember(battle, pokemon, sourceMember) {
   if (!pokemon || !sourceMember) throw new Error('Showdown persistent hydration requires matching Pokemon');
-
   if (Number.isFinite(Number(sourceMember.hp))) {
     const hp = Math.trunc(Number(sourceMember.hp));
     pokemon.hp = Math.max(0, Math.min(Number(pokemon.maxhp ?? hp), hp));
     pokemon.fainted = pokemon.hp <= 0;
   }
-
   hydratePersistentStatus(battle, pokemon, sourceMember);
-
   const sourceMoves = new Map((sourceMember.moves ?? []).map((move) => [moveId(move), move]));
   for (const slot of pokemon.moveSlots ?? []) {
     const sourceMove = sourceMoves.get(moveId(slot));
@@ -96,11 +82,12 @@ function resolvedPokemon(pokemon, identityByPokemon) {
   const id = identityByPokemon.get(pokemon);
   if (!id) throw new Error('Resolved Showdown Pokemon has no battle-local Mapless identity');
   const moveSlots = pokemon?.moveSlots ?? [];
-  return Object.freeze({
+  const status = pokemon?.status ? String(pokemon.status) : '';
+  const resolved = {
     maplessId: id,
     hp: Number(pokemon?.hp ?? 0),
     maxhp: Number(pokemon?.maxhp ?? pokemon?.maxHp ?? 0),
-    status: pokemon?.status ? String(pokemon.status) : '',
+    status,
     heldItem: pokemon?.item ? String(pokemon.item) : '',
     fainted: Boolean(pokemon?.fainted),
     moves: moveSlots.map((move) => Object.freeze({
@@ -108,16 +95,15 @@ function resolvedPokemon(pokemon, identityByPokemon) {
       pp: Number(move.pp ?? 0),
       maxpp: Number(move.maxpp ?? move.maxPP ?? move.pp ?? 0),
     })),
-  });
+  };
+  if (status.toLowerCase() === 'slp') {
+    const turns = Number(pokemon?.statusState?.time);
+    if (!Number.isFinite(turns)) throw new Error('Resolved Showdown sleep state requires remaining time');
+    resolved.statusTurns = Math.max(1, Math.trunc(turns));
+  }
+  return Object.freeze(resolved);
 }
 
-/**
- * Creates the first executable New Core -> Showdown stream boundary.
- *
- * This module deliberately owns no Pokemon battle semantics. It only projects
- * Mapless battle inputs into Showdown's simulator protocol, submits player
- * choices, and observes the authoritative resolved simulator state.
- */
 export function createShowdownStreamSession(showdown, config) {
   if (!showdown?.BattleStreams?.BattleStream || !showdown?.BattleStreams?.getPlayerStreams) {
     throw new Error('Executable Showdown BattleStreams surface is required');
@@ -158,10 +144,6 @@ export function createShowdownStreamSession(showdown, config) {
     if (!battle) throw new Error('Showdown battle state is unavailable after player projection');
     hydratePersistentSide(battle, 0, config.p1.team, identityByPokemon);
     hydratePersistentSide(battle, 1, config.p2.team, identityByPokemon);
-    // Both >player commands can cause Showdown to build its initial move request
-    // before Mapless current HP/status/PP have been hydrated. Rebuild that request
-    // through Showdown itself so the first FIGHT UI/request observes the same
-    // authoritative state that move execution will use. This adds no battle rules.
     if (typeof battle.makeRequest !== 'function') {
       throw new Error('Showdown battle makeRequest surface is required after persistent hydration');
     }
