@@ -18,6 +18,18 @@ assert.equal(artifact.showdownRevision, REQUIRED_SHOWDOWN_REVISION);
 const showdown = await loadShowdownBrowserArtifact(artifact);
 assert.equal(showdown.revision, REQUIRED_SHOWDOWN_REVISION);
 
+const wildTeam = [{
+  id: 'wild-magikarp',
+  species: 'Magikarp',
+  name: 'Magikarp',
+  level: 5,
+  ability: 'Swift Swim',
+  hp: 15,
+  status: '',
+  heldItem: '',
+  moves: [{ id: 'splash', pp: 40, maxpp: 40 }],
+}];
+
 const state = createInitialGameState({
   seed: 4242,
   runId: 'real-showdown-roundtrip',
@@ -31,33 +43,22 @@ const state = createInitialGameState({
     status: 'brn',
     heldItem: 'Throat Spray',
     moves: [{ id: 'hypervoice', pp: 3, maxpp: 10 }],
-    // Deliberately dirty pre-battle state: the terminal boundary must strip
-    // battle-only state rather than accidentally carrying it into persistence.
     boosts: { spa: -2 },
     volatile: { seeded: true },
   }],
 });
 const persistentBeforeBattle = structuredClone(state.party);
 
-const session = createShowdownStreamSession(showdown, {
-  formatid: 'gen9customgame',
-  seed: [1, 2, 3, 4],
-  p1: { name: 'Mapless', team: state.party },
-  p2: {
-    name: 'Wild',
-    team: [{
-      id: 'wild-magikarp',
-      species: 'Magikarp',
-      name: 'Magikarp',
-      level: 5,
-      ability: 'Swift Swim',
-      hp: 15,
-      status: '',
-      heldItem: '',
-      moves: [{ id: 'splash', pp: 40, maxpp: 40 }],
-    }],
-  },
-});
+function createSession(party, seed = [1, 2, 3, 4]) {
+  return createShowdownStreamSession(showdown, {
+    formatid: 'gen9customgame',
+    seed,
+    p1: { name: 'Mapless', team: party },
+    p2: { name: 'Wild', team: wildTeam },
+  });
+}
+
+const session = createSession(state.party);
 
 function rawPokemon(pokemon) {
   return {
@@ -142,6 +143,21 @@ assert.equal(replay.committed, false, 'terminal replay after reload must not com
 assert.equal(replay.duplicate, true);
 assert.equal(replay.state, restored);
 
+// Close the full persistence loop: a fresh battle created from the reloaded
+// Mapless party must hydrate exactly the committed persistent state, while the
+// consumed item and transient battle-only state stay gone.
+const reprojectedSession = createSession(restored.party, [5, 6, 7, 8]);
+await reprojectedSession.start();
+const reprojected = reprojectedSession.resolvedState();
+assertAdapterMatchesRawShowdown(reprojected, reprojectedSession.battleStream.battle);
+assert.equal(reprojected.terminal, false);
+assert.equal(reprojected.p1[0].maplessId, 'starter-pikachu');
+assert.equal(reprojected.p1[0].hp, terminal.p1[0].hp, 'reloaded HP must hydrate into the next real Showdown battle');
+assert.equal(reprojected.p1[0].status, 'brn', 'reloaded status must hydrate into the next real Showdown battle');
+assert.equal(reprojected.p1[0].heldItem, '', 'consumed held item must not resurrect on reprojection');
+assert.equal(reprojected.p1[0].moves[0].pp, 2, 'reloaded PP must hydrate into the next real Showdown battle');
+assert.equal(reprojectedSession.battleStream.battle.sides[0].pokemon[0].boosts.spa, 0, 'transient stat stages must reset on a fresh battle');
+
 console.log(JSON.stringify({
   ok: true,
   showdownRevision: showdown.revision,
@@ -149,4 +165,5 @@ console.log(JSON.stringify({
   winner: terminal.winner,
   p1: terminal.p1,
   p2: terminal.p2,
+  reprojectedP1: reprojected.p1,
 }, null, 2));
