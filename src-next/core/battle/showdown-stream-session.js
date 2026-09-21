@@ -2,6 +2,8 @@ function assertSide(side) {
   if (side !== 'p1' && side !== 'p2') throw new Error(`Invalid Showdown side: ${side}`);
 }
 
+const PERSISTENT_MAJOR_STATUSES = new Set(['', 'brn', 'frz', 'par', 'psn', 'slp', 'tox']);
+
 function normalizeTeamMember(member) {
   if (!member?.species) throw new Error('Showdown team member requires species');
   const moves = (member.moves ?? []).map((move) => String(move.id ?? move));
@@ -28,18 +30,26 @@ function moveId(move) {
   return String(move?.id ?? move?.move ?? move ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
+function exactSleepTurns(value, boundary) {
+  const turns = Number(value);
+  if (!Number.isInteger(turns) || turns < 1) {
+    throw new Error(`${boundary} sleep projection requires a positive integer statusTurns`);
+  }
+  return turns;
+}
+
 function hydratePersistentStatus(battle, pokemon, sourceMember) {
   const status = sourceMember.status ? String(sourceMember.status).toLowerCase() : '';
+  if (!PERSISTENT_MAJOR_STATUSES.has(status)) {
+    throw new Error(`Persistent status projection requires a canonical Showdown major status: ${status || '<empty>'}`);
+  }
   pokemon.status = status;
   pokemon.statusState = typeof battle?.initEffectState === 'function'
     ? battle.initEffectState(status ? { id: status, target: pokemon } : {})
     : { id: status, ...(status ? { target: pokemon } : {}) };
   if (status === 'tox') pokemon.statusState.stage = 0;
-  if (status === 'slp' && !Number.isFinite(Number(sourceMember.statusTurns))) {
-    throw new Error('Persistent sleep projection requires statusTurns');
-  }
   if (status === 'slp') {
-    const turns = Math.max(1, Math.trunc(Number(sourceMember.statusTurns)));
+    const turns = exactSleepTurns(sourceMember.statusTurns, 'Persistent');
     pokemon.statusState.startTime = turns;
     pokemon.statusState.time = turns;
   }
@@ -126,9 +136,7 @@ function resolvedPokemon(pokemon, identityByPokemon) {
     })),
   };
   if (status.toLowerCase() === 'slp') {
-    const turns = Number(pokemon?.statusState?.time);
-    if (!Number.isFinite(turns)) throw new Error('Resolved Showdown sleep state requires remaining time');
-    resolved.statusTurns = Math.max(1, Math.trunc(turns));
+    resolved.statusTurns = exactSleepTurns(pokemon?.statusState?.time, 'Resolved Showdown');
   }
   return Object.freeze(resolved);
 }
