@@ -26,8 +26,8 @@ state.party = [{
   level: 50,
   ability: 'Static',
   hp: 60,
-  status: '',
-  heldItem: '',
+  status: 'brn',
+  heldItem: 'Light Ball',
   moves: [{ id: 'thunderbolt', pp: 3, maxpp: 15 }],
 }];
 
@@ -56,10 +56,12 @@ const starting = session.resolvedState();
 assert.equal(starting.terminal, false);
 assert.equal(starting.p1[0].maplessId, 'starter-pikachu');
 assert.equal(starting.p1[0].hp, 60, 'persistent current HP must hydrate into real Showdown before FIGHT');
+assert.equal(starting.p1[0].status, 'brn', 'persistent status must hydrate into real Showdown before FIGHT');
+assert.equal(starting.p1[0].item, 'lightball', 'persistent held item must project into real Showdown before FIGHT');
 assert.equal(starting.p1[0].moves[0].pp, 3, 'persistent PP must hydrate into real Showdown before FIGHT');
 
 // Both choices are submitted to Showdown; Showdown alone owns turn order, damage,
-// PP consumption, fainting, and the terminal decision.
+// PP consumption, fainting, residual status damage, and the terminal decision.
 await Promise.all([
   session.fight('p1', 1),
   session.fight('p2', 1),
@@ -68,6 +70,8 @@ await Promise.all([
 const terminal = session.resolvedState();
 assert.equal(terminal.terminal, true, 'fixture must terminate in one real Showdown turn');
 assert.equal(terminal.p2[0].fainted, true, 'real Showdown must authoritatively resolve the wild faint');
+assert.equal(terminal.p1[0].status, 'brn', 'persistent status must survive the authoritative Showdown turn');
+assert.equal(terminal.p1[0].item, 'lightball', 'unconsumed held item must survive the authoritative Showdown turn');
 assert.equal(terminal.p1[0].moves[0].pp, 2, 'real Showdown must authoritatively consume one PP');
 
 const committed = commitShowdownStreamTerminal(state, {
@@ -77,10 +81,14 @@ const committed = commitShowdownStreamTerminal(state, {
 assert.equal(committed.committed, true);
 assert.equal(committed.duplicate, false);
 assert.equal(committed.state.party[0].hp, terminal.p1[0].hp);
+assert.equal(committed.state.party[0].status, 'brn');
+assert.equal(committed.state.party[0].heldItem, 'lightball');
 assert.equal(committed.state.party[0].moves[0].pp, 2);
 
 const restored = restoreNewCoreSave(serializeNewCoreSave(committed.state));
 assert.equal(restored.party[0].hp, terminal.p1[0].hp);
+assert.equal(restored.party[0].status, 'brn');
+assert.equal(restored.party[0].heldItem, 'lightball');
 assert.equal(restored.party[0].moves[0].pp, 2);
 const replay = commitShowdownStreamTerminal(restored, {
   battleId: 'real-showdown-battle-1',
