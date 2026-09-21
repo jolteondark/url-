@@ -4,6 +4,10 @@ function assertSide(side) {
 
 const PERSISTENT_MAJOR_STATUSES = new Set(['', 'brn', 'frz', 'par', 'psn', 'slp', 'tox']);
 
+function normalizeId(value) {
+  return String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
 function normalizeTeamMember(member) {
   if (!member?.species) throw new Error('Showdown team member requires species');
   const moves = (member.moves ?? []).map((move) => String(move.id ?? move));
@@ -27,7 +31,7 @@ function maplessId(member) {
 }
 
 function moveId(move) {
-  return String(move?.id ?? move?.move ?? move ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  return normalizeId(move?.id ?? move?.move ?? move);
 }
 
 function exactSleepTurns(value, boundary) {
@@ -65,6 +69,11 @@ function hydratePersistentMember(battle, pokemon, sourceMember) {
   pokemon.hp = hp;
   pokemon.fainted = pokemon.hp <= 0;
   hydratePersistentStatus(battle, pokemon, sourceMember);
+
+  const projectedItem = normalizeId(sourceMember.heldItem ?? sourceMember.item ?? '');
+  const showdownItem = normalizeId(pokemon.item);
+  if (showdownItem !== projectedItem) throw new Error(`Persistent held-item projection mismatch: ${projectedItem || '<empty>'}/${showdownItem || '<empty>'}`);
+  pokemon.item = projectedItem;
 
   const sourceMoves = sourceMember.moves ?? [];
   const sourceById = new Map();
