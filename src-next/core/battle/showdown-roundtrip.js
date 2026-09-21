@@ -12,6 +12,10 @@ function cloneMoves(moves = []) {
   }));
 }
 
+function moveId(move) {
+  return String(move?.id ?? move?.move ?? move ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
 export function projectMaplessPokemonToShowdown(member) {
   if (!member?.species) throw new Error('Battle projection requires species');
   return Object.freeze({
@@ -39,11 +43,23 @@ export function createShowdownBattleSnapshot(state, { battleId }) {
   });
 }
 
-function persistentPatch(resolved) {
+function mergeResolvedMovePp(sourceMoves = [], resolvedMoves = []) {
+  const resolvedById = new Map(resolvedMoves.map((move) => [moveId(move), move]));
+  return sourceMoves.map((move) => {
+    const resolved = resolvedById.get(moveId(move));
+    if (!resolved || !Number.isFinite(Number(resolved.pp))) return { ...move };
+    return { ...move, pp: Number(resolved.pp) };
+  });
+}
+
+function persistentPatch(source, resolved) {
   return {
     hp: Number(resolved.hp),
     status: resolved.status ? String(resolved.status) : '',
-    moves: cloneMoves(resolved.moves),
+    // Showdown owns current PP during battle, but its move-slot maxpp is derived
+    // from simulator defaults. Keep Mapless move metadata/maxpp and only commit
+    // the authoritative current PP by stable move id.
+    moves: mergeResolvedMovePp(source.moves, resolved.moves),
     heldItem: resolved.heldItem ? String(resolved.heldItem) : '',
   };
 }
@@ -71,7 +87,7 @@ export function commitShowdownTerminalResult(state, result) {
     const clean = clearTransientBattleState(member);
     const id = String(member.id ?? member.personalId ?? member.species);
     const resolved = byId.get(id);
-    return resolved ? { ...clean, ...persistentPatch(resolved) } : clean;
+    return resolved ? { ...clean, ...persistentPatch(clean, resolved) } : clean;
   });
   next.diagnostics ??= {};
   next.diagnostics[BATTLE_SYNC_IDS] ??= [];
