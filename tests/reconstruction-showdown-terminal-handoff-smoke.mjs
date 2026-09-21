@@ -32,7 +32,10 @@ const terminalSession = {
         status: 'par',
         heldItem: '',
         fainted: false,
-        moves: [{ id: 'thunderbolt', pp: 12, maxpp: 15 }],
+        // Deliberately differ from Mapless maxpp. Showdown owns current PP for
+        // the battle, but its derived move-slot maxpp must not rewrite Mapless
+        // progression metadata during terminal commit.
+        moves: [{ id: 'thunderbolt', pp: 12, maxpp: 24 }],
       }],
       p2: [],
     };
@@ -49,6 +52,7 @@ assert.equal(first.duplicate, false);
 assert.equal(first.state.party[0].hp, 19);
 assert.equal(first.state.party[0].status, 'par');
 assert.equal(first.state.party[0].moves[0].pp, 12);
+assert.equal(first.state.party[0].moves[0].maxpp, 15, 'Showdown-derived maxpp must not overwrite Mapless move metadata');
 assert.equal(first.state.party[0].heldItem, '');
 assert.equal('boosts' in first.state.party[0], false);
 assert.equal('volatile' in first.state.party[0], false);
@@ -61,6 +65,7 @@ assert.equal(replay.committed, false);
 assert.equal(replay.duplicate, true);
 assert.equal(replay.state, first.state);
 assert.equal(replay.state.party[0].moves[0].pp, 12);
+assert.equal(replay.state.party[0].moves[0].maxpp, 15);
 
 const restored = restoreNewCoreSave(serializeNewCoreSave(first.state));
 assert.notEqual(restored, first.state, 'reload must reconstruct state from serialized data');
@@ -74,6 +79,7 @@ assert.equal(replayAfterReload.duplicate, true);
 assert.equal(replayAfterReload.state, restored);
 assert.equal(replayAfterReload.state.party[0].hp, 19);
 assert.equal(replayAfterReload.state.party[0].moves[0].pp, 12);
+assert.equal(replayAfterReload.state.party[0].moves[0].maxpp, 15);
 
 assert.throws(
   () => commitShowdownStreamTerminal(stateWithParty(), {
