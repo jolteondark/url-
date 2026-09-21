@@ -47,11 +47,12 @@ function hydratePersistentStatus(battle, pokemon, sourceMember) {
 
 function hydratePersistentMember(battle, pokemon, sourceMember) {
   if (!pokemon || !sourceMember) throw new Error('Showdown persistent hydration requires matching Pokemon');
-  if (Number.isFinite(Number(sourceMember.hp))) {
-    const hp = Math.trunc(Number(sourceMember.hp));
-    pokemon.hp = Math.max(0, Math.min(Number(pokemon.maxhp ?? hp), hp));
-    pokemon.fainted = pokemon.hp <= 0;
+  if (!Number.isFinite(Number(sourceMember.hp))) {
+    throw new Error('Persistent HP projection requires finite current HP');
   }
+  const hp = Math.trunc(Number(sourceMember.hp));
+  pokemon.hp = Math.max(0, Math.min(Number(pokemon.maxhp ?? hp), hp));
+  pokemon.fainted = pokemon.hp <= 0;
   hydratePersistentStatus(battle, pokemon, sourceMember);
 
   const sourceMoves = sourceMember.moves ?? [];
