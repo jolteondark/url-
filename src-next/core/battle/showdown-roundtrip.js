@@ -1,6 +1,6 @@
 import { cloneGameState } from '../game-state.js';
 
-const PERSISTENT_FIELDS = Object.freeze(['hp', 'status', 'moves', 'heldItem']);
+const PERSISTENT_FIELDS = Object.freeze(['hp', 'status', 'statusTurns', 'moves', 'heldItem']);
 const TRANSIENT_FIELDS = Object.freeze(['volatile', 'volatiles', 'statStages', 'boosts', 'battleFlags']);
 const BATTLE_SYNC_IDS = 'appliedBattleStateResultIds';
 
@@ -18,7 +18,7 @@ function moveId(move) {
 
 export function projectMaplessPokemonToShowdown(member) {
   if (!member?.species) throw new Error('Battle projection requires species');
-  return Object.freeze({
+  const projected = {
     maplessId: String(member.id ?? member.personalId ?? member.species),
     species: String(member.species),
     name: String(member.name ?? member.species),
@@ -28,7 +28,11 @@ export function projectMaplessPokemonToShowdown(member) {
     status: member.status ? String(member.status) : '',
     heldItem: member.heldItem ? String(member.heldItem) : '',
     moves: cloneMoves(member.moves),
-  });
+  };
+  if (projected.status.toLowerCase() === 'slp' && Number.isFinite(Number(member.statusTurns))) {
+    projected.statusTurns = Math.max(1, Math.trunc(Number(member.statusTurns)));
+  }
+  return Object.freeze(projected);
 }
 
 export function projectMaplessPartyToShowdown(party = []) {
@@ -53,15 +57,25 @@ function mergeResolvedMovePp(sourceMoves = [], resolvedMoves = []) {
 }
 
 function persistentPatch(source, resolved) {
-  return {
+  const status = resolved.status ? String(resolved.status) : '';
+  const patch = {
     hp: Number(resolved.hp),
-    status: resolved.status ? String(resolved.status) : '',
+    status,
     // Showdown owns current PP during battle, but its move-slot maxpp is derived
     // from simulator defaults. Keep Mapless move metadata/maxpp and only commit
     // the authoritative current PP by stable move id.
     moves: mergeResolvedMovePp(source.moves, resolved.moves),
     heldItem: resolved.heldItem ? String(resolved.heldItem) : '',
   };
+  if (status.toLowerCase() === 'slp') {
+    if (!Number.isFinite(Number(resolved.statusTurns))) {
+      throw new Error('Terminal sleep projection requires statusTurns');
+    }
+    patch.statusTurns = Math.max(1, Math.trunc(Number(resolved.statusTurns)));
+  } else {
+    patch.statusTurns = undefined;
+  }
+  return patch;
 }
 
 function clearTransientBattleState(member) {
@@ -87,7 +101,11 @@ export function commitShowdownTerminalResult(state, result) {
     const clean = clearTransientBattleState(member);
     const id = String(member.id ?? member.personalId ?? member.species);
     const resolved = byId.get(id);
-    return resolved ? { ...clean, ...persistentPatch(clean, resolved) } : clean;
+    if (!resolved) return clean;
+    const patch = persistentPatch(clean, resolved);
+    const committed = { ...clean, ...patch };
+    if (patch.statusTurns === undefined) delete committed.statusTurns;
+    return committed;
   });
   next.diagnostics ??= {};
   next.diagnostics[BATTLE_SYNC_IDS] ??= [];
