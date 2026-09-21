@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createInitialGameState } from '../src-next/core/game-state.js';
+import { serializeNewCoreSave, restoreNewCoreSave } from '../src-next/core/persistence.js';
 import { commitShowdownStreamTerminal } from '../src-next/core/battle/showdown-terminal-handoff.js';
 
 function stateWithParty() {
@@ -60,6 +61,19 @@ assert.equal(replay.committed, false);
 assert.equal(replay.duplicate, true);
 assert.equal(replay.state, first.state);
 assert.equal(replay.state.party[0].moves[0].pp, 12);
+
+const restored = restoreNewCoreSave(serializeNewCoreSave(first.state));
+assert.notEqual(restored, first.state, 'reload must reconstruct state from serialized data');
+assert.deepEqual(restored.diagnostics.appliedBattleStateResultIds, ['showdown-terminal:battle-17']);
+const replayAfterReload = commitShowdownStreamTerminal(restored, {
+  battleId: 'battle-17',
+  session: terminalSession,
+});
+assert.equal(replayAfterReload.committed, false, 'terminal replay after reload must not commit twice');
+assert.equal(replayAfterReload.duplicate, true);
+assert.equal(replayAfterReload.state, restored);
+assert.equal(replayAfterReload.state.party[0].hp, 19);
+assert.equal(replayAfterReload.state.party[0].moves[0].pp, 12);
 
 assert.throws(
   () => commitShowdownStreamTerminal(stateWithParty(), {
