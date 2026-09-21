@@ -3,6 +3,7 @@ import { cloneGameState } from '../game-state.js';
 const PERSISTENT_FIELDS = Object.freeze(['hp', 'status', 'statusTurns', 'moves', 'heldItem']);
 const TRANSIENT_FIELDS = Object.freeze(['volatile', 'volatiles', 'statStages', 'boosts', 'battleFlags']);
 const BATTLE_SYNC_IDS = 'appliedBattleStateResultIds';
+const PERSISTENT_MAJOR_STATUSES = new Set(['', 'brn', 'frz', 'par', 'psn', 'slp', 'tox']);
 
 function cloneMoves(moves = []) {
   return moves.map((move) => ({
@@ -12,8 +13,12 @@ function cloneMoves(moves = []) {
   }));
 }
 
+function normalizeId(value) {
+  return String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
 function moveId(move) {
-  return String(move?.id ?? move?.move ?? move ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  return normalizeId(move?.id ?? move?.move ?? move);
 }
 
 function exactSleepTurns(value, boundary) {
@@ -28,6 +33,23 @@ function exactNonnegativeInteger(value, boundary) {
   const number = Number(value);
   if (!Number.isInteger(number) || number < 0) throw new Error(`${boundary} requires a non-negative integer`);
   return number;
+}
+
+function exactTerminalStatus(value) {
+  const status = value ? String(value).toLowerCase() : '';
+  if (!PERSISTENT_MAJOR_STATUSES.has(status)) {
+    throw new Error(`Terminal status commit requires a canonical Showdown major status: ${status || '<empty>'}`);
+  }
+  return status;
+}
+
+function exactTerminalItem(value) {
+  const item = value ? String(value) : '';
+  const canonical = normalizeId(item);
+  if (item && item !== canonical) {
+    throw new Error(`Terminal held-item commit requires a canonical Showdown item id: ${item}`);
+  }
+  return canonical;
 }
 
 export function projectMaplessPokemonToShowdown(member) {
@@ -88,17 +110,21 @@ function mergeResolvedMovePp(sourceMoves = [], resolvedMoves = []) {
 }
 
 function persistentPatch(source, resolved) {
-  const status = resolved.status ? String(resolved.status) : '';
+  const hp = exactNonnegativeInteger(resolved.hp, 'Terminal HP commit');
+  const maxhp = exactNonnegativeInteger(resolved.maxhp ?? resolved.maxHp, 'Terminal max HP observation');
+  if (maxhp < 1 || hp > maxhp) throw new Error(`Terminal HP commit is outside Showdown bounds: ${hp}/${maxhp}`);
+  const status = exactTerminalStatus(resolved.status);
+  const heldItem = exactTerminalItem(resolved.heldItem);
   const patch = {
-    hp: Number(resolved.hp),
+    hp,
     status,
     // Showdown owns current PP during battle, but its move-slot maxpp is derived
     // from simulator defaults. Keep Mapless move metadata/maxpp and only commit
     // the authoritative current PP by stable move id.
     moves: mergeResolvedMovePp(source.moves, resolved.moves),
-    heldItem: resolved.heldItem ? String(resolved.heldItem) : '',
+    heldItem,
   };
-  if (status.toLowerCase() === 'slp') {
+  if (status === 'slp') {
     patch.statusTurns = exactSleepTurns(resolved.statusTurns, 'Terminal');
   } else {
     patch.statusTurns = undefined;
