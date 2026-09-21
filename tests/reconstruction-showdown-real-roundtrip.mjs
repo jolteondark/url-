@@ -57,7 +57,7 @@ assert.equal(starting.terminal, false);
 assert.equal(starting.p1[0].maplessId, 'starter-pikachu');
 assert.equal(starting.p1[0].hp, 60, 'persistent current HP must hydrate into real Showdown before FIGHT');
 assert.equal(starting.p1[0].status, 'brn', 'persistent status must hydrate into real Showdown before FIGHT');
-assert.equal(starting.p1[0].item, 'lightball', 'persistent held item must project into real Showdown before FIGHT');
+assert.equal(starting.p1[0].heldItem, 'lightball', 'persistent held item must project into real Showdown before FIGHT');
 assert.equal(starting.p1[0].moves[0].pp, 3, 'persistent PP must hydrate into real Showdown before FIGHT');
 
 // Both choices are submitted to Showdown; Showdown alone owns turn order, damage,
@@ -71,7 +71,7 @@ const terminal = session.resolvedState();
 assert.equal(terminal.terminal, true, 'fixture must terminate in one real Showdown turn');
 assert.equal(terminal.p2[0].fainted, true, 'real Showdown must authoritatively resolve the wild faint');
 assert.equal(terminal.p1[0].status, 'brn', 'persistent status must survive the authoritative Showdown turn');
-assert.equal(terminal.p1[0].item, 'lightball', 'unconsumed held item must survive the authoritative Showdown turn');
+assert.equal(terminal.p1[0].heldItem, 'lightball', 'unconsumed held item must survive the authoritative Showdown turn');
 assert.equal(terminal.p1[0].moves[0].pp, 2, 'real Showdown must authoritatively consume one PP');
 
 const committed = commitShowdownStreamTerminal(state, {
