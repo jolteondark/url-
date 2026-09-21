@@ -32,17 +32,19 @@ function moveId(move) {
 
 function exactSleepTurns(value, boundary) {
   const turns = Number(value);
-  if (!Number.isInteger(turns) || turns < 1) {
-    throw new Error(`${boundary} sleep projection requires a positive integer statusTurns`);
-  }
+  if (!Number.isInteger(turns) || turns < 1) throw new Error(`${boundary} sleep projection requires a positive integer statusTurns`);
   return turns;
+}
+
+function exactNonnegativeInteger(value, boundary) {
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < 0) throw new Error(`${boundary} requires a non-negative integer`);
+  return number;
 }
 
 function hydratePersistentStatus(battle, pokemon, sourceMember) {
   const status = sourceMember.status ? String(sourceMember.status).toLowerCase() : '';
-  if (!PERSISTENT_MAJOR_STATUSES.has(status)) {
-    throw new Error(`Persistent status projection requires a canonical Showdown major status: ${status || '<empty>'}`);
-  }
+  if (!PERSISTENT_MAJOR_STATUSES.has(status)) throw new Error(`Persistent status projection requires a canonical Showdown major status: ${status || '<empty>'}`);
   pokemon.status = status;
   pokemon.statusState = typeof battle?.initEffectState === 'function'
     ? battle.initEffectState(status ? { id: status, target: pokemon } : {})
@@ -57,14 +59,9 @@ function hydratePersistentStatus(battle, pokemon, sourceMember) {
 
 function hydratePersistentMember(battle, pokemon, sourceMember) {
   if (!pokemon || !sourceMember) throw new Error('Showdown persistent hydration requires matching Pokemon');
-  if (!Number.isFinite(Number(sourceMember.hp))) {
-    throw new Error('Persistent HP projection requires finite current HP');
-  }
-  const hp = Math.trunc(Number(sourceMember.hp));
+  const hp = exactNonnegativeInteger(sourceMember.hp, 'Persistent HP projection');
   const maxhp = Number(pokemon.maxhp);
-  if (!Number.isFinite(maxhp) || hp < 0 || hp > maxhp) {
-    throw new Error(`Persistent HP projection is outside Showdown bounds: ${hp}/${Number.isFinite(maxhp) ? maxhp : '<unknown>'}`);
-  }
+  if (!Number.isFinite(maxhp) || hp > maxhp) throw new Error(`Persistent HP projection is outside Showdown bounds: ${hp}/${Number.isFinite(maxhp) ? maxhp : '<unknown>'}`);
   pokemon.hp = hp;
   pokemon.fainted = pokemon.hp <= 0;
   hydratePersistentStatus(battle, pokemon, sourceMember);
@@ -75,15 +72,11 @@ function hydratePersistentMember(battle, pokemon, sourceMember) {
     const id = moveId(move);
     if (!id) throw new Error('Persistent PP projection requires a stable move id');
     if (sourceById.has(id)) throw new Error(`Duplicate Mapless move id in Showdown projection: ${id}`);
-    if (!Number.isFinite(Number(move?.pp))) {
-      throw new Error(`Persistent PP projection requires current PP for move: ${id}`);
-    }
+    exactNonnegativeInteger(move?.pp, `Persistent PP projection for ${id}`);
     sourceById.set(id, move);
   }
   const slots = pokemon.moveSlots ?? [];
-  if (slots.length !== sourceMoves.length) {
-    throw new Error('Persistent PP projection requires one Showdown move slot per Mapless move');
-  }
+  if (slots.length !== sourceMoves.length) throw new Error('Persistent PP projection requires one Showdown move slot per Mapless move');
   const hydratedIds = new Set();
   for (const slot of slots) {
     const id = moveId(slot);
@@ -91,20 +84,16 @@ function hydratePersistentMember(battle, pokemon, sourceMember) {
     if (!sourceMove) throw new Error(`Persistent PP projection could not match Showdown move slot: ${id || '<unknown>'}`);
     if (hydratedIds.has(id)) throw new Error(`Duplicate Showdown move slot during PP projection: ${id}`);
     hydratedIds.add(id);
-    const pp = Math.trunc(Number(sourceMove.pp));
+    const pp = exactNonnegativeInteger(sourceMove.pp, `Persistent PP projection for ${id}`);
     const maxpp = Number(slot.maxpp);
-    if (!Number.isFinite(maxpp) || pp < 0 || pp > maxpp) {
-      throw new Error(`Persistent PP projection is outside Showdown bounds for ${id}: ${pp}/${Number.isFinite(maxpp) ? maxpp : '<unknown>'}`);
-    }
+    if (!Number.isFinite(maxpp) || pp > maxpp) throw new Error(`Persistent PP projection is outside Showdown bounds for ${id}: ${pp}/${Number.isFinite(maxpp) ? maxpp : '<unknown>'}`);
     slot.pp = pp;
   }
 }
 
 function hydratePersistentSide(battle, sideIndex, sourceTeam, identityByPokemon) {
   const pokemon = battle?.sides?.[sideIndex]?.pokemon ?? [];
-  if (pokemon.length !== sourceTeam.length) {
-    throw new Error('Showdown persistent hydration requires one resolved Pokemon per projected team member');
-  }
+  if (pokemon.length !== sourceTeam.length) throw new Error('Showdown persistent hydration requires one resolved Pokemon per projected team member');
   const sideIds = new Set();
   pokemon.forEach((member, index) => {
     const sourceMember = sourceTeam[index];
@@ -129,34 +118,20 @@ function resolvedPokemon(pokemon, identityByPokemon) {
     status,
     heldItem: pokemon?.item ? String(pokemon.item) : '',
     fainted: Boolean(pokemon?.fainted),
-    moves: moveSlots.map((move) => Object.freeze({
-      id: String(move.id ?? move.move ?? ''),
-      pp: Number(move.pp ?? 0),
-      maxpp: Number(move.maxpp ?? move.maxPP ?? move.pp ?? 0),
-    })),
+    moves: moveSlots.map((move) => Object.freeze({ id: String(move.id ?? move.move ?? ''), pp: Number(move.pp ?? 0), maxpp: Number(move.maxpp ?? move.maxPP ?? move.pp ?? 0) })),
   };
-  if (status.toLowerCase() === 'slp') {
-    resolved.statusTurns = exactSleepTurns(pokemon?.statusState?.time, 'Resolved Showdown');
-  }
+  if (status.toLowerCase() === 'slp') resolved.statusTurns = exactSleepTurns(pokemon?.statusState?.time, 'Resolved Showdown');
   return Object.freeze(resolved);
 }
 
 export function createShowdownStreamSession(showdown, config) {
-  if (!showdown?.BattleStreams?.BattleStream || !showdown?.BattleStreams?.getPlayerStreams) {
-    throw new Error('Executable Showdown BattleStreams surface is required');
-  }
-  if (typeof showdown?.Teams?.pack !== 'function') {
-    throw new Error('Executable Showdown Teams surface is required');
-  }
-  if (!config?.p1?.team?.length || !config?.p2?.team?.length) {
-    throw new Error('Showdown stream session requires p1 and p2 teams');
-  }
+  if (!showdown?.BattleStreams?.BattleStream || !showdown?.BattleStreams?.getPlayerStreams) throw new Error('Executable Showdown BattleStreams surface is required');
+  if (typeof showdown?.Teams?.pack !== 'function') throw new Error('Executable Showdown Teams surface is required');
+  if (!config?.p1?.team?.length || !config?.p2?.team?.length) throw new Error('Showdown stream session requires p1 and p2 teams');
 
   const battleStream = new showdown.BattleStreams.BattleStream();
   const streams = showdown.BattleStreams.getPlayerStreams(battleStream);
-  if (!streams?.omniscient || !streams?.p1 || !streams?.p2) {
-    throw new Error('Showdown player streams are incomplete');
-  }
+  if (!streams?.omniscient || !streams?.p1 || !streams?.p2) throw new Error('Showdown player streams are incomplete');
 
   const formatid = String(config.formatid ?? 'gen9customgame');
   const p1Team = showdown.Teams.pack(config.p1.team.map(normalizeTeamMember));
@@ -170,9 +145,7 @@ export function createShowdownStreamSession(showdown, config) {
   let started = false;
   async function startBattle() {
     if (started) return false;
-    if (startAttempted) {
-      throw new Error('Showdown battle start previously failed; partial projection cannot be replayed');
-    }
+    if (startAttempted) throw new Error('Showdown battle start previously failed; partial projection cannot be replayed');
     startAttempted = true;
     await streams.omniscient.write(`>start ${JSON.stringify(start)}`);
     await streams.omniscient.write(playerCommand('p1', config.p1, p1Team));
@@ -181,9 +154,7 @@ export function createShowdownStreamSession(showdown, config) {
     if (!battle) throw new Error('Showdown battle state is unavailable after player projection');
     hydratePersistentSide(battle, 0, config.p1.team, identityByPokemon);
     hydratePersistentSide(battle, 1, config.p2.team, identityByPokemon);
-    if (typeof battle.makeRequest !== 'function') {
-      throw new Error('Showdown battle makeRequest surface is required after persistent hydration');
-    }
+    if (typeof battle.makeRequest !== 'function') throw new Error('Showdown battle makeRequest surface is required after persistent hydration');
     battle.makeRequest();
     started = true;
     return true;
@@ -205,17 +176,8 @@ export function createShowdownStreamSession(showdown, config) {
   function resolvedState() {
     if (!started || !battleStream.battle) throw new Error('Showdown battle state is not available');
     const sides = battleStream.battle.sides ?? [];
-    const projectSide = (sideIndex) => {
-      const pokemon = sides[sideIndex]?.pokemon ?? [];
-      return pokemon.map((member) => resolvedPokemon(member, identityByPokemon));
-    };
-    return Object.freeze({
-      terminal: Boolean(battleStream.battle.ended),
-      winner: battleStream.battle.winner ? String(battleStream.battle.winner) : '',
-      turn: Number(battleStream.battle.turn ?? 0),
-      p1: projectSide(0),
-      p2: projectSide(1),
-    });
+    const projectSide = (sideIndex) => (sides[sideIndex]?.pokemon ?? []).map((member) => resolvedPokemon(member, identityByPokemon));
+    return Object.freeze({ terminal: Boolean(battleStream.battle.ended), winner: battleStream.battle.winner ? String(battleStream.battle.winner) : '', turn: Number(battleStream.battle.turn ?? 0), p1: projectSide(0), p2: projectSide(1) });
   }
 
   return Object.freeze({ battleStream, streams, start: startBattle, choose, fight, resolvedState });
