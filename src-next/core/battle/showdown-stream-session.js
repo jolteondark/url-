@@ -119,9 +119,17 @@ export function createShowdownStreamSession(showdown, config) {
   if (seed !== undefined) start.seed = seed;
   const identityByPokemon = new WeakMap();
 
+  let startAttempted = false;
   let started = false;
   async function startBattle() {
     if (started) return false;
+    if (startAttempted) {
+      throw new Error('Showdown battle start previously failed; partial projection cannot be replayed');
+    }
+    // Set this before the first stream write. If any later projection/hydration
+    // step fails, replaying >start/>player into the same BattleStream would
+    // violate the one-shot Mapless -> Showdown projection boundary.
+    startAttempted = true;
     await streams.omniscient.write(`>start ${JSON.stringify(start)}`);
     await streams.omniscient.write(playerCommand('p1', config.p1, p1Team));
     await streams.omniscient.write(playerCommand('p2', config.p2, p2Team));
