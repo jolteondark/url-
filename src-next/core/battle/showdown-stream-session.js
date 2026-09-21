@@ -24,6 +24,41 @@ function maplessId(member) {
   return String(member?.maplessId ?? member?.id ?? member?.personalId ?? member?.species ?? '');
 }
 
+function moveId(move) {
+  return String(move?.id ?? move?.move ?? move ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+function hydratePersistentMember(battle, pokemon, sourceMember) {
+  if (!pokemon || !sourceMember) throw new Error('Showdown persistent hydration requires matching Pokemon');
+
+  if (Number.isFinite(Number(sourceMember.hp))) {
+    const hp = Math.trunc(Number(sourceMember.hp));
+    pokemon.hp = Math.max(0, Math.min(Number(pokemon.maxhp ?? hp), hp));
+    pokemon.fainted = pokemon.hp <= 0;
+  }
+
+  const status = sourceMember.status ? String(sourceMember.status).toLowerCase() : '';
+  pokemon.status = status;
+  pokemon.statusState = typeof battle?.initEffectState === 'function'
+    ? battle.initEffectState(status ? { id: status, target: pokemon } : {})
+    : { id: status, target: pokemon };
+
+  const sourceMoves = new Map((sourceMember.moves ?? []).map((move) => [moveId(move), move]));
+  for (const slot of pokemon.moveSlots ?? []) {
+    const sourceMove = sourceMoves.get(moveId(slot));
+    if (!sourceMove || !Number.isFinite(Number(sourceMove.pp))) continue;
+    slot.pp = Math.max(0, Math.min(Number(slot.maxpp ?? sourceMove.pp), Math.trunc(Number(sourceMove.pp))));
+  }
+}
+
+function hydratePersistentSide(battle, sideIndex, sourceTeam) {
+  const pokemon = battle?.sides?.[sideIndex]?.pokemon ?? [];
+  if (pokemon.length !== sourceTeam.length) {
+    throw new Error('Showdown persistent hydration requires one resolved Pokemon per projected team member');
+  }
+  pokemon.forEach((member, index) => hydratePersistentMember(battle, member, sourceTeam[index]));
+}
+
 function resolvedPokemon(pokemon, sourceMember) {
   const moveSlots = pokemon?.moveSlots ?? [];
   return Object.freeze({
@@ -75,10 +110,13 @@ export function createShowdownStreamSession(showdown, config) {
   let started = false;
   async function startBattle() {
     if (started) return false;
-    started = true;
     await streams.omniscient.write(`>start ${JSON.stringify(start)}`);
     await streams.omniscient.write(playerCommand('p1', config.p1, p1Team));
     await streams.omniscient.write(playerCommand('p2', config.p2, p2Team));
+    if (!battleStream.battle) throw new Error('Showdown battle state is unavailable after player projection');
+    hydratePersistentSide(battleStream.battle, 0, config.p1.team);
+    hydratePersistentSide(battleStream.battle, 1, config.p2.team);
+    started = true;
     return true;
   }
 
