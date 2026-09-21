@@ -28,8 +28,8 @@ const showdown = {
             winner: '',
             turn: 0,
             sides: [
-              { pokemon: [{ hp: 25, maxhp: 30, status: '', item: 'oranberry', fainted: false, moveSlots: [{ id: 'thundershock', pp: 30, maxpp: 30 }] }] },
-              { pokemon: [{ hp: 20, maxhp: 20, status: '', item: '', fainted: false, moveSlots: [{ id: 'tackle', pp: 35, maxpp: 35 }] }] },
+              { pokemon: [{ hp: 25, maxhp: 30, status: '', statusState: {}, item: 'oranberry', fainted: false, moveSlots: [{ id: 'thundershock', pp: 30, maxpp: 30 }] }] },
+              { pokemon: [{ hp: 20, maxhp: 20, status: '', statusState: {}, item: '', fainted: false, moveSlots: [{ id: 'tackle', pp: 35, maxpp: 35 }] }] },
             ],
           };
         }
@@ -47,11 +47,11 @@ const config = {
   seed: [1, 2, 3, 4],
   p1: {
     name: 'Mapless',
-    team: [{ id: 'hero-pika', species: 'Pikachu', level: 10, ability: 'Static', heldItem: 'Oran Berry', moves: [{ id: 'thundershock' }] }],
+    team: [{ id: 'hero-pika', species: 'Pikachu', level: 10, ability: 'Static', hp: 17, status: 'par', heldItem: 'Oran Berry', moves: [{ id: 'thundershock', pp: 7 }] }],
   },
   p2: {
     name: 'Wild',
-    team: [{ id: 'wild-rattata', species: 'Rattata', level: 8, moves: [{ id: 'tackle' }] }],
+    team: [{ id: 'wild-rattata', species: 'Rattata', level: 8, hp: 11, status: '', moves: [{ id: 'tackle', pp: 9 }] }],
   },
 };
 const session = createShowdownStreamSession(showdown, config);
@@ -64,6 +64,13 @@ assert.match(omniscient.writes[1], /^>player p1 /);
 assert.match(omniscient.writes[1], /PACKED:/);
 assert.match(omniscient.writes[2], /^>player p2 /);
 
+const hydrated = session.resolvedState();
+assert.equal(hydrated.p1[0].hp, 17, 'starting current HP must hydrate before the first choice');
+assert.equal(hydrated.p1[0].status, 'par', 'starting persistent status must hydrate before the first choice');
+assert.equal(hydrated.p1[0].moves[0].pp, 7, 'starting PP must hydrate before the first choice');
+assert.equal(hydrated.p2[0].hp, 11);
+assert.equal(hydrated.p2[0].moves[0].pp, 9);
+
 await session.fight('p1', 1);
 await session.fight('p2', 1);
 assert.deepEqual(p1.writes, ['move 1']);
@@ -72,14 +79,14 @@ assert.deepEqual(p2.writes, ['move 1']);
 const first = session.resolvedState();
 assert.equal(first.terminal, false);
 assert.equal(first.p1[0].maplessId, 'hero-pika');
-assert.equal(first.p1[0].hp, 25);
-assert.deepEqual(first.p1[0].moves, [{ id: 'thundershock', pp: 30, maxpp: 30 }]);
+assert.equal(first.p1[0].hp, 17);
+assert.deepEqual(first.p1[0].moves, [{ id: 'thundershock', pp: 7, maxpp: 30 }]);
 
 session.battleStream.battle.turn = 1;
 session.battleStream.battle.ended = true;
 session.battleStream.battle.winner = 'Mapless';
 session.battleStream.battle.sides[0].pokemon[0].hp = 18;
-session.battleStream.battle.sides[0].pokemon[0].moveSlots[0].pp = 29;
+session.battleStream.battle.sides[0].pokemon[0].moveSlots[0].pp = 6;
 session.battleStream.battle.sides[1].pokemon[0].hp = 0;
 session.battleStream.battle.sides[1].pokemon[0].fainted = true;
 const resolved = session.resolvedState();
@@ -87,7 +94,7 @@ assert.equal(resolved.terminal, true);
 assert.equal(resolved.winner, 'Mapless');
 assert.equal(resolved.turn, 1);
 assert.equal(resolved.p1[0].hp, 18);
-assert.equal(resolved.p1[0].moves[0].pp, 29);
+assert.equal(resolved.p1[0].moves[0].pp, 6);
 assert.equal(resolved.p2[0].fainted, true);
 assert.equal(resolved.p2[0].maplessId, 'wild-rattata');
 assert.equal('boosts' in resolved.p1[0], false, 'transient battle state must not cross the adapter boundary');
