@@ -51,8 +51,38 @@ const session = createShowdownStreamSession(showdown, {
   },
 });
 
+function rawPokemon(pokemon) {
+  return {
+    hp: Number(pokemon.hp),
+    maxhp: Number(pokemon.maxhp),
+    status: pokemon.status ? String(pokemon.status) : '',
+    heldItem: pokemon.item ? String(pokemon.item) : '',
+    fainted: Boolean(pokemon.fainted),
+    moves: (pokemon.moveSlots ?? []).map((move) => ({
+      id: String(move.id ?? move.move ?? ''),
+      pp: Number(move.pp),
+      maxpp: Number(move.maxpp ?? move.maxPP ?? move.pp),
+    })),
+  };
+}
+
+function assertAdapterMatchesRawShowdown(adapterState, battle) {
+  assert.equal(adapterState.terminal, Boolean(battle.ended));
+  assert.equal(adapterState.winner, battle.winner ? String(battle.winner) : '');
+  assert.equal(adapterState.turn, Number(battle.turn ?? 0));
+  for (const [sideKey, sideIndex] of [['p1', 0], ['p2', 1]]) {
+    const raw = (battle.sides?.[sideIndex]?.pokemon ?? []).map(rawPokemon);
+    assert.equal(adapterState[sideKey].length, raw.length);
+    adapterState[sideKey].forEach((projected, index) => {
+      const { maplessId: _identityOnly, ...persistent } = projected;
+      assert.deepEqual(persistent, raw[index], `${sideKey}[${index}] adapter state must equal raw pinned Showdown state`);
+    });
+  }
+}
+
 await session.start();
 const starting = session.resolvedState();
+assertAdapterMatchesRawShowdown(starting, session.battleStream.battle);
 assert.equal(starting.terminal, false);
 assert.equal(starting.p1[0].maplessId, 'starter-pikachu');
 assert.equal(starting.p1[0].hp, 60, 'persistent current HP must hydrate into real Showdown before FIGHT');
@@ -68,6 +98,7 @@ await Promise.all([
 ]);
 
 const terminal = session.resolvedState();
+assertAdapterMatchesRawShowdown(terminal, session.battleStream.battle);
 assert.equal(terminal.terminal, true, 'fixture must terminate in one real Showdown turn');
 assert.equal(terminal.p2[0].fainted, true, 'real Showdown must authoritatively resolve the wild faint');
 assert.equal(terminal.p1[0].status, 'brn', 'persistent status must survive the authoritative Showdown turn');
