@@ -111,8 +111,8 @@ function mergeResolvedMovePp(sourceMoves = [], resolvedMoves = []) {
 
 function persistentPatch(source, resolved) {
   const hp = exactNonnegativeInteger(resolved.hp, 'Terminal HP commit');
-  const maxhp = exactNonnegativeInteger(resolved.maxhp ?? resolved.maxHp, 'Terminal max HP observation');
-  if (maxhp < 1 || hp > maxhp) throw new Error(`Terminal HP commit is outside Showdown bounds: ${hp}/${maxhp}`);
+  const maxhp = exactNonnegativeInteger(resolved.maxhp ?? resolved.maxHp ?? source.maxhp ?? source.maxHp, 'Terminal max HP bound');
+  if (maxhp < 1 || hp > maxhp) throw new Error(`Terminal HP commit is outside Showdown/persistent bounds: ${hp}/${maxhp}`);
   const status = exactTerminalStatus(resolved.status);
   const heldItem = exactTerminalItem(resolved.heldItem);
   const patch = {
