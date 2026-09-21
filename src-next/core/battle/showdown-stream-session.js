@@ -51,7 +51,11 @@ function hydratePersistentMember(battle, pokemon, sourceMember) {
     throw new Error('Persistent HP projection requires finite current HP');
   }
   const hp = Math.trunc(Number(sourceMember.hp));
-  pokemon.hp = Math.max(0, Math.min(Number(pokemon.maxhp ?? hp), hp));
+  const maxhp = Number(pokemon.maxhp);
+  if (!Number.isFinite(maxhp) || hp < 0 || hp > maxhp) {
+    throw new Error(`Persistent HP projection is outside Showdown bounds: ${hp}/${Number.isFinite(maxhp) ? maxhp : '<unknown>'}`);
+  }
+  pokemon.hp = hp;
   pokemon.fainted = pokemon.hp <= 0;
   hydratePersistentStatus(battle, pokemon, sourceMember);
 
