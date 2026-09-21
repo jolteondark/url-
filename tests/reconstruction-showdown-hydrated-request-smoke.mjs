@@ -62,23 +62,25 @@ for (const [id, statusTurns] of [['sleep-missing', undefined], ['sleep-zero', 0]
   await assert.rejects(() => invalidSleep.start(), /Persistent sleep projection requires a positive integer statusTurns/);
 }
 
-const missingHp = createShowdownStreamSession(showdown, config({ id: 'missing-hp', species: 'Pikachu', moves: [{ id: 'thunderbolt', pp: 3 }] }, 'wild-hp'));
-await assert.rejects(() => missingHp.start(), /Persistent HP projection requires finite current HP/);
-
-for (const [id, hp] of [['negative-hp', -1], ['over-max-hp', 36]]) {
-  const invalidHp = createShowdownStreamSession(showdown, config({ id, species: 'Pikachu', hp, moves: [{ id: 'thunderbolt', pp: 3 }] }, `wild-${id}`));
-  await assert.rejects(() => invalidHp.start(), /Persistent HP projection is outside Showdown bounds/);
+for (const [id, hp] of [['missing-hp', undefined], ['negative-hp', -1], ['fractional-hp', 17.5]]) {
+  const member = { id, species: 'Pikachu', moves: [{ id: 'thunderbolt', pp: 3 }] };
+  if (hp !== undefined) member.hp = hp;
+  const invalidHp = createShowdownStreamSession(showdown, config(member, `wild-${id}`));
+  await assert.rejects(() => invalidHp.start(), /Persistent HP projection requires a non-negative integer/);
 }
+const overMaxHp = createShowdownStreamSession(showdown, config({ id: 'over-max-hp', species: 'Pikachu', hp: 36, moves: [{ id: 'thunderbolt', pp: 3 }] }, 'wild-over-max-hp'));
+await assert.rejects(() => overMaxHp.start(), /Persistent HP projection is outside Showdown bounds/);
 
-const missingPp = createShowdownStreamSession(showdown, config({ id: 'missing-pp', species: 'Pikachu', hp: 17, moves: [{ id: 'thunderbolt' }] }, 'wild-4'));
-await assert.rejects(() => missingPp.start(), /Persistent PP projection requires current PP for move: thunderbolt/);
-
-for (const [id, pp] of [['negative-pp', -1], ['over-max-pp', 16]]) {
-  const invalidPp = createShowdownStreamSession(showdown, config({ id, species: 'Pikachu', hp: 17, moves: [{ id: 'thunderbolt', pp }] }, `wild-${id}`));
-  await assert.rejects(() => invalidPp.start(), /Persistent PP projection is outside Showdown bounds for thunderbolt/);
+for (const [id, pp] of [['missing-pp', undefined], ['negative-pp', -1], ['fractional-pp', 3.5]]) {
+  const move = { id: 'thunderbolt' };
+  if (pp !== undefined) move.pp = pp;
+  const invalidPp = createShowdownStreamSession(showdown, config({ id, species: 'Pikachu', hp: 17, moves: [move] }, `wild-${id}`));
+  await assert.rejects(() => invalidPp.start(), /Persistent PP projection for thunderbolt requires a non-negative integer/);
 }
+const overMaxPp = createShowdownStreamSession(showdown, config({ id: 'over-max-pp', species: 'Pikachu', hp: 17, moves: [{ id: 'thunderbolt', pp: 16 }] }, 'wild-over-max-pp'));
+await assert.rejects(() => overMaxPp.start(), /Persistent PP projection is outside Showdown bounds for thunderbolt/);
 
 const mismatchedMove = createShowdownStreamSession(showdown, config({ id: 'wrong-move', species: 'Pikachu', hp: 17, moves: [{ id: 'quickattack', pp: 7 }] }, 'wild-5'));
 await assert.rejects(() => mismatchedMove.start(), /Persistent PP projection could not match Showdown move slot: thunderbolt/);
 
-console.log('reconstruction Showdown hydrated request/status/HP/PP smoke: ok');
+console.log('reconstruction Showdown hydrated request/status/HP/PP exactness smoke: ok');
