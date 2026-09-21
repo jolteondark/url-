@@ -24,6 +24,12 @@ function exactSleepTurns(value, boundary) {
   return turns;
 }
 
+function exactNonnegativeInteger(value, boundary) {
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < 0) throw new Error(`${boundary} requires a non-negative integer`);
+  return number;
+}
+
 export function projectMaplessPokemonToShowdown(member) {
   if (!member?.species) throw new Error('Battle projection requires species');
   const projected = {
@@ -56,11 +62,28 @@ export function createShowdownBattleSnapshot(state, { battleId }) {
 }
 
 function mergeResolvedMovePp(sourceMoves = [], resolvedMoves = []) {
-  const resolvedById = new Map(resolvedMoves.map((move) => [moveId(move), move]));
+  if (resolvedMoves.length !== sourceMoves.length) {
+    throw new Error('Terminal PP commit requires one resolved Showdown move per Mapless move');
+  }
+  const resolvedById = new Map();
+  for (const move of resolvedMoves) {
+    const id = moveId(move);
+    if (!id) throw new Error('Terminal PP commit requires a stable resolved move id');
+    if (resolvedById.has(id)) throw new Error(`Duplicate resolved Showdown move id during terminal PP commit: ${id}`);
+    const pp = exactNonnegativeInteger(move?.pp, `Terminal PP commit for ${id}`);
+    resolvedById.set(id, { move, pp });
+  }
+  const sourceIds = new Set();
   return sourceMoves.map((move) => {
-    const resolved = resolvedById.get(moveId(move));
-    if (!resolved || !Number.isFinite(Number(resolved.pp))) return { ...move };
-    return { ...move, pp: Number(resolved.pp) };
+    const id = moveId(move);
+    if (!id) throw new Error('Terminal PP commit requires a stable Mapless move id');
+    if (sourceIds.has(id)) throw new Error(`Duplicate Mapless move id during terminal PP commit: ${id}`);
+    sourceIds.add(id);
+    const resolved = resolvedById.get(id);
+    if (!resolved) throw new Error(`Terminal PP commit could not match resolved Showdown move: ${id}`);
+    const sourceMaxpp = exactNonnegativeInteger(move?.maxpp ?? move?.maxPP ?? move?.pp, `Mapless max PP for ${id}`);
+    if (resolved.pp > sourceMaxpp) throw new Error(`Terminal PP commit is outside Mapless bounds for ${id}: ${resolved.pp}/${sourceMaxpp}`);
+    return { ...move, pp: resolved.pp };
   });
 }
 
