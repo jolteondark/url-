@@ -81,7 +81,12 @@ function hydratePersistentMember(battle, pokemon, sourceMember) {
     if (!sourceMove) throw new Error(`Persistent PP projection could not match Showdown move slot: ${id || '<unknown>'}`);
     if (hydratedIds.has(id)) throw new Error(`Duplicate Showdown move slot during PP projection: ${id}`);
     hydratedIds.add(id);
-    slot.pp = Math.max(0, Math.min(Number(slot.maxpp ?? sourceMove.pp), Math.trunc(Number(sourceMove.pp))));
+    const pp = Math.trunc(Number(sourceMove.pp));
+    const maxpp = Number(slot.maxpp);
+    if (!Number.isFinite(maxpp) || pp < 0 || pp > maxpp) {
+      throw new Error(`Persistent PP projection is outside Showdown bounds for ${id}: ${pp}/${Number.isFinite(maxpp) ? maxpp : '<unknown>'}`);
+    }
+    slot.pp = pp;
   }
 }
 
