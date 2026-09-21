@@ -50,6 +50,7 @@ const sleeping = createShowdownStreamSession(showdown, {
 await sleeping.start();
 assert.equal(sleeping.battleStream.battle.sides[0].pokemon[0].statusState.time, 2);
 assert.equal(sleeping.battleStream.battle.sides[0].pokemon[0].statusState.startTime, 2);
+assert.equal(sleeping.resolvedState().p1[0].statusTurns, 2, 'remaining Showdown sleep turns must cross the terminal observation boundary');
 
 const ambiguousSleep = createShowdownStreamSession(showdown, {
   p1: { name: 'Mapless', team: [{ id: 'sleepy-unknown', species: 'Pikachu', hp: 17, status: 'slp', moves: [{ id: 'thunderbolt', pp: 3 }] }] },
