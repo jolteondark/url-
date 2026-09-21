@@ -28,7 +28,10 @@ const showdown = {
             winner: '',
             turn: 0,
             sides: [
-              { pokemon: [{ hp: 25, maxhp: 30, status: '', statusState: {}, item: 'oranberry', fainted: false, moveSlots: [{ id: 'thundershock', pp: 30, maxpp: 30 }] }] },
+              { pokemon: [
+                { hp: 25, maxhp: 30, status: '', statusState: {}, item: 'oranberry', fainted: false, moveSlots: [{ id: 'thundershock', pp: 30, maxpp: 30 }] },
+                { hp: 24, maxhp: 28, status: '', statusState: {}, item: '', fainted: false, moveSlots: [{ id: 'vinewhip', pp: 25, maxpp: 25 }] },
+              ] },
               { pokemon: [{ hp: 20, maxhp: 20, status: '', statusState: {}, item: '', fainted: false, moveSlots: [{ id: 'tackle', pp: 35, maxpp: 35 }] }] },
             ],
           };
@@ -47,7 +50,10 @@ const config = {
   seed: [1, 2, 3, 4],
   p1: {
     name: 'Mapless',
-    team: [{ id: 'hero-pika', species: 'Pikachu', level: 10, ability: 'Static', hp: 17, status: 'par', heldItem: 'Oran Berry', moves: [{ id: 'thundershock', pp: 7 }] }],
+    team: [
+      { id: 'hero-pika', species: 'Pikachu', level: 10, ability: 'Static', hp: 17, status: 'par', heldItem: 'Oran Berry', moves: [{ id: 'thundershock', pp: 7 }] },
+      { id: 'hero-bulba', species: 'Bulbasaur', level: 10, hp: 13, status: '', moves: [{ id: 'vinewhip', pp: 5 }] },
+    ],
   },
   p2: {
     name: 'Wild',
@@ -68,8 +74,21 @@ const hydrated = session.resolvedState();
 assert.equal(hydrated.p1[0].hp, 17, 'starting current HP must hydrate before the first choice');
 assert.equal(hydrated.p1[0].status, 'par', 'starting persistent status must hydrate before the first choice');
 assert.equal(hydrated.p1[0].moves[0].pp, 7, 'starting PP must hydrate before the first choice');
+assert.equal(hydrated.p1[1].hp, 13);
+assert.equal(hydrated.p1[1].moves[0].pp, 5);
 assert.equal(hydrated.p2[0].hp, 11);
 assert.equal(hydrated.p2[0].moves[0].pp, 9);
+
+// Stable identity must follow the authoritative Showdown Pokemon object, not
+// the current array position. This models switch/replacement/team reordering.
+session.battleStream.battle.sides[0].pokemon.reverse();
+const reordered = session.resolvedState();
+assert.equal(reordered.p1[0].maplessId, 'hero-bulba');
+assert.equal(reordered.p1[0].hp, 13);
+assert.equal(reordered.p1[0].moves[0].pp, 5);
+assert.equal(reordered.p1[1].maplessId, 'hero-pika');
+assert.equal(reordered.p1[1].hp, 17);
+session.battleStream.battle.sides[0].pokemon.reverse();
 
 await session.fight('p1', 1);
 await session.fight('p2', 1);
