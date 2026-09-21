@@ -4,6 +4,7 @@ import { createShowdownStreamSession } from '../src-next/core/battle/showdown-st
 class Stream { async write() {} }
 class BattleStream extends Stream { constructor() { super(); this.battle = null; } }
 let requestSnapshots = [];
+let statusStateSnapshot = null;
 const showdown = {
   BattleStreams: {
     BattleStream,
@@ -16,7 +17,9 @@ const showdown = {
         stream.battle = {
           ended: false, winner: '', turn: 0,
           sides: [{ pokemon: [pika] }, { pokemon: [carp] }],
+          initEffectState(initial) { return { effectOrder: 1, ...initial }; },
           makeRequest() {
+            statusStateSnapshot = { ...pika.statusState };
             requestSnapshots.push({ hp: pika.hp, status: pika.status, pp: pika.moveSlots[0].pp });
           },
         };
@@ -28,13 +31,30 @@ const showdown = {
 };
 
 const session = createShowdownStreamSession(showdown, {
-  p1: { name: 'Mapless', team: [{ id: 'hero', species: 'Pikachu', hp: 17, status: 'par', moves: [{ id: 'thunderbolt', pp: 3 }] }] },
+  p1: { name: 'Mapless', team: [{ id: 'hero', species: 'Pikachu', hp: 17, status: 'tox', moves: [{ id: 'thunderbolt', pp: 3 }] }] },
   p2: { name: 'Wild', team: [{ id: 'wild', species: 'Magikarp', hp: 11, moves: [{ id: 'splash', pp: 9 }] }] },
 });
 
 await session.start();
-assert.deepEqual(requestSnapshots, [{ hp: 17, status: 'par', pp: 3 }], 'Showdown request must be rebuilt only after persistent hydration');
+assert.deepEqual(requestSnapshots, [{ hp: 17, status: 'tox', pp: 3 }], 'Showdown request must be rebuilt only after persistent hydration');
+assert.equal(statusStateSnapshot.id, 'tox');
+assert.equal(statusStateSnapshot.stage, 0, 'pre-existing toxic must enter a fresh battle at Showdown toxic stage 0');
 assert.equal(session.resolvedState().p1[0].hp, 17);
-assert.equal(session.resolvedState().p1[0].status, 'par');
+assert.equal(session.resolvedState().p1[0].status, 'tox');
 assert.equal(session.resolvedState().p1[0].moves[0].pp, 3);
-console.log('reconstruction-showdown-hydrated-request-smoke: ok');
+
+const sleeping = createShowdownStreamSession(showdown, {
+  p1: { name: 'Mapless', team: [{ id: 'sleepy', species: 'Pikachu', hp: 17, status: 'slp', statusTurns: 2, moves: [{ id: 'thunderbolt', pp: 3 }] }] },
+  p2: { name: 'Wild', team: [{ id: 'wild-2', species: 'Magikarp', hp: 11, moves: [{ id: 'splash', pp: 9 }] }] },
+});
+await sleeping.start();
+assert.equal(sleeping.battleStream.battle.sides[0].pokemon[0].statusState.time, 2);
+assert.equal(sleeping.battleStream.battle.sides[0].pokemon[0].statusState.startTime, 2);
+
+const ambiguousSleep = createShowdownStreamSession(showdown, {
+  p1: { name: 'Mapless', team: [{ id: 'sleepy-unknown', species: 'Pikachu', hp: 17, status: 'slp', moves: [{ id: 'thunderbolt', pp: 3 }] }] },
+  p2: { name: 'Wild', team: [{ id: 'wild-3', species: 'Magikarp', hp: 11, moves: [{ id: 'splash', pp: 9 }] }] },
+});
+await assert.rejects(() => ambiguousSleep.start(), /Persistent sleep projection requires statusTurns/);
+
+console.log('reconstruction Showdown hydrated request/status smoke: ok');
