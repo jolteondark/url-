@@ -18,18 +18,22 @@ assert.equal(artifact.showdownRevision, REQUIRED_SHOWDOWN_REVISION);
 const showdown = await loadShowdownBrowserArtifact(artifact);
 assert.equal(showdown.revision, REQUIRED_SHOWDOWN_REVISION);
 
-const state = createInitialGameState({ seed: 4242, runId: 'real-showdown-roundtrip' });
-state.party = [{
-  id: 'starter-pikachu',
-  species: 'Pikachu',
-  name: 'Pikachu',
-  level: 50,
-  ability: 'Static',
-  hp: 60,
-  status: 'brn',
-  heldItem: 'Light Ball',
-  moves: [{ id: 'thunderbolt', pp: 3, maxpp: 15 }],
-}];
+const state = createInitialGameState({
+  seed: 4242,
+  runId: 'real-showdown-roundtrip',
+  party: [{
+    id: 'starter-pikachu',
+    species: 'Pikachu',
+    name: 'Pikachu',
+    level: 50,
+    ability: 'Static',
+    hp: 60,
+    status: 'brn',
+    heldItem: 'Light Ball',
+    moves: [{ id: 'thunderbolt', pp: 3, maxpp: 15 }],
+  }],
+});
+const persistentBeforeBattle = structuredClone(state.party);
 
 const session = createShowdownStreamSession(showdown, {
   formatid: 'gen9customgame',
@@ -89,6 +93,7 @@ assert.equal(starting.p1[0].hp, 60, 'persistent current HP must hydrate into rea
 assert.equal(starting.p1[0].status, 'brn', 'persistent status must hydrate into real Showdown before FIGHT');
 assert.equal(starting.p1[0].heldItem, 'lightball', 'persistent held item must project into real Showdown before FIGHT');
 assert.equal(starting.p1[0].moves[0].pp, 3, 'persistent PP must hydrate into real Showdown before FIGHT');
+assert.deepEqual(state.party, persistentBeforeBattle, 'Showdown initialization must not mutate persistent Mapless party state');
 
 // Both choices are submitted to Showdown; Showdown alone owns turn order, damage,
 // PP consumption, fainting, residual status damage, and the terminal decision.
@@ -104,6 +109,7 @@ assert.equal(terminal.p2[0].fainted, true, 'real Showdown must authoritatively r
 assert.equal(terminal.p1[0].status, 'brn', 'persistent status must survive the authoritative Showdown turn');
 assert.equal(terminal.p1[0].heldItem, 'lightball', 'unconsumed held item must survive the authoritative Showdown turn');
 assert.equal(terminal.p1[0].moves[0].pp, 2, 'real Showdown must authoritatively consume one PP');
+assert.deepEqual(state.party, persistentBeforeBattle, 'FIGHT must not mutate persistent Mapless party before terminal commit');
 
 const committed = commitShowdownStreamTerminal(state, {
   battleId: 'real-showdown-battle-1',
