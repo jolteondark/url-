@@ -36,7 +36,11 @@ function validatePersistentMember(pokemon, sourceMember) {
   if (!pokemon || !sourceMember) throw new Error('Showdown persistent hydration requires matching Pokemon');
   const hp = exactNonnegativeInteger(sourceMember.hp, 'Persistent HP projection');
   const maxhp = Number(pokemon.maxhp);
-  if (!Number.isFinite(maxhp) || hp > maxhp) throw new Error(`Persistent HP projection is outside Showdown bounds: ${hp}/${Number.isFinite(maxhp) ? maxhp : '<unknown>'}`);
+  if (!Number.isFinite(maxhp) || !Number.isInteger(maxhp) || maxhp < 1 || hp > maxhp) throw new Error(`Persistent HP projection is outside Showdown bounds: ${hp}/${Number.isFinite(maxhp) ? maxhp : '<unknown>'}`);
+  if (sourceMember.maxhp !== undefined || sourceMember.maxHp !== undefined) {
+    const persistentMaxhp = exactNonnegativeInteger(sourceMember.maxhp ?? sourceMember.maxHp, 'Persistent max HP projection');
+    if (persistentMaxhp < 1 || persistentMaxhp !== maxhp) throw new Error(`Persistent max HP projection mismatch: ${persistentMaxhp}/${maxhp}`);
+  }
   exactPersistentFainted(sourceMember.fainted, hp);
 
   const status = sourceMember.status ? String(sourceMember.status).toLowerCase() : '';
