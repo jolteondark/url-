@@ -58,6 +58,7 @@ export function projectMaplessPokemonToShowdown(member) {
     level: Number(member.level ?? 1), hp, maxhp: Number(member.maxhp ?? member.maxHp), status: member.status ? String(member.status) : '',
     heldItem: member.heldItem ? String(member.heldItem) : '', moves: cloneMoves(member.moves), fainted: exactStartingFainted(member.fainted, hp),
   };
+  if (member.ability !== undefined && member.ability !== null && String(member.ability) !== '') projected.ability = String(member.ability);
   if (projected.status.toLowerCase() === 'slp') projected.statusTurns = exactSleepTurns(member.statusTurns, 'Persistent');
   return Object.freeze(projected);
 }
