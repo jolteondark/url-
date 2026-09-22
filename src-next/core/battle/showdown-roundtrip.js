@@ -20,6 +20,17 @@ function exactNonnegativeInteger(value, boundary) {
   if (!Number.isInteger(number) || number < 0) throw new Error(`${boundary} requires a non-negative integer`);
   return number;
 }
+function exactStartingLevel(value) {
+  const level = Number(value ?? 1);
+  if (!Number.isInteger(level) || level < 1 || level > 100) throw new Error('Battle projection level requires an integer from 1 through 100');
+  return level;
+}
+function exactStartingMaxHp(value, hp) {
+  const maxhp = Number(value);
+  if (!Number.isInteger(maxhp) || maxhp < 1) throw new Error('Battle projection max HP requires a positive integer');
+  if (hp > maxhp) throw new Error(`Battle projection HP is outside persistent max HP bounds: ${hp}/${maxhp}`);
+  return maxhp;
+}
 function exactStartingFainted(value, hp) {
   const expected = hp === 0;
   if (value === undefined) return expected;
@@ -53,9 +64,11 @@ function persistentMemberId(member, boundary = 'Terminal party commit') {
 export function projectMaplessPokemonToShowdown(member) {
   if (!member?.species) throw new Error('Battle projection requires species');
   const hp = exactNonnegativeInteger(member.hp, 'Battle projection HP');
+  const level = exactStartingLevel(member.level);
+  const maxhp = exactStartingMaxHp(member.maxhp ?? member.maxHp, hp);
   const projected = {
     maplessId: persistentMemberId(member, 'Battle projection'), species: String(member.species), name: String(member.name ?? member.species),
-    level: Number(member.level ?? 1), hp, maxhp: Number(member.maxhp ?? member.maxHp), status: member.status ? String(member.status) : '',
+    level, hp, maxhp, status: member.status ? String(member.status) : '',
     heldItem: member.heldItem ? String(member.heldItem) : '', moves: cloneMoves(member.moves), fainted: exactStartingFainted(member.fainted, hp),
   };
   if (member.ability !== undefined && member.ability !== null && String(member.ability) !== '') projected.ability = String(member.ability);
