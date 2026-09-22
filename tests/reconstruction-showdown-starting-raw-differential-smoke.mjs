@@ -4,6 +4,16 @@ import { createShowdownStreamSession } from '../src-next/core/battle/showdown-st
 class Stream { async write() {} }
 class BattleStream extends Stream { constructor() { super(); this.battle = null; } }
 
+function requestView(pokemon) {
+  return {
+    hp: pokemon.hp,
+    status: pokemon.status,
+    item: pokemon.item,
+    fainted: pokemon.fainted,
+    moves: (pokemon.moveSlots ?? []).map(({ id, pp }) => ({ id, pp })),
+  };
+}
+
 function fakeShowdown(raw) {
   return {
     BattleStreams: {
@@ -13,10 +23,12 @@ function fakeShowdown(raw) {
         omniscient.write = async (value) => {
           if (!value.startsWith('>player p2 ')) return;
           stream.battle = {
-            ended: false, winner: '', turn: 0,
+            ended: false, winner: '', turn: 0, requestSnapshots: [],
             sides: [{ pokemon: [raw.p1] }, { pokemon: [raw.p2] }],
             initEffectState(initial) { return { ...initial }; },
-            makeRequest() {},
+            makeRequest() {
+              this.requestSnapshots.push({ p1: requestView(this.sides[0].pokemon[0]), p2: requestView(this.sides[1].pokemon[0]) });
+            },
           };
         };
         return { omniscient, p1: new Stream(), p2: new Stream() };
@@ -53,6 +65,15 @@ assert.deepEqual(
   'raw opponent state must also exactly match its projected persistent state',
 );
 
+assert.deepEqual(
+  session.battleStream.battle.requestSnapshots,
+  [{
+    p1: { hp: 17, status: 'slp', item: 'oranberry', fainted: false, moves: [{ id: 'thunderbolt', pp: 4 }] },
+    p2: { hp: 11, status: '', item: '', fainted: false, moves: [{ id: 'splash', pp: 9 }] },
+  }],
+  'the first regenerated choice request must be built exactly once from hydrated persistent HP/status/item/PP/faint on both sides',
+);
+
 const observed = session.resolvedState();
 assert.deepEqual(
   { hp: observed.p1[0].hp, status: observed.p1[0].status, statusTurns: observed.p1[0].statusTurns, item: observed.p1[0].heldItem, pp: observed.p1[0].moves[0].pp, fainted: observed.p1[0].fainted },
@@ -76,6 +97,7 @@ await assert.rejects(
   'direct stream hydration must reject a persisted faint flag that contradicts positive HP',
 );
 assert.equal(contradictoryRaw.p1.hp, 35, 'failed faint validation must occur before persistent HP mutates the Showdown object');
+assert.equal(contradictory.battleStream.battle.requestSnapshots.length, 0, 'failed preflight must not build a choice request from uncommitted projection state');
 
 const atomicRaw = freshRaw();
 const atomic = createShowdownStreamSession(fakeShowdown(atomicRaw), {
@@ -97,5 +119,6 @@ assert.deepEqual(
   { hp: 20, status: '', item: '', pp: 40, fainted: false },
   'failed starting projection must leave p2 raw state untouched too',
 );
+assert.equal(atomic.battleStream.battle.requestSnapshots.length, 0, 'cross-side preflight failure must not emit a regenerated request');
 
 console.log('reconstruction Showdown starting raw differential smoke: ok');
