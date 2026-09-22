@@ -3,7 +3,7 @@ import { projectMaplessPokemonToShowdown } from '../src-next/core/battle/showdow
 
 const persistent = {
   id: 'hero-rotom', species: 'Rotom-Wash', name: 'Washer', level: 37, ability: 'Levitate', hp: 61, maxhp: 83,
-  status: 'par', heldItem: 'Leftovers', fainted: false,
+  status: 'par', heldItem: 'leftovers', fainted: false,
   moves: [{ id: 'hydropump', pp: 3, maxpp: 8 }, { id: 'voltswitch', pp: 11, maxpp: 20 }],
 };
 const projected = projectMaplessPokemonToShowdown(persistent);
@@ -29,6 +29,20 @@ for (const maxhp of [0, -1, 83.5, Number.NaN, Number.POSITIVE_INFINITY]) {
 }
 assert.throws(() => projectMaplessPokemonToShowdown({ ...persistent, id: 'hp-over-max', hp: 84, maxhp: 83 }), /HP is outside persistent max HP bounds: 84\/83/);
 assert.throws(() => projectMaplessPokemonToShowdown({ ...persistent, id: 'missing-maxhp', maxhp: undefined }), /max HP requires a positive integer/);
+
+for (const status of ['burn', 'sleep', 'confusion', 'PAR', 'unknown']) {
+  assert.throws(() => projectMaplessPokemonToShowdown({ ...persistent, id: `bad-status-${status}`, status }), /status requires a canonical Showdown major status/);
+}
+for (const status of ['', 'brn', 'frz', 'par', 'psn', 'tox']) {
+  const candidate = projectMaplessPokemonToShowdown({ ...persistent, id: `status-${status || 'clear'}`, status });
+  assert.equal(candidate.status, status);
+}
+assert.throws(() => projectMaplessPokemonToShowdown({ ...persistent, id: 'bad-item-display', heldItem: 'Leftovers' }), /held item requires a canonical Showdown item id: Leftovers/);
+assert.throws(() => projectMaplessPokemonToShowdown({ ...persistent, id: 'bad-item-spaced', heldItem: 'Choice Scarf' }), /held item requires a canonical Showdown item id: Choice Scarf/);
+assert.equal(projectMaplessPokemonToShowdown({ ...persistent, id: 'no-item', heldItem: '' }).heldItem, '');
+assert.equal(projectMaplessPokemonToShowdown({ ...persistent, id: 'canonical-item', heldItem: 'choicescarf' }).heldItem, 'choicescarf');
+assert.throws(() => projectMaplessPokemonToShowdown({ ...persistent, id: 'sleep-without-turns', status: 'slp', statusTurns: undefined }), /sleep projection requires a positive integer statusTurns/);
+assert.equal(projectMaplessPokemonToShowdown({ ...persistent, id: 'sleep', status: 'slp', statusTurns: 2 }).statusTurns, 2);
 
 const withMove = (move) => ({ ...persistent, id: `move-${String(move.id ?? 'missing')}`, moves: [move] });
 for (const pp of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
