@@ -1,108 +1,74 @@
 import { cloneGameState } from '../game-state.js';
 
-const PERSISTENT_FIELDS = Object.freeze(['hp', 'status', 'statusTurns', 'moves', 'heldItem']);
+const PERSISTENT_FIELDS = Object.freeze(['hp', 'status', 'statusTurns', 'moves', 'heldItem', 'fainted']);
 const TRANSIENT_FIELDS = Object.freeze(['volatile', 'volatiles', 'statStages', 'boosts', 'battleFlags']);
 const BATTLE_SYNC_IDS = 'appliedBattleStateResultIds';
 const PERSISTENT_MAJOR_STATUSES = new Set(['', 'brn', 'frz', 'par', 'psn', 'slp', 'tox']);
 
 function cloneMoves(moves = []) {
-  return moves.map((move) => ({
-    id: String(move.id),
-    pp: Number(move.pp),
-    maxpp: Number(move.maxpp ?? move.maxPP ?? move.pp),
-  }));
+  return moves.map((move) => ({ id: String(move.id), pp: Number(move.pp), maxpp: Number(move.maxpp ?? move.maxPP ?? move.pp) }));
 }
-
-function normalizeId(value) {
-  return String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '');
-}
-
-function moveId(move) {
-  return normalizeId(move?.id ?? move?.move ?? move);
-}
-
+function normalizeId(value) { return String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ''); }
+function moveId(move) { return normalizeId(move?.id ?? move?.move ?? move); }
 function exactSleepTurns(value, boundary) {
   const turns = Number(value);
-  if (!Number.isInteger(turns) || turns < 1) {
-    throw new Error(`${boundary} sleep projection requires a positive integer statusTurns`);
-  }
+  if (!Number.isInteger(turns) || turns < 1) throw new Error(`${boundary} sleep projection requires a positive integer statusTurns`);
   return turns;
 }
-
 function exactNonnegativeInteger(value, boundary) {
   const number = Number(value);
   if (!Number.isInteger(number) || number < 0) throw new Error(`${boundary} requires a non-negative integer`);
   return number;
 }
-
 function exactTerminalStatus(value) {
   const status = value ? String(value).toLowerCase() : '';
-  if (!PERSISTENT_MAJOR_STATUSES.has(status)) {
-    throw new Error(`Terminal status commit requires a canonical Showdown major status: ${status || '<empty>'}`);
-  }
+  if (!PERSISTENT_MAJOR_STATUSES.has(status)) throw new Error(`Terminal status commit requires a canonical Showdown major status: ${status || '<empty>'}`);
   return status;
 }
-
 function exactTerminalItem(value) {
   const item = value ? String(value) : '';
   const canonical = normalizeId(item);
-  if (item && item !== canonical) {
-    throw new Error(`Terminal held-item commit requires a canonical Showdown item id: ${item}`);
-  }
+  if (item && item !== canonical) throw new Error(`Terminal held-item commit requires a canonical Showdown item id: ${item}`);
   return canonical;
 }
-
+function exactTerminalFainted(value, hp) {
+  if (typeof value !== 'boolean') throw new Error('Terminal faint state commit requires an exact boolean');
+  const expected = hp === 0;
+  if (value !== expected) throw new Error(`Terminal faint state is inconsistent with Showdown HP: ${value}/${hp}`);
+  return value;
+}
 function persistentMemberId(member, boundary = 'Terminal party commit') {
   const raw = member?.id ?? member?.personalId;
-  if (raw === undefined || raw === null || String(raw) === '') {
-    throw new Error(`${boundary} requires a stable persistent Mapless member id`);
-  }
+  if (raw === undefined || raw === null || String(raw) === '') throw new Error(`${boundary} requires a stable persistent Mapless member id`);
   return String(raw);
 }
 
 export function projectMaplessPokemonToShowdown(member) {
   if (!member?.species) throw new Error('Battle projection requires species');
   const projected = {
-    maplessId: persistentMemberId(member, 'Battle projection'),
-    species: String(member.species),
-    name: String(member.name ?? member.species),
-    level: Number(member.level ?? 1),
-    hp: Number(member.hp),
-    maxhp: Number(member.maxhp ?? member.maxHp),
-    status: member.status ? String(member.status) : '',
-    heldItem: member.heldItem ? String(member.heldItem) : '',
-    moves: cloneMoves(member.moves),
+    maplessId: persistentMemberId(member, 'Battle projection'), species: String(member.species), name: String(member.name ?? member.species),
+    level: Number(member.level ?? 1), hp: Number(member.hp), maxhp: Number(member.maxhp ?? member.maxHp), status: member.status ? String(member.status) : '',
+    heldItem: member.heldItem ? String(member.heldItem) : '', moves: cloneMoves(member.moves),
   };
-  if (projected.status.toLowerCase() === 'slp') {
-    projected.statusTurns = exactSleepTurns(member.statusTurns, 'Persistent');
-  }
+  if (projected.status.toLowerCase() === 'slp') projected.statusTurns = exactSleepTurns(member.statusTurns, 'Persistent');
   return Object.freeze(projected);
 }
-
 export function projectMaplessPartyToShowdown(party = []) {
   const projected = party.map(projectMaplessPokemonToShowdown);
   const ids = new Set();
   for (const member of projected) {
-    if (ids.has(member.maplessId)) {
-      throw new Error(`Battle projection requires unique persistent Mapless member ids: ${member.maplessId}`);
-    }
+    if (ids.has(member.maplessId)) throw new Error(`Battle projection requires unique persistent Mapless member ids: ${member.maplessId}`);
     ids.add(member.maplessId);
   }
   return projected;
 }
-
 export function createShowdownBattleSnapshot(state, { battleId }) {
   if (!battleId) throw new Error('battleId is required');
-  return Object.freeze({
-    battleId: String(battleId),
-    party: projectMaplessPartyToShowdown(state.party),
-  });
+  return Object.freeze({ battleId: String(battleId), party: projectMaplessPartyToShowdown(state.party) });
 }
 
 function mergeResolvedMovePp(sourceMoves = [], resolvedMoves = []) {
-  if (resolvedMoves.length !== sourceMoves.length) {
-    throw new Error('Terminal PP commit requires one resolved Showdown move per Mapless move');
-  }
+  if (resolvedMoves.length !== sourceMoves.length) throw new Error('Terminal PP commit requires one resolved Showdown move per Mapless move');
   const resolvedById = new Map();
   for (const move of resolvedMoves) {
     const id = moveId(move);
@@ -124,53 +90,36 @@ function mergeResolvedMovePp(sourceMoves = [], resolvedMoves = []) {
     return { ...move, pp: resolved.pp };
   });
 }
-
 function persistentPatch(source, resolved) {
   const hp = exactNonnegativeInteger(resolved.hp, 'Terminal HP commit');
   const maxhp = exactNonnegativeInteger(resolved.maxhp ?? resolved.maxHp ?? source.maxhp ?? source.maxHp, 'Terminal max HP bound');
   if (maxhp < 1 || hp > maxhp) throw new Error(`Terminal HP commit is outside Showdown/persistent bounds: ${hp}/${maxhp}`);
   const status = exactTerminalStatus(resolved.status);
   const heldItem = exactTerminalItem(resolved.heldItem);
-  const patch = {
-    hp,
-    status,
-    moves: mergeResolvedMovePp(source.moves, resolved.moves),
-    heldItem,
-  };
-  if (status === 'slp') {
-    patch.statusTurns = exactSleepTurns(resolved.statusTurns, 'Terminal');
-  } else {
-    patch.statusTurns = undefined;
-  }
+  const fainted = exactTerminalFainted(resolved.fainted, hp);
+  const patch = { hp, status, moves: mergeResolvedMovePp(source.moves, resolved.moves), heldItem, fainted };
+  if (status === 'slp') patch.statusTurns = exactSleepTurns(resolved.statusTurns, 'Terminal');
+  else patch.statusTurns = undefined;
   return patch;
 }
-
 function clearTransientBattleState(member) {
   const clean = { ...member };
   for (const field of TRANSIENT_FIELDS) delete clean[field];
   return clean;
 }
-
 function resolvedMemberId(member) {
   const raw = member?.maplessId;
-  if (raw === undefined || raw === null || String(raw) === '') {
-    throw new Error('Terminal party commit requires maplessId on every resolved Showdown member');
-  }
+  if (raw === undefined || raw === null || String(raw) === '') throw new Error('Terminal party commit requires maplessId on every resolved Showdown member');
   return String(raw);
 }
-
 function matchTerminalParty(sourceParty = [], resolvedParty = []) {
-  if (!Array.isArray(resolvedParty) || resolvedParty.length !== sourceParty.length) {
-    throw new Error(`Terminal party commit requires one resolved Showdown member per persistent member: ${resolvedParty?.length ?? 0}/${sourceParty.length}`);
-  }
-
+  if (!Array.isArray(resolvedParty) || resolvedParty.length !== sourceParty.length) throw new Error(`Terminal party commit requires one resolved Showdown member per persistent member: ${resolvedParty?.length ?? 0}/${sourceParty.length}`);
   const persistentIds = new Set();
   for (const member of sourceParty) {
     const id = persistentMemberId(member);
     if (persistentIds.has(id)) throw new Error(`Duplicate persistent Mapless member id during terminal party commit: ${id}`);
     persistentIds.add(id);
   }
-
   const byId = new Map();
   for (const member of resolvedParty) {
     const id = resolvedMemberId(member);
@@ -178,24 +127,16 @@ function matchTerminalParty(sourceParty = [], resolvedParty = []) {
     if (!persistentIds.has(id)) throw new Error(`Terminal party commit contains unknown resolved Showdown member: ${id}`);
     byId.set(id, member);
   }
-
-  for (const id of persistentIds) {
-    if (!byId.has(id)) throw new Error(`Terminal party commit is missing resolved Showdown member: ${id}`);
-  }
+  for (const id of persistentIds) if (!byId.has(id)) throw new Error(`Terminal party commit is missing resolved Showdown member: ${id}`);
   return byId;
 }
 
-// Commits only persistent battle state. The Core terminal lifecycle remains owned by
-// step(... BATTLE_TERMINAL_RESULT), so this uses a distinct idempotency namespace.
 export function commitShowdownTerminalResult(state, result) {
   if (!result?.terminal) throw new Error('Only terminal Showdown results may commit to Mapless state');
   if (!result.resultId) throw new Error('Terminal Showdown result requires resultId');
   const resultId = String(result.resultId);
   const applied = state.diagnostics?.[BATTLE_SYNC_IDS] ?? [];
-  if (applied.includes(resultId)) {
-    return { state, committed: false, duplicate: true };
-  }
-
+  if (applied.includes(resultId)) return { state, committed: false, duplicate: true };
   const byId = matchTerminalParty(state.party, result.party);
   const next = cloneGameState(state);
   next.party = next.party.map((member) => {
@@ -211,7 +152,4 @@ export function commitShowdownTerminalResult(state, result) {
   next.diagnostics[BATTLE_SYNC_IDS].push(resultId);
   return { state: next, committed: true, duplicate: false };
 }
-
-export function getShowdownPersistentFields() {
-  return PERSISTENT_FIELDS.slice();
-}
+export function getShowdownPersistentFields() { return PERSISTENT_FIELDS.slice(); }
