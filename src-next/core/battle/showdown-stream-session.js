@@ -69,21 +69,24 @@ function validatePersistentMember(pokemon, sourceMember) {
   if (showdownItem !== projectedItem) throw new Error(`Persistent held-item projection mismatch: ${projectedItem || '<empty>'}/${showdownItem || '<empty>'}`);
 
   const sourceMoves = sourceMember.moves ?? [];
+  const slots = pokemon.moveSlots ?? [];
+  if (slots.length !== sourceMoves.length) throw new Error('Persistent move identity projection requires one Showdown move slot per Mapless move');
   const sourceById = new Map();
   for (const move of sourceMoves) {
     const id = moveId(move);
-    if (!id) throw new Error('Persistent PP projection requires a stable move id');
+    if (!id) throw new Error('Persistent move identity projection requires a stable move id');
     if (sourceById.has(id)) throw new Error(`Duplicate Mapless move id in Showdown projection: ${id}`);
     exactNonnegativeInteger(move?.pp, `Persistent PP projection for ${id}`);
     sourceById.set(id, move);
   }
-  const slots = pokemon.moveSlots ?? [];
-  if (slots.length !== sourceMoves.length) throw new Error('Persistent PP projection requires one Showdown move slot per Mapless move');
   const hydratedIds = new Set();
-  for (const slot of slots) {
+  for (let index = 0; index < slots.length; index += 1) {
+    const slot = slots[index];
     const id = moveId(slot);
+    const expectedId = moveId(sourceMoves[index]);
+    if (!id || id !== expectedId) throw new Error(`Persistent move identity projection mismatch at slot ${index + 1}: ${expectedId || '<empty>'}/${id || '<unknown>'}`);
     const sourceMove = sourceById.get(id);
-    if (!sourceMove) throw new Error(`Persistent PP projection could not match Showdown move slot: ${id || '<unknown>'}`);
+    if (!sourceMove) throw new Error(`Persistent move identity projection could not match Showdown move slot: ${id || '<unknown>'}`);
     if (hydratedIds.has(id)) throw new Error(`Duplicate Showdown move slot during PP projection: ${id}`);
     hydratedIds.add(id);
     const pp = exactNonnegativeInteger(sourceMove.pp, `Persistent PP projection for ${id}`);
@@ -178,7 +181,6 @@ export function createShowdownStreamSession(showdown, config) {
     const battle = battleStream.battle;
     if (!battle) throw new Error('Showdown battle state is unavailable after player projection');
 
-    // Preflight both sides before mutating either Showdown side. Starting projection is atomic.
     validatePersistentSide(battle, 0, config.p1.team);
     validatePersistentSide(battle, 1, config.p2.team);
     hydratePersistentSide(battle, 0, config.p1.team, identityByPokemon);
