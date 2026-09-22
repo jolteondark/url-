@@ -5,9 +5,6 @@ const TRANSIENT_FIELDS = Object.freeze(['volatile', 'volatiles', 'statStages', '
 const BATTLE_SYNC_IDS = 'appliedBattleStateResultIds';
 const PERSISTENT_MAJOR_STATUSES = new Set(['', 'brn', 'frz', 'par', 'psn', 'slp', 'tox']);
 
-function cloneMoves(moves = []) {
-  return moves.map((move) => ({ id: String(move.id), pp: Number(move.pp), maxpp: Number(move.maxpp ?? move.maxPP ?? move.pp) }));
-}
 function normalizeId(value) { return String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ''); }
 function moveId(move) { return normalizeId(move?.id ?? move?.move ?? move); }
 function exactSleepTurns(value, boundary) {
@@ -19,6 +16,21 @@ function exactNonnegativeInteger(value, boundary) {
   const number = Number(value);
   if (!Number.isInteger(number) || number < 0) throw new Error(`${boundary} requires a non-negative integer`);
   return number;
+}
+function exactStartingMoves(moves = []) {
+  if (!Array.isArray(moves)) throw new Error('Battle projection moves require an array');
+  const ids = new Set();
+  return moves.map((move) => {
+    const id = moveId(move);
+    if (!id) throw new Error('Battle projection move requires a stable move id');
+    if (ids.has(id)) throw new Error(`Battle projection requires unique move ids: ${id}`);
+    ids.add(id);
+    const pp = exactNonnegativeInteger(move?.pp, `Battle projection PP for ${id}`);
+    const maxpp = exactNonnegativeInteger(move?.maxpp ?? move?.maxPP, `Battle projection max PP for ${id}`);
+    if (maxpp < 1) throw new Error(`Battle projection max PP requires a positive integer for ${id}`);
+    if (pp > maxpp) throw new Error(`Battle projection PP is outside persistent bounds for ${id}: ${pp}/${maxpp}`);
+    return { id: String(move.id), pp, maxpp };
+  });
 }
 function exactStartingLevel(value) {
   const level = Number(value ?? 1);
@@ -69,7 +81,7 @@ export function projectMaplessPokemonToShowdown(member) {
   const projected = {
     maplessId: persistentMemberId(member, 'Battle projection'), species: String(member.species), name: String(member.name ?? member.species),
     level, hp, maxhp, status: member.status ? String(member.status) : '',
-    heldItem: member.heldItem ? String(member.heldItem) : '', moves: cloneMoves(member.moves), fainted: exactStartingFainted(member.fainted, hp),
+    heldItem: member.heldItem ? String(member.heldItem) : '', moves: exactStartingMoves(member.moves), fainted: exactStartingFainted(member.fainted, hp),
   };
   if (member.ability !== undefined && member.ability !== null && String(member.ability) !== '') projected.ability = String(member.ability);
   if (projected.status.toLowerCase() === 'slp') projected.statusTurns = exactSleepTurns(member.statusTurns, 'Persistent');
