@@ -7,7 +7,7 @@ function requestView(pokemon) { return { hp: pokemon.hp, status: pokemon.status,
 function fakeShowdown(raw) {
   return { BattleStreams: { BattleStream, getPlayerStreams(stream) { const omniscient = new Stream(); omniscient.write = async (value) => { if (!value.startsWith('>player p2 ')) return; stream.battle = { ended: false, winner: '', turn: 0, requestSnapshots: [], sides: [{ pokemon: [raw.p1] }, { pokemon: [raw.p2] }], initEffectState(initial) { return { ...initial }; }, makeRequest() { this.requestSnapshots.push({ p1: requestView(this.sides[0].pokemon[0]), p2: requestView(this.sides[1].pokemon[0]) }); } }; }; return { omniscient, p1: new Stream(), p2: new Stream() }; } }, Teams: { pack: () => 'PACKED' } };
 }
-function freshRaw() { return { p1: { level: 1, hp: 35, maxhp: 35, status: '', statusState: {}, item: 'oranberry', fainted: false, moveSlots: [{ id: 'thunderbolt', pp: 15, maxpp: 15 }] }, p2: { level: 1, hp: 20, maxhp: 20, status: '', statusState: {}, item: '', fainted: false, moveSlots: [{ id: 'splash', pp: 40, maxpp: 40 }] } }; }
+function freshRaw() { return { p1: { species: { id: 'pikachu' }, level: 1, hp: 35, maxhp: 35, status: '', statusState: {}, item: 'oranberry', fainted: false, moveSlots: [{ id: 'thunderbolt', pp: 15, maxpp: 15 }] }, p2: { species: { id: 'magikarp' }, level: 1, hp: 20, maxhp: 20, status: '', statusState: {}, item: '', fainted: false, moveSlots: [{ id: 'splash', pp: 40, maxpp: 40 }] } }; }
 
 const raw = freshRaw();
 const persistent = { id: 'hero', species: 'Pikachu', level: 1, hp: 17, maxhp: 35, status: 'slp', statusTurns: 3, heldItem: 'oranberry', moves: [{ id: 'thunderbolt', pp: 4, maxpp: 15 }] };
