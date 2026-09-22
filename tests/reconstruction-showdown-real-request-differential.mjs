@@ -33,12 +33,38 @@ const session = createShowdownStreamSession(showdown, {
 await session.start();
 const battle = session.battleStream.battle;
 
+function normalizeId(value) {
+  return String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
 function conditionParts(condition) {
-  const [health = '', status = ''] = String(condition ?? '').trim().split(/\s+/, 2);
-  if (health === '0 fnt') return { hp: 0, maxhp: null, status: 'fnt' };
+  const text = String(condition ?? '').trim();
+  if (text === '0 fnt') return { hp: 0, maxhp: null, status: 'fnt' };
+  const [health = '', status = ''] = text.split(/\s+/, 2);
   const match = /^(\d+)\/(\d+)$/.exec(health);
   assert.ok(match, `unexpected Showdown request condition: ${condition}`);
   return { hp: Number(match[1]), maxhp: Number(match[2]), status };
+}
+
+function assertPersistentMatchesRaw(sideIndex, sourceTeam) {
+  const side = battle.sides[sideIndex];
+  assert.equal(side.pokemon.length, sourceTeam.length);
+  side.pokemon.forEach((pokemon, index) => {
+    const source = sourceTeam[index];
+    assert.equal(Number(pokemon.hp), Number(source.hp), `p${sideIndex + 1}[${index}] raw HP must equal persistent starting HP`);
+    assert.equal(String(pokemon.status ?? ''), String(source.status ?? '').toLowerCase(), `p${sideIndex + 1}[${index}] raw status must equal persistent starting status`);
+    assert.equal(normalizeId(pokemon.item), normalizeId(source.heldItem), `p${sideIndex + 1}[${index}] raw item must equal persistent starting item`);
+    assert.equal(Boolean(pokemon.fainted), Boolean(source.fainted), `p${sideIndex + 1}[${index}] raw faint must equal persistent starting faint`);
+    if (String(source.status ?? '').toLowerCase() === 'slp') {
+      assert.equal(Number(pokemon.statusState?.time), Number(source.statusTurns), `p${sideIndex + 1}[${index}] raw Sleep turns must equal persistent statusTurns`);
+    }
+    assert.equal(pokemon.moveSlots.length, source.moves.length);
+    pokemon.moveSlots.forEach((slot, moveIndex) => {
+      const sourceMove = source.moves[moveIndex];
+      assert.equal(normalizeId(slot.id), normalizeId(sourceMove.id), `p${sideIndex + 1}[${index}] raw move id must equal persistent move id`);
+      assert.equal(Number(slot.pp), Number(sourceMove.pp), `p${sideIndex + 1}[${index}] raw move PP must equal persistent starting PP`);
+    });
+  });
 }
 
 function assertRequestMatchesRaw(sideIndex) {
@@ -67,6 +93,8 @@ function assertRequestMatchesRaw(sideIndex) {
   });
 }
 
+assertPersistentMatchesRaw(0, p1Team);
+assertPersistentMatchesRaw(1, p2Team);
 assertRequestMatchesRaw(0);
 assertRequestMatchesRaw(1);
 assert.equal(battle.sides[0].pokemon[0].statusState.time, 3, 'request regeneration must not consume persisted Sleep turns');
