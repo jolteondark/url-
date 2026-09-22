@@ -118,9 +118,6 @@ function persistentPatch(source, resolved) {
   const patch = {
     hp,
     status,
-    // Showdown owns current PP during battle, but its move-slot maxpp is derived
-    // from simulator defaults. Keep Mapless move metadata/maxpp and only commit
-    // the authoritative current PP by stable move id.
     moves: mergeResolvedMovePp(source.moves, resolved.moves),
     heldItem,
   };
@@ -138,6 +135,48 @@ function clearTransientBattleState(member) {
   return clean;
 }
 
+function persistentMemberId(member) {
+  const raw = member?.id ?? member?.personalId;
+  if (raw === undefined || raw === null || String(raw) === '') {
+    throw new Error('Terminal party commit requires a stable persistent Mapless member id');
+  }
+  return String(raw);
+}
+
+function resolvedMemberId(member) {
+  const raw = member?.maplessId;
+  if (raw === undefined || raw === null || String(raw) === '') {
+    throw new Error('Terminal party commit requires maplessId on every resolved Showdown member');
+  }
+  return String(raw);
+}
+
+function matchTerminalParty(sourceParty = [], resolvedParty = []) {
+  if (!Array.isArray(resolvedParty) || resolvedParty.length !== sourceParty.length) {
+    throw new Error(`Terminal party commit requires one resolved Showdown member per persistent member: ${resolvedParty?.length ?? 0}/${sourceParty.length}`);
+  }
+
+  const persistentIds = new Set();
+  for (const member of sourceParty) {
+    const id = persistentMemberId(member);
+    if (persistentIds.has(id)) throw new Error(`Duplicate persistent Mapless member id during terminal party commit: ${id}`);
+    persistentIds.add(id);
+  }
+
+  const byId = new Map();
+  for (const member of resolvedParty) {
+    const id = resolvedMemberId(member);
+    if (byId.has(id)) throw new Error(`Duplicate resolved Showdown maplessId during terminal party commit: ${id}`);
+    if (!persistentIds.has(id)) throw new Error(`Terminal party commit contains unknown resolved Showdown member: ${id}`);
+    byId.set(id, member);
+  }
+
+  for (const id of persistentIds) {
+    if (!byId.has(id)) throw new Error(`Terminal party commit is missing resolved Showdown member: ${id}`);
+  }
+  return byId;
+}
+
 // Commits only persistent battle state. The Core terminal lifecycle remains owned by
 // step(... BATTLE_TERMINAL_RESULT), so this uses a distinct idempotency namespace.
 export function commitShowdownTerminalResult(state, result) {
@@ -149,14 +188,12 @@ export function commitShowdownTerminalResult(state, result) {
     return { state, committed: false, duplicate: true };
   }
 
+  const byId = matchTerminalParty(state.party, result.party);
   const next = cloneGameState(state);
-  const byId = new Map((result.party ?? []).map((member) => [String(member.maplessId), member]));
   next.party = next.party.map((member) => {
     const clean = clearTransientBattleState(member);
-    const id = String(member.id ?? member.personalId ?? member.species);
-    const resolved = byId.get(id);
-    if (!resolved) return clean;
-    const patch = persistentPatch(clean, resolved);
+    const id = persistentMemberId(member);
+    const patch = persistentPatch(clean, byId.get(id));
     const committed = { ...clean, ...patch };
     if (patch.statusTurns === undefined) delete committed.statusTurns;
     return committed;
