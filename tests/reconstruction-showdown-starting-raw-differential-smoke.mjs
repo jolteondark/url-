@@ -77,4 +77,25 @@ await assert.rejects(
 );
 assert.equal(contradictoryRaw.p1.hp, 35, 'failed faint validation must occur before persistent HP mutates the Showdown object');
 
+const atomicRaw = freshRaw();
+const atomic = createShowdownStreamSession(fakeShowdown(atomicRaw), {
+  p1: { name: 'Mapless', team: [persistent] },
+  p2: { name: 'Wild', team: [{ ...wild, hp: 999 }] },
+});
+await assert.rejects(
+  () => atomic.start(),
+  /Persistent HP projection is outside Showdown bounds/,
+  'a later-side projection failure must reject the whole starting projection',
+);
+assert.deepEqual(
+  { hp: atomicRaw.p1.hp, status: atomicRaw.p1.status, item: atomicRaw.p1.item, pp: atomicRaw.p1.moveSlots[0].pp, fainted: atomicRaw.p1.fainted },
+  { hp: 35, status: '', item: 'oranberry', pp: 15, fainted: false },
+  'p2 validation failure must not leave p1 partially hydrated',
+);
+assert.deepEqual(
+  { hp: atomicRaw.p2.hp, status: atomicRaw.p2.status, item: atomicRaw.p2.item, pp: atomicRaw.p2.moveSlots[0].pp, fainted: atomicRaw.p2.fainted },
+  { hp: 20, status: '', item: '', pp: 40, fainted: false },
+  'failed starting projection must leave p2 raw state untouched too',
+);
+
 console.log('reconstruction Showdown starting raw differential smoke: ok');
