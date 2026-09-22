@@ -5,11 +5,16 @@ function assertSide(side) {
 const PERSISTENT_MAJOR_STATUSES = new Set(['', 'brn', 'frz', 'par', 'psn', 'slp', 'tox']);
 
 function normalizeId(value) { return String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ''); }
+function exactLevel(value, boundary) {
+  const level = Number(value ?? 1);
+  if (!Number.isInteger(level) || level < 1 || level > 100) throw new Error(`${boundary} requires an integer level from 1 to 100`);
+  return level;
+}
 function normalizeTeamMember(member) {
   if (!member?.species) throw new Error('Showdown team member requires species');
   const moves = (member.moves ?? []).map((move) => String(move.id ?? move));
   if (!moves.length) throw new Error('Showdown team member requires at least one move');
-  return { name: String(member.name ?? member.species), species: String(member.species), level: Number(member.level ?? 1), item: String(member.heldItem ?? member.item ?? ''), ability: String(member.ability ?? ''), moves };
+  return { name: String(member.name ?? member.species), species: String(member.species), level: exactLevel(member.level, 'Showdown team projection'), item: String(member.heldItem ?? member.item ?? ''), ability: String(member.ability ?? ''), moves };
 }
 function playerCommand(side, player, packedTeam) { return `>player ${side} ${JSON.stringify({ name: String(player.name ?? side), team: packedTeam })}`; }
 function maplessId(member) { return String(member?.maplessId ?? member?.id ?? member?.personalId ?? ''); }
@@ -34,6 +39,9 @@ function exactPersistentFainted(value, hp) {
 
 function validatePersistentMember(pokemon, sourceMember) {
   if (!pokemon || !sourceMember) throw new Error('Showdown persistent hydration requires matching Pokemon');
+  const projectedLevel = exactLevel(sourceMember.level, 'Persistent level projection');
+  const showdownLevel = Number(pokemon.level);
+  if (!Number.isInteger(showdownLevel) || showdownLevel < 1 || showdownLevel > 100 || projectedLevel !== showdownLevel) throw new Error(`Persistent level projection mismatch: ${projectedLevel}/${Number.isFinite(showdownLevel) ? showdownLevel : '<unknown>'}`);
   const hp = exactNonnegativeInteger(sourceMember.hp, 'Persistent HP projection');
   const maxhp = Number(pokemon.maxhp);
   if (!Number.isFinite(maxhp) || !Number.isInteger(maxhp) || maxhp < 1 || hp > maxhp) throw new Error(`Persistent HP projection is outside Showdown bounds: ${hp}/${Number.isFinite(maxhp) ? maxhp : '<unknown>'}`);
