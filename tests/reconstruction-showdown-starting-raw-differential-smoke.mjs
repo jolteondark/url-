@@ -57,7 +57,12 @@ const observed = session.resolvedState();
 assert.deepEqual(
   { hp: observed.p1[0].hp, status: observed.p1[0].status, statusTurns: observed.p1[0].statusTurns, item: observed.p1[0].heldItem, pp: observed.p1[0].moves[0].pp, fainted: observed.p1[0].fainted },
   { hp: raw.p1.hp, status: raw.p1.status, statusTurns: raw.p1.statusState.time, item: raw.p1.item, pp: raw.p1.moveSlots[0].pp, fainted: raw.p1.fainted },
-  'adapter observation must be differential-zero against the raw hydrated Showdown object',
+  'p1 adapter observation must be differential-zero against the raw hydrated Showdown object',
+);
+assert.deepEqual(
+  { hp: observed.p2[0].hp, status: observed.p2[0].status, item: observed.p2[0].heldItem, pp: observed.p2[0].moves[0].pp, fainted: observed.p2[0].fainted },
+  { hp: raw.p2.hp, status: raw.p2.status, item: raw.p2.item, pp: raw.p2.moveSlots[0].pp, fainted: raw.p2.fainted },
+  'p2 adapter observation must be differential-zero against the raw hydrated Showdown object',
 );
 
 const contradictoryRaw = freshRaw();
