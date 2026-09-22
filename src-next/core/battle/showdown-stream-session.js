@@ -19,6 +19,7 @@ function normalizeTeamMember(member) {
 function playerCommand(side, player, packedTeam) { return `>player ${side} ${JSON.stringify({ name: String(player.name ?? side), team: packedTeam })}`; }
 function maplessId(member) { return String(member?.maplessId ?? member?.id ?? member?.personalId ?? ''); }
 function moveId(move) { return normalizeId(move?.id ?? move?.move ?? move); }
+function pokemonSpeciesId(pokemon) { return normalizeId(pokemon?.species?.id ?? pokemon?.species?.name ?? pokemon?.species ?? pokemon?.baseSpecies); }
 function exactSleepTurns(value, boundary) {
   const turns = Number(value);
   if (!Number.isInteger(turns) || turns < 1) throw new Error(`${boundary} sleep projection requires a positive integer statusTurns`);
@@ -39,6 +40,9 @@ function exactPersistentFainted(value, hp) {
 
 function validatePersistentMember(pokemon, sourceMember) {
   if (!pokemon || !sourceMember) throw new Error('Showdown persistent hydration requires matching Pokemon');
+  const projectedSpecies = normalizeId(sourceMember.species);
+  const showdownSpecies = pokemonSpeciesId(pokemon);
+  if (!projectedSpecies || !showdownSpecies || projectedSpecies !== showdownSpecies) throw new Error(`Persistent species/form projection mismatch: ${projectedSpecies || '<empty>'}/${showdownSpecies || '<unknown>'}`);
   const projectedLevel = exactLevel(sourceMember.level, 'Persistent level projection');
   const showdownLevel = Number(pokemon.level);
   if (!Number.isInteger(showdownLevel) || showdownLevel < 1 || showdownLevel > 100 || projectedLevel !== showdownLevel) throw new Error(`Persistent level projection mismatch: ${projectedLevel}/${Number.isFinite(showdownLevel) ? showdownLevel : '<unknown>'}`);
