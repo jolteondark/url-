@@ -17,6 +17,17 @@ function exactNonnegativeInteger(value, boundary) {
   if (!Number.isInteger(number) || number < 0) throw new Error(`${boundary} requires a non-negative integer`);
   return number;
 }
+function exactStartingStatus(value) {
+  const status = value === undefined || value === null ? '' : String(value);
+  if (!PERSISTENT_MAJOR_STATUSES.has(status)) throw new Error(`Battle projection status requires a canonical Showdown major status: ${status || '<empty>'}`);
+  return status;
+}
+function exactStartingItem(value) {
+  const item = value === undefined || value === null ? '' : String(value);
+  const canonical = normalizeId(item);
+  if (item && item !== canonical) throw new Error(`Battle projection held item requires a canonical Showdown item id: ${item}`);
+  return canonical;
+}
 function exactStartingMoves(moves = []) {
   if (!Array.isArray(moves)) throw new Error('Battle projection moves require an array');
   const ids = new Set();
@@ -78,13 +89,14 @@ export function projectMaplessPokemonToShowdown(member) {
   const hp = exactNonnegativeInteger(member.hp, 'Battle projection HP');
   const level = exactStartingLevel(member.level);
   const maxhp = exactStartingMaxHp(member.maxhp ?? member.maxHp, hp);
+  const status = exactStartingStatus(member.status);
+  const heldItem = exactStartingItem(member.heldItem);
   const projected = {
     maplessId: persistentMemberId(member, 'Battle projection'), species: String(member.species), name: String(member.name ?? member.species),
-    level, hp, maxhp, status: member.status ? String(member.status) : '',
-    heldItem: member.heldItem ? String(member.heldItem) : '', moves: exactStartingMoves(member.moves), fainted: exactStartingFainted(member.fainted, hp),
+    level, hp, maxhp, status, heldItem, moves: exactStartingMoves(member.moves), fainted: exactStartingFainted(member.fainted, hp),
   };
   if (member.ability !== undefined && member.ability !== null && String(member.ability) !== '') projected.ability = String(member.ability);
-  if (projected.status.toLowerCase() === 'slp') projected.statusTurns = exactSleepTurns(member.statusTurns, 'Persistent');
+  if (projected.status === 'slp') projected.statusTurns = exactSleepTurns(member.statusTurns, 'Persistent');
   return Object.freeze(projected);
 }
 export function projectMaplessPartyToShowdown(party = []) {
