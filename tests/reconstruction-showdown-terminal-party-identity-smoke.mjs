@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { createInitialGameState } from '../src-next/core/game-state.js';
-import { commitShowdownTerminalResult } from '../src-next/core/battle/showdown-roundtrip.js';
+import {
+  commitShowdownTerminalResult,
+  projectMaplessPartyToShowdown,
+} from '../src-next/core/battle/showdown-roundtrip.js';
 
 function member(id, species) {
   return {
@@ -36,6 +39,26 @@ function stateWithParty() {
 function result(party, suffix) {
   return { terminal: true, resultId: `terminal-party-${suffix}`, party };
 }
+
+const projected = projectMaplessPartyToShowdown(stateWithParty().party);
+assert.deepEqual(projected.map((m) => m.maplessId), ['starter-1', 'starter-2']);
+
+const missingProjectionId = member('starter-1', 'Pikachu');
+delete missingProjectionId.id;
+assert.throws(
+  () => projectMaplessPartyToShowdown([missingProjectionId]),
+  /Battle projection requires a stable persistent Mapless member id/,
+  'species must never stand in for stable identity at starting projection',
+);
+
+assert.throws(
+  () => projectMaplessPartyToShowdown([
+    member('starter-1', 'Pikachu'),
+    member('starter-1', 'Eevee'),
+  ]),
+  /Battle projection requires unique persistent Mapless member ids/,
+  'ambiguous starting party identity must fail before Showdown projection',
+);
 
 const exact = commitShowdownTerminalResult(stateWithParty(), result([
   resolved('starter-2', 'Eevee'),
