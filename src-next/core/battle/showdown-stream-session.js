@@ -46,6 +46,14 @@ function exactNonnegativeInteger(value, boundary) {
   return number;
 }
 
+function exactPersistentFainted(value, hp) {
+  const expected = hp === 0;
+  if (value === undefined) return expected;
+  if (typeof value !== 'boolean') throw new Error('Persistent faint projection requires an exact boolean when persisted');
+  if (value !== expected) throw new Error(`Persistent faint projection is inconsistent with HP: ${value}/${hp}`);
+  return value;
+}
+
 function hydratePersistentStatus(battle, pokemon, sourceMember) {
   const status = sourceMember.status ? String(sourceMember.status).toLowerCase() : '';
   if (!PERSISTENT_MAJOR_STATUSES.has(status)) throw new Error(`Persistent status projection requires a canonical Showdown major status: ${status || '<empty>'}`);
@@ -66,8 +74,9 @@ function hydratePersistentMember(battle, pokemon, sourceMember) {
   const hp = exactNonnegativeInteger(sourceMember.hp, 'Persistent HP projection');
   const maxhp = Number(pokemon.maxhp);
   if (!Number.isFinite(maxhp) || hp > maxhp) throw new Error(`Persistent HP projection is outside Showdown bounds: ${hp}/${Number.isFinite(maxhp) ? maxhp : '<unknown>'}`);
+  const fainted = exactPersistentFainted(sourceMember.fainted, hp);
   pokemon.hp = hp;
-  pokemon.fainted = pokemon.hp <= 0;
+  pokemon.fainted = fainted;
   hydratePersistentStatus(battle, pokemon, sourceMember);
 
   const projectedItem = normalizeId(sourceMember.heldItem ?? sourceMember.item ?? '');
