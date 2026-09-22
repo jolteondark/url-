@@ -66,4 +66,26 @@ assert.throws(
 const consumed = commitShowdownTerminalResult(stateWithParty(), result({ heldItem: '' }));
 assert.equal(consumed.state.party[0].heldItem, '');
 
+assert.throws(
+  () => commitShowdownTerminalResult(stateWithParty(), result({ hp: 0, fainted: false })),
+  /terminal faint state/i,
+  'Showdown terminal HP=0 must not commit as non-fainted',
+);
+
+assert.throws(
+  () => commitShowdownTerminalResult(stateWithParty(), result({ hp: 20, fainted: true })),
+  /terminal faint state/i,
+  'Showdown terminal positive HP must not commit as fainted',
+);
+
+assert.throws(
+  () => commitShowdownTerminalResult(stateWithParty(), result({ fainted: 'false' })),
+  /terminal faint state/i,
+  'terminal faint state must be an exact boolean, never truthy-coerced',
+);
+
+const fainted = commitShowdownTerminalResult(stateWithParty(), result({ hp: 0, fainted: true }));
+assert.equal(fainted.state.party[0].hp, 0);
+assert.equal(fainted.state.party[0].fainted, true, 'Showdown-authoritative faint state must commit with HP=0');
+
 console.log('reconstruction showdown terminal persistent exactness smoke: ok');
