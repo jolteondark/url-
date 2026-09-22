@@ -4,40 +4,44 @@ import { createShowdownStreamSession } from '../src-next/core/battle/showdown-st
 class Stream { async write() {} }
 class BattleStream extends Stream { constructor() { super(); this.battle = null; } }
 
-const raw = {
-  p1: { hp: 35, maxhp: 35, status: '', statusState: {}, item: 'oranberry', fainted: false, moveSlots: [{ id: 'thunderbolt', pp: 15, maxpp: 15 }] },
-  p2: { hp: 20, maxhp: 20, status: '', statusState: {}, item: '', fainted: false, moveSlots: [{ id: 'splash', pp: 40, maxpp: 40 }] },
-};
-
-const showdown = {
-  BattleStreams: {
-    BattleStream,
-    getPlayerStreams(stream) {
-      const omniscient = new Stream();
-      omniscient.write = async (value) => {
-        if (!value.startsWith('>player p2 ')) return;
-        stream.battle = {
-          ended: false, winner: '', turn: 0,
-          sides: [{ pokemon: [raw.p1] }, { pokemon: [raw.p2] }],
-          initEffectState(initial) { return { ...initial }; },
-          makeRequest() {},
+function fakeShowdown(raw) {
+  return {
+    BattleStreams: {
+      BattleStream,
+      getPlayerStreams(stream) {
+        const omniscient = new Stream();
+        omniscient.write = async (value) => {
+          if (!value.startsWith('>player p2 ')) return;
+          stream.battle = {
+            ended: false, winner: '', turn: 0,
+            sides: [{ pokemon: [raw.p1] }, { pokemon: [raw.p2] }],
+            initEffectState(initial) { return { ...initial }; },
+            makeRequest() {},
+          };
         };
-      };
-      return { omniscient, p1: new Stream(), p2: new Stream() };
+        return { omniscient, p1: new Stream(), p2: new Stream() };
+      },
     },
-  },
-  Teams: { pack: () => 'PACKED' },
-};
+    Teams: { pack: () => 'PACKED' },
+  };
+}
 
+function freshRaw() {
+  return {
+    p1: { hp: 35, maxhp: 35, status: '', statusState: {}, item: 'oranberry', fainted: false, moveSlots: [{ id: 'thunderbolt', pp: 15, maxpp: 15 }] },
+    p2: { hp: 20, maxhp: 20, status: '', statusState: {}, item: '', fainted: false, moveSlots: [{ id: 'splash', pp: 40, maxpp: 40 }] },
+  };
+}
+
+const raw = freshRaw();
 const persistent = {
   id: 'hero', species: 'Pikachu', hp: 17, status: 'slp', statusTurns: 3,
   heldItem: 'oranberry', moves: [{ id: 'thunderbolt', pp: 4 }],
 };
 const wild = { id: 'wild', species: 'Magikarp', hp: 11, status: '', heldItem: '', moves: [{ id: 'splash', pp: 9 }] };
-const session = createShowdownStreamSession(showdown, { p1: { name: 'Mapless', team: [persistent] }, p2: { name: 'Wild', team: [wild] } });
+const session = createShowdownStreamSession(fakeShowdown(raw), { p1: { name: 'Mapless', team: [persistent] }, p2: { name: 'Wild', team: [wild] } });
 await session.start();
 
-// Compare the actual hydrated simulator object, not only the adapter projection.
 assert.deepEqual(
   { hp: raw.p1.hp, status: raw.p1.status, statusTurns: raw.p1.statusState.time, item: raw.p1.item, pp: raw.p1.moveSlots[0].pp, fainted: raw.p1.fainted },
   { hp: 17, status: 'slp', statusTurns: 3, item: 'oranberry', pp: 4, fainted: false },
@@ -55,5 +59,17 @@ assert.deepEqual(
   { hp: raw.p1.hp, status: raw.p1.status, statusTurns: raw.p1.statusState.time, item: raw.p1.item, pp: raw.p1.moveSlots[0].pp, fainted: raw.p1.fainted },
   'adapter observation must be differential-zero against the raw hydrated Showdown object',
 );
+
+const contradictoryRaw = freshRaw();
+const contradictory = createShowdownStreamSession(fakeShowdown(contradictoryRaw), {
+  p1: { name: 'Mapless', team: [{ ...persistent, status: '', statusTurns: undefined, fainted: true }] },
+  p2: { name: 'Wild', team: [wild] },
+});
+await assert.rejects(
+  () => contradictory.start(),
+  /Persistent faint projection is inconsistent with HP/,
+  'direct stream hydration must reject a persisted faint flag that contradicts positive HP',
+);
+assert.equal(contradictoryRaw.p1.hp, 35, 'failed faint validation must occur before persistent HP mutates the Showdown object');
 
 console.log('reconstruction Showdown starting raw differential smoke: ok');
