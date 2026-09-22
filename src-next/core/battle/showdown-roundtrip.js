@@ -20,6 +20,13 @@ function exactNonnegativeInteger(value, boundary) {
   if (!Number.isInteger(number) || number < 0) throw new Error(`${boundary} requires a non-negative integer`);
   return number;
 }
+function exactStartingFainted(value, hp) {
+  const expected = hp === 0;
+  if (value === undefined) return expected;
+  if (typeof value !== 'boolean') throw new Error('Battle projection faint state requires an exact boolean when persisted');
+  if (value !== expected) throw new Error(`Battle projection faint state is inconsistent with persistent HP: ${value}/${hp}`);
+  return value;
+}
 function exactTerminalStatus(value) {
   const status = value ? String(value).toLowerCase() : '';
   if (!PERSISTENT_MAJOR_STATUSES.has(status)) throw new Error(`Terminal status commit requires a canonical Showdown major status: ${status || '<empty>'}`);
@@ -45,10 +52,11 @@ function persistentMemberId(member, boundary = 'Terminal party commit') {
 
 export function projectMaplessPokemonToShowdown(member) {
   if (!member?.species) throw new Error('Battle projection requires species');
+  const hp = exactNonnegativeInteger(member.hp, 'Battle projection HP');
   const projected = {
     maplessId: persistentMemberId(member, 'Battle projection'), species: String(member.species), name: String(member.name ?? member.species),
-    level: Number(member.level ?? 1), hp: Number(member.hp), maxhp: Number(member.maxhp ?? member.maxHp), status: member.status ? String(member.status) : '',
-    heldItem: member.heldItem ? String(member.heldItem) : '', moves: cloneMoves(member.moves),
+    level: Number(member.level ?? 1), hp, maxhp: Number(member.maxhp ?? member.maxHp), status: member.status ? String(member.status) : '',
+    heldItem: member.heldItem ? String(member.heldItem) : '', moves: cloneMoves(member.moves), fainted: exactStartingFainted(member.fainted, hp),
   };
   if (projected.status.toLowerCase() === 'slp') projected.statusTurns = exactSleepTurns(member.statusTurns, 'Persistent');
   return Object.freeze(projected);
