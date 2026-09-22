@@ -68,6 +68,10 @@ function validatePersistentMember(pokemon, sourceMember) {
     const pp = exactNonnegativeInteger(sourceMove.pp, `Persistent PP projection for ${id}`);
     const maxpp = Number(slot.maxpp);
     if (!Number.isFinite(maxpp) || pp > maxpp) throw new Error(`Persistent PP projection is outside Showdown bounds for ${id}: ${pp}/${Number.isFinite(maxpp) ? maxpp : '<unknown>'}`);
+    if (sourceMove.maxpp !== undefined || sourceMove.maxPP !== undefined) {
+      const persistentMaxpp = exactNonnegativeInteger(sourceMove.maxpp ?? sourceMove.maxPP, `Persistent max PP projection for ${id}`);
+      if (persistentMaxpp !== maxpp) throw new Error(`Persistent max PP projection mismatch for ${id}: ${persistentMaxpp}/${maxpp}`);
+    }
   }
 }
 
