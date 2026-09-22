@@ -42,6 +42,11 @@ function validatePersistentMember(pokemon, sourceMember) {
   const projectedLevel = exactLevel(sourceMember.level, 'Persistent level projection');
   const showdownLevel = Number(pokemon.level);
   if (!Number.isInteger(showdownLevel) || showdownLevel < 1 || showdownLevel > 100 || projectedLevel !== showdownLevel) throw new Error(`Persistent level projection mismatch: ${projectedLevel}/${Number.isFinite(showdownLevel) ? showdownLevel : '<unknown>'}`);
+  if (sourceMember.ability !== undefined && sourceMember.ability !== null && String(sourceMember.ability) !== '') {
+    const projectedAbility = normalizeId(sourceMember.ability);
+    const showdownAbility = normalizeId(pokemon.ability);
+    if (!projectedAbility || showdownAbility !== projectedAbility) throw new Error(`Persistent ability projection mismatch: ${projectedAbility || '<empty>'}/${showdownAbility || '<empty>'}`);
+  }
   const hp = exactNonnegativeInteger(sourceMember.hp, 'Persistent HP projection');
   const maxhp = Number(pokemon.maxhp);
   if (!Number.isFinite(maxhp) || !Number.isInteger(maxhp) || maxhp < 1 || hp > maxhp) throw new Error(`Persistent HP projection is outside Showdown bounds: ${hp}/${Number.isFinite(maxhp) ? maxhp : '<unknown>'}`);
