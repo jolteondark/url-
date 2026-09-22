@@ -21,18 +21,25 @@ const observed = session.resolvedState();
 assert.deepEqual({ hp: observed.p1[0].hp, status: observed.p1[0].status, statusTurns: observed.p1[0].statusTurns, item: observed.p1[0].heldItem, pp: observed.p1[0].moves[0].pp, fainted: observed.p1[0].fainted }, { hp: raw.p1.hp, status: raw.p1.status, statusTurns: raw.p1.statusState.time, item: raw.p1.item, pp: raw.p1.moveSlots[0].pp, fainted: raw.p1.fainted });
 assert.deepEqual({ hp: observed.p2[0].hp, status: observed.p2[0].status, item: observed.p2[0].heldItem, pp: observed.p2[0].moves[0].pp, fainted: observed.p2[0].fainted }, { hp: raw.p2.hp, status: raw.p2.status, item: raw.p2.item, pp: raw.p2.moveSlots[0].pp, fainted: raw.p2.fainted });
 
+const moveRaw = freshRaw();
+const moveAliasDrift = createShowdownStreamSession(fakeShowdown(moveRaw), { p1: { name: 'Mapless', team: [{ ...persistent, moves: [{ id: 'tbolt', pp: 4 }] }] }, p2: { name: 'Wild', team: [wild] } });
+await assert.rejects(() => moveAliasDrift.start(), /Persistent move identity projection mismatch at slot 1: tbolt\/thunderbolt/, 'Showdown alias canonicalization must not silently change persistent move identity');
+assert.equal(moveRaw.p1.moveSlots[0].pp, 15, 'move identity mismatch must fail before PP hydration');
+assert.equal(moveRaw.p1.hp, 35, 'move identity mismatch must fail before HP hydration');
+assert.equal(moveAliasDrift.battleStream.battle.requestSnapshots.length, 0, 'move identity mismatch must not emit a regenerated request');
+
 const levelRaw = freshRaw();
 const levelMismatch = createShowdownStreamSession(fakeShowdown(levelRaw), { p1: { name: 'Mapless', team: [{ ...persistent, level: 2 }] }, p2: { name: 'Wild', team: [wild] } });
-await assert.rejects(() => levelMismatch.start(), /Persistent level projection mismatch: 2\/1/, 'persistent level must agree with the level Showdown actually instantiated');
-assert.equal(levelRaw.p1.hp, 35, 'level mismatch must fail before current HP hydration');
-assert.equal(levelMismatch.battleStream.battle.requestSnapshots.length, 0, 'level mismatch must not emit a regenerated request');
-assert.throws(() => createShowdownStreamSession(fakeShowdown(freshRaw()), { p1: { name: 'Mapless', team: [{ ...persistent, level: 1.5 }] }, p2: { name: 'Wild', team: [wild] } }), /Showdown team projection requires an integer level from 1 to 100/, 'fractional level must not be silently packed/coerced');
+await assert.rejects(() => levelMismatch.start(), /Persistent level projection mismatch: 2\/1/);
+assert.equal(levelRaw.p1.hp, 35);
+assert.equal(levelMismatch.battleStream.battle.requestSnapshots.length, 0);
+assert.throws(() => createShowdownStreamSession(fakeShowdown(freshRaw()), { p1: { name: 'Mapless', team: [{ ...persistent, level: 1.5 }] }, p2: { name: 'Wild', team: [wild] } }), /Showdown team projection requires an integer level from 1 to 100/);
 
 const maxHpRaw = freshRaw();
 const maxHpMismatch = createShowdownStreamSession(fakeShowdown(maxHpRaw), { p1: { name: 'Mapless', team: [{ ...persistent, maxhp: 34 }] }, p2: { name: 'Wild', team: [wild] } });
-await assert.rejects(() => maxHpMismatch.start(), /Persistent max HP projection mismatch: 34\/35/, 'persisted max HP metadata must agree with Showdown-derived max HP');
-assert.equal(maxHpRaw.p1.hp, 35, 'max HP mismatch must fail before current HP hydration');
-assert.equal(maxHpMismatch.battleStream.battle.requestSnapshots.length, 0, 'max HP mismatch must not emit a regenerated request');
+await assert.rejects(() => maxHpMismatch.start(), /Persistent max HP projection mismatch: 34\/35/);
+assert.equal(maxHpRaw.p1.hp, 35);
+assert.equal(maxHpMismatch.battleStream.battle.requestSnapshots.length, 0);
 
 const contradictoryRaw = freshRaw();
 const contradictory = createShowdownStreamSession(fakeShowdown(contradictoryRaw), { p1: { name: 'Mapless', team: [{ ...persistent, status: '', statusTurns: undefined, fainted: true }] }, p2: { name: 'Wild', team: [wild] } });
