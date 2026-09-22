@@ -48,9 +48,9 @@ function freshRaw() {
 const raw = freshRaw();
 const persistent = {
   id: 'hero', species: 'Pikachu', hp: 17, status: 'slp', statusTurns: 3,
-  heldItem: 'oranberry', moves: [{ id: 'thunderbolt', pp: 4 }],
+  heldItem: 'oranberry', moves: [{ id: 'thunderbolt', pp: 4, maxpp: 15 }],
 };
-const wild = { id: 'wild', species: 'Magikarp', hp: 11, status: '', heldItem: '', moves: [{ id: 'splash', pp: 9 }] };
+const wild = { id: 'wild', species: 'Magikarp', hp: 11, status: '', heldItem: '', moves: [{ id: 'splash', pp: 9, maxpp: 40 }] };
 const session = createShowdownStreamSession(fakeShowdown(raw), { p1: { name: 'Mapless', team: [persistent] }, p2: { name: 'Wild', team: [wild] } });
 await session.start();
 
@@ -98,6 +98,19 @@ await assert.rejects(
 );
 assert.equal(contradictoryRaw.p1.hp, 35, 'failed faint validation must occur before persistent HP mutates the Showdown object');
 assert.equal(contradictory.battleStream.battle.requestSnapshots.length, 0, 'failed preflight must not build a choice request from uncommitted projection state');
+
+const maxPpRaw = freshRaw();
+const maxPpMismatch = createShowdownStreamSession(fakeShowdown(maxPpRaw), {
+  p1: { name: 'Mapless', team: [{ ...persistent, moves: [{ id: 'thunderbolt', pp: 4, maxpp: 14 }] }] },
+  p2: { name: 'Wild', team: [wild] },
+});
+await assert.rejects(
+  () => maxPpMismatch.start(),
+  /Persistent max PP projection mismatch for thunderbolt: 14\/15/,
+  'persistent max PP metadata must agree with the authoritative Showdown move slot before current PP is hydrated',
+);
+assert.equal(maxPpRaw.p1.moveSlots[0].pp, 15, 'max PP mismatch must fail before current PP mutates the Showdown slot');
+assert.equal(maxPpMismatch.battleStream.battle.requestSnapshots.length, 0, 'max PP mismatch must not emit a regenerated request');
 
 const atomicRaw = freshRaw();
 const atomic = createShowdownStreamSession(fakeShowdown(atomicRaw), {
