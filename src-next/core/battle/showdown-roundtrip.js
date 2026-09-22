@@ -52,10 +52,18 @@ function exactTerminalItem(value) {
   return canonical;
 }
 
+function persistentMemberId(member, boundary = 'Terminal party commit') {
+  const raw = member?.id ?? member?.personalId;
+  if (raw === undefined || raw === null || String(raw) === '') {
+    throw new Error(`${boundary} requires a stable persistent Mapless member id`);
+  }
+  return String(raw);
+}
+
 export function projectMaplessPokemonToShowdown(member) {
   if (!member?.species) throw new Error('Battle projection requires species');
   const projected = {
-    maplessId: String(member.id ?? member.personalId ?? member.species),
+    maplessId: persistentMemberId(member, 'Battle projection'),
     species: String(member.species),
     name: String(member.name ?? member.species),
     level: Number(member.level ?? 1),
@@ -72,7 +80,15 @@ export function projectMaplessPokemonToShowdown(member) {
 }
 
 export function projectMaplessPartyToShowdown(party = []) {
-  return party.map(projectMaplessPokemonToShowdown);
+  const projected = party.map(projectMaplessPokemonToShowdown);
+  const ids = new Set();
+  for (const member of projected) {
+    if (ids.has(member.maplessId)) {
+      throw new Error(`Battle projection requires unique persistent Mapless member ids: ${member.maplessId}`);
+    }
+    ids.add(member.maplessId);
+  }
+  return projected;
 }
 
 export function createShowdownBattleSnapshot(state, { battleId }) {
@@ -133,14 +149,6 @@ function clearTransientBattleState(member) {
   const clean = { ...member };
   for (const field of TRANSIENT_FIELDS) delete clean[field];
   return clean;
-}
-
-function persistentMemberId(member) {
-  const raw = member?.id ?? member?.personalId;
-  if (raw === undefined || raw === null || String(raw) === '') {
-    throw new Error('Terminal party commit requires a stable persistent Mapless member id');
-  }
-  return String(raw);
 }
 
 function resolvedMemberId(member) {
