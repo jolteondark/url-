@@ -16,10 +16,10 @@ const omniscient = new FakeStream(async (value) => {
       ended: false, winner: '', turn: 0, started: false,
       sides: [
         { pokemon: [
-          { species: { id: 'pikachu' }, level: 10, ability: 'static', hp: 30, maxhp: 30, status: '', statusState: {}, item: 'oranberry', fainted: false, moveSlots: [{ id: 'thundershock', pp: 30, maxpp: 30 }] },
-          { species: { id: 'bulbasaur' }, level: 10, ability: '', hp: 28, maxhp: 28, status: '', statusState: {}, item: '', fainted: false, moveSlots: [{ id: 'vinewhip', pp: 25, maxpp: 25 }] },
+          { species: { id: 'pikachu' }, level: 10, ability: 'static', hp: 30, maxhp: 30, status: '', statusState: {}, item: 'oranberry', fainted: false, moveSlots: [{ id: 'thundershock', pp: 48, maxpp: 48 }] },
+          { species: { id: 'bulbasaur' }, level: 10, ability: '', hp: 28, maxhp: 28, status: '', statusState: {}, item: '', fainted: false, moveSlots: [{ id: 'vinewhip', pp: 40, maxpp: 40 }] },
         ] },
-        { pokemon: [{ species: { id: 'rattata' }, level: 8, ability: '', hp: 20, maxhp: 20, status: '', statusState: {}, item: '', fainted: false, moveSlots: [{ id: 'tackle', pp: 35, maxpp: 35 }] }] },
+        { pokemon: [{ species: { id: 'rattata' }, level: 8, ability: '', hp: 20, maxhp: 20, status: '', statusState: {}, item: '', fainted: false, moveSlots: [{ id: 'tackle', pp: 56, maxpp: 56 }] }] },
       ],
       start() { this.started = true; },
     };
@@ -38,10 +38,10 @@ const showdown = {
 const config = {
   formatid: 'gen9customgame', seed: [1, 2, 3, 4],
   p1: { name: 'Mapless', team: [
-    { id: 'hero-pika', species: 'Pikachu', level: 10, ability: 'Static', hp: 17, status: 'par', heldItem: 'oranberry', moves: [{ id: 'thundershock', pp: 7 }] },
-    { id: 'hero-bulba', species: 'Bulbasaur', level: 10, hp: 13, status: '', moves: [{ id: 'vinewhip', pp: 5 }] },
+    { id: 'hero-pika', species: 'Pikachu', level: 10, ability: 'Static', hp: 17, status: 'par', heldItem: 'oranberry', moves: [{ id: 'thundershock', pp: 7, maxpp: 30 }] },
+    { id: 'hero-bulba', species: 'Bulbasaur', level: 10, hp: 13, status: '', moves: [{ id: 'vinewhip', pp: 5, maxpp: 25 }] },
   ] },
-  p2: { name: 'Wild', team: [{ id: 'wild-rattata', species: 'Rattata', level: 8, hp: 11, status: '', moves: [{ id: 'tackle', pp: 9 }] }] },
+  p2: { name: 'Wild', team: [{ id: 'wild-rattata', species: 'Rattata', level: 8, hp: 11, status: '', moves: [{ id: 'tackle', pp: 9, maxpp: 35 }] }] },
 };
 
 const session = createShowdownStreamSession(showdown, config);
@@ -58,8 +58,11 @@ assert.equal(hydrated.p1[0].hp, 17);
 assert.equal(hydrated.p1[0].status, 'par');
 assert.equal(hydrated.p1[0].heldItem, 'oranberry');
 assert.equal(hydrated.p1[0].moves[0].pp, 7);
+assert.equal(hydrated.p1[0].moves[0].maxpp, 30, 'persistent max PP must replace Showdown constructor PP-Up maxpp before start');
 assert.equal(hydrated.p1[1].hp, 13);
+assert.equal(hydrated.p1[1].moves[0].maxpp, 25);
 assert.equal(hydrated.p2[0].hp, 11);
+assert.equal(hydrated.p2[0].moves[0].maxpp, 35);
 
 session.battleStream.battle.sides[0].pokemon.reverse();
 assert.equal(session.resolvedState().p1[0].maplessId, 'hero-bulba', 'identity must follow Pokemon objects across reordering');
