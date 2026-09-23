@@ -113,6 +113,7 @@ try {
     'tests/reconstruction-showdown-real-request-differential.mjs',
     'tests/reconstruction-showdown-real-sleep-roundtrip.mjs',
     'tests/reconstruction-showdown-real-roundtrip.mjs',
+    'tests/reconstruction-showdown-real-base-moves-persistence.mjs',
   ];
   for (const harness of harnesses) run(process.execPath, [harness, workDir], root);
   console.log(`Pinned Showdown local round-trip suite PASS: ${SHOWDOWN_REVISION}`);
