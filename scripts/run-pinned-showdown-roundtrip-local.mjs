@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PKMN_PS_REVISION } from './showdown-browser-extractor-plan.mjs';
+import { SHOWDOWN_BROWSER_ENTRY } from './showdown-browser-artifact-contract.mjs';
 import { SHOWDOWN_REVISION } from '../src-next/core/battle/showdown-pin.js';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -63,15 +64,24 @@ try {
     throw new Error('Pokemon Showdown vendor moved away from the Mapless mechanics pin');
   }
 
-  if (offline) {
-    if (!existsSync(join(workDir, 'node_modules'))) {
-      throw new Error('offline mode requires cached pkmn/ps node_modules');
-    }
+  const builtEntry = join(workDir, 'sim', SHOWDOWN_BROWSER_ENTRY);
+  if (offline && existsSync(builtEntry)) {
+    // A previously built exact-pin artifact is sufficient for the real harnesses.
+    // Do not require node_modules or regenerate it in offline mode: that would turn
+    // a valid cached mechanics artifact into an unnecessary dependency blocker.
+    console.log(`Using cached pinned Showdown artifact: ${builtEntry}`);
   } else {
-    run('npm', ['install'], workDir);
+    if (offline) {
+      if (!existsSync(join(workDir, 'node_modules'))) {
+        throw new Error('offline mode requires cached pkmn/ps node_modules when the built simulator artifact is missing');
+      }
+    } else {
+      run('npm', ['install'], workDir);
+    }
+    run('node', ['import', '--debug'], workDir);
+    run('npm', ['run', 'build'], join(workDir, 'sim'));
+    if (!existsSync(builtEntry)) throw new Error(`pinned Showdown build did not produce ${SHOWDOWN_BROWSER_ENTRY}`);
   }
-  run('node', ['import', '--debug'], workDir);
-  run('npm', ['run', 'build'], join(workDir, 'sim'));
 
   const harnesses = [
     'tests/reconstruction-showdown-real-request-differential.mjs',
