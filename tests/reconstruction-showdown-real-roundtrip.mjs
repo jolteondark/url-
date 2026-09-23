@@ -81,6 +81,7 @@ assert.equal(starting.p1[0].hp, 60, 'persistent current HP must hydrate into rea
 assert.equal(starting.p1[0].status, 'brn', 'persistent status must hydrate into real Showdown before FIGHT');
 assert.equal(starting.p1[0].heldItem, 'throatspray', 'persistent held item must project into real Showdown before FIGHT');
 assert.equal(starting.p1[0].moves[0].pp, 3, 'persistent PP must hydrate into real Showdown before FIGHT');
+assert.equal(starting.p1[0].moves[0].maxpp, 10, 'persistent maxPP must replace Showdown PP-Up-expanded maxPP before FIGHT');
 assert.deepEqual(state.party, persistentBeforeBattle, 'Showdown initialization must not mutate persistent Mapless party state');
 
 await Promise.all([session.fight('p1', 1), session.fight('p2', 1)]);
@@ -91,6 +92,7 @@ assert.equal(terminal.p2[0].fainted, true, 'real Showdown must authoritatively r
 assert.equal(terminal.p1[0].status, 'brn', 'persistent status must survive the authoritative Showdown turn');
 assert.equal(terminal.p1[0].heldItem, '', 'real Showdown must authoritatively consume Throat Spray after Hyper Voice');
 assert.equal(terminal.p1[0].moves[0].pp, 2, 'real Showdown must authoritatively consume one PP');
+assert.equal(terminal.p1[0].moves[0].maxpp, 10, 'authoritative Showdown turn must retain the hydrated persistent maxPP bound');
 assert.equal(session.battleStream.battle.sides[0].pokemon[0].boosts.spa, 1, 'real Showdown must own the transient Throat Spray SpA boost');
 assert.deepEqual(state.party, persistentBeforeBattle, 'FIGHT must not mutate persistent Mapless party before terminal commit');
 
@@ -100,6 +102,7 @@ assert.equal(committed.state.party[0].hp, terminal.p1[0].hp);
 assert.equal(committed.state.party[0].status, 'brn');
 assert.equal(committed.state.party[0].heldItem, '', 'consumed held item must commit back to Mapless');
 assert.equal(committed.state.party[0].moves[0].pp, 2);
+assert.equal(committed.state.party[0].moves[0].maxpp, 10, 'persistent maxPP must commit unchanged from authoritative Showdown state');
 assert.equal('boosts' in committed.state.party[0], false, 'transient Showdown stat stages must not persist');
 assert.equal('volatile' in committed.state.party[0], false, 'transient volatile state must not persist');
 
@@ -107,6 +110,7 @@ const restored = restoreNewCoreSave(serializeNewCoreSave(committed.state));
 assert.equal(restored.party[0].hp, terminal.p1[0].hp); assert.equal(restored.party[0].status, 'brn');
 assert.equal(restored.party[0].heldItem, '', 'consumed held item must remain consumed after reload');
 assert.equal(restored.party[0].moves[0].pp, 2);
+assert.equal(restored.party[0].moves[0].maxpp, 10, 'persistent maxPP must survive save/reload');
 assert.equal('boosts' in restored.party[0], false); assert.equal('volatile' in restored.party[0], false);
 const replay = commitShowdownStreamTerminal(restored, { battleId: 'real-showdown-battle-1', session });
 assert.equal(replay.committed, false, 'terminal replay after reload must not commit twice');
@@ -121,6 +125,7 @@ assert.equal(reprojected.p1[0].hp, terminal.p1[0].hp, 'reloaded HP must hydrate 
 assert.equal(reprojected.p1[0].status, 'brn', 'reloaded status must hydrate into the next real Showdown battle');
 assert.equal(reprojected.p1[0].heldItem, '', 'consumed held item must not resurrect on reprojection');
 assert.equal(reprojected.p1[0].moves[0].pp, 2, 'reloaded PP must hydrate into the next real Showdown battle');
+assert.equal(reprojected.p1[0].moves[0].maxpp, 10, 'reloaded maxPP must hydrate into the next real Showdown battle');
 assert.equal(reprojectedSession.battleStream.battle.sides[0].pokemon[0].boosts.spa, 0, 'transient stat stages must reset on a fresh battle');
 
 console.log(JSON.stringify({ ok: true, showdownRevision: showdown.revision, turn: terminal.turn, winner: terminal.winner, p1: terminal.p1, p2: terminal.p2, reprojectedP1: reprojected.p1 }, null, 2));
