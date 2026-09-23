@@ -16,47 +16,69 @@ assert.equal(artifact.showdownRevision, REQUIRED_SHOWDOWN_REVISION);
 const showdown = await loadShowdownBrowserArtifact(artifact);
 assert.equal(showdown.revision, REQUIRED_SHOWDOWN_REVISION);
 
-const playerParty = [
-  {
-    id: 'healthy-lead', species: 'Pikachu', name: 'Pikachu', level: 50, ability: 'Static',
-    hp: 60, maxhp: 110, status: '', heldItem: '', fainted: false,
-    moves: [{ id: 'thunderbolt', pp: 15, maxpp: 15 }],
-  },
-  {
-    id: 'fainted-bench', species: 'Magikarp', name: 'Magikarp', level: 5, ability: 'Swift Swim',
-    hp: 0, maxhp: 18, status: '', heldItem: '', fainted: true,
-    moves: [{ id: 'splash', pp: 40, maxpp: 40 }],
-  },
-];
+const healthy = {
+  id: 'healthy', species: 'Pikachu', name: 'Pikachu', level: 50, ability: 'Static',
+  hp: 60, maxhp: 110, status: '', heldItem: '', fainted: false,
+  moves: [{ id: 'thunderbolt', pp: 15, maxpp: 15 }],
+};
+const fainted = {
+  id: 'fainted', species: 'Magikarp', name: 'Magikarp', level: 5, ability: 'Swift Swim',
+  hp: 0, maxhp: 18, status: '', heldItem: '', fainted: true,
+  moves: [{ id: 'splash', pp: 40, maxpp: 40 }],
+};
 const wildParty = [{
   id: 'wild-magikarp', species: 'Magikarp', name: 'Magikarp', level: 5, ability: 'Swift Swim',
   hp: 18, maxhp: 18, status: '', heldItem: '', fainted: false,
   moves: [{ id: 'splash', pp: 40, maxpp: 40 }],
 }];
 
-const session = createShowdownStreamSession(showdown, {
-  formatid: 'gen9customgame', seed: [17, 18, 19, 20],
-  p1: { name: 'Mapless', team: createShowdownBattleSnapshot({ party: playerParty }, { battleId: 'fainted-bench-regression' }).party },
-  p2: { name: 'Wild', team: projectMaplessPartyToShowdown(wildParty) },
-});
+async function startCase(playerParty, battleId) {
+  const session = createShowdownStreamSession(showdown, {
+    formatid: 'gen9customgame', seed: [17, 18, 19, 20],
+    p1: { name: 'Mapless', team: createShowdownBattleSnapshot({ party: playerParty }, { battleId }).party },
+    p2: { name: 'Wild', team: projectMaplessPartyToShowdown(wildParty) },
+  });
+  await session.start();
+  return session;
+}
 
-await session.start();
-const battle = session.battleStream.battle;
-const side = battle.sides[0];
-const projected = session.resolvedState();
+const benchSession = await startCase([
+  { ...healthy, id: 'healthy-lead' },
+  { ...fainted, id: 'fainted-bench' },
+], 'fainted-bench-regression');
+const benchBattle = benchSession.battleStream.battle;
+const benchSide = benchBattle.sides[0];
+const benchProjected = benchSession.resolvedState();
 
-assert.equal(projected.p1[0].hp, 60, 'healthy lead HP must survive pre-start hydration');
-assert.equal(projected.p1[0].fainted, false, 'healthy lead must remain available');
-assert.equal(projected.p1[1].hp, 0, 'persisted fainted bench HP must survive pre-start hydration');
-assert.equal(projected.p1[1].fainted, true, 'persisted fainted bench must remain fainted');
-assert.equal(side.pokemonLeft, 1, 'Showdown live-party bookkeeping must count only non-fainted persisted party members after start');
-assert.equal(battle.canSwitch(side), 0, 'persisted fainted bench must not become a legal switch resource');
-assert.equal(side.active[0], side.pokemon[0], 'healthy lead must be the initial active Pokemon');
+assert.equal(benchProjected.p1[0].hp, 60, 'healthy lead HP must survive pre-start hydration');
+assert.equal(benchProjected.p1[0].fainted, false, 'healthy lead must remain available');
+assert.equal(benchProjected.p1[1].hp, 0, 'persisted fainted bench HP must survive pre-start hydration');
+assert.equal(benchProjected.p1[1].fainted, true, 'persisted fainted bench must remain fainted');
+assert.equal(benchSide.pokemonLeft, 1, 'Showdown live-party bookkeeping must count only non-fainted persisted party members after start');
+assert.equal(benchBattle.canSwitch(benchSide), 0, 'persisted fainted bench must not become a legal switch resource');
+assert.equal(benchSide.active[0], benchSide.pokemon[0], 'healthy lead must be the initial active Pokemon');
+
+// A persisted fainted member may occupy slot 1 after a previous battle. Showdown must
+// own initial switch-in selection and skip it rather than Mapless reordering the party.
+const leadSession = await startCase([
+  { ...fainted, id: 'fainted-lead' },
+  { ...healthy, id: 'healthy-bench' },
+], 'fainted-lead-regression');
+const leadBattle = leadSession.battleStream.battle;
+const leadSide = leadBattle.sides[0];
+const leadProjected = leadSession.resolvedState();
+
+assert.equal(leadProjected.p1[0].hp, 0, 'persisted fainted lead HP must survive pre-start hydration');
+assert.equal(leadProjected.p1[0].fainted, true, 'persisted fainted lead must remain fainted');
+assert.equal(leadProjected.p1[1].hp, 60, 'healthy bench HP must survive pre-start hydration');
+assert.equal(leadProjected.p1[1].fainted, false, 'healthy bench must remain available');
+assert.equal(leadSide.pokemonLeft, 1, 'fainted lead must not inflate Showdown live-party bookkeeping');
+assert.equal(leadBattle.canSwitch(leadSide), 0, 'only one persisted live party member must leave no switch resource');
+assert.equal(leadSide.active[0], leadSide.pokemon[1], 'Showdown initial switch-in must skip a persisted fainted slot-1 member');
 
 console.log(JSON.stringify({
   ok: true,
   showdownRevision: showdown.revision,
-  pokemonLeft: side.pokemonLeft,
-  canSwitch: battle.canSwitch(side),
-  projectedP1: projected.p1,
+  healthyLead: { pokemonLeft: benchSide.pokemonLeft, canSwitch: benchBattle.canSwitch(benchSide), projectedP1: benchProjected.p1 },
+  faintedLead: { pokemonLeft: leadSide.pokemonLeft, canSwitch: leadBattle.canSwitch(leadSide), projectedP1: leadProjected.p1 },
 }, null, 2));
