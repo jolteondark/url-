@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -39,11 +40,18 @@ function ensureCommit(cwd, revision, label) {
   run('git', ['checkout', '--detach', revision], cwd);
 }
 
-function exactArtifactStamp(stampPath) {
-  if (!existsSync(stampPath)) return false;
+function sha256(path) {
+  return createHash('sha256').update(readFileSync(path)).digest('hex');
+}
+
+function exactArtifactStamp(stampPath, builtEntry) {
+  if (!existsSync(stampPath) || !existsSync(builtEntry)) return false;
   try {
     const stamp = JSON.parse(readFileSync(stampPath, 'utf8'));
-    return stamp.extractorRevision === PKMN_PS_REVISION && stamp.showdownRevision === SHOWDOWN_REVISION;
+    return stamp.extractorRevision === PKMN_PS_REVISION
+      && stamp.showdownRevision === SHOWDOWN_REVISION
+      && typeof stamp.entrySha256 === 'string'
+      && stamp.entrySha256 === sha256(builtEntry);
   } catch {
     return false;
   }
@@ -76,15 +84,14 @@ try {
 
   const builtEntry = join(workDir, 'sim', SHOWDOWN_BROWSER_ENTRY);
   const artifactStamp = join(workDir, 'sim', '.mapless-showdown-build.json');
-  if (offline && existsSync(builtEntry) && exactArtifactStamp(artifactStamp)) {
-    // Reuse only an artifact whose build-time provenance records both exact pins.
-    // A checkout can be moved to SHOWDOWN_REVISION after an older artifact was
-    // built, so repository HEAD alone is not evidence that cached JS is current.
+  if (offline && exactArtifactStamp(artifactStamp, builtEntry)) {
+    // Reuse only an artifact whose build-time provenance records both exact pins
+    // and whose current bytes still match the digest recorded at build time.
     console.log(`Using cached pinned Showdown artifact: ${builtEntry}`);
   } else {
     if (offline) {
-      if (existsSync(builtEntry) && !exactArtifactStamp(artifactStamp)) {
-        throw new Error('offline cached Showdown artifact has missing/stale build provenance; rebuild it once from the exact pins before reuse');
+      if (existsSync(builtEntry) && !exactArtifactStamp(artifactStamp, builtEntry)) {
+        throw new Error('offline cached Showdown artifact has missing/stale/tampered build provenance; rebuild it once from the exact pins before reuse');
       }
       if (!existsSync(join(workDir, 'node_modules'))) {
         throw new Error('offline mode requires cached pkmn/ps node_modules when the built simulator artifact is missing');
@@ -95,7 +102,11 @@ try {
     run('node', ['import', '--debug'], workDir);
     run('npm', ['run', 'build'], join(workDir, 'sim'));
     if (!existsSync(builtEntry)) throw new Error(`pinned Showdown build did not produce ${SHOWDOWN_BROWSER_ENTRY}`);
-    writeFileSync(artifactStamp, `${JSON.stringify({ extractorRevision: PKMN_PS_REVISION, showdownRevision: SHOWDOWN_REVISION }, null, 2)}\n`);
+    writeFileSync(artifactStamp, `${JSON.stringify({
+      extractorRevision: PKMN_PS_REVISION,
+      showdownRevision: SHOWDOWN_REVISION,
+      entrySha256: sha256(builtEntry),
+    }, null, 2)}\n`);
   }
 
   const harnesses = [
