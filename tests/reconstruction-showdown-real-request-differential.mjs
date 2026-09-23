@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { inspectExtractedShowdownArtifact } from '../scripts/showdown-browser-artifact-contract.mjs';
 import { loadShowdownBrowserArtifact, REQUIRED_SHOWDOWN_REVISION } from '../src-next/core/battle/showdown-browser-artifact.js';
 import { createShowdownStreamSession } from '../src-next/core/battle/showdown-stream-session.js';
+import { createShowdownBattleSnapshot } from '../src-next/core/battle/showdown-roundtrip.js';
 
 const extractorDir = process.argv[2];
 if (!extractorDir) {
@@ -15,16 +16,22 @@ assert.equal(artifact.showdownRevision, REQUIRED_SHOWDOWN_REVISION);
 const showdown = await loadShowdownBrowserArtifact(artifact);
 assert.equal(showdown.revision, REQUIRED_SHOWDOWN_REVISION);
 
-const p1Team = [{
+const p1PersistentTeam = [{
   id: 'request-pikachu', species: 'Pikachu', name: 'Pikachu', level: 50, ability: 'Static',
-  hp: 17, status: 'slp', statusTurns: 3, heldItem: 'Oran Berry', fainted: false,
+  hp: 17, maxhp: 110, status: 'slp', statusTurns: 3, heldItem: 'oranberry', fainted: false,
   moves: [{ id: 'thunderbolt', pp: 4, maxpp: 24 }],
 }];
-const p2Team = [{
+const p2PersistentTeam = [{
   id: 'request-magikarp', species: 'Magikarp', name: 'Magikarp', level: 5, ability: 'Swift Swim',
-  hp: 11, status: '', heldItem: '', fainted: false,
+  hp: 11, maxhp: 18, status: '', heldItem: '', fainted: false,
   moves: [{ id: 'splash', pp: 9, maxpp: 64 }],
 }];
+
+function projectedParty(party, battleId) {
+  return createShowdownBattleSnapshot({ party }, { battleId }).party;
+}
+const p1Team = projectedParty(p1PersistentTeam, 'real-request-differential-p1');
+const p2Team = projectedParty(p2PersistentTeam, 'real-request-differential-p2');
 
 const session = createShowdownStreamSession(showdown, {
   formatid: 'gen9customgame', seed: [11, 12, 13, 14],
@@ -52,6 +59,7 @@ function assertPersistentMatchesRaw(sideIndex, sourceTeam) {
   side.pokemon.forEach((pokemon, index) => {
     const source = sourceTeam[index];
     assert.equal(Number(pokemon.hp), Number(source.hp), `p${sideIndex + 1}[${index}] raw HP must equal persistent starting HP`);
+    assert.equal(Number(pokemon.maxhp), Number(source.maxhp), `p${sideIndex + 1}[${index}] raw max HP must equal persistent max HP`);
     assert.equal(String(pokemon.status ?? ''), String(source.status ?? '').toLowerCase(), `p${sideIndex + 1}[${index}] raw status must equal persistent starting status`);
     assert.equal(normalizeId(pokemon.item), normalizeId(source.heldItem), `p${sideIndex + 1}[${index}] raw item must equal persistent starting item`);
     assert.equal(Boolean(pokemon.fainted), Boolean(source.fainted), `p${sideIndex + 1}[${index}] raw faint must equal persistent starting faint`);
@@ -63,6 +71,7 @@ function assertPersistentMatchesRaw(sideIndex, sourceTeam) {
       const sourceMove = source.moves[moveIndex];
       assert.equal(normalizeId(slot.id), normalizeId(sourceMove.id), `p${sideIndex + 1}[${index}] raw move id must equal persistent move id`);
       assert.equal(Number(slot.pp), Number(sourceMove.pp), `p${sideIndex + 1}[${index}] raw move PP must equal persistent starting PP`);
+      assert.equal(Number(slot.maxpp), Number(sourceMove.maxpp), `p${sideIndex + 1}[${index}] raw move max PP must equal persistent max PP`);
     });
   });
 }
@@ -93,8 +102,8 @@ function assertRequestMatchesRaw(sideIndex) {
   });
 }
 
-assertPersistentMatchesRaw(0, p1Team);
-assertPersistentMatchesRaw(1, p2Team);
+assertPersistentMatchesRaw(0, p1PersistentTeam);
+assertPersistentMatchesRaw(1, p2PersistentTeam);
 assertRequestMatchesRaw(0);
 assertRequestMatchesRaw(1);
 assert.equal(battle.sides[0].pokemon[0].statusState.time, 3, 'request regeneration must not consume persisted Sleep turns');
