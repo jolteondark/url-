@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { createHash } from 'node:crypto';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
 import { PKMN_PS_REVISION } from './showdown-browser-extractor-plan.mjs';
@@ -15,6 +15,7 @@ if (!extractorDir) {
 }
 
 const pinnedExtractor = resolve(extractorDir);
+const showdownDir = join(pinnedExtractor, 'vendor', 'pokemon-showdown');
 const builtEntry = join(pinnedExtractor, 'sim', SHOWDOWN_BROWSER_ENTRY);
 const artifactStamp = join(pinnedExtractor, 'sim', '.mapless-showdown-build.json');
 
@@ -22,7 +23,25 @@ function sha256(path) {
   return createHash('sha256').update(readFileSync(path)).digest('hex');
 }
 
+function gitHead(cwd, label) {
+  try {
+    return execFileSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf8' }).trim();
+  } catch (error) {
+    throw new Error(`cannot verify ${label} checkout HEAD: ${error.message}`);
+  }
+}
+
 function verifyPinnedArtifact() {
+  if (!existsSync(join(pinnedExtractor, '.git'))) throw new Error(`missing pkmn/ps git checkout: ${pinnedExtractor}`);
+  if (!existsSync(join(showdownDir, '.git'))) throw new Error(`missing Pokemon Showdown vendor git checkout: ${showdownDir}`);
+  const extractorHead = gitHead(pinnedExtractor, 'pkmn/ps extractor');
+  if (extractorHead !== PKMN_PS_REVISION) {
+    throw new Error(`pkmn/ps checkout moved away from pinned revision: ${extractorHead}`);
+  }
+  const showdownHead = gitHead(showdownDir, 'Pokemon Showdown vendor');
+  if (showdownHead !== SHOWDOWN_REVISION) {
+    throw new Error(`Pokemon Showdown checkout moved away from pinned revision: ${showdownHead}`);
+  }
   if (!existsSync(builtEntry)) throw new Error(`missing pinned Showdown entry: ${builtEntry}`);
   if (!existsSync(artifactStamp)) throw new Error(`missing pinned Showdown provenance stamp: ${artifactStamp}`);
   let stamp;
@@ -44,7 +63,7 @@ function verifyPinnedArtifact() {
 }
 
 verifyPinnedArtifact();
-console.log(`[showdown-real] verified pinned artifact ${SHOWDOWN_REVISION}`);
+console.log(`[showdown-real] verified pinned checkouts and artifact ${SHOWDOWN_REVISION}`);
 
 const harnesses = [
   'tests/reconstruction-showdown-real-request-differential.mjs',
