@@ -59,15 +59,12 @@ function validatePersistentMember(pokemon, sourceMember) {
     if (persistentMaxhp < 1 || persistentMaxhp !== maxhp) throw new Error(`Persistent max HP projection mismatch: ${persistentMaxhp}/${maxhp}`);
   }
   exactPersistentFainted(sourceMember.fainted, hp);
-
   const status = sourceMember.status ? String(sourceMember.status).toLowerCase() : '';
   if (!PERSISTENT_MAJOR_STATUSES.has(status)) throw new Error(`Persistent status projection requires a canonical Showdown major status: ${status || '<empty>'}`);
   if (status === 'slp') exactSleepTurns(sourceMember.statusTurns, 'Persistent');
-
   const projectedItem = normalizeId(sourceMember.heldItem ?? sourceMember.item ?? '');
   const showdownItem = normalizeId(pokemon.item);
   if (showdownItem !== projectedItem) throw new Error(`Persistent held-item projection mismatch: ${projectedItem || '<empty>'}/${showdownItem || '<empty>'}`);
-
   const sourceMoves = sourceMember.moves ?? [];
   const slots = pokemon.moveSlots ?? [];
   if (slots.length !== sourceMoves.length) throw new Error('Persistent move identity projection requires one Showdown move slot per Mapless move');
@@ -158,7 +155,6 @@ export function createShowdownStreamSession(showdown, config) {
   if (!showdown?.BattleStreams?.BattleStream || !showdown?.BattleStreams?.getPlayerStreams) throw new Error('Executable Showdown BattleStreams surface is required');
   if (typeof showdown?.Teams?.pack !== 'function') throw new Error('Executable Showdown Teams surface is required');
   if (!config?.p1?.team?.length || !config?.p2?.team?.length) throw new Error('Showdown stream session requires p1 and p2 teams');
-
   const battleStream = new showdown.BattleStreams.BattleStream();
   const streams = showdown.BattleStreams.getPlayerStreams(battleStream);
   if (!streams?.omniscient || !streams?.p1 || !streams?.p2) throw new Error('Showdown player streams are incomplete');
@@ -168,7 +164,6 @@ export function createShowdownStreamSession(showdown, config) {
   const start = { formatid };
   if (config.seed !== undefined) start.seed = config.seed;
   const identityByPokemon = new WeakMap();
-
   let startAttempted = false;
   let started = false;
   async function startBattle() {
@@ -176,22 +171,39 @@ export function createShowdownStreamSession(showdown, config) {
     if (startAttempted) throw new Error('Showdown battle start previously failed; partial projection cannot be replayed');
     startAttempted = true;
     await streams.omniscient.write(`>start ${JSON.stringify(start)}`);
-    await streams.omniscient.write(playerCommand('p1', config.p1, p1Team));
-    await streams.omniscient.write(playerCommand('p2', config.p2, p2Team));
     const battle = battleStream.battle;
-    if (!battle) throw new Error('Showdown battle state is unavailable after player projection');
+    if (!battle) throw new Error('Showdown battle state is unavailable after start projection');
+    if (typeof battle.start !== 'function') throw new Error('Showdown battle start surface is required for pre-start persistent hydration');
+
+    // Pinned Showdown calls Battle#start synchronously from setPlayer when the
+    // final side is installed. Defer only that call while the authoritative
+    // Side/Pokemon constructors run, then restore Showdown's own start method.
+    // This keeps Showdown as the mechanics owner while guaranteeing that all
+    // start/switch-in hooks observe Mapless persistent HP/PP/status/item.
+    const authoritativeStart = battle.start;
+    let startRequested = false;
+    battle.start = function deferredPersistentStart() {
+      startRequested = true;
+    };
+    try {
+      await streams.omniscient.write(playerCommand('p1', config.p1, p1Team));
+      await streams.omniscient.write(playerCommand('p2', config.p2, p2Team));
+    } finally {
+      battle.start = authoritativeStart;
+    }
+    if (!startRequested) throw new Error('Showdown did not request authoritative start after final player projection');
+    if (battle.started) throw new Error('Showdown battle started before persistent hydration completed');
 
     validatePersistentSide(battle, 0, config.p1.team);
     validatePersistentSide(battle, 1, config.p2.team);
     hydratePersistentSide(battle, 0, config.p1.team, identityByPokemon);
     hydratePersistentSide(battle, 1, config.p2.team, identityByPokemon);
 
-    if (typeof battle.makeRequest !== 'function') throw new Error('Showdown battle makeRequest surface is required after persistent hydration');
-    battle.makeRequest();
+    authoritativeStart.call(battle);
+    if (!battle.started) throw new Error('Showdown authoritative start did not transition battle state');
     started = true;
     return true;
   }
-
   async function choose(side, choice) {
     assertSide(side);
     if (!started) throw new Error('Showdown battle must start before choices');
