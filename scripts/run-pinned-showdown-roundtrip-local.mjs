@@ -40,6 +40,15 @@ function ensureCommit(cwd, revision, label) {
   run('git', ['checkout', '--detach', revision], cwd);
 }
 
+function assertPinnedRevisions(showdownDir) {
+  if (output('git', ['rev-parse', 'HEAD'], workDir) !== PKMN_PS_REVISION) {
+    throw new Error('pkmn/ps extractor moved away from its pinned revision');
+  }
+  if (output('git', ['rev-parse', 'HEAD'], showdownDir) !== SHOWDOWN_REVISION) {
+    throw new Error('Pokemon Showdown vendor moved away from the Mapless mechanics pin');
+  }
+}
+
 function sha256(path) {
   return createHash('sha256').update(readFileSync(path)).digest('hex');
 }
@@ -75,12 +84,7 @@ try {
   // exact Mapless SHOWDOWN_REVISION before regenerating @pkmn/sim. Running import
   // with --debug is essential: normal import updates submodules from remote.
   ensureCommit(showdownDir, SHOWDOWN_REVISION, 'Pokemon Showdown mechanics revision');
-  if (output('git', ['rev-parse', 'HEAD'], workDir) !== PKMN_PS_REVISION) {
-    throw new Error('pkmn/ps extractor moved away from its pinned revision');
-  }
-  if (output('git', ['rev-parse', 'HEAD'], showdownDir) !== SHOWDOWN_REVISION) {
-    throw new Error('Pokemon Showdown vendor moved away from the Mapless mechanics pin');
-  }
+  assertPinnedRevisions(showdownDir);
 
   const builtEntry = join(workDir, 'sim', SHOWDOWN_BROWSER_ENTRY);
   const artifactStamp = join(workDir, 'sim', '.mapless-showdown-build.json');
@@ -102,6 +106,10 @@ try {
     run('node', ['import', '--debug'], workDir);
     run('npm', ['run', 'build'], join(workDir, 'sim'));
     if (!existsSync(builtEntry)) throw new Error(`pinned Showdown build did not produce ${SHOWDOWN_BROWSER_ENTRY}`);
+    // Build/import are allowed to generate files, but the provenance stamp must
+    // describe the revisions that actually survived the build, not merely the
+    // revisions observed before it started.
+    assertPinnedRevisions(showdownDir);
     writeFileSync(artifactStamp, `${JSON.stringify({
       extractorRevision: PKMN_PS_REVISION,
       showdownRevision: SHOWDOWN_REVISION,
