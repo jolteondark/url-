@@ -181,9 +181,9 @@ export function createShowdownStreamSession(showdown, config) {
     // This keeps Showdown as the mechanics owner while guaranteeing that all
     // start/switch-in hooks observe Mapless persistent HP/PP/status/item.
     const authoritativeStart = battle.start;
-    let startRequested = false;
+    let startRequestCount = 0;
     battle.start = function deferredPersistentStart() {
-      startRequested = true;
+      startRequestCount += 1;
     };
     try {
       await streams.omniscient.write(playerCommand('p1', config.p1, p1Team));
@@ -191,7 +191,7 @@ export function createShowdownStreamSession(showdown, config) {
     } finally {
       battle.start = authoritativeStart;
     }
-    if (!startRequested) throw new Error('Showdown did not request authoritative start after final player projection');
+    if (startRequestCount !== 1) throw new Error(`Showdown authoritative start must be requested exactly once after final player projection; observed ${startRequestCount}`);
     if (battle.started) throw new Error('Showdown battle started before persistent hydration completed');
 
     validatePersistentSide(battle, 0, config.p1.team);
