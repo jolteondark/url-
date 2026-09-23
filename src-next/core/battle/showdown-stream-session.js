@@ -49,6 +49,10 @@ function exactPersistentFainted(value, hp) {
   return value;
 }
 
+function persistentMoveSlots(pokemon) {
+  return Array.isArray(pokemon?.baseMoveSlots) && pokemon.baseMoveSlots.length ? pokemon.baseMoveSlots : (pokemon?.moveSlots ?? []);
+}
+
 function validatePersistentMember(pokemon, sourceMember) {
   if (!pokemon || !sourceMember) throw new Error('Showdown persistent hydration requires matching Pokemon');
   const projectedSpecies = normalizeId(sourceMember.species);
@@ -76,7 +80,7 @@ function validatePersistentMember(pokemon, sourceMember) {
   const showdownItem = normalizeId(pokemon.item);
   if (showdownItem !== projectedItem) throw new Error(`Persistent held-item projection mismatch: ${projectedItem || '<empty>'}/${showdownItem || '<empty>'}`);
   const sourceMoves = sourceMember.moves ?? [];
-  const slots = pokemon.moveSlots ?? [];
+  const slots = persistentMoveSlots(pokemon);
   if (slots.length !== sourceMoves.length) throw new Error('Persistent move identity projection requires one Showdown move slot per Mapless move');
   const sourceById = new Map();
   for (const move of sourceMoves) {
@@ -130,6 +134,16 @@ function hydratePersistentStatus(battle, pokemon, sourceMember) {
   }
 }
 
+function hydrateMoveSlots(slots, sourceById) {
+  for (const slot of slots ?? []) {
+    const id = moveId(slot);
+    const sourceMove = sourceById.get(id);
+    if (!sourceMove) throw new Error(`Persistent move hydration could not match Showdown move slot: ${id || '<unknown>'}`);
+    slot.maxpp = exactNonnegativeInteger(sourceMove.maxpp ?? sourceMove.maxPP, `Persistent max PP projection for ${id}`);
+    slot.pp = exactNonnegativeInteger(sourceMove.pp, `Persistent PP projection for ${id}`);
+  }
+}
+
 function hydratePersistentMember(battle, pokemon, sourceMember) {
   const hp = exactNonnegativeInteger(sourceMember.hp, 'Persistent HP projection');
   pokemon.hp = hp;
@@ -137,11 +151,8 @@ function hydratePersistentMember(battle, pokemon, sourceMember) {
   hydratePersistentStatus(battle, pokemon, sourceMember);
   pokemon.item = exactPersistentItem(sourceMember.heldItem ?? sourceMember.item ?? '', 'Persistent held-item hydration');
   const sourceById = new Map((sourceMember.moves ?? []).map((move) => [moveId(move), move]));
-  for (const slot of pokemon.moveSlots ?? []) {
-    const sourceMove = sourceById.get(moveId(slot));
-    slot.maxpp = exactNonnegativeInteger(sourceMove.maxpp ?? sourceMove.maxPP, `Persistent max PP projection for ${moveId(slot)}`);
-    slot.pp = exactNonnegativeInteger(sourceMove.pp, `Persistent PP projection for ${moveId(slot)}`);
-  }
+  hydrateMoveSlots(pokemon.baseMoveSlots, sourceById);
+  if (pokemon.moveSlots !== pokemon.baseMoveSlots) hydrateMoveSlots(pokemon.moveSlots, sourceById);
 }
 
 function hydratePersistentSide(battle, sideIndex, sourceTeam, identityByPokemon) {
@@ -156,7 +167,9 @@ function hydratePersistentSide(battle, sideIndex, sourceTeam, identityByPokemon)
 function resolvedPokemon(pokemon, identityByPokemon) {
   const id = identityByPokemon.get(pokemon);
   if (!id) throw new Error('Resolved Showdown Pokemon has no battle-local Mapless identity');
-  const moveSlots = pokemon?.moveSlots ?? [];
+  // baseMoveSlots is the persistent moveset. moveSlots is executable battle state
+  // and may be replaced by Transform or other temporary mechanics.
+  const moveSlots = persistentMoveSlots(pokemon);
   const status = pokemon?.status ? String(pokemon.status) : '';
   const resolved = { maplessId: id, hp: Number(pokemon?.hp ?? 0), maxhp: Number(pokemon?.maxhp ?? pokemon?.maxHp ?? 0), status, heldItem: pokemon?.item ? String(pokemon.item) : '', fainted: Boolean(pokemon?.fainted), moves: moveSlots.map((move) => Object.freeze({ id: String(move.id ?? move.move ?? ''), pp: Number(move.pp ?? 0), maxpp: Number(move.maxpp ?? move.maxPP ?? move.pp ?? 0) })) };
   if (status.toLowerCase() === 'slp') resolved.statusTurns = exactSleepTurns(pokemon?.statusState?.time, 'Resolved Showdown');
@@ -187,16 +200,9 @@ export function createShowdownStreamSession(showdown, config) {
     if (!battle) throw new Error('Showdown battle state is unavailable after start projection');
     if (typeof battle.start !== 'function') throw new Error('Showdown battle start surface is required for pre-start persistent hydration');
 
-    // Pinned Showdown calls Battle#start synchronously from setPlayer when the
-    // final side is installed. Defer only that call while the authoritative
-    // Side/Pokemon constructors run, then restore Showdown's own start method.
-    // This keeps Showdown as the mechanics owner while guaranteeing that all
-    // start/switch-in hooks observe Mapless persistent HP/PP/status/item.
     const authoritativeStart = battle.start;
     let startRequestCount = 0;
-    battle.start = function deferredPersistentStart() {
-      startRequestCount += 1;
-    };
+    battle.start = function deferredPersistentStart() { startRequestCount += 1; };
     try {
       await streams.omniscient.write(playerCommand('p1', config.p1, p1Team));
       await streams.omniscient.write(playerCommand('p2', config.p2, p2Team));
