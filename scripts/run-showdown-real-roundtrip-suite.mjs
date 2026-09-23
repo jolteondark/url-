@@ -14,6 +14,7 @@ const harnesses = [
   'tests/reconstruction-showdown-real-request-differential.mjs',
   'tests/reconstruction-showdown-real-roundtrip.mjs',
   'tests/reconstruction-showdown-real-sleep-roundtrip.mjs',
+  'tests/reconstruction-showdown-real-base-moves-persistence.mjs',
 ];
 
 for (const harness of harnesses) {
@@ -29,4 +30,4 @@ for (const harness of harnesses) {
   }
 }
 
-console.log('\n[showdown-real] PASS request differential + general round-trip + Sleep round-trip');
+console.log('\n[showdown-real] PASS request differential + general round-trip + Sleep round-trip + base moves persistence');
