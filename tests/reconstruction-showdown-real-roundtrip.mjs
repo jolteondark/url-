@@ -4,6 +4,7 @@ import { inspectExtractedShowdownArtifact } from '../scripts/showdown-browser-ar
 import { loadShowdownBrowserArtifact, REQUIRED_SHOWDOWN_REVISION } from '../src-next/core/battle/showdown-browser-artifact.js';
 import { createShowdownStreamSession } from '../src-next/core/battle/showdown-stream-session.js';
 import { commitShowdownStreamTerminal } from '../src-next/core/battle/showdown-terminal-handoff.js';
+import { createShowdownBattleSnapshot, projectMaplessPartyToShowdown } from '../src-next/core/battle/showdown-roundtrip.js';
 import { createInitialGameState } from '../src-next/core/game-state.js';
 import { serializeNewCoreSave, restoreNewCoreSave } from '../src-next/core/persistence.js';
 
@@ -18,42 +19,32 @@ assert.equal(artifact.showdownRevision, REQUIRED_SHOWDOWN_REVISION);
 const showdown = await loadShowdownBrowserArtifact(artifact);
 assert.equal(showdown.revision, REQUIRED_SHOWDOWN_REVISION);
 
-const wildTeam = [{
-  id: 'wild-magikarp',
-  species: 'Magikarp',
-  name: 'Magikarp',
-  level: 5,
-  ability: 'Swift Swim',
-  hp: 15,
-  status: '',
-  heldItem: '',
+const wildPersistentTeam = [{
+  id: 'wild-magikarp', species: 'Magikarp', name: 'Magikarp', level: 5, ability: 'Swift Swim',
+  hp: 15, maxhp: 18, status: '', heldItem: '', fainted: false,
   moves: [{ id: 'splash', pp: 40, maxpp: 40 }],
 }];
+const wildTeam = projectMaplessPartyToShowdown(wildPersistentTeam);
 
 const state = createInitialGameState({
   seed: 4242,
   runId: 'real-showdown-roundtrip',
   party: [{
-    id: 'starter-pikachu',
-    species: 'Pikachu',
-    name: 'Pikachu',
-    level: 50,
-    ability: 'Static',
-    hp: 60,
-    status: 'brn',
-    heldItem: 'Throat Spray',
+    id: 'starter-pikachu', species: 'Pikachu', name: 'Pikachu', level: 50, ability: 'Static',
+    hp: 60, maxhp: 110, status: 'brn', heldItem: 'throatspray', fainted: false,
     moves: [{ id: 'hypervoice', pp: 3, maxpp: 10 }],
-    boosts: { spa: -2 },
-    volatile: { seeded: true },
+    boosts: { spa: -2 }, volatile: { seeded: true },
   }],
 });
 const persistentBeforeBattle = structuredClone(state.party);
 
-function createSession(party, seed = [1, 2, 3, 4]) {
+function projectedParty(party, battleId) {
+  return createShowdownBattleSnapshot({ party }, { battleId }).party;
+}
+function createSession(party, seed = [1, 2, 3, 4], battleId = 'real-showdown-battle-1') {
   return createShowdownStreamSession(showdown, {
-    formatid: 'gen9customgame',
-    seed,
-    p1: { name: 'Mapless', team: party },
+    formatid: 'gen9customgame', seed,
+    p1: { name: 'Mapless', team: projectedParty(party, battleId) },
     p2: { name: 'Wild', team: wildTeam },
   });
 }
@@ -62,19 +53,11 @@ const session = createSession(state.party);
 
 function rawPokemon(pokemon) {
   return {
-    hp: Number(pokemon.hp),
-    maxhp: Number(pokemon.maxhp),
-    status: pokemon.status ? String(pokemon.status) : '',
-    heldItem: pokemon.item ? String(pokemon.item) : '',
-    fainted: Boolean(pokemon.fainted),
-    moves: (pokemon.moveSlots ?? []).map((move) => ({
-      id: String(move.id ?? move.move ?? ''),
-      pp: Number(move.pp),
-      maxpp: Number(move.maxpp ?? move.maxPP ?? move.pp),
-    })),
+    hp: Number(pokemon.hp), maxhp: Number(pokemon.maxhp), status: pokemon.status ? String(pokemon.status) : '',
+    heldItem: pokemon.item ? String(pokemon.item) : '', fainted: Boolean(pokemon.fainted),
+    moves: (pokemon.moveSlots ?? []).map((move) => ({ id: String(move.id ?? move.move ?? ''), pp: Number(move.pp), maxpp: Number(move.maxpp ?? move.maxPP ?? move.pp) })),
   };
 }
-
 function assertAdapterMatchesRawShowdown(adapterState, battle) {
   assert.equal(adapterState.terminal, Boolean(battle.ended));
   assert.equal(adapterState.winner, battle.winner ? String(battle.winner) : '');
@@ -100,11 +83,7 @@ assert.equal(starting.p1[0].heldItem, 'throatspray', 'persistent held item must 
 assert.equal(starting.p1[0].moves[0].pp, 3, 'persistent PP must hydrate into real Showdown before FIGHT');
 assert.deepEqual(state.party, persistentBeforeBattle, 'Showdown initialization must not mutate persistent Mapless party state');
 
-await Promise.all([
-  session.fight('p1', 1),
-  session.fight('p2', 1),
-]);
-
+await Promise.all([session.fight('p1', 1), session.fight('p2', 1)]);
 const terminal = session.resolvedState();
 assertAdapterMatchesRawShowdown(terminal, session.battleStream.battle);
 assert.equal(terminal.terminal, true, 'fixture must terminate in one real Showdown turn');
@@ -115,12 +94,8 @@ assert.equal(terminal.p1[0].moves[0].pp, 2, 'real Showdown must authoritatively 
 assert.equal(session.battleStream.battle.sides[0].pokemon[0].boosts.spa, 1, 'real Showdown must own the transient Throat Spray SpA boost');
 assert.deepEqual(state.party, persistentBeforeBattle, 'FIGHT must not mutate persistent Mapless party before terminal commit');
 
-const committed = commitShowdownStreamTerminal(state, {
-  battleId: 'real-showdown-battle-1',
-  session,
-});
-assert.equal(committed.committed, true);
-assert.equal(committed.duplicate, false);
+const committed = commitShowdownStreamTerminal(state, { battleId: 'real-showdown-battle-1', session });
+assert.equal(committed.committed, true); assert.equal(committed.duplicate, false);
 assert.equal(committed.state.party[0].hp, terminal.p1[0].hp);
 assert.equal(committed.state.party[0].status, 'brn');
 assert.equal(committed.state.party[0].heldItem, '', 'consumed held item must commit back to Mapless');
@@ -129,41 +104,23 @@ assert.equal('boosts' in committed.state.party[0], false, 'transient Showdown st
 assert.equal('volatile' in committed.state.party[0], false, 'transient volatile state must not persist');
 
 const restored = restoreNewCoreSave(serializeNewCoreSave(committed.state));
-assert.equal(restored.party[0].hp, terminal.p1[0].hp);
-assert.equal(restored.party[0].status, 'brn');
+assert.equal(restored.party[0].hp, terminal.p1[0].hp); assert.equal(restored.party[0].status, 'brn');
 assert.equal(restored.party[0].heldItem, '', 'consumed held item must remain consumed after reload');
 assert.equal(restored.party[0].moves[0].pp, 2);
-assert.equal('boosts' in restored.party[0], false, 'transient stat stages must remain absent after reload');
-assert.equal('volatile' in restored.party[0], false, 'transient volatile state must remain absent after reload');
-const replay = commitShowdownStreamTerminal(restored, {
-  battleId: 'real-showdown-battle-1',
-  session,
-});
+assert.equal('boosts' in restored.party[0], false); assert.equal('volatile' in restored.party[0], false);
+const replay = commitShowdownStreamTerminal(restored, { battleId: 'real-showdown-battle-1', session });
 assert.equal(replay.committed, false, 'terminal replay after reload must not commit twice');
-assert.equal(replay.duplicate, true);
-assert.equal(replay.state, restored);
+assert.equal(replay.duplicate, true); assert.equal(replay.state, restored);
 
-// Close the full persistence loop: a fresh battle created from the reloaded
-// Mapless party must hydrate exactly the committed persistent state, while the
-// consumed item and transient battle-only state stay gone.
-const reprojectedSession = createSession(restored.party, [5, 6, 7, 8]);
+const reprojectedSession = createSession(restored.party, [5, 6, 7, 8], 'real-showdown-battle-2');
 await reprojectedSession.start();
 const reprojected = reprojectedSession.resolvedState();
 assertAdapterMatchesRawShowdown(reprojected, reprojectedSession.battleStream.battle);
-assert.equal(reprojected.terminal, false);
-assert.equal(reprojected.p1[0].maplessId, 'starter-pikachu');
+assert.equal(reprojected.terminal, false); assert.equal(reprojected.p1[0].maplessId, 'starter-pikachu');
 assert.equal(reprojected.p1[0].hp, terminal.p1[0].hp, 'reloaded HP must hydrate into the next real Showdown battle');
 assert.equal(reprojected.p1[0].status, 'brn', 'reloaded status must hydrate into the next real Showdown battle');
 assert.equal(reprojected.p1[0].heldItem, '', 'consumed held item must not resurrect on reprojection');
 assert.equal(reprojected.p1[0].moves[0].pp, 2, 'reloaded PP must hydrate into the next real Showdown battle');
 assert.equal(reprojectedSession.battleStream.battle.sides[0].pokemon[0].boosts.spa, 0, 'transient stat stages must reset on a fresh battle');
 
-console.log(JSON.stringify({
-  ok: true,
-  showdownRevision: showdown.revision,
-  turn: terminal.turn,
-  winner: terminal.winner,
-  p1: terminal.p1,
-  p2: terminal.p2,
-  reprojectedP1: reprojected.p1,
-}, null, 2));
+console.log(JSON.stringify({ ok: true, showdownRevision: showdown.revision, turn: terminal.turn, winner: terminal.winner, p1: terminal.p1, p2: terminal.p2, reprojectedP1: reprojected.p1 }, null, 2));
