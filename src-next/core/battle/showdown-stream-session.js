@@ -10,11 +10,22 @@ function exactLevel(value, boundary) {
   if (!Number.isInteger(level) || level < 1 || level > 100) throw new Error(`${boundary} requires an integer level from 1 to 100`);
   return level;
 }
+function exactPersistentStatus(value, boundary) {
+  const status = value === undefined || value === null ? '' : String(value);
+  if (!PERSISTENT_MAJOR_STATUSES.has(status)) throw new Error(`${boundary} requires a canonical Showdown major status: ${status || '<empty>'}`);
+  return status;
+}
+function exactPersistentItem(value, boundary) {
+  const item = value === undefined || value === null ? '' : String(value);
+  const canonical = normalizeId(item);
+  if (item && item !== canonical) throw new Error(`${boundary} requires a canonical Showdown item id: ${item}`);
+  return canonical;
+}
 function normalizeTeamMember(member) {
   if (!member?.species) throw new Error('Showdown team member requires species');
   const moves = (member.moves ?? []).map((move) => String(move.id ?? move));
   if (!moves.length) throw new Error('Showdown team member requires at least one move');
-  return { name: String(member.name ?? member.species), species: String(member.species), level: exactLevel(member.level, 'Showdown team projection'), item: String(member.heldItem ?? member.item ?? ''), ability: String(member.ability ?? ''), moves };
+  return { name: String(member.name ?? member.species), species: String(member.species), level: exactLevel(member.level, 'Showdown team projection'), item: exactPersistentItem(member.heldItem ?? member.item ?? '', 'Showdown team projection held item'), ability: String(member.ability ?? ''), moves };
 }
 function playerCommand(side, player, packedTeam) { return `>player ${side} ${JSON.stringify({ name: String(player.name ?? side), team: packedTeam })}`; }
 function maplessId(member) { return String(member?.maplessId ?? member?.id ?? member?.personalId ?? ''); }
@@ -59,10 +70,9 @@ function validatePersistentMember(pokemon, sourceMember) {
     if (persistentMaxhp < 1 || persistentMaxhp !== maxhp) throw new Error(`Persistent max HP projection mismatch: ${persistentMaxhp}/${maxhp}`);
   }
   exactPersistentFainted(sourceMember.fainted, hp);
-  const status = sourceMember.status ? String(sourceMember.status).toLowerCase() : '';
-  if (!PERSISTENT_MAJOR_STATUSES.has(status)) throw new Error(`Persistent status projection requires a canonical Showdown major status: ${status || '<empty>'}`);
+  const status = exactPersistentStatus(sourceMember.status, 'Persistent status projection');
   if (status === 'slp') exactSleepTurns(sourceMember.statusTurns, 'Persistent');
-  const projectedItem = normalizeId(sourceMember.heldItem ?? sourceMember.item ?? '');
+  const projectedItem = exactPersistentItem(sourceMember.heldItem ?? sourceMember.item ?? '', 'Persistent held-item projection');
   const showdownItem = normalizeId(pokemon.item);
   if (showdownItem !== projectedItem) throw new Error(`Persistent held-item projection mismatch: ${projectedItem || '<empty>'}/${showdownItem || '<empty>'}`);
   const sourceMoves = sourceMember.moves ?? [];
@@ -111,7 +121,7 @@ function validatePersistentSide(battle, sideIndex, sourceTeam) {
 }
 
 function hydratePersistentStatus(battle, pokemon, sourceMember) {
-  const status = sourceMember.status ? String(sourceMember.status).toLowerCase() : '';
+  const status = exactPersistentStatus(sourceMember.status, 'Persistent status hydration');
   pokemon.status = status;
   pokemon.statusState = typeof battle?.initEffectState === 'function' ? battle.initEffectState(status ? { id: status, target: pokemon } : {}) : { id: status, ...(status ? { target: pokemon } : {}) };
   if (status === 'tox') pokemon.statusState.stage = 0;
@@ -127,7 +137,7 @@ function hydratePersistentMember(battle, pokemon, sourceMember) {
   pokemon.hp = hp;
   pokemon.fainted = exactPersistentFainted(sourceMember.fainted, hp);
   hydratePersistentStatus(battle, pokemon, sourceMember);
-  pokemon.item = normalizeId(sourceMember.heldItem ?? sourceMember.item ?? '');
+  pokemon.item = exactPersistentItem(sourceMember.heldItem ?? sourceMember.item ?? '', 'Persistent held-item hydration');
   const sourceById = new Map((sourceMember.moves ?? []).map((move) => [moveId(move), move]));
   for (const slot of pokemon.moveSlots ?? []) slot.pp = exactNonnegativeInteger(sourceById.get(moveId(slot)).pp, `Persistent PP projection for ${moveId(slot)}`);
 }
