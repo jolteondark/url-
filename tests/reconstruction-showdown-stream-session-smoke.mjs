@@ -38,7 +38,7 @@ const showdown = {
 const config = {
   formatid: 'gen9customgame', seed: [1, 2, 3, 4],
   p1: { name: 'Mapless', team: [
-    { id: 'hero-pika', species: 'Pikachu', level: 10, ability: 'Static', hp: 17, status: 'par', heldItem: 'Oran Berry', moves: [{ id: 'thundershock', pp: 7 }] },
+    { id: 'hero-pika', species: 'Pikachu', level: 10, ability: 'Static', hp: 17, status: 'par', heldItem: 'oranberry', moves: [{ id: 'thundershock', pp: 7 }] },
     { id: 'hero-bulba', species: 'Bulbasaur', level: 10, hp: 13, status: '', moves: [{ id: 'vinewhip', pp: 5 }] },
   ] },
   p2: { name: 'Wild', team: [{ id: 'wild-rattata', species: 'Rattata', level: 8, hp: 11, status: '', moves: [{ id: 'tackle', pp: 9 }] }] },
@@ -88,4 +88,4 @@ assert.equal('boosts' in resolved.p1[0], false);
 await assert.rejects(async () => createShowdownStreamSession(showdown, config).fight('p1', 1), /must start/);
 await assert.rejects(session.fight('p1', 0), /positive Showdown move slot/);
 await assert.rejects(session.choose('p3', 'move 1'), /Invalid Showdown side/);
-console.log('reconstruction-showdown-stream-session-smoke: ok');
+console.log('reconstruction showdown stream session smoke: ok');
