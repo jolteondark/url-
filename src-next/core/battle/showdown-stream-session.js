@@ -164,6 +164,13 @@ function hydratePersistentSide(battle, sideIndex, sourceTeam, identityByPokemon)
   });
 }
 
+function reconcilePersistentSideBookkeeping(battle, sideIndex) {
+  const side = battle?.sides?.[sideIndex];
+  if (!side) throw new Error(`Showdown side ${sideIndex + 1} is unavailable after authoritative start`);
+  const live = (side.pokemon ?? []).filter((pokemon) => Number(pokemon?.hp ?? 0) > 0 && !pokemon?.fainted).length;
+  side.pokemonLeft = live;
+}
+
 function resolvedPokemon(pokemon, identityByPokemon) {
   const id = identityByPokemon.get(pokemon);
   if (!id) throw new Error('Resolved Showdown Pokemon has no battle-local Mapless identity');
@@ -219,6 +226,11 @@ export function createShowdownStreamSession(showdown, config) {
 
     authoritativeStart.call(battle);
     if (!battle.started) throw new Error('Showdown authoritative start did not transition battle state');
+    // Showdown's queued start action restores pokemonLeft to the packed team size.
+    // Reconcile only Mapless-persisted live-party bookkeeping after Showdown owns
+    // initial switch-in mechanics; do not reproduce switching or battle semantics.
+    reconcilePersistentSideBookkeeping(battle, 0);
+    reconcilePersistentSideBookkeeping(battle, 1);
     started = true;
     return true;
   }
