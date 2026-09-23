@@ -17,6 +17,12 @@ assert.match(source, /MAPLESS_SHOWDOWN_OFFLINE/,
 assert.match(source, /offline mode requires an existing pkmn\/ps checkout/);
 assert.match(source, /offline mode requires an initialized vendor\/pokemon-showdown checkout/);
 assert.match(source, /offline mode requires cached pkmn\/ps node_modules/);
+assert.match(source, /createHash\('sha256'\)/,
+  'cached real-engine artifact provenance must bind to the built entry bytes');
+assert.match(source, /stamp\.entrySha256 === sha256\(builtEntry\)/,
+  'offline reuse must reject a built entry whose bytes no longer match the provenance stamp');
+assert.match(source, /entrySha256: sha256\(builtEntry\)/,
+  'successful exact-pin builds must record the built entry digest');
 assert.match(source, /reconstruction-showdown-real-request-differential\.mjs/);
 assert.match(source, /reconstruction-showdown-real-sleep-roundtrip\.mjs/);
 assert.match(source, /reconstruction-showdown-real-roundtrip\.mjs/);
