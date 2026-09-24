@@ -40,7 +40,11 @@ export function preservePersistentLiveCountDuringStart(side) {
       return visible;
     },
     set(value) {
-      if (!suppressedQueuedReset && expectsQueuedResetSuppression && Number(value) === teamLength) {
+      // The pinned start action performs this reset before any other pokemonLeft
+      // bookkeeping. Suppress it only while the hydrated count is still the
+      // currently visible value. If another engine write happened first, do not
+      // hide a reordered/changed Showdown contract; restoration will fail closed.
+      if (!suppressedQueuedReset && expectsQueuedResetSuppression && visible === persistentLive && Number(value) === teamLength) {
         suppressedQueuedReset = true;
         return;
       }
