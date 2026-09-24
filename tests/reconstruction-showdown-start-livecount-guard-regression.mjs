@@ -68,4 +68,26 @@ assert.equal(missingResetSide.pokemonLeft, 1, 'failed contract verification must
 missingResetSide.pokemonLeft = 0;
 assert.equal(missingResetSide.pokemonLeft, 0, 'failed contract verification must not leak the accessor guard');
 
+// The exact pin performs the team-length reset as the first pokemonLeft write in
+// its queued start action. If engine bookkeeping is reordered, do not suppress a
+// later coincidental team-length write and pretend the pinned contract matched.
+const reorderedSide = {
+  pokemonLeft: 2,
+  pokemon: [
+    { hp: 0, fainted: true },
+    { hp: 41, fainted: false },
+  ],
+};
+const restoreReordered = preservePersistentLiveCountDuringStart(reorderedSide);
+reorderedSide.pokemonLeft = 0;
+assert.equal(reorderedSide.pokemonLeft, 0, 'earlier mechanics-owned bookkeeping must remain visible');
+reorderedSide.pokemonLeft = reorderedSide.pokemon.length;
+assert.equal(reorderedSide.pokemonLeft, 2, 'a reordered team-length write must not be hidden as the pinned start reset');
+assert.throws(
+  () => restoreReordered(),
+  /did not perform the expected pokemonLeft team-length initialization/,
+  'reordered start bookkeeping must fail closed instead of matching a later coincidental reset',
+);
+assert.equal(reorderedSide.pokemonLeft, 2, 'reordered-contract failure must restore the final engine-owned value');
+
 console.log('Showdown start live-count guard regression PASS');
