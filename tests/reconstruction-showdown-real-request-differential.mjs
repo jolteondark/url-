@@ -18,9 +18,9 @@ assert.equal(showdown.revision, REQUIRED_SHOWDOWN_REVISION);
 
 const p1PersistentTeam = [{
   id: 'request-pikachu', species: 'Pikachu', name: 'Pikachu', level: 50, ability: 'Static',
-  // With the projected set (no explicit EVs/IVs), pinned Showdown constructs level-50 Pikachu at 110 max HP.
+  // With the projected set (no explicit EVs/IVs), pinned Showdown constructs level-50 Pikachu at 85 max HP.
   // Keep persistent maxhp identical to that authoritative generated ceiling so this harness reaches hydration.
-  hp: 17, maxhp: 110, status: 'slp', statusTurns: 3, heldItem: 'oranberry', fainted: false,
+  hp: 17, maxhp: 85, status: 'slp', statusTurns: 3, heldItem: 'oranberry', fainted: false,
   moves: [{ id: 'thunderbolt', pp: 4, maxpp: 24 }],
 }];
 const p2PersistentTeam = [{
