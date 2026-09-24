@@ -33,10 +33,6 @@ export function preservePersistentLiveCountDuringStart(side) {
       return visible;
     },
     set(value) {
-      // Pinned Showdown's queued start action initializes pokemonLeft from the
-      // generated team size. Suppress that one initialization only when it
-      // would resurrect a persisted fainted member; an all-live party needs no
-      // adapter interception at all.
       if (!suppressedQueuedReset && expectsQueuedResetSuppression && Number(value) === teamLength) {
         suppressedQueuedReset = true;
         return;
@@ -53,4 +49,38 @@ export function preservePersistentLiveCountDuringStart(side) {
     }
     return { persistentLive, finalValue, suppressedQueuedReset };
   };
+}
+
+/**
+ * Battle-scoped production boundary for the pinned authoritative start. Install
+ * both side guards before entering Showdown so neither side can observe a
+ * partially guarded battle. Restore both sides even when Battle#start throws;
+ * if Showdown's pinned initialization contract moved, fail closed after state
+ * restoration instead of silently accepting a divergent engine boundary.
+ */
+export function runAuthoritativeStartWithPersistentLiveCounts(battle, authoritativeStart) {
+  if (!battle || !Array.isArray(battle.sides)) throw new Error('Showdown battle sides are unavailable before authoritative start');
+  if (typeof authoritativeStart !== 'function') throw new Error('Showdown authoritative start must be callable');
+
+  const restorers = battle.sides.map((side) => preservePersistentLiveCountDuringStart(side));
+  let startError;
+  try {
+    authoritativeStart.call(battle);
+  } catch (error) {
+    startError = error;
+  }
+
+  const restorationErrors = [];
+  for (const restore of restorers.reverse()) {
+    try {
+      restore();
+    } catch (error) {
+      restorationErrors.push(error);
+    }
+  }
+
+  if (startError) throw startError;
+  if (restorationErrors.length) {
+    throw new AggregateError(restorationErrors, 'Pinned Showdown live-count guard contract failed during authoritative start');
+  }
 }
