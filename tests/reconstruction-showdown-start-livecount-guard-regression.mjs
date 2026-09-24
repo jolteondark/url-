@@ -47,4 +47,25 @@ assert.deepEqual(
   'guard must report no suppression when the queued initialization is already correct',
 );
 
+// This adapter exception is deliberately tied to the pinned Showdown start
+// behavior. If that revision no longer emits the team-length initialization,
+// fail closed instead of silently carrying a stale compatibility shim.
+const missingResetSide = {
+  pokemonLeft: 2,
+  pokemon: [
+    { hp: 0, fainted: true },
+    { hp: 41, fainted: false },
+  ],
+};
+const restoreMissingReset = preservePersistentLiveCountDuringStart(missingResetSide);
+assert.equal(missingResetSide.pokemonLeft, 1);
+assert.throws(
+  () => restoreMissingReset(),
+  /did not perform the expected pokemonLeft team-length initialization/,
+  'persisted-faint compatibility guard must fail if the pinned start contract is not observed',
+);
+assert.equal(missingResetSide.pokemonLeft, 1, 'failed contract verification must still restore an ordinary data property');
+missingResetSide.pokemonLeft = 0;
+assert.equal(missingResetSide.pokemonLeft, 0, 'failed contract verification must not leak the accessor guard');
+
 console.log('Showdown start live-count guard regression PASS');
