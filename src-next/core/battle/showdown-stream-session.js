@@ -1,3 +1,5 @@
+import { runAuthoritativeStartWithPersistentLiveCounts } from './showdown-start-livecount-guard.js';
+
 function assertSide(side) {
   if (side !== 'p1' && side !== 'p2') throw new Error(`Invalid Showdown side: ${side}`);
 }
@@ -174,42 +176,6 @@ function reconcilePersistentSideBookkeeping(battle, sideIndex) {
   side.pokemonLeft = persistentLiveCount(side);
 }
 
-function preservePersistentLiveCountDuringStart(battle, authoritativeStart) {
-  const restorers = [];
-  for (let sideIndex = 0; sideIndex < (battle?.sides?.length ?? 0); sideIndex += 1) {
-    const side = battle.sides[sideIndex];
-    if (!side) continue;
-    const live = persistentLiveCount(side);
-    const teamLength = side.pokemon?.length ?? 0;
-    const descriptor = Object.getOwnPropertyDescriptor(side, 'pokemonLeft');
-    if (!descriptor || descriptor.get || descriptor.set || descriptor.configurable === false) {
-      throw new Error(`Showdown side ${sideIndex + 1} pokemonLeft is not guardable during authoritative start`);
-    }
-    let current = live;
-    let blockedQueuedReset = false;
-    Object.defineProperty(side, 'pokemonLeft', {
-      configurable: true,
-      enumerable: descriptor.enumerable,
-      get() { return current; },
-      set(value) {
-        if (!blockedQueuedReset && live !== teamLength && value === teamLength) {
-          blockedQueuedReset = true;
-          return;
-        }
-        current = value;
-      },
-    });
-    restorers.push(() => {
-      Object.defineProperty(side, 'pokemonLeft', { ...descriptor, value: current });
-    });
-  }
-  try {
-    authoritativeStart.call(battle);
-  } finally {
-    for (const restore of restorers.reverse()) restore();
-  }
-}
-
 function resolvedPokemon(pokemon, identityByPokemon) {
   const id = identityByPokemon.get(pokemon);
   if (!id) throw new Error('Resolved Showdown Pokemon has no battle-local Mapless identity');
@@ -261,7 +227,7 @@ export function createShowdownStreamSession(showdown, config) {
     hydratePersistentSide(battle, 0, config.p1.team, identityByPokemon);
     hydratePersistentSide(battle, 1, config.p2.team, identityByPokemon);
 
-    preservePersistentLiveCountDuringStart(battle, authoritativeStart);
+    runAuthoritativeStartWithPersistentLiveCounts(battle, authoritativeStart);
     if (!battle.started) throw new Error('Showdown authoritative start did not transition battle state');
     reconcilePersistentSideBookkeeping(battle, 0);
     reconcilePersistentSideBookkeeping(battle, 1);
