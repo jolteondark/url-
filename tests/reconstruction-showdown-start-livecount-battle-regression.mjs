@@ -58,4 +58,26 @@ thrownP2.pokemonLeft = 1;
 assert.equal(thrownP1.pokemonLeft, 1, 'p1 must be writable after thrown start');
 assert.equal(thrownP2.pokemonLeft, 1, 'p2 must be writable after thrown start');
 
+// The round-trip adapter owns exactly the two-side Mapless battle boundary.
+// Reject a changed engine topology before installing any pokemonLeft accessor or
+// invoking Battle#start so a future multi-side shape cannot be partially hydrated.
+const topologyP1 = side([20]);
+const topologyP2 = side([30]);
+const topologyP3 = side([40]);
+let topologyStarts = 0;
+assert.throws(
+  () => runAuthoritativeStartWithPersistentLiveCounts(
+    { sides: [topologyP1, topologyP2, topologyP3] },
+    () => { topologyStarts += 1; },
+  ),
+  /requires exactly two battle sides/,
+);
+assert.equal(topologyStarts, 0, 'unsupported battle topology must be rejected before authoritative start');
+for (const topologySide of [topologyP1, topologyP2, topologyP3]) {
+  const descriptor = Object.getOwnPropertyDescriptor(topologySide, 'pokemonLeft');
+  assert.equal(typeof descriptor?.get, 'undefined', 'unsupported topology must not install a pokemonLeft getter');
+  assert.equal(typeof descriptor?.set, 'undefined', 'unsupported topology must not install a pokemonLeft setter');
+  assert.equal(descriptor?.writable, true, 'unsupported topology must leave pokemonLeft as an ordinary writable property');
+}
+
 console.log('Showdown battle-scoped start live-count regression PASS');
