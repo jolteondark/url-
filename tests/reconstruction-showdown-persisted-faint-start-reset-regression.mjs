@@ -8,20 +8,24 @@ const source = readFileSync(sourcePath, 'utf8');
 
 // Pinned Showdown's queued `start` action executes
 // `if (side.pokemonLeft) side.pokemonLeft = side.pokemon.length`.
-// A persisted fainted party therefore cannot expose its hydrated nonzero live
-// count while authoritative start runs: Showdown would transiently resurrect
-// the bench in live-party bookkeeping before the adapter repairs the count.
-// Suppress only that initialization sentinel before authoritative start, then
-// restore the exact persistent live count after Showdown-owned initial switch-in.
-assert.match(
+// Persisted faint state must therefore guard that one initialization overwrite
+// without exposing a synthetic zero count to Showdown mechanics. The guard is
+// start-scoped, then ordinary writable pokemonLeft state is restored and the
+// hydrated count is reconciled after Showdown-owned initial switch-in.
+assert.doesNotMatch(
   source,
   /function suppressShowdownStartPartyReset\([\s\S]*?side\.pokemonLeft\s*=\s*0\s*;/,
-  'persistent faint projection must suppress Showdown start live-count reset before authoritative start',
+  'persistent faint projection must not use a zero pokemonLeft sentinel',
 );
 assert.match(
   source,
-  /suppressShowdownStartPartyReset\(battle,\s*0\)[\s\S]*?suppressShowdownStartPartyReset\(battle,\s*1\)[\s\S]*?authoritativeStart\.call\(battle\)[\s\S]*?reconcilePersistentSideBookkeeping\(battle,\s*0\)[\s\S]*?reconcilePersistentSideBookkeeping\(battle,\s*1\)/,
-  'bookkeeping suppression must bracket authoritative Showdown start and be reconciled afterward',
+  /function preservePersistentLiveCountDuringStart\([\s\S]*?value\s*===\s*teamLength[\s\S]*?authoritativeStart\.call\(battle\)[\s\S]*?finally/,
+  'persistent faint projection must guard only the queued team-length overwrite during authoritative start',
+);
+assert.match(
+  source,
+  /preservePersistentLiveCountDuringStart\(battle,\s*authoritativeStart\)[\s\S]*?reconcilePersistentSideBookkeeping\(battle,\s*0\)[\s\S]*?reconcilePersistentSideBookkeeping\(battle,\s*1\)/,
+  'the start-scoped guard must be followed by exact persistent live-count reconciliation',
 );
 
 console.log('persisted-faint Showdown start-reset regression PASS');
