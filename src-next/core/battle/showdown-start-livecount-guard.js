@@ -10,6 +10,11 @@ function exactLiveCount(side) {
  * fainted party member. All reads during start continue to observe the exact
  * hydrated count, and every other write remains Showdown-owned.
  *
+ * A persisted side with zero live Pokemon is not a legal new-battle projection:
+ * allowing Showdown's start queue to run would either resurrect a fainted member
+ * through its team-length initialization or enter switch logic with no legal
+ * active. Reject that boundary before installing any accessor.
+ *
  * The returned restore function must be called immediately after the
  * authoritative start call (normally from a finally block).
  */
@@ -22,6 +27,8 @@ export function preservePersistentLiveCountDuringStart(side) {
 
   const persistentLive = exactLiveCount(side);
   const teamLength = side.pokemon.length;
+  if (teamLength < 1) throw new Error('Showdown side requires at least one projected Pokemon before authoritative start');
+  if (persistentLive < 1) throw new Error('Persistent battle start requires at least one non-fainted Pokemon per side');
   const expectsQueuedResetSuppression = persistentLive !== teamLength;
   let visible = persistentLive;
   let suppressedQueuedReset = false;
