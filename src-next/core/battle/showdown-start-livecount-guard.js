@@ -97,7 +97,12 @@ export function runAuthoritativeStartWithPersistentLiveCounts(battle, authoritat
     }
     throw installationError;
   }
-  if (startError) throw startError;
+  if (startError) {
+    if (restorationErrors.length) {
+      throw new AggregateError([startError, ...restorationErrors], 'Pinned Showdown authoritative start and live-count guard restoration both failed');
+    }
+    throw startError;
+  }
   if (restorationErrors.length) {
     throw new AggregateError(restorationErrors, 'Pinned Showdown live-count guard contract failed during authoritative start');
   }
