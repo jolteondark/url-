@@ -164,27 +164,55 @@ function hydratePersistentSide(battle, sideIndex, sourceTeam, identityByPokemon)
   });
 }
 
+function persistentLiveCount(side) {
+  return (side?.pokemon ?? []).filter((pokemon) => Number(pokemon?.hp ?? 0) > 0 && !pokemon?.fainted).length;
+}
+
 function reconcilePersistentSideBookkeeping(battle, sideIndex) {
   const side = battle?.sides?.[sideIndex];
   if (!side) throw new Error(`Showdown side ${sideIndex + 1} is unavailable after authoritative start`);
-  const live = (side.pokemon ?? []).filter((pokemon) => Number(pokemon?.hp ?? 0) > 0 && !pokemon?.fainted).length;
-  side.pokemonLeft = live;
+  side.pokemonLeft = persistentLiveCount(side);
 }
 
-function suppressShowdownStartPartyReset(battle, sideIndex) {
-  const side = battle?.sides?.[sideIndex];
-  if (!side) throw new Error(`Showdown side ${sideIndex + 1} is unavailable before authoritative start`);
-  // Pinned Showdown's queued start action only rewrites pokemonLeft when it is
-  // truthy. Use a zero sentinel so hydrated faint state survives that reset;
-  // authoritative Showdown still owns initial switch-in selection/mechanics.
-  side.pokemonLeft = 0;
+function preservePersistentLiveCountDuringStart(battle, authoritativeStart) {
+  const restorers = [];
+  for (let sideIndex = 0; sideIndex < (battle?.sides?.length ?? 0); sideIndex += 1) {
+    const side = battle.sides[sideIndex];
+    if (!side) continue;
+    const live = persistentLiveCount(side);
+    const teamLength = side.pokemon?.length ?? 0;
+    const descriptor = Object.getOwnPropertyDescriptor(side, 'pokemonLeft');
+    if (!descriptor || descriptor.get || descriptor.set || descriptor.configurable === false) {
+      throw new Error(`Showdown side ${sideIndex + 1} pokemonLeft is not guardable during authoritative start`);
+    }
+    let current = live;
+    let blockedQueuedReset = false;
+    Object.defineProperty(side, 'pokemonLeft', {
+      configurable: true,
+      enumerable: descriptor.enumerable,
+      get() { return current; },
+      set(value) {
+        if (!blockedQueuedReset && live !== teamLength && value === teamLength) {
+          blockedQueuedReset = true;
+          return;
+        }
+        current = value;
+      },
+    });
+    restorers.push(() => {
+      Object.defineProperty(side, 'pokemonLeft', { ...descriptor, value: current });
+    });
+  }
+  try {
+    authoritativeStart.call(battle);
+  } finally {
+    for (const restore of restorers.reverse()) restore();
+  }
 }
 
 function resolvedPokemon(pokemon, identityByPokemon) {
   const id = identityByPokemon.get(pokemon);
   if (!id) throw new Error('Resolved Showdown Pokemon has no battle-local Mapless identity');
-  // baseMoveSlots is the persistent moveset. moveSlots is executable battle state
-  // and may be replaced by Transform or other temporary mechanics.
   const moveSlots = persistentMoveSlots(pokemon);
   const status = pokemon?.status ? String(pokemon.status) : '';
   const resolved = { maplessId: id, hp: Number(pokemon?.hp ?? 0), maxhp: Number(pokemon?.maxhp ?? pokemon?.maxHp ?? 0), status, heldItem: pokemon?.item ? String(pokemon.item) : '', fainted: Boolean(pokemon?.fainted), moves: moveSlots.map((move) => Object.freeze({ id: String(move.id ?? move.move ?? ''), pp: Number(move.pp ?? 0), maxpp: Number(move.maxpp ?? move.maxPP ?? move.pp ?? 0) })) };
@@ -233,12 +261,8 @@ export function createShowdownStreamSession(showdown, config) {
     hydratePersistentSide(battle, 0, config.p1.team, identityByPokemon);
     hydratePersistentSide(battle, 1, config.p2.team, identityByPokemon);
 
-    suppressShowdownStartPartyReset(battle, 0);
-    suppressShowdownStartPartyReset(battle, 1);
-    authoritativeStart.call(battle);
+    preservePersistentLiveCountDuringStart(battle, authoritativeStart);
     if (!battle.started) throw new Error('Showdown authoritative start did not transition battle state');
-    // Restore the exact persistent live-party count after Showdown-owned initial
-    // switch-in processing. No switch choice or mechanics are reproduced here.
     reconcilePersistentSideBookkeeping(battle, 0);
     reconcilePersistentSideBookkeeping(battle, 1);
     started = true;
