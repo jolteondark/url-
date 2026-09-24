@@ -61,12 +61,16 @@ export function preservePersistentLiveCountDuringStart(side) {
 /**
  * Battle-scoped production boundary for the pinned authoritative start. Install
  * both side guards before entering Showdown so neither side can observe a
- * partially guarded battle. Restore both sides even when guard installation or
+ * partially guarded battle. This adapter currently owns only the Mapless
+ * two-side singles boundary; fail closed before installing accessors if the
+ * engine shape ever expands rather than partially hydrating an unsupported
+ * battle topology. Restore both sides even when guard installation or
  * Battle#start throws; if Showdown's pinned initialization contract moved, fail
  * closed after state restoration instead of silently accepting divergence.
  */
 export function runAuthoritativeStartWithPersistentLiveCounts(battle, authoritativeStart) {
   if (!battle || !Array.isArray(battle.sides)) throw new Error('Showdown battle sides are unavailable before authoritative start');
+  if (battle.sides.length !== 2) throw new Error(`Mapless Showdown round-trip requires exactly two battle sides; observed ${battle.sides.length}`);
   if (typeof authoritativeStart !== 'function') throw new Error('Showdown authoritative start must be callable');
 
   const restorers = [];
