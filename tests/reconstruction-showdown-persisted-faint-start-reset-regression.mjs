@@ -15,12 +15,12 @@ const source = readFileSync(sourcePath, 'utf8');
 // restore the exact persistent live count after Showdown-owned initial switch-in.
 assert.match(
   source,
-  /function preparePersistentSideBookkeeping\([\s\S]*?side\.pokemonLeft\s*=\s*0\s*;/,
+  /function suppressShowdownStartPartyReset\([\s\S]*?side\.pokemonLeft\s*=\s*0\s*;/,
   'persistent faint projection must suppress Showdown start live-count reset before authoritative start',
 );
 assert.match(
   source,
-  /preparePersistentSideBookkeeping\(battle,\s*0\)[\s\S]*?preparePersistentSideBookkeeping\(battle,\s*1\)[\s\S]*?authoritativeStart\.call\(battle\)[\s\S]*?reconcilePersistentSideBookkeeping\(battle,\s*0\)[\s\S]*?reconcilePersistentSideBookkeeping\(battle,\s*1\)/,
+  /suppressShowdownStartPartyReset\(battle,\s*0\)[\s\S]*?suppressShowdownStartPartyReset\(battle,\s*1\)[\s\S]*?authoritativeStart\.call\(battle\)[\s\S]*?reconcilePersistentSideBookkeeping\(battle,\s*0\)[\s\S]*?reconcilePersistentSideBookkeeping\(battle,\s*1\)/,
   'bookkeeping suppression must bracket authoritative Showdown start and be reconciled afterward',
 );
 
