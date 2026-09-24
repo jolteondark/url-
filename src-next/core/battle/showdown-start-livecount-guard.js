@@ -6,7 +6,8 @@ function exactLiveCount(side) {
  * Preserve Mapless's hydrated persistent live-party count while pinned Showdown
  * executes Battle#start. The pinned start queue performs one legacy
  * `pokemonLeft = pokemon.length` initialization; that assignment is the only
- * write suppressed here. All reads during start continue to observe the exact
+ * write suppressed here, and only when it would actually resurrect a persisted
+ * fainted party member. All reads during start continue to observe the exact
  * hydrated count, and every other write remains Showdown-owned.
  *
  * The returned restore function must be called immediately after the
@@ -31,9 +32,10 @@ export function preservePersistentLiveCountDuringStart(side) {
     },
     set(value) {
       // Pinned Showdown's queued start action initializes pokemonLeft from the
-      // generated team size. Suppress that one initialization only; do not hide
-      // any later mechanics-owned bookkeeping write.
-      if (!suppressedQueuedReset && Number(value) === side.pokemon.length) {
+      // generated team size. Suppress that one initialization only when it
+      // would resurrect a persisted fainted member; an all-live party needs no
+      // adapter interception at all.
+      if (!suppressedQueuedReset && persistentLive !== side.pokemon.length && Number(value) === side.pokemon.length) {
         suppressedQueuedReset = true;
         return;
       }
