@@ -171,6 +171,15 @@ function reconcilePersistentSideBookkeeping(battle, sideIndex) {
   side.pokemonLeft = live;
 }
 
+function suppressShowdownStartPartyReset(battle, sideIndex) {
+  const side = battle?.sides?.[sideIndex];
+  if (!side) throw new Error(`Showdown side ${sideIndex + 1} is unavailable before authoritative start`);
+  // Pinned Showdown's queued start action only rewrites pokemonLeft when it is
+  // truthy. Use a zero sentinel so hydrated faint state survives that reset;
+  // authoritative Showdown still owns initial switch-in selection/mechanics.
+  side.pokemonLeft = 0;
+}
+
 function resolvedPokemon(pokemon, identityByPokemon) {
   const id = identityByPokemon.get(pokemon);
   if (!id) throw new Error('Resolved Showdown Pokemon has no battle-local Mapless identity');
@@ -224,11 +233,12 @@ export function createShowdownStreamSession(showdown, config) {
     hydratePersistentSide(battle, 0, config.p1.team, identityByPokemon);
     hydratePersistentSide(battle, 1, config.p2.team, identityByPokemon);
 
+    suppressShowdownStartPartyReset(battle, 0);
+    suppressShowdownStartPartyReset(battle, 1);
     authoritativeStart.call(battle);
     if (!battle.started) throw new Error('Showdown authoritative start did not transition battle state');
-    // Showdown's queued start action restores pokemonLeft to the packed team size.
-    // Reconcile only Mapless-persisted live-party bookkeeping after Showdown owns
-    // initial switch-in mechanics; do not reproduce switching or battle semantics.
+    // Restore the exact persistent live-party count after Showdown-owned initial
+    // switch-in processing. No switch choice or mechanics are reproduced here.
     reconcilePersistentSideBookkeeping(battle, 0);
     reconcilePersistentSideBookkeeping(battle, 1);
     started = true;
