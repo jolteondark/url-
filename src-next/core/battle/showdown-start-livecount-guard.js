@@ -54,20 +54,32 @@ export function preservePersistentLiveCountDuringStart(side) {
 /**
  * Battle-scoped production boundary for the pinned authoritative start. Install
  * both side guards before entering Showdown so neither side can observe a
- * partially guarded battle. Restore both sides even when Battle#start throws;
- * if Showdown's pinned initialization contract moved, fail closed after state
- * restoration instead of silently accepting a divergent engine boundary.
+ * partially guarded battle. Restore both sides even when guard installation or
+ * Battle#start throws; if Showdown's pinned initialization contract moved, fail
+ * closed after state restoration instead of silently accepting divergence.
  */
 export function runAuthoritativeStartWithPersistentLiveCounts(battle, authoritativeStart) {
   if (!battle || !Array.isArray(battle.sides)) throw new Error('Showdown battle sides are unavailable before authoritative start');
   if (typeof authoritativeStart !== 'function') throw new Error('Showdown authoritative start must be callable');
 
-  const restorers = battle.sides.map((side) => preservePersistentLiveCountDuringStart(side));
+  const restorers = [];
+  let installationError;
+  for (const side of battle.sides) {
+    try {
+      restorers.push(preservePersistentLiveCountDuringStart(side));
+    } catch (error) {
+      installationError = error;
+      break;
+    }
+  }
+
   let startError;
-  try {
-    authoritativeStart.call(battle);
-  } catch (error) {
-    startError = error;
+  if (!installationError) {
+    try {
+      authoritativeStart.call(battle);
+    } catch (error) {
+      startError = error;
+    }
   }
 
   const restorationErrors = [];
@@ -79,6 +91,12 @@ export function runAuthoritativeStartWithPersistentLiveCounts(battle, authoritat
     }
   }
 
+  if (installationError) {
+    if (restorationErrors.length) {
+      throw new AggregateError([installationError, ...restorationErrors], 'Pinned Showdown live-count guard installation failed during authoritative start');
+    }
+    throw installationError;
+  }
   if (startError) throw startError;
   if (restorationErrors.length) {
     throw new AggregateError(restorationErrors, 'Pinned Showdown live-count guard contract failed during authoritative start');
