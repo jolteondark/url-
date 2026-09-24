@@ -21,6 +21,8 @@ export function preservePersistentLiveCountDuringStart(side) {
   }
 
   const persistentLive = exactLiveCount(side);
+  const teamLength = side.pokemon.length;
+  const expectsQueuedResetSuppression = persistentLive !== teamLength;
   let visible = persistentLive;
   let suppressedQueuedReset = false;
 
@@ -35,7 +37,7 @@ export function preservePersistentLiveCountDuringStart(side) {
       // generated team size. Suppress that one initialization only when it
       // would resurrect a persisted fainted member; an all-live party needs no
       // adapter interception at all.
-      if (!suppressedQueuedReset && persistentLive !== side.pokemon.length && Number(value) === side.pokemon.length) {
+      if (!suppressedQueuedReset && expectsQueuedResetSuppression && Number(value) === teamLength) {
         suppressedQueuedReset = true;
         return;
       }
@@ -46,6 +48,9 @@ export function preservePersistentLiveCountDuringStart(side) {
   return function restorePersistentLiveCountGuard() {
     const finalValue = visible;
     Object.defineProperty(side, 'pokemonLeft', { ...descriptor, value: finalValue });
+    if (expectsQueuedResetSuppression && !suppressedQueuedReset) {
+      throw new Error('Pinned Showdown start did not perform the expected pokemonLeft team-length initialization');
+    }
     return { persistentLive, finalValue, suppressedQueuedReset };
   };
 }
