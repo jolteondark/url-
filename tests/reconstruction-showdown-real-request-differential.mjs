@@ -39,6 +39,7 @@ const session = createShowdownStreamSession(showdown, {
 });
 await session.start();
 const battle = session.battleStream.battle;
+const adapterStarting = session.resolvedState();
 
 function normalizeId(value) {
   return String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '');
@@ -76,6 +77,31 @@ function assertPersistentMatchesRaw(sideIndex, sourceTeam) {
   });
 }
 
+function assertAdapterMatchesRaw(sideKey, sideIndex) {
+  const rawSide = battle.sides[sideIndex];
+  const adapterSide = adapterStarting[sideKey];
+  assert.equal(adapterSide.length, rawSide.pokemon.length, `${sideKey} adapter/raw team length must match`);
+  rawSide.pokemon.forEach((pokemon, index) => {
+    const projected = adapterSide[index];
+    assert.equal(projected.hp, Number(pokemon.hp), `${sideKey}[${index}] adapter HP must equal raw Showdown HP`);
+    assert.equal(projected.maxhp, Number(pokemon.maxhp), `${sideKey}[${index}] adapter max HP must equal raw Showdown max HP`);
+    assert.equal(projected.status, String(pokemon.status ?? ''), `${sideKey}[${index}] adapter status must equal raw Showdown status`);
+    assert.equal(projected.heldItem, String(pokemon.item ?? ''), `${sideKey}[${index}] adapter item must equal raw Showdown item`);
+    assert.equal(projected.fainted, Boolean(pokemon.fainted), `${sideKey}[${index}] adapter faint must equal raw Showdown faint`);
+    if (projected.status === 'slp') {
+      assert.equal(projected.statusTurns, Number(pokemon.statusState?.time), `${sideKey}[${index}] adapter Sleep turns must equal raw Showdown counter`);
+    }
+    const rawPersistentMoves = Array.isArray(pokemon.baseMoveSlots) && pokemon.baseMoveSlots.length ? pokemon.baseMoveSlots : pokemon.moveSlots;
+    assert.equal(projected.moves.length, rawPersistentMoves.length, `${sideKey}[${index}] adapter/raw persistent move count must match`);
+    projected.moves.forEach((move, moveIndex) => {
+      const rawMove = rawPersistentMoves[moveIndex];
+      assert.equal(normalizeId(move.id), normalizeId(rawMove.id), `${sideKey}[${index}] adapter move id must equal raw Showdown persistent slot`);
+      assert.equal(move.pp, Number(rawMove.pp), `${sideKey}[${index}] adapter PP must equal raw Showdown persistent slot`);
+      assert.equal(move.maxpp, Number(rawMove.maxpp), `${sideKey}[${index}] adapter max PP must equal raw Showdown persistent slot`);
+    });
+  });
+}
+
 function assertRequestMatchesRaw(sideIndex) {
   const side = battle.sides[sideIndex];
   const request = side.activeRequest;
@@ -104,8 +130,10 @@ function assertRequestMatchesRaw(sideIndex) {
 
 assertPersistentMatchesRaw(0, p1PersistentTeam);
 assertPersistentMatchesRaw(1, p2PersistentTeam);
+assertAdapterMatchesRaw('p1', 0);
+assertAdapterMatchesRaw('p2', 1);
 assertRequestMatchesRaw(0);
 assertRequestMatchesRaw(1);
 assert.equal(battle.sides[0].pokemon[0].statusState.time, 3, 'request regeneration must not consume persisted Sleep turns');
 
-console.log(JSON.stringify({ ok: true, showdownRevision: showdown.revision, p1Request: battle.sides[0].activeRequest, p2Request: battle.sides[1].activeRequest }, null, 2));
+console.log(JSON.stringify({ ok: true, showdownRevision: showdown.revision, p1Adapter: adapterStarting.p1, p2Adapter: adapterStarting.p2, p1Request: battle.sides[0].activeRequest, p2Request: battle.sides[1].activeRequest }, null, 2));
