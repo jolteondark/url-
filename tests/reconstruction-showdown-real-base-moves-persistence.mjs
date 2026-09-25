@@ -29,7 +29,12 @@ const session = createShowdownStreamSession(showdown, {
   },
   p2: {
     name: 'Wild',
-    team: [{ name: 'Pikachu', species: 'Pikachu', level: 50, ability: 'Static', moves: ['thunderbolt'] }],
+    team: [{
+      name: 'Pikachu', species: 'Pikachu', level: 50, ability: 'Static',
+      moves: [{ id: 'thunderbolt', pp: 15, maxpp: 15 }],
+      maplessId: 'wild-pikachu',
+      hp: 110, maxhp: 110, status: '', heldItem: '', fainted: false,
+    }],
   },
 });
 
