@@ -69,12 +69,16 @@ function assertPersistentMatchesRaw(sideIndex, sourceTeam) {
     if (String(source.status ?? '').toLowerCase() === 'slp') {
       assert.equal(Number(pokemon.statusState?.time), Number(source.statusTurns), `p${sideIndex + 1}[${index}] raw Sleep turns must equal persistent statusTurns`);
     }
-    assert.equal(pokemon.moveSlots.length, source.moves.length);
-    pokemon.moveSlots.forEach((slot, moveIndex) => {
-      const sourceMove = source.moves[moveIndex];
-      assert.equal(normalizeId(slot.id), normalizeId(sourceMove.id), `p${sideIndex + 1}[${index}] raw move id must equal persistent move id`);
-      assert.equal(Number(slot.pp), Number(sourceMove.pp), `p${sideIndex + 1}[${index}] raw move PP must equal persistent starting PP`);
-      assert.equal(Number(slot.maxpp), Number(sourceMove.maxpp), `p${sideIndex + 1}[${index}] raw move max PP must equal persistent max PP`);
+    const slotSets = [['moveSlots', pokemon.moveSlots], ['baseMoveSlots', pokemon.baseMoveSlots]];
+    slotSets.forEach(([slotKind, slots]) => {
+      assert.ok(Array.isArray(slots), `p${sideIndex + 1}[${index}] raw ${slotKind} must exist`);
+      assert.equal(slots.length, source.moves.length, `p${sideIndex + 1}[${index}] raw ${slotKind} count must equal persistent move count`);
+      slots.forEach((slot, moveIndex) => {
+        const sourceMove = source.moves[moveIndex];
+        assert.equal(normalizeId(slot.id), normalizeId(sourceMove.id), `p${sideIndex + 1}[${index}] raw ${slotKind} move id must equal persistent move id`);
+        assert.equal(Number(slot.pp), Number(sourceMove.pp), `p${sideIndex + 1}[${index}] raw ${slotKind} PP must equal persistent starting PP`);
+        assert.equal(Number(slot.maxpp), Number(sourceMove.maxpp), `p${sideIndex + 1}[${index}] raw ${slotKind} max PP must equal persistent max PP`);
+      });
     });
   });
 }
