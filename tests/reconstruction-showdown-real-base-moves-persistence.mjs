@@ -24,7 +24,7 @@ const session = createShowdownStreamSession(showdown, {
       name: 'Ditto', species: 'Ditto', level: 50, ability: 'Imposter',
       moves: [{ id: 'transform', pp: 7, maxpp: 10 }],
       maplessId: 'persistent-ditto',
-      hp: 80, maxhp: 100, status: '', heldItem: '', fainted: false,
+      hp: 80, maxhp: 123, status: '', heldItem: '', fainted: false,
     }],
   },
   p2: {
