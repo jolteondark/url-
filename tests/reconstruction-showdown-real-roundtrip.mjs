@@ -92,6 +92,10 @@ assert.equal(terminal.p2[0].fainted, true, 'real Showdown must authoritatively r
 assert.equal(terminal.p1[0].status, 'brn', 'persistent status must survive the authoritative Showdown turn');
 assert.equal(terminal.p1[0].heldItem, '', 'real Showdown must authoritatively consume Throat Spray after Hyper Voice');
 assert.equal(terminal.p1[0].moves[0].pp, 2, 'real Showdown must authoritatively consume one PP');
+const terminalPokemon = session.battleStream.battle.sides[0].pokemon[0];
+assert.equal(terminalPokemon.moveSlots[0].pp, 2, 'pinned Showdown executable moveSlots must consume one PP');
+assert.equal(terminalPokemon.baseMoveSlots[0].pp, 2, 'pinned Showdown persistent baseMoveSlots must mirror consumed PP for the original moveset');
+assert.equal(terminal.p1[0].moves[0].pp, terminalPokemon.baseMoveSlots[0].pp, 'adapter terminal PP must come from the persistent base moveset without losing real PP consumption');
 assert.equal(terminal.p1[0].moves[0].maxpp, 10, 'authoritative Showdown turn must retain the hydrated persistent maxPP bound');
 assert.equal(session.battleStream.battle.sides[0].pokemon[0].boosts.spa, 1, 'real Showdown must own the transient Throat Spray SpA boost');
 assert.deepEqual(state.party, persistentBeforeBattle, 'FIGHT must not mutate persistent Mapless party before terminal commit');
