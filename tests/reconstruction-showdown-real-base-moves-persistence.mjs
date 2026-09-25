@@ -22,12 +22,9 @@ const session = createShowdownStreamSession(showdown, {
     name: 'Mapless',
     team: [{
       name: 'Ditto', species: 'Ditto', level: 50, ability: 'Imposter',
-      moves: ['transform'],
+      moves: [{ id: 'transform', pp: 7, maxpp: 10 }],
       maplessId: 'persistent-ditto',
-      maplessPersistent: {
-        hp: 80, maxhp: 100, status: '', heldItem: '', fainted: false,
-        moves: [{ id: 'transform', pp: 7, maxpp: 10 }],
-      },
+      hp: 80, maxhp: 100, status: '', heldItem: '', fainted: false,
     }],
   },
   p2: {
