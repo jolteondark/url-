@@ -55,7 +55,7 @@ function rawPokemon(pokemon) {
   return {
     hp: Number(pokemon.hp), maxhp: Number(pokemon.maxhp), status: pokemon.status ? String(pokemon.status) : '',
     heldItem: pokemon.item ? String(pokemon.item) : '', fainted: Boolean(pokemon.fainted),
-    moves: (pokemon.moveSlots ?? []).map((move) => ({ id: String(move.id ?? move.move ?? ''), pp: Number(move.pp), maxpp: Number(move.maxpp ?? move.maxPP ?? move.pp) })),
+    moves: ((Array.isArray(pokemon.baseMoveSlots) && pokemon.baseMoveSlots.length) ? pokemon.baseMoveSlots : (pokemon.moveSlots ?? [])).map((move) => ({ id: String(move.id ?? move.move ?? ''), pp: Number(move.pp), maxpp: Number(move.maxpp ?? move.maxPP ?? move.pp) })),
   };
 }
 function assertAdapterMatchesRawShowdown(adapterState, battle) {
