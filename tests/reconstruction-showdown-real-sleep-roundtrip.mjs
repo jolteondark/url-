@@ -20,7 +20,7 @@ assert.equal(showdown.revision, REQUIRED_SHOWDOWN_REVISION);
 
 const wildTeam = [{
   id: 'wild-magikarp', species: 'Magikarp', name: 'Magikarp', level: 5,
-  ability: 'Swift Swim', hp: 15, status: '', heldItem: '',
+  ability: 'Swift Swim', hp: 15, maxhp: 18, status: '', heldItem: '',
   moves: [{ id: 'splash', pp: 40, maxpp: 40 }],
 }];
 
@@ -29,7 +29,7 @@ const state = createInitialGameState({
   runId: 'real-showdown-sleep-roundtrip',
   party: [{
     id: 'sleeping-pikachu', species: 'Pikachu', name: 'Pikachu', level: 50,
-    ability: 'Static', hp: 60, status: 'slp', statusTurns: 3, heldItem: '',
+    ability: 'Static', hp: 60, maxhp: 110, status: 'slp', statusTurns: 3, heldItem: '',
     moves: [{ id: 'thunderbolt', pp: 3, maxpp: 15 }],
   }],
 });
