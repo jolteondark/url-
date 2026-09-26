@@ -82,8 +82,6 @@ function validatePersistentMember(pokemon, sourceMember) {
   const showdownItem = normalizeId(pokemon.item);
   if (showdownItem !== projectedItem) throw new Error(`Persistent held-item projection mismatch: ${projectedItem || '<empty>'}/${showdownItem || '<empty>'}`);
   const sourceMoves = sourceMember.moves ?? [];
-  const slots = persistentMoveSlots(pokemon);
-  if (slots.length !== sourceMoves.length) throw new Error('Persistent move identity projection requires one Showdown move slot per Mapless move');
   const sourceById = new Map();
   for (const move of sourceMoves) {
     const id = moveId(move);
@@ -94,20 +92,25 @@ function validatePersistentMember(pokemon, sourceMember) {
     if (persistentMaxpp < 1 || pp > persistentMaxpp) throw new Error(`Persistent PP projection is outside persistent bounds for ${id}: ${pp}/${persistentMaxpp}`);
     sourceById.set(id, move);
   }
-  const hydratedIds = new Set();
-  for (let index = 0; index < slots.length; index += 1) {
-    const slot = slots[index];
-    const id = moveId(slot);
-    const expectedId = moveId(sourceMoves[index]);
-    if (!id || id !== expectedId) throw new Error(`Persistent move identity projection mismatch at slot ${index + 1}: ${expectedId || '<empty>'}/${id || '<unknown>'}`);
-    const sourceMove = sourceById.get(id);
-    if (!sourceMove) throw new Error(`Persistent move identity projection could not match Showdown move slot: ${id || '<unknown>'}`);
-    if (hydratedIds.has(id)) throw new Error(`Duplicate Showdown move slot during PP projection: ${id}`);
-    hydratedIds.add(id);
-    const persistentMaxpp = exactNonnegativeInteger(sourceMove.maxpp ?? sourceMove.maxPP, `Persistent max PP projection for ${id}`);
-    const generatedMaxpp = Number(slot.maxpp);
-    if (!Number.isInteger(generatedMaxpp) || generatedMaxpp < 1 || persistentMaxpp > generatedMaxpp) throw new Error(`Persistent max PP projection is outside Showdown bounds for ${id}: ${persistentMaxpp}/${Number.isFinite(generatedMaxpp) ? generatedMaxpp : '<unknown>'}`);
+  function validateMoveSlotSet(slots, slotSetName) {
+    if (!Array.isArray(slots) || slots.length !== sourceMoves.length) throw new Error(`Persistent move identity projection requires one Showdown ${slotSetName} slot per Mapless move`);
+    const hydratedIds = new Set();
+    for (let index = 0; index < slots.length; index += 1) {
+      const slot = slots[index];
+      const id = moveId(slot);
+      const expectedId = moveId(sourceMoves[index]);
+      if (!id || id !== expectedId) throw new Error(`Persistent move identity projection mismatch in ${slotSetName} at slot ${index + 1}: ${expectedId || '<empty>'}/${id || '<unknown>'}`);
+      const sourceMove = sourceById.get(id);
+      if (!sourceMove) throw new Error(`Persistent move identity projection could not match Showdown ${slotSetName} slot: ${id || '<unknown>'}`);
+      if (hydratedIds.has(id)) throw new Error(`Duplicate Showdown ${slotSetName} slot during PP projection: ${id}`);
+      hydratedIds.add(id);
+      const persistentMaxpp = exactNonnegativeInteger(sourceMove.maxpp ?? sourceMove.maxPP, `Persistent max PP projection for ${id}`);
+      const generatedMaxpp = Number(slot.maxpp);
+      if (!Number.isInteger(generatedMaxpp) || generatedMaxpp < 1 || persistentMaxpp > generatedMaxpp) throw new Error(`Persistent max PP projection is outside Showdown bounds for ${id} in ${slotSetName}: ${persistentMaxpp}/${Number.isFinite(generatedMaxpp) ? generatedMaxpp : '<unknown>'}`);
+    }
   }
+  validateMoveSlotSet(pokemon.baseMoveSlots, 'baseMoveSlots');
+  if (pokemon.moveSlots !== pokemon.baseMoveSlots) validateMoveSlotSet(pokemon.moveSlots, 'moveSlots');
 }
 
 function validatePersistentSide(battle, sideIndex, sourceTeam) {
