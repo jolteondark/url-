@@ -30,6 +30,11 @@ function normalizeTeamMember(member) {
   return { name: String(member.name ?? member.species), species: String(member.species), level: exactLevel(member.level, 'Showdown team projection'), item: exactPersistentItem(member.heldItem ?? member.item ?? '', 'Showdown team projection held item'), ability: String(member.ability ?? ''), moves };
 }
 function playerCommand(side, player, packedTeam) { return `>player ${side} ${JSON.stringify({ name: String(player.name ?? side), team: packedTeam })}`; }
+function battleLocalInitialTeam(sourceTeam) {
+  const firstLiveIndex = sourceTeam.findIndex((member) => Number(member?.hp ?? 0) > 0 && member?.fainted !== true);
+  if (firstLiveIndex <= 0) return [...sourceTeam];
+  return [sourceTeam[firstLiveIndex], ...sourceTeam.slice(0, firstLiveIndex), ...sourceTeam.slice(firstLiveIndex + 1)];
+}
 function maplessId(member) { return String(member?.maplessId ?? member?.id ?? member?.personalId ?? ''); }
 function moveId(move) { return normalizeId(move?.id ?? move?.move ?? move); }
 function pokemonSpeciesId(pokemon) { return normalizeId(pokemon?.species?.id ?? pokemon?.species?.name ?? pokemon?.species ?? pokemon?.baseSpecies); }
@@ -197,8 +202,10 @@ export function createShowdownStreamSession(showdown, config) {
   const streams = showdown.BattleStreams.getPlayerStreams(battleStream);
   if (!streams?.omniscient || !streams?.p1 || !streams?.p2) throw new Error('Showdown player streams are incomplete');
   const formatid = String(config.formatid ?? 'gen9customgame');
-  const p1Team = showdown.Teams.pack(config.p1.team.map(normalizeTeamMember));
-  const p2Team = showdown.Teams.pack(config.p2.team.map(normalizeTeamMember));
+  const p1BattleTeam = battleLocalInitialTeam(config.p1.team);
+  const p2BattleTeam = battleLocalInitialTeam(config.p2.team);
+  const p1Team = showdown.Teams.pack(p1BattleTeam.map(normalizeTeamMember));
+  const p2Team = showdown.Teams.pack(p2BattleTeam.map(normalizeTeamMember));
   const start = { formatid };
   if (config.seed !== undefined) start.seed = config.seed;
   const identityByPokemon = new WeakMap();
@@ -225,10 +232,10 @@ export function createShowdownStreamSession(showdown, config) {
     if (startRequestCount !== 1) throw new Error(`Showdown authoritative start must be requested exactly once after final player projection; observed ${startRequestCount}`);
     if (battle.started) throw new Error('Showdown battle started before persistent hydration completed');
 
-    validatePersistentSide(battle, 0, config.p1.team);
-    validatePersistentSide(battle, 1, config.p2.team);
-    hydratePersistentSide(battle, 0, config.p1.team, identityByPokemon);
-    hydratePersistentSide(battle, 1, config.p2.team, identityByPokemon);
+    validatePersistentSide(battle, 0, p1BattleTeam);
+    validatePersistentSide(battle, 1, p2BattleTeam);
+    hydratePersistentSide(battle, 0, p1BattleTeam, identityByPokemon);
+    hydratePersistentSide(battle, 1, p2BattleTeam, identityByPokemon);
 
     runAuthoritativeStartWithPersistentLiveCounts(battle, authoritativeStart);
     if (!battle.started) throw new Error('Showdown authoritative start did not transition battle state');
@@ -251,8 +258,19 @@ export function createShowdownStreamSession(showdown, config) {
   function resolvedState() {
     if (!started || !battleStream.battle) throw new Error('Showdown battle state is not available');
     const sides = battleStream.battle.sides ?? [];
-    const projectSide = (sideIndex) => (sides[sideIndex]?.pokemon ?? []).map((member) => resolvedPokemon(member, identityByPokemon));
-    return Object.freeze({ terminal: Boolean(battleStream.battle.ended), winner: battleStream.battle.winner ? String(battleStream.battle.winner) : '', turn: Number(battleStream.battle.turn ?? 0), p1: projectSide(0), p2: projectSide(1) });
+    const projectSide = (sideIndex, canonicalTeam) => {
+      const byId = new Map((sides[sideIndex]?.pokemon ?? []).map((member) => {
+        const resolved = resolvedPokemon(member, identityByPokemon);
+        return [resolved.maplessId, resolved];
+      }));
+      return canonicalTeam.map((member) => {
+        const id = maplessId(member);
+        const resolved = byId.get(id);
+        if (!resolved) throw new Error(`Resolved Showdown side is missing canonical Mapless identity: ${id || '<empty>'}`);
+        return resolved;
+      });
+    };
+    return Object.freeze({ terminal: Boolean(battleStream.battle.ended), winner: battleStream.battle.winner ? String(battleStream.battle.winner) : '', turn: Number(battleStream.battle.turn ?? 0), p1: projectSide(0, config.p1.team), p2: projectSide(1, config.p2.team) });
   }
   return Object.freeze({ battleStream, streams, start: startBattle, choose, fight, resolvedState });
 }
