@@ -1,122 +1,276 @@
+import { runAuthoritativeStartWithPersistentLiveCounts } from './showdown-start-livecount-guard.js';
+
 function assertSide(side) {
   if (side !== 'p1' && side !== 'p2') throw new Error(`Invalid Showdown side: ${side}`);
 }
 
+const PERSISTENT_MAJOR_STATUSES = new Set(['', 'brn', 'frz', 'par', 'psn', 'slp', 'tox']);
+
+function normalizeId(value) { return String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ''); }
+function exactLevel(value, boundary) {
+  const level = Number(value ?? 1);
+  if (!Number.isInteger(level) || level < 1 || level > 100) throw new Error(`${boundary} requires an integer level from 1 to 100`);
+  return level;
+}
+function exactPersistentStatus(value, boundary) {
+  const status = value === undefined || value === null ? '' : String(value);
+  if (!PERSISTENT_MAJOR_STATUSES.has(status)) throw new Error(`${boundary} requires a canonical Showdown major status: ${status || '<empty>'}`);
+  return status;
+}
+function exactPersistentItem(value, boundary) {
+  const item = value === undefined || value === null ? '' : String(value);
+  const canonical = normalizeId(item);
+  if (item && item !== canonical) throw new Error(`${boundary} requires a canonical Showdown item id: ${item}`);
+  return canonical;
+}
 function normalizeTeamMember(member) {
   if (!member?.species) throw new Error('Showdown team member requires species');
   const moves = (member.moves ?? []).map((move) => String(move.id ?? move));
   if (!moves.length) throw new Error('Showdown team member requires at least one move');
-  return {
-    name: String(member.name ?? member.species),
-    species: String(member.species),
-    level: Number(member.level ?? 1),
-    item: String(member.heldItem ?? member.item ?? ''),
-    ability: String(member.ability ?? ''),
-    moves,
-  };
+  return { name: String(member.name ?? member.species), species: String(member.species), level: exactLevel(member.level, 'Showdown team projection'), item: exactPersistentItem(member.heldItem ?? member.item ?? '', 'Showdown team projection held item'), ability: String(member.ability ?? ''), moves };
+}
+function playerCommand(side, player, packedTeam) { return `>player ${side} ${JSON.stringify({ name: String(player.name ?? side), team: packedTeam })}`; }
+function battleLocalInitialTeam(sourceTeam) {
+  const firstLiveIndex = sourceTeam.findIndex((member) => Number(member?.hp ?? 0) > 0 && member?.fainted !== true);
+  if (firstLiveIndex <= 0) return [...sourceTeam];
+  return [sourceTeam[firstLiveIndex], ...sourceTeam.slice(0, firstLiveIndex), ...sourceTeam.slice(firstLiveIndex + 1)];
+}
+function maplessId(member) { return String(member?.maplessId ?? member?.id ?? member?.personalId ?? ''); }
+function moveId(move) { return normalizeId(move?.id ?? move?.move ?? move); }
+function pokemonSpeciesId(pokemon) { return normalizeId(pokemon?.species?.id ?? pokemon?.species?.name ?? pokemon?.species ?? pokemon?.baseSpecies); }
+function exactSleepTurns(value, boundary) {
+  const turns = Number(value);
+  if (!Number.isInteger(turns) || turns < 1) throw new Error(`${boundary} sleep projection requires a positive integer statusTurns`);
+  return turns;
+}
+function exactNonnegativeInteger(value, boundary) {
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < 0) throw new Error(`${boundary} requires a non-negative integer`);
+  return number;
+}
+function exactPersistentFainted(value, hp) {
+  const expected = hp === 0;
+  if (value === undefined) return expected;
+  if (typeof value !== 'boolean') throw new Error('Persistent faint projection requires an exact boolean when persisted');
+  if (value !== expected) throw new Error(`Persistent faint projection is inconsistent with HP: ${value}/${hp}`);
+  return value;
 }
 
-function playerCommand(side, player, packedTeam) {
-  return `>player ${side} ${JSON.stringify({ name: String(player.name ?? side), team: packedTeam })}`;
+function persistentMoveSlots(pokemon) {
+  return Array.isArray(pokemon?.baseMoveSlots) && pokemon.baseMoveSlots.length ? pokemon.baseMoveSlots : (pokemon?.moveSlots ?? []);
 }
 
-function maplessId(member) {
-  return String(member?.maplessId ?? member?.id ?? member?.personalId ?? member?.species ?? '');
+function validatePersistentMember(pokemon, sourceMember) {
+  if (!pokemon || !sourceMember) throw new Error('Showdown persistent hydration requires matching Pokemon');
+  const projectedSpecies = normalizeId(sourceMember.species);
+  const showdownSpecies = pokemonSpeciesId(pokemon);
+  if (!projectedSpecies || !showdownSpecies || projectedSpecies !== showdownSpecies) throw new Error(`Persistent species/form projection mismatch: ${projectedSpecies || '<empty>'}/${showdownSpecies || '<unknown>'}`);
+  const projectedLevel = exactLevel(sourceMember.level, 'Persistent level projection');
+  const showdownLevel = Number(pokemon.level);
+  if (!Number.isInteger(showdownLevel) || showdownLevel < 1 || showdownLevel > 100 || projectedLevel !== showdownLevel) throw new Error(`Persistent level projection mismatch: ${projectedLevel}/${Number.isFinite(showdownLevel) ? showdownLevel : '<unknown>'}`);
+  if (sourceMember.ability !== undefined && sourceMember.ability !== null && String(sourceMember.ability) !== '') {
+    const projectedAbility = normalizeId(sourceMember.ability);
+    const showdownAbility = normalizeId(pokemon.ability);
+    if (!projectedAbility || showdownAbility !== projectedAbility) throw new Error(`Persistent ability projection mismatch: ${projectedAbility || '<empty>'}/${showdownAbility || '<empty>'}`);
+  }
+  const hp = exactNonnegativeInteger(sourceMember.hp, 'Persistent HP projection');
+  const maxhp = Number(pokemon.maxhp);
+  if (!Number.isFinite(maxhp) || !Number.isInteger(maxhp) || maxhp < 1 || hp > maxhp) throw new Error(`Persistent HP projection is outside Showdown bounds: ${hp}/${Number.isFinite(maxhp) ? maxhp : '<unknown>'}`);
+  if (sourceMember.maxhp !== undefined || sourceMember.maxHp !== undefined) {
+    const persistentMaxhp = exactNonnegativeInteger(sourceMember.maxhp ?? sourceMember.maxHp, 'Persistent max HP projection');
+    if (persistentMaxhp < 1 || persistentMaxhp !== maxhp) throw new Error(`Persistent max HP projection mismatch: ${persistentMaxhp}/${maxhp}`);
+  }
+  exactPersistentFainted(sourceMember.fainted, hp);
+  const status = exactPersistentStatus(sourceMember.status, 'Persistent status projection');
+  if (status === 'slp') exactSleepTurns(sourceMember.statusTurns, 'Persistent');
+  const projectedItem = exactPersistentItem(sourceMember.heldItem ?? sourceMember.item ?? '', 'Persistent held-item projection');
+  const showdownItem = normalizeId(pokemon.item);
+  if (showdownItem !== projectedItem) throw new Error(`Persistent held-item projection mismatch: ${projectedItem || '<empty>'}/${showdownItem || '<empty>'}`);
+  const sourceMoves = sourceMember.moves ?? [];
+  const sourceById = new Map();
+  for (const move of sourceMoves) {
+    const id = moveId(move);
+    if (!id) throw new Error('Persistent move identity projection requires a stable move id');
+    if (sourceById.has(id)) throw new Error(`Duplicate Mapless move id in Showdown projection: ${id}`);
+    const pp = exactNonnegativeInteger(move?.pp, `Persistent PP projection for ${id}`);
+    const persistentMaxpp = exactNonnegativeInteger(move?.maxpp ?? move?.maxPP, `Persistent max PP projection for ${id}`);
+    if (persistentMaxpp < 1 || pp > persistentMaxpp) throw new Error(`Persistent PP projection is outside persistent bounds for ${id}: ${pp}/${persistentMaxpp}`);
+    sourceById.set(id, move);
+  }
+  function validateMoveSlotSet(slots, slotSetName) {
+    if (!Array.isArray(slots) || slots.length !== sourceMoves.length) throw new Error(`Persistent move identity projection requires one Showdown ${slotSetName} slot per Mapless move`);
+    const hydratedIds = new Set();
+    for (let index = 0; index < slots.length; index += 1) {
+      const slot = slots[index];
+      const id = moveId(slot);
+      const expectedId = moveId(sourceMoves[index]);
+      if (!id || id !== expectedId) throw new Error(`Persistent move identity projection mismatch in ${slotSetName} at slot ${index + 1}: ${expectedId || '<empty>'}/${id || '<unknown>'}`);
+      const sourceMove = sourceById.get(id);
+      if (!sourceMove) throw new Error(`Persistent move identity projection could not match Showdown ${slotSetName} slot: ${id || '<unknown>'}`);
+      if (hydratedIds.has(id)) throw new Error(`Duplicate Showdown ${slotSetName} slot during PP projection: ${id}`);
+      hydratedIds.add(id);
+      const persistentMaxpp = exactNonnegativeInteger(sourceMove.maxpp ?? sourceMove.maxPP, `Persistent max PP projection for ${id}`);
+      const generatedMaxpp = Number(slot.maxpp);
+      if (!Number.isInteger(generatedMaxpp) || generatedMaxpp < 1 || persistentMaxpp > generatedMaxpp) throw new Error(`Persistent max PP projection is outside Showdown bounds for ${id} in ${slotSetName}: ${persistentMaxpp}/${Number.isFinite(generatedMaxpp) ? generatedMaxpp : '<unknown>'}`);
+    }
+  }
+  validateMoveSlotSet(pokemon.baseMoveSlots, 'baseMoveSlots');
+  if (pokemon.moveSlots !== pokemon.baseMoveSlots) validateMoveSlotSet(pokemon.moveSlots, 'moveSlots');
 }
 
-function resolvedPokemon(pokemon, sourceMember) {
-  const moveSlots = pokemon?.moveSlots ?? [];
-  return Object.freeze({
-    maplessId: maplessId(sourceMember),
-    hp: Number(pokemon?.hp ?? 0),
-    maxhp: Number(pokemon?.maxhp ?? pokemon?.maxHp ?? 0),
-    status: pokemon?.status ? String(pokemon.status) : '',
-    heldItem: pokemon?.item ? String(pokemon.item) : '',
-    fainted: Boolean(pokemon?.fainted),
-    moves: moveSlots.map((move) => Object.freeze({
-      id: String(move.id ?? move.move ?? ''),
-      pp: Number(move.pp ?? 0),
-      maxpp: Number(move.maxpp ?? move.maxPP ?? move.pp ?? 0),
-    })),
+function validatePersistentSide(battle, sideIndex, sourceTeam) {
+  const pokemon = battle?.sides?.[sideIndex]?.pokemon ?? [];
+  if (pokemon.length !== sourceTeam.length) throw new Error('Showdown persistent hydration requires one resolved Pokemon per projected team member');
+  const sideIds = new Set();
+  pokemon.forEach((member, index) => {
+    const sourceMember = sourceTeam[index];
+    const id = maplessId(sourceMember);
+    if (!id) throw new Error('Showdown persistent hydration requires a stable Mapless Pokemon id');
+    if (sideIds.has(id)) throw new Error(`Duplicate Mapless Pokemon id in Showdown projection: ${id}`);
+    sideIds.add(id);
+    validatePersistentMember(member, sourceMember);
   });
 }
 
-/**
- * Creates the first executable New Core -> Showdown stream boundary.
- *
- * This module deliberately owns no Pokemon battle semantics. It only projects
- * Mapless battle inputs into Showdown's simulator protocol, submits player
- * choices, and observes the authoritative resolved simulator state.
- */
-export function createShowdownStreamSession(showdown, config) {
-  if (!showdown?.BattleStreams?.BattleStream || !showdown?.BattleStreams?.getPlayerStreams) {
-    throw new Error('Executable Showdown BattleStreams surface is required');
+function hydratePersistentStatus(battle, pokemon, sourceMember) {
+  const status = exactPersistentStatus(sourceMember.status, 'Persistent status hydration');
+  pokemon.status = status;
+  pokemon.statusState = typeof battle?.initEffectState === 'function' ? battle.initEffectState(status ? { id: status, target: pokemon } : {}) : { id: status, ...(status ? { target: pokemon } : {}) };
+  if (status === 'tox') pokemon.statusState.stage = 0;
+  if (status === 'slp') {
+    const turns = exactSleepTurns(sourceMember.statusTurns, 'Persistent');
+    pokemon.statusState.startTime = turns;
+    pokemon.statusState.time = turns;
   }
-  if (typeof showdown?.Teams?.pack !== 'function') {
-    throw new Error('Executable Showdown Teams surface is required');
-  }
-  if (!config?.p1?.team?.length || !config?.p2?.team?.length) {
-    throw new Error('Showdown stream session requires p1 and p2 teams');
-  }
+}
 
+function hydrateMoveSlots(slots, sourceById) {
+  for (const slot of slots ?? []) {
+    const id = moveId(slot);
+    const sourceMove = sourceById.get(id);
+    if (!sourceMove) throw new Error(`Persistent move hydration could not match Showdown move slot: ${id || '<unknown>'}`);
+    slot.maxpp = exactNonnegativeInteger(sourceMove.maxpp ?? sourceMove.maxPP, `Persistent max PP projection for ${id}`);
+    slot.pp = exactNonnegativeInteger(sourceMove.pp, `Persistent PP projection for ${id}`);
+  }
+}
+
+function hydratePersistentMember(battle, pokemon, sourceMember) {
+  const hp = exactNonnegativeInteger(sourceMember.hp, 'Persistent HP projection');
+  pokemon.hp = hp;
+  pokemon.fainted = exactPersistentFainted(sourceMember.fainted, hp);
+  hydratePersistentStatus(battle, pokemon, sourceMember);
+  pokemon.item = exactPersistentItem(sourceMember.heldItem ?? sourceMember.item ?? '', 'Persistent held-item hydration');
+  const sourceById = new Map((sourceMember.moves ?? []).map((move) => [moveId(move), move]));
+  hydrateMoveSlots(pokemon.baseMoveSlots, sourceById);
+  if (pokemon.moveSlots !== pokemon.baseMoveSlots) hydrateMoveSlots(pokemon.moveSlots, sourceById);
+}
+
+function hydratePersistentSide(battle, sideIndex, sourceTeam, identityByPokemon) {
+  const pokemon = battle.sides[sideIndex].pokemon;
+  pokemon.forEach((member, index) => {
+    const sourceMember = sourceTeam[index];
+    identityByPokemon.set(member, maplessId(sourceMember));
+    hydratePersistentMember(battle, member, sourceMember);
+  });
+}
+
+function persistentLiveCount(side) {
+  return (side?.pokemon ?? []).filter((pokemon) => Number(pokemon?.hp ?? 0) > 0 && !pokemon?.fainted).length;
+}
+
+function reconcilePersistentSideBookkeeping(battle, sideIndex) {
+  const side = battle?.sides?.[sideIndex];
+  if (!side) throw new Error(`Showdown side ${sideIndex + 1} is unavailable after authoritative start`);
+  side.pokemonLeft = persistentLiveCount(side);
+}
+
+function resolvedPokemon(pokemon, identityByPokemon) {
+  const id = identityByPokemon.get(pokemon);
+  if (!id) throw new Error('Resolved Showdown Pokemon has no battle-local Mapless identity');
+  const moveSlots = persistentMoveSlots(pokemon);
+  const status = pokemon?.status ? String(pokemon.status) : '';
+  const resolved = { maplessId: id, hp: Number(pokemon?.hp ?? 0), maxhp: Number(pokemon?.maxhp ?? pokemon?.maxHp ?? 0), status, heldItem: pokemon?.item ? String(pokemon.item) : '', fainted: Boolean(pokemon?.fainted), moves: moveSlots.map((move) => Object.freeze({ id: String(move.id ?? move.move ?? ''), pp: Number(move.pp ?? 0), maxpp: Number(move.maxpp ?? move.maxPP ?? move.pp ?? 0) })) };
+  if (status.toLowerCase() === 'slp') resolved.statusTurns = exactSleepTurns(pokemon?.statusState?.time, 'Resolved Showdown');
+  return Object.freeze(resolved);
+}
+
+export function createShowdownStreamSession(showdown, config) {
+  if (!showdown?.BattleStreams?.BattleStream || !showdown?.BattleStreams?.getPlayerStreams) throw new Error('Executable Showdown BattleStreams surface is required');
+  if (typeof showdown?.Teams?.pack !== 'function') throw new Error('Executable Showdown Teams surface is required');
+  if (!config?.p1?.team?.length || !config?.p2?.team?.length) throw new Error('Showdown stream session requires p1 and p2 teams');
   const battleStream = new showdown.BattleStreams.BattleStream();
   const streams = showdown.BattleStreams.getPlayerStreams(battleStream);
-  if (!streams?.omniscient || !streams?.p1 || !streams?.p2) {
-    throw new Error('Showdown player streams are incomplete');
-  }
-
+  if (!streams?.omniscient || !streams?.p1 || !streams?.p2) throw new Error('Showdown player streams are incomplete');
   const formatid = String(config.formatid ?? 'gen9customgame');
-  const p1Team = showdown.Teams.pack(config.p1.team.map(normalizeTeamMember));
-  const p2Team = showdown.Teams.pack(config.p2.team.map(normalizeTeamMember));
-  const seed = config.seed;
+  const p1BattleTeam = battleLocalInitialTeam(config.p1.team);
+  const p2BattleTeam = battleLocalInitialTeam(config.p2.team);
+  const p1Team = showdown.Teams.pack(p1BattleTeam.map(normalizeTeamMember));
+  const p2Team = showdown.Teams.pack(p2BattleTeam.map(normalizeTeamMember));
   const start = { formatid };
-  if (seed !== undefined) start.seed = seed;
-
+  if (config.seed !== undefined) start.seed = config.seed;
+  const identityByPokemon = new WeakMap();
+  let startAttempted = false;
   let started = false;
   async function startBattle() {
     if (started) return false;
-    started = true;
+    if (startAttempted) throw new Error('Showdown battle start previously failed; partial projection cannot be replayed');
+    startAttempted = true;
     await streams.omniscient.write(`>start ${JSON.stringify(start)}`);
-    await streams.omniscient.write(playerCommand('p1', config.p1, p1Team));
-    await streams.omniscient.write(playerCommand('p2', config.p2, p2Team));
+    const battle = battleStream.battle;
+    if (!battle) throw new Error('Showdown battle state is unavailable after start projection');
+    if (typeof battle.start !== 'function') throw new Error('Showdown battle start surface is required for pre-start persistent hydration');
+
+    const authoritativeStart = battle.start;
+    let startRequestCount = 0;
+    battle.start = function deferredPersistentStart() { startRequestCount += 1; };
+    try {
+      await streams.omniscient.write(playerCommand('p1', config.p1, p1Team));
+      await streams.omniscient.write(playerCommand('p2', config.p2, p2Team));
+    } finally {
+      battle.start = authoritativeStart;
+    }
+    if (startRequestCount !== 1) throw new Error(`Showdown authoritative start must be requested exactly once after final player projection; observed ${startRequestCount}`);
+    if (battle.started) throw new Error('Showdown battle started before persistent hydration completed');
+
+    validatePersistentSide(battle, 0, p1BattleTeam);
+    validatePersistentSide(battle, 1, p2BattleTeam);
+    hydratePersistentSide(battle, 0, p1BattleTeam, identityByPokemon);
+    hydratePersistentSide(battle, 1, p2BattleTeam, identityByPokemon);
+
+    runAuthoritativeStartWithPersistentLiveCounts(battle, authoritativeStart);
+    if (!battle.started) throw new Error('Showdown authoritative start did not transition battle state');
+    reconcilePersistentSideBookkeeping(battle, 0);
+    reconcilePersistentSideBookkeeping(battle, 1);
+    started = true;
     return true;
   }
-
   async function choose(side, choice) {
     assertSide(side);
     if (!started) throw new Error('Showdown battle must start before choices');
     if (!choice || typeof choice !== 'string') throw new Error('Showdown choice must be a non-empty string');
     await streams[side].write(choice);
   }
-
   async function fight(side, moveSlot) {
     const slot = Number(moveSlot);
     if (!Number.isInteger(slot) || slot < 1) throw new Error('FIGHT requires a positive Showdown move slot');
     await choose(side, `move ${slot}`);
   }
-
   function resolvedState() {
     if (!started || !battleStream.battle) throw new Error('Showdown battle state is not available');
     const sides = battleStream.battle.sides ?? [];
-    const projectSide = (sideIndex, sourceTeam) => {
-      const pokemon = sides[sideIndex]?.pokemon ?? [];
-      return pokemon.map((member, index) => resolvedPokemon(member, sourceTeam[index]));
+    const projectSide = (sideIndex, canonicalTeam) => {
+      const byId = new Map((sides[sideIndex]?.pokemon ?? []).map((member) => {
+        const resolved = resolvedPokemon(member, identityByPokemon);
+        return [resolved.maplessId, resolved];
+      }));
+      return canonicalTeam.map((member) => {
+        const id = maplessId(member);
+        const resolved = byId.get(id);
+        if (!resolved) throw new Error(`Resolved Showdown side is missing canonical Mapless identity: ${id || '<empty>'}`);
+        return resolved;
+      });
     };
-    return Object.freeze({
-      terminal: Boolean(battleStream.battle.ended),
-      winner: battleStream.battle.winner ? String(battleStream.battle.winner) : '',
-      turn: Number(battleStream.battle.turn ?? 0),
-      p1: projectSide(0, config.p1.team),
-      p2: projectSide(1, config.p2.team),
-    });
+    return Object.freeze({ terminal: Boolean(battleStream.battle.ended), winner: battleStream.battle.winner ? String(battleStream.battle.winner) : '', turn: Number(battleStream.battle.turn ?? 0), p1: projectSide(0, config.p1.team), p2: projectSide(1, config.p2.team) });
   }
-
-  return Object.freeze({
-    battleStream,
-    streams,
-    start: startBattle,
-    choose,
-    fight,
-    resolvedState,
-  });
+  return Object.freeze({ battleStream, streams, start: startBattle, choose, fight, resolvedState });
 }
