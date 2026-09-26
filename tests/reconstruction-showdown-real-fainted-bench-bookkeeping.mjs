@@ -58,8 +58,9 @@ assert.equal(benchSide.pokemonLeft, 1, 'Showdown live-party bookkeeping must cou
 assert.equal(benchBattle.canSwitch(benchSide), 0, 'persisted fainted bench must not become a legal switch resource');
 assert.equal(benchSide.active[0], benchSide.pokemon[0], 'healthy lead must be the initial active Pokemon');
 
-// A persisted fainted member may occupy slot 1 after a previous battle. Showdown must
-// own initial switch-in selection and skip it rather than Mapless reordering the party.
+// A persisted fainted member may occupy canonical slot 1 after a previous battle.
+// The adapter keeps canonical Mapless order but projects the first live member as the
+// battle-local Showdown lead so Showdown still owns the actual initial switch-in.
 const leadSession = await startCase([
   { ...fainted, id: 'fainted-lead' },
   { ...healthy, id: 'healthy-bench' },
@@ -74,7 +75,10 @@ assert.equal(leadProjected.p1[1].hp, 60, 'healthy bench HP must survive pre-star
 assert.equal(leadProjected.p1[1].fainted, false, 'healthy bench must remain available');
 assert.equal(leadSide.pokemonLeft, 1, 'fainted lead must not inflate Showdown live-party bookkeeping');
 assert.equal(leadBattle.canSwitch(leadSide), 0, 'only one persisted live party member must leave no switch resource');
-assert.equal(leadSide.active[0], leadSide.pokemon[1], 'Showdown initial switch-in must skip a persisted fainted slot-1 member');
+assert.equal(leadProjected.p1[0].maplessId, 'fainted-lead', 'resolved projection must restore canonical Mapless party order');
+assert.equal(leadProjected.p1[1].maplessId, 'healthy-bench', 'resolved projection must restore the canonical live member position');
+assert.equal(leadSide.pokemon[0].name, 'Pikachu', 'battle-local Showdown order must put the first live member in slot 1');
+assert.equal(leadSide.active[0], leadSide.pokemon[0], 'Showdown must own initial switch-in of the battle-local live lead');
 
 console.log(JSON.stringify({
   ok: true,
