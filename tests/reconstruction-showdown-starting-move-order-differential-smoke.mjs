@@ -78,7 +78,13 @@ assert.deepEqual(raw.p1.moveSlots.map(({ id, pp }) => ({ id, pp })), [
   { id: 'thunderbolt', pp: 15 },
 ], 'slot-order mismatch must fail before any PP hydration');
 assert.equal(raw.p1.hp, 35, 'slot-order mismatch must fail before HP hydration');
+assert.equal(raw.p1.status, '', 'slot-order mismatch must fail before status hydration');
+assert.equal(raw.p1.item, '', 'slot-order mismatch must fail before held-item hydration');
+assert.equal(raw.p1.fainted, false, 'slot-order mismatch must fail before faint hydration');
 assert.equal(raw.p2.hp, 20, 'cross-side atomicity must leave p2 untouched too');
+assert.equal(raw.p2.status, '', 'cross-side atomicity must leave p2 status untouched too');
+assert.equal(raw.p2.item, '', 'cross-side atomicity must leave p2 held item untouched too');
+assert.equal(raw.p2.fainted, false, 'cross-side atomicity must leave p2 faint state untouched too');
 assert.equal(session.battleStream.battle.requestCount, 0, 'slot-order mismatch must fail before first request regeneration');
 
 console.log('reconstruction Showdown starting move-order differential smoke: ok');
