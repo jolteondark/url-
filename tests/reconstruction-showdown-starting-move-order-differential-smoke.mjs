@@ -43,7 +43,12 @@ const wild = {
 const raw = {
   p1: {
     species: { id: 'pikachu' }, level: 1, hp: 35, maxhp: 35, status: '', statusState: {}, item: '', fainted: false,
-    // Same move set and legal PP, but Showdown slot order differs from the persistent Mapless order.
+    // baseMoveSlots remains canonical while only the active moveSlots order is corrupted.
+    // Dual-slot preflight must reject this before mutating either side.
+    baseMoveSlots: [
+      { id: 'thunderbolt', pp: 15, maxpp: 15 },
+      { id: 'quickattack', pp: 30, maxpp: 30 },
+    ],
     moveSlots: [
       { id: 'quickattack', pp: 30, maxpp: 30 },
       { id: 'thunderbolt', pp: 15, maxpp: 15 },
@@ -51,6 +56,7 @@ const raw = {
   },
   p2: {
     species: { id: 'magikarp' }, level: 1, hp: 20, maxhp: 20, status: '', statusState: {}, item: '', fainted: false,
+    baseMoveSlots: [{ id: 'splash', pp: 40, maxpp: 40 }],
     moveSlots: [{ id: 'splash', pp: 40, maxpp: 40 }],
   },
 };
@@ -65,6 +71,10 @@ await assert.rejects(
   /Persistent move identity projection mismatch at slot 1: thunderbolt\/quickattack/,
   'move order is part of the FIGHT slot contract and must not be silently rematched by id',
 );
+assert.deepEqual(raw.p1.baseMoveSlots.map(({ id, pp }) => ({ id, pp })), [
+  { id: 'thunderbolt', pp: 15 },
+  { id: 'quickattack', pp: 30 },
+], 'active-slot mismatch must leave canonical base PP untouched');
 assert.deepEqual(raw.p1.moveSlots.map(({ id, pp }) => ({ id, pp })), [
   { id: 'quickattack', pp: 30 },
   { id: 'thunderbolt', pp: 15 },
