@@ -76,7 +76,9 @@ assert.equal(leadProjected.p1[1].fainted, false, 'healthy bench must remain avai
 assert.equal(leadSide.pokemonLeft, 1, 'fainted lead must not inflate Showdown live-party bookkeeping');
 assert.equal(leadBattle.canSwitch(leadSide), 0, 'only one persisted live party member must leave no switch resource');
 assert.equal(leadProjected.p1[0].maplessId, 'fainted-lead', 'resolved projection must restore canonical Mapless party order');
+assert.deepEqual(leadProjected.p1[0].moves, [{ id: 'splash', pp: 40, maxpp: 40 }], 'fainted member PP must remain attached to its stable Mapless identity across battle-local lead ordering');
 assert.equal(leadProjected.p1[1].maplessId, 'healthy-bench', 'resolved projection must restore the canonical live member position');
+assert.deepEqual(leadProjected.p1[1].moves, [{ id: 'thunderbolt', pp: 15, maxpp: 15 }], 'live member PP must remain attached to its stable Mapless identity across battle-local lead ordering');
 assert.equal(leadSide.pokemon[0].name, 'Pikachu', 'battle-local Showdown order must put the first live member in slot 1');
 assert.equal(leadSide.active[0], leadSide.pokemon[0], 'Showdown must own initial switch-in of the battle-local live lead');
 
