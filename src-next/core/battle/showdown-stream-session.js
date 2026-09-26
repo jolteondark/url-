@@ -259,16 +259,25 @@ export function createShowdownStreamSession(showdown, config) {
     if (!started || !battleStream.battle) throw new Error('Showdown battle state is not available');
     const sides = battleStream.battle.sides ?? [];
     const projectSide = (sideIndex, canonicalTeam) => {
-      const byId = new Map((sides[sideIndex]?.pokemon ?? []).map((member) => {
-        const resolved = resolvedPokemon(member, identityByPokemon);
-        return [resolved.maplessId, resolved];
-      }));
-      return canonicalTeam.map((member) => {
+      const resolvedMembers = (sides[sideIndex]?.pokemon ?? []).map((member) => resolvedPokemon(member, identityByPokemon));
+      if (resolvedMembers.length !== canonicalTeam.length) throw new Error(`Resolved Showdown side cardinality diverged from canonical Mapless team: ${resolvedMembers.length}/${canonicalTeam.length}`);
+      const byId = new Map();
+      for (const resolved of resolvedMembers) {
+        if (byId.has(resolved.maplessId)) throw new Error(`Resolved Showdown side contains duplicate Mapless identity: ${resolved.maplessId}`);
+        byId.set(resolved.maplessId, resolved);
+      }
+      const canonicalIds = new Set();
+      const projected = canonicalTeam.map((member) => {
         const id = maplessId(member);
+        if (!id) throw new Error('Resolved Showdown canonical team contains an empty Mapless identity');
+        if (canonicalIds.has(id)) throw new Error(`Resolved Showdown canonical team contains duplicate Mapless identity: ${id}`);
+        canonicalIds.add(id);
         const resolved = byId.get(id);
-        if (!resolved) throw new Error(`Resolved Showdown side is missing canonical Mapless identity: ${id || '<empty>'}`);
+        if (!resolved) throw new Error(`Resolved Showdown side is missing canonical Mapless identity: ${id}`);
         return resolved;
       });
+      for (const id of byId.keys()) if (!canonicalIds.has(id)) throw new Error(`Resolved Showdown side contains non-canonical Mapless identity: ${id}`);
+      return projected;
     };
     return Object.freeze({ terminal: Boolean(battleStream.battle.ended), winner: battleStream.battle.winner ? String(battleStream.battle.winner) : '', turn: Number(battleStream.battle.turn ?? 0), p1: projectSide(0, config.p1.team), p2: projectSide(1, config.p2.team) });
   }
