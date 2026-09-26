@@ -65,7 +65,8 @@ assert.equal(hydrated.p2[0].hp, 11);
 assert.equal(hydrated.p2[0].moves[0].maxpp, 35);
 
 session.battleStream.battle.sides[0].pokemon.reverse();
-assert.equal(session.resolvedState().p1[0].maplessId, 'hero-bulba', 'identity must follow Pokemon objects across reordering');
+assert.equal(session.resolvedState().p1[0].maplessId, 'hero-pika', 'resolved projection must restore canonical Mapless order after Showdown-local reordering');
+assert.equal(session.resolvedState().p1[1].maplessId, 'hero-bulba', 'resolved projection must preserve canonical identity order independently of Showdown party order');
 session.battleStream.battle.sides[0].pokemon.reverse();
 
 await session.fight('p1', 1);
