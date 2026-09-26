@@ -62,6 +62,8 @@ await assert.rejects(
 );
 assert.equal(raw.p1.hp, 35);
 assert.equal(raw.p1.status, '');
+assert.equal(raw.p1.item, '');
+assert.equal(raw.p1.fainted, false);
 assert.equal(raw.p1.moveSlots[0].pp, 30);
 assert.equal(raw.p1.baseMoveSlots[0].pp, 15);
 assert.equal(raw.p2.hp, 20);
