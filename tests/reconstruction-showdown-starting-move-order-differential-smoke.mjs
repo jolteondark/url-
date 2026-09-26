@@ -43,8 +43,6 @@ const wild = {
 const raw = {
   p1: {
     species: { id: 'pikachu' }, level: 1, hp: 35, maxhp: 35, status: '', statusState: {}, item: '', fainted: false,
-    // baseMoveSlots remains canonical while only the active moveSlots order is corrupted.
-    // Dual-slot preflight must reject this before mutating either side.
     baseMoveSlots: [
       { id: 'thunderbolt', pp: 15, maxpp: 15 },
       { id: 'quickattack', pp: 30, maxpp: 30 },
@@ -68,7 +66,7 @@ const session = createShowdownStreamSession(fakeShowdown(raw), {
 
 await assert.rejects(
   () => session.start(),
-  /Persistent move identity projection mismatch at slot 1: thunderbolt\/quickattack/,
+  /Persistent move identity projection mismatch in moveSlots at slot 1: thunderbolt\/quickattack/,
   'move order is part of the FIGHT slot contract and must not be silently rematched by id',
 );
 assert.deepEqual(raw.p1.baseMoveSlots.map(({ id, pp }) => ({ id, pp })), [
