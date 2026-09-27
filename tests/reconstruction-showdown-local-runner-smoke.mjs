@@ -26,6 +26,8 @@ assert.match(source, /entrySha256: sha256\(builtEntry\)/,
 assert.match(source, /reconstruction-showdown-real-request-differential\.mjs/);
 assert.match(source, /reconstruction-showdown-real-sleep-roundtrip\.mjs/);
 assert.match(source, /reconstruction-showdown-real-roundtrip\.mjs/);
+assert.match(source, /reconstruction-showdown-real-base-moves-persistence\.mjs/);
+assert.match(source, /reconstruction-showdown-real-fainted-bench-bookkeeping\.mjs/);
 assert.doesNotMatch(source, /actions\/|workflow|github-hosted|pages deployment/i,
   'local validation path must not depend on forbidden hosted validation/deployment infrastructure');
 
