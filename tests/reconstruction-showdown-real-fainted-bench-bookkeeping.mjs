@@ -82,6 +82,35 @@ assert.deepEqual(leadProjected.p1[1].moves, [{ id: 'thunderbolt', pp: 15, maxpp:
 assert.equal(leadSide.pokemon[0].name, 'Pikachu', 'battle-local Showdown order must put the first live member in slot 1');
 assert.equal(leadSide.active[0], leadSide.pokemon[0], 'Showdown must own initial switch-in of the battle-local live lead');
 
+
+function rawPersistentMoves(pokemon) {
+  const slots = Array.isArray(pokemon?.baseMoveSlots) && pokemon.baseMoveSlots.length
+    ? pokemon.baseMoveSlots
+    : (pokemon?.moveSlots ?? []);
+  return slots.map((move) => ({
+    id: String(move.id ?? move.move ?? ''),
+    pp: Number(move.pp ?? 0),
+    maxpp: Number(move.maxpp ?? move.maxPP ?? move.pp ?? 0),
+  }));
+}
+
+function assertRawPersistentMatch(raw, resolved, label) {
+  assert.equal(resolved.hp, Number(raw.hp), `${label} HP must match raw Showdown state`);
+  assert.equal(resolved.maxhp, Number(raw.maxhp), `${label} max HP must match raw Showdown state`);
+  assert.equal(resolved.status, String(raw.status ?? ''), `${label} status must match raw Showdown state`);
+  assert.equal(resolved.heldItem, String(raw.item ?? ''), `${label} held item must match raw Showdown state`);
+  assert.equal(resolved.fainted, Boolean(raw.fainted), `${label} faint flag must match raw Showdown state`);
+  assert.deepEqual(resolved.moves, rawPersistentMoves(raw), `${label} PP must match raw Showdown state`);
+}
+
+// Differential guard: compare the adapter's persistent projection directly with
+// the pinned Showdown Pokemon objects.  The second case deliberately compares
+// battle-local order back to canonical Mapless order.
+assertRawPersistentMatch(benchSide.pokemon[0], benchProjected.p1[0], 'healthy lead');
+assertRawPersistentMatch(benchSide.pokemon[1], benchProjected.p1[1], 'fainted bench');
+assertRawPersistentMatch(leadSide.pokemon[0], leadProjected.p1[1], 'battle-local healthy lead');
+assertRawPersistentMatch(leadSide.pokemon[1], leadProjected.p1[0], 'canonical fainted lead');
+
 console.log(JSON.stringify({
   ok: true,
   showdownRevision: showdown.revision,
