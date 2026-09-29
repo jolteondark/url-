@@ -16,6 +16,11 @@ assert.equal(artifact.showdownRevision, REQUIRED_SHOWDOWN_REVISION);
 const showdown = await loadShowdownBrowserArtifact(artifact);
 assert.equal(showdown.revision, REQUIRED_SHOWDOWN_REVISION);
 
+const persistedStart = {
+  id: 'persisted-start', species: 'Pikachu', name: 'Pikachu', level: 50, ability: 'Static',
+  hp: 60, maxhp: 110, status: 'par', heldItem: 'oranberry', fainted: false,
+  moves: [{ id: 'thunderbolt', pp: 7, maxpp: 15 }],
+};
 const healthy = {
   id: 'healthy', species: 'Pikachu', name: 'Pikachu', level: 50, ability: 'Static',
   hp: 60, maxhp: 110, status: '', heldItem: '', fainted: false,
@@ -41,6 +46,18 @@ async function startCase(playerParty, battleId) {
   await session.start();
   return session;
 }
+
+const persistedSession = await startCase([persistedStart], 'persistent-start-request-regression');
+const persistedSide = persistedSession.battleStream.battle.sides[0];
+const persistedProjected = persistedSession.resolvedState();
+assert.equal(persistedSide.pokemon[0].hp, 60, 'starting HP must be hydrated before authoritative start');
+assert.equal(persistedSide.pokemon[0].status, 'par', 'starting status must be hydrated before authoritative start');
+assert.equal(persistedSide.pokemon[0].item, 'oranberry', 'starting held item must be hydrated before authoritative start');
+assert.equal(persistedSide.pokemon[0].moveSlots[0].pp, 7, 'starting PP must be hydrated before authoritative start');
+assert.equal(persistedProjected.p1[0].hp, 60, 'resolved starting HP must remain exact before FIGHT');
+assert.equal(persistedProjected.p1[0].status, 'par', 'resolved starting status must remain exact before FIGHT');
+assert.equal(persistedProjected.p1[0].heldItem, 'oranberry', 'resolved starting held item must remain exact before FIGHT');
+assert.deepEqual(persistedProjected.p1[0].moves, [{ id: 'thunderbolt', pp: 7, maxpp: 15 }], 'resolved starting PP must remain exact before FIGHT');
 
 const benchSession = await startCase([
   { ...healthy, id: 'healthy-lead' },
@@ -140,6 +157,8 @@ function assertRawPersistentMatch(raw, resolved, label) {
   assert.deepEqual(resolved.moves, rawPersistentMoves(raw), `${label} PP must match raw Showdown state`);
 }
 
+assertInitialRequestMatchesRaw(persistedSide, 'persisted-start initial request');
+assertRawPersistentMatch(persistedSide.pokemon[0], persistedProjected.p1[0], 'persisted-start raw differential');
 assertInitialRequestMatchesRaw(benchSide, 'healthy-lead initial request');
 assertInitialRequestMatchesRaw(leadSide, 'fainted-lead initial request');
 
