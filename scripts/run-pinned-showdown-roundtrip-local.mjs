@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,6 +13,12 @@ const requestedDir = process.argv[2] ? resolve(process.argv[2]) : null;
 const workDir = requestedDir ?? mkdtempSync(join(tmpdir(), 'mapless-pkmn-ps-'));
 const keep = Boolean(requestedDir) || process.env.MAPLESS_KEEP_SHOWDOWN_EXTRACTOR === '1';
 const offline = process.env.MAPLESS_SHOWDOWN_OFFLINE === '1';
+const pkmnPsBundle = process.env.MAPLESS_PKMN_PS_BUNDLE
+  ? resolve(process.env.MAPLESS_PKMN_PS_BUNDLE)
+  : null;
+const showdownBundle = process.env.MAPLESS_SHOWDOWN_BUNDLE
+  ? resolve(process.env.MAPLESS_SHOWDOWN_BUNDLE)
+  : null;
 
 function run(command, args, cwd = root) {
   console.log(`+ ${command} ${args.join(' ')}`);
@@ -32,10 +38,24 @@ function hasCommit(cwd, revision) {
   }
 }
 
-function ensureCommit(cwd, revision, label) {
+function requireBundle(bundlePath, label) {
+  if (!bundlePath) {
+    throw new Error(`offline mode requires ${label}; set the corresponding bundle environment variable`);
+  }
+  if (!existsSync(bundlePath)) throw new Error(`${label} does not exist: ${bundlePath}`);
+  return bundlePath;
+}
+
+function ensureCommit(cwd, revision, label, bundlePath = null) {
   if (!hasCommit(cwd, revision)) {
-    if (offline) throw new Error(`${label} ${revision} is not available in the cached checkout`);
-    run('git', ['fetch', 'origin', revision], cwd);
+    if (offline) {
+      run('git', ['fetch', requireBundle(bundlePath, `${label} bundle`)], cwd);
+    } else {
+      run('git', ['fetch', 'origin', revision], cwd);
+    }
+  }
+  if (!hasCommit(cwd, revision)) {
+    throw new Error(`${label} ${revision} is not available after fetch`);
   }
   run('git', ['checkout', '--detach', revision], cwd);
 }
@@ -68,22 +88,29 @@ function exactArtifactStamp(stampPath, builtEntry) {
 
 try {
   if (!existsSync(join(workDir, '.git'))) {
-    if (offline) throw new Error('offline mode requires an existing pkmn/ps checkout');
-    run('git', ['clone', '--no-checkout', 'https://github.com/pkmn/ps.git', workDir]);
+    if (offline) {
+      run('git', ['clone', '--no-checkout', requireBundle(pkmnPsBundle, 'pkmn/ps bundle'), workDir]);
+    } else {
+      run('git', ['clone', '--no-checkout', 'https://github.com/pkmn/ps.git', workDir]);
+    }
   }
-  ensureCommit(workDir, PKMN_PS_REVISION, 'pkmn/ps extractor revision');
+  ensureCommit(workDir, PKMN_PS_REVISION, 'pkmn/ps extractor revision', pkmnPsBundle);
 
   const showdownDir = join(workDir, 'vendor', 'pokemon-showdown');
   if (!existsSync(join(showdownDir, '.git'))) {
-    if (offline) throw new Error('offline mode requires an initialized vendor/pokemon-showdown checkout');
-    run('git', ['submodule', 'update', '--init', '--recursive'], workDir);
+    if (offline) {
+      mkdirSync(join(workDir, 'vendor'), { recursive: true });
+      run('git', ['clone', '--no-checkout', requireBundle(showdownBundle, 'Pokemon Showdown bundle'), showdownDir]);
+    } else {
+      run('git', ['submodule', 'update', '--init', '--recursive'], workDir);
+    }
   }
 
   // The extractor revision predates the Mapless mechanics pin. Keep the extractor
   // itself pinned, but deliberately move only its Showdown vendor checkout to the
   // exact Mapless SHOWDOWN_REVISION before regenerating @pkmn/sim. Running import
   // with --debug is essential: normal import updates submodules from remote.
-  ensureCommit(showdownDir, SHOWDOWN_REVISION, 'Pokemon Showdown mechanics revision');
+  ensureCommit(showdownDir, SHOWDOWN_REVISION, 'Pokemon Showdown mechanics revision', showdownBundle);
   assertPinnedRevisions(showdownDir);
 
   const builtEntry = join(workDir, 'sim', SHOWDOWN_BROWSER_ENTRY);
