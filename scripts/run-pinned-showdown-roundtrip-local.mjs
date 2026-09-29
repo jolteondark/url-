@@ -49,7 +49,7 @@ function requireBundle(bundlePath, label) {
 function ensureCommit(cwd, revision, label, bundlePath = null) {
   if (!hasCommit(cwd, revision)) {
     if (offline) {
-      run('git', ['fetch', requireBundle(bundlePath, `${label} bundle`)], cwd);
+      run('git', ['fetch', requireBundle(bundlePath, `${label} bundle`), 'refs/heads/*:refs/remotes/mapless-bundle/*'], cwd);
     } else {
       run('git', ['fetch', 'origin', revision], cwd);
     }
