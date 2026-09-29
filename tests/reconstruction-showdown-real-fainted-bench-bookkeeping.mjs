@@ -83,6 +83,43 @@ assert.equal(leadSide.pokemon[0].name, 'Pikachu', 'battle-local Showdown order m
 assert.equal(leadSide.active[0], leadSide.pokemon[0], 'Showdown must own initial switch-in of the battle-local live lead');
 
 
+function parseRequestCondition(condition) {
+  const text = String(condition ?? '').trim();
+  if (text === '0 fnt') return { hp: 0, maxhp: null, status: 'fnt' };
+  const [health = '', status = ''] = text.split(/\s+/, 2);
+  const match = /^(\d+)\/(\d+)$/.exec(health);
+  assert.ok(match, `unexpected Showdown request condition: ${condition}`);
+  return { hp: Number(match[1]), maxhp: Number(match[2]), status };
+}
+
+function assertInitialRequestMatchesRaw(side, label) {
+  const request = side.activeRequest;
+  assert.ok(request && !request.wait && !request.teamPreview && !request.forceSwitch, `${label} must expose the initial move request`);
+  assert.equal(request.side.pokemon.length, side.pokemon.length, `${label} request party length must match raw Showdown state`);
+  side.pokemon.forEach((pokemon, index) => {
+    const requested = request.side.pokemon[index];
+    const condition = parseRequestCondition(requested.condition);
+    assert.equal(condition.hp, Number(pokemon.hp), `${label} request HP must match raw Showdown state`);
+    if (pokemon.fainted) {
+      assert.equal(condition.status, 'fnt', `${label} persisted faint must remain 0 fnt in the request`);
+    } else {
+      assert.equal(condition.maxhp, Number(pokemon.maxhp), `${label} request max HP must match raw Showdown state`);
+      assert.equal(condition.status, String(pokemon.status ?? ''), `${label} request status must match raw Showdown state`);
+    }
+    assert.equal(String(requested.item ?? ''), String(pokemon.item ?? ''), `${label} request item must match raw Showdown state`);
+  });
+  const active = side.active[0];
+  assert.ok(active, `${label} must have an active Pokemon`);
+  assert.equal(request.active.length, 1, `${label} must expose one active request slot`);
+  assert.equal(request.active[0].moves.length, active.moveSlots.length, `${label} request move count must match raw Showdown state`);
+  active.moveSlots.forEach((slot, index) => {
+    const requested = request.active[0].moves[index];
+    assert.equal(String(requested.id), String(slot.id), `${label} request move id must match raw Showdown state`);
+    assert.equal(Number(requested.pp), Number(slot.pp), `${label} request PP must match raw Showdown state`);
+    assert.equal(Number(requested.maxpp), Number(slot.maxpp), `${label} request max PP must match raw Showdown state`);
+  });
+}
+
 function rawPersistentMoves(pokemon) {
   const slots = Array.isArray(pokemon?.baseMoveSlots) && pokemon.baseMoveSlots.length
     ? pokemon.baseMoveSlots
@@ -102,6 +139,9 @@ function assertRawPersistentMatch(raw, resolved, label) {
   assert.equal(resolved.fainted, Boolean(raw.fainted), `${label} faint flag must match raw Showdown state`);
   assert.deepEqual(resolved.moves, rawPersistentMoves(raw), `${label} PP must match raw Showdown state`);
 }
+
+assertInitialRequestMatchesRaw(benchSide, 'healthy-lead initial request');
+assertInitialRequestMatchesRaw(leadSide, 'fainted-lead initial request');
 
 // Differential guard: compare the adapter's persistent projection directly with
 // the pinned Showdown Pokemon objects.  The second case deliberately compares
