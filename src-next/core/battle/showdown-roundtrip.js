@@ -40,7 +40,7 @@ function exactStartingMoves(moves = []) {
     const maxpp = exactNonnegativeInteger(move?.maxpp ?? move?.maxPP, `Battle projection max PP for ${id}`);
     if (maxpp < 1) throw new Error(`Battle projection max PP requires a positive integer for ${id}`);
     if (pp > maxpp) throw new Error(`Battle projection PP is outside persistent bounds for ${id}: ${pp}/${maxpp}`);
-    return { id: String(move.id), pp, maxpp };
+    return { id, pp, maxpp };
   });
 }
 function exactStartingLevel(value) {
