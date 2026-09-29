@@ -18,6 +18,9 @@ const pkmnPsBundle = process.env.MAPLESS_PKMN_PS_BUNDLE
 const showdownBundle = process.env.MAPLESS_SHOWDOWN_BUNDLE
   ? resolve(process.env.MAPLESS_SHOWDOWN_BUNDLE)
   : null;
+const npmCache = process.env.MAPLESS_NPM_CACHE
+  ? resolve(process.env.MAPLESS_NPM_CACHE)
+  : null;
 const offline = process.env.MAPLESS_SHOWDOWN_OFFLINE === '1'
   || pkmnPsBundle !== null
   || showdownBundle !== null;
@@ -127,7 +130,10 @@ try {
         throw new Error('offline cached Showdown artifact has missing/stale/tampered build provenance; rebuild it once from the exact pins before reuse');
       }
       if (!existsSync(join(workDir, 'node_modules'))) {
-        throw new Error('offline mode requires cached pkmn/ps node_modules when the built simulator artifact is missing');
+        if (!npmCache || !existsSync(npmCache)) {
+          throw new Error('offline mode requires cached pkmn/ps node_modules or MAPLESS_NPM_CACHE when the built simulator artifact is missing');
+        }
+        run('npm', ['install', '--offline', '--cache', npmCache], workDir);
       }
     } else {
       run('npm', ['install'], workDir);
