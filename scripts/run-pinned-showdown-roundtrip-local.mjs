@@ -12,13 +12,15 @@ const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const requestedDir = process.argv[2] ? resolve(process.argv[2]) : null;
 const workDir = requestedDir ?? mkdtempSync(join(tmpdir(), 'mapless-pkmn-ps-'));
 const keep = Boolean(requestedDir) || process.env.MAPLESS_KEEP_SHOWDOWN_EXTRACTOR === '1';
-const offline = process.env.MAPLESS_SHOWDOWN_OFFLINE === '1';
 const pkmnPsBundle = process.env.MAPLESS_PKMN_PS_BUNDLE
   ? resolve(process.env.MAPLESS_PKMN_PS_BUNDLE)
   : null;
 const showdownBundle = process.env.MAPLESS_SHOWDOWN_BUNDLE
   ? resolve(process.env.MAPLESS_SHOWDOWN_BUNDLE)
   : null;
+const offline = process.env.MAPLESS_SHOWDOWN_OFFLINE === '1'
+  || pkmnPsBundle !== null
+  || showdownBundle !== null;
 
 function run(command, args, cwd = root) {
   console.log(`+ ${command} ${args.join(' ')}`);
