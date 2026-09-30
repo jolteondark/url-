@@ -182,6 +182,7 @@ export function commitShowdownTerminalResult(state, result) {
   if (!result.resultId) throw new Error('Terminal Showdown result requires resultId');
   const resultId = String(result.resultId);
   const applied = state.diagnostics?.[BATTLE_SYNC_IDS] ?? [];
+  if (!Array.isArray(applied)) throw new Error('Battle terminal commit diagnostics must be an array');
   if (applied.includes(resultId)) return { state, committed: false, duplicate: true };
   const byId = matchTerminalParty(state.party, result.party);
   const next = cloneGameState(state);
