@@ -128,6 +128,19 @@ assert.equal(sleepReplay.committed, false);
 assert.equal(sleepReplay.duplicate, true);
 assert.equal(sleepReplay.state.party[0].statusTurns, 2);
 
+
+const corruptDiagnostics = stateWithParty();
+corruptDiagnostics.diagnostics.appliedBattleStateResultIds = 'showdown-terminal:battle-17';
+assert.throws(
+  () => commitShowdownStreamTerminal(corruptDiagnostics, {
+    battleId: 'battle-17',
+    session: terminalSession,
+  }),
+  /Battle terminal commit diagnostics must be an array/,
+  'corrupt replay diagnostics must fail closed instead of using String#includes',
+);
+
+
 assert.throws(
   () => commitShowdownStreamTerminal(stateWithParty(), {
     battleId: 'battle-live',
