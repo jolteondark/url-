@@ -63,7 +63,7 @@ const showdown = {
 
 const session = createShowdownStreamSession(showdown, {
   formatid: 'gen9customgame',
-  p1: { name: 'Mapless', team: [{ id: 'hero', species: 'Pikachu', level: 10, ability: 'Static', hp: 17, status: 'par', heldItem: 'Oran Berry', moves: [{ id: 'tackle', pp: 7, maxpp: 35 }] }] },
+  p1: { name: 'Mapless', team: [{ id: 'hero', species: 'Pikachu', level: 10, ability: 'Static', hp: 17, status: 'par', heldItem: 'oranberry', moves: [{ id: 'tackle', pp: 7, maxpp: 35 }] }] },
   p2: { name: 'Wild', team: [{ id: 'wild', species: 'Rattata', level: 8, ability: 'Run Away', hp: 23, status: '', heldItem: '', moves: [{ id: 'tackle', pp: 9, maxpp: 35 }] }] },
 });
 
