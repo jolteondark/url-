@@ -8,7 +8,17 @@ function validateManifest(manifest) {
   if (manifest.showdownRevision !== REQUIRED_SHOWDOWN_REVISION) throw new Error('Showdown browser publication mechanics revision mismatch');
   if (manifest.extractorRevision !== REQUIRED_PKMN_PS_REVISION) throw new Error('Showdown browser publication extractor revision mismatch');
   if (manifest.moduleFormat !== 'esm' || manifest.target !== 'safari16') throw new Error('Showdown browser publication target mismatch');
-  if (typeof manifest.entry !== 'string' || !manifest.entry || /(^|\/)\.\.($|\/)/.test(manifest.entry) || manifest.entry.startsWith('/')) {
+  if (
+    typeof manifest.entry !== 'string'
+    || !manifest.entry
+    || manifest.entry.startsWith('/')
+    || manifest.entry.includes('\\')
+    || manifest.entry.includes('?')
+    || manifest.entry.includes('#')
+    || manifest.entry.includes(':')
+    || /(^|\/)\.\.($|\/)/.test(manifest.entry)
+    || !/^[A-Za-z0-9._/-]+$/.test(manifest.entry)
+  ) {
     throw new Error('Showdown browser publication entry is unsafe');
   }
   if (!/^[a-f0-9]{64}$/.test(String(manifest.entrySha256 ?? ''))) throw new Error('Showdown browser publication SHA-256 is invalid');
