@@ -3,6 +3,7 @@ import { createP1PixelDomRenderer } from './p1-pixel-dom-renderer.js';
 import { createP1PresentationPump } from './p1-presentation-pump.js';
 import { loadPublishedShowdownBrowserArtifact } from './browser-showdown-artifact.js';
 import { p1PresentationMessage } from '../presentation/messages/p1-event-message.js';
+import { snapshotSafariActionGate } from './safari-action-gate.js';
 
 function randomUint32(crypto = globalThis.crypto) {
   if (!crypto || typeof crypto.getRandomValues !== 'function') throw new Error('Web Crypto random source is required for Fresh Start');
@@ -25,6 +26,7 @@ export async function createP1BrowserApp(root, {
   rendererFactory = createP1PixelDomRenderer,
   pumpFactory = createP1PresentationPump,
   freshStartIdentity = null,
+  performanceProbe = null,
 } = {}) {
   if (!root) throw new Error('P1 browser app requires a root element');
   const loaded = await showdownLoader({ manifestUrl });
@@ -49,6 +51,7 @@ export async function createP1BrowserApp(root, {
       activeBattle: controller.activeBattle(),
       canContinue: controller.hasSave(),
     });
+    performanceProbe?.markRender?.();
   }
 
   function present(job) {
@@ -105,13 +108,25 @@ export async function createP1BrowserApp(root, {
       controller.commitReward();
       lastResolved = null;
     }),
+    onAssetDecode: (durationMs) => performanceProbe?.markAssetDecode?.(durationMs),
   });
 
   render();
 
+  function diagnostics() {
+    return Object.freeze({
+      performance: performanceProbe?.snapshot?.() ?? null,
+      presentation: pump.snapshot?.() ?? null,
+      actionGate: controller.actionGate ? snapshotSafariActionGate(controller.actionGate) : null,
+      mode: snapshotOrNull()?.mode ?? null,
+      day: snapshotOrNull()?.day ?? null,
+    });
+  }
+
   function destroy() {
     destroyed = true;
     pump.destroy();
+    performanceProbe?.stop?.();
     root.replaceChildren();
   }
 
@@ -121,6 +136,7 @@ export async function createP1BrowserApp(root, {
     pump,
     showdownPublication: loaded.manifest,
     render,
+    diagnostics,
     destroy,
   });
 }
