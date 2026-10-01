@@ -93,6 +93,7 @@ export function step(inputState, command) {
       const slot = state.board[command.slot];
       if (!slot || slot.consumed) throw new Error('board slot unavailable');
       if (slot.kind !== 'wild' && slot.kind !== 'trainer') throw new Error('BOARD_ENCOUNTER_READY requires a battle slot');
+      if (slot.encounter) throw new Error('board encounter is already prepared');
       if (!command.encounter || typeof command.encounter !== 'object' || Array.isArray(command.encounter)) throw new Error('BOARD_ENCOUNTER_READY requires encounter data');
       const hasRngBefore = command.rngStateBefore !== undefined;
       const hasRngAfter = command.nextRngState !== undefined;
