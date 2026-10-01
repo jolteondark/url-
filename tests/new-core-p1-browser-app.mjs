@@ -67,6 +67,14 @@ const controller = {
 let pumpKicks = 0;
 let pumpDestroyed = 0;
 const root = { replaceChildren() { calls.push(['root.replaceChildren']); } };
+const performanceCalls = { renders: 0, decodes: [], stopped: 0 };
+const performanceProbe = {
+  markRender() { performanceCalls.renders += 1; },
+  markAssetDecode(ms) { performanceCalls.decodes.push(ms); },
+  snapshot() { return { renders: performanceCalls.renders, assetDecodes: performanceCalls.decodes.length }; },
+  stop() { performanceCalls.stopped += 1; },
+};
+
 const app = await createP1BrowserApp(root, {
   storage: {},
   crypto: fakeCrypto,
@@ -80,6 +88,7 @@ const app = await createP1BrowserApp(root, {
   },
   rendererFactory(_root, callbacks) {
     rendererState.callbacks = callbacks;
+    callbacks.onAssetDecode(7);
     return {
       render(value) { rendererState.renders.push(structuredClone(value)); },
       setBusy(value) { rendererState.busy.push(Boolean(value)); },
@@ -97,6 +106,7 @@ const app = await createP1BrowserApp(root, {
     };
   },
   freshStartIdentity: () => ({ runId: 'browser-app-test', seed: 108 }),
+  performanceProbe,
 });
 
 assert.equal(rendererState.renders[0].state, null);
@@ -128,8 +138,14 @@ assert.equal(rendererState.renders.at(-1).state.day, 2);
 assert.ok(rendererState.messages.includes('戦闘に勝利した！'));
 assert.ok(rendererState.events.some((event) => event.type === 'BATTLE_WON'));
 assert.deepEqual(rendererState.busy.slice(0, 2), [true, false]);
+const diagnostics = app.diagnostics();
+assert.ok(diagnostics.performance.renders >= 1);
+assert.equal(diagnostics.performance.assetDecodes, 1);
+assert.equal(diagnostics.mode, 'board');
+assert.equal(diagnostics.day, 2);
 
 app.destroy();
 assert.equal(pumpDestroyed, 1);
+assert.equal(performanceCalls.stopped, 1);
 assert.deepEqual(calls.at(-1), ['root.replaceChildren']);
 console.log('P1 browser composition root wiring: ok');
