@@ -1,0 +1,32 @@
+name: Mapless P1 exact gate
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mapless-p1-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  exact-p1:
+    if: github.event.pull_request.number == 1653
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+
+      - name: Use Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Pure New Core P1 suite
+        run: node scripts/run-new-core-p1-pure-suite.mjs
+
+      - name: Exact pinned Showdown P0 + P1 suite
+        run: node scripts/run-pinned-showdown-roundtrip-local.mjs "$RUNNER_TEMP/mapless-pkmn-ps"
