@@ -17,14 +17,19 @@ function diagnosticsArray(state, key) {
   if (!Array.isArray(state.diagnostics[key])) throw new Error(`New Core diagnostics.${key} must be an array`);
   return state.diagnostics[key];
 }
-function applyPartyExp(party, gains = []) {
+function normalizePartyExp(gains = []) {
   if (!Array.isArray(gains)) throw new Error('partyExp must be an array');
-  const gainById = new Map();
-  for (const entry of gains) {
+  return gains.map((entry) => {
     const memberId = String(entry?.memberId ?? '');
     if (!memberId) throw new Error('partyExp entry requires memberId');
-    if (gainById.has(memberId)) throw new Error(`duplicate partyExp memberId: ${memberId}`);
-    gainById.set(memberId, exactNonnegativeInteger(entry.exp, `partyExp for ${memberId}`));
+    return { memberId, exp: exactNonnegativeInteger(entry.exp, `partyExp for ${memberId}`) };
+  });
+}
+function applyPartyExp(party, gains) {
+  const gainById = new Map();
+  for (const entry of gains) {
+    if (gainById.has(entry.memberId)) throw new Error(`duplicate partyExp memberId: ${entry.memberId}`);
+    gainById.set(entry.memberId, entry.exp);
   }
   const knownIds = new Set(party.map(stableMemberId));
   for (const memberId of gainById.keys()) if (!knownIds.has(memberId)) throw new Error(`partyExp targets unknown member: ${memberId}`);
@@ -35,6 +40,11 @@ function applyPartyExp(party, gains = []) {
     const current = exactNonnegativeInteger(member.exp, `persistent EXP for ${memberId}`);
     return { ...member, exp: current + gain };
   });
+}
+function battleOutcomeEvent(outcome, battleId) {
+  if (outcome === 'win') return { type: 'BATTLE_WON', battleId };
+  if (outcome === 'loss') return { type: 'BATTLE_LOST', battleId };
+  return null;
 }
 
 export function step(inputState, command) {
@@ -82,12 +92,14 @@ export function step(inputState, command) {
       appliedResults.push(resultId);
       state.activeBattle = null;
       state.activeEncounter = null;
+      const outcomeEvent = battleOutcomeEvent(outcome, command.battleId);
       if (outcome === 'win') {
         const rewardId = `${resultId}:reward`;
         state.pendingBattleResult = { battleId: command.battleId, resultId, rewardId, outcome };
         state.mode = 'battle_result';
         return result(state, [
           { type: 'BATTLE_RESULT_COMMITTED', battleId: command.battleId, resultId, outcome },
+          ...(outcomeEvent ? [outcomeEvent] : []),
           { type: 'BATTLE_REWARD_REQUESTED', battleId: command.battleId, resultId, rewardId },
         ]);
       }
@@ -96,6 +108,7 @@ export function step(inputState, command) {
       state.location = 'day_board';
       return result(state, [
         { type: 'BATTLE_RESULT_COMMITTED', battleId: command.battleId, resultId, outcome },
+        ...(outcomeEvent ? [outcomeEvent] : []),
         { type: 'BOARD_RETURNED', day: state.day },
       ], [{ type: 'REQUEST_SAVE', reason: 'battle_terminal_result' }]);
     }
@@ -108,13 +121,21 @@ export function step(inputState, command) {
       if (!pending || pending.outcome !== 'win') throw new Error('battle reward requires a pending winning battle result');
       if (pending.rewardId !== rewardId) throw new Error('battle reward does not match pending reward id');
       const money = exactNonnegativeInteger(command.money, 'battle reward money');
+      const partyExp = normalizePartyExp(command.partyExp ?? []);
       state.money += money;
-      state.party = applyPartyExp(state.party, command.partyExp ?? []);
+      state.party = applyPartyExp(state.party, partyExp);
       appliedRewards.push(rewardId);
       state.pendingBattleResult = null;
       state.mode = 'board';
       state.location = 'day_board';
       return result(state, [
+        ...partyExp.filter((entry) => entry.exp > 0).map((entry) => ({
+          type: 'EXP_GAINED',
+          memberId: entry.memberId,
+          amount: entry.exp,
+          battleId: pending.battleId,
+          rewardId,
+        })),
         { type: 'BATTLE_REWARD_COMMITTED', battleId: pending.battleId, resultId: pending.resultId, rewardId, money },
         { type: 'BOARD_RETURNED', day: state.day },
       ], [{ type: 'REQUEST_SAVE', reason: 'battle_reward_result' }]);
