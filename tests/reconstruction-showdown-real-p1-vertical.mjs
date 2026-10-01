@@ -6,6 +6,7 @@ import { createShowdownStreamSession } from '../src-next/core/battle/showdown-st
 import { commitShowdownStreamTerminal } from '../src-next/core/battle/showdown-terminal-handoff.js';
 import { createShowdownBattleSnapshot, projectMaplessPartyToShowdown } from '../src-next/core/battle/showdown-roundtrip.js';
 import { calculateMaplessBattleExp } from '../src-next/core/growth/mapless-experience.js';
+import { drawShowdownBattleSeed, drawWildShowdownMove } from '../src-next/core/battle/battle-rng.js';
 import { createFreshRunState } from '../src-next/core/run/fresh-start.js';
 import { serializeNewCoreSave, restoreNewCoreSave } from '../src-next/core/persistence.js';
 import { step } from '../src-next/core/step.js';
@@ -51,9 +52,16 @@ assert.equal(state.mode, 'battle_pending');
 
 const playerTeam = createShowdownBattleSnapshot({ party: state.party }, { battleId }).party;
 const wildTeam = projectMaplessPartyToShowdown([encounter.pokemon]);
+const battleSeed = drawShowdownBattleSeed(state.rngState);
+state = step(state, {
+  type: 'BATTLE_RNG_ADVANCED',
+  battleId,
+  rngStateBefore: state.rngState,
+  nextRngState: battleSeed.nextRngState,
+}).state;
 const session = createShowdownStreamSession(showdown, {
   formatid: 'gen9customgame',
-  seed: [1, 2, 3, 4],
+  seed: battleSeed.seed,
   p1: { name: 'Mapless', team: playerTeam },
   p2: { name: 'Wild', team: wildTeam },
 });
@@ -65,7 +73,14 @@ assert.equal(session.battleStream.battle.sides[1].pokemon[0].maxhp, encounter.po
 let resolved = session.resolvedState();
 let turns = 0;
 while (!resolved.terminal && turns < 20) {
-  await Promise.all([session.fight('p1', 1), session.fight('p2', 1)]);
+  const ai = drawWildShowdownMove(state.rngState, resolved.p2[0].moves);
+  state = step(state, {
+    type: 'BATTLE_RNG_ADVANCED',
+    battleId,
+    rngStateBefore: state.rngState,
+    nextRngState: ai.nextRngState,
+  }).state;
+  await Promise.all([session.fight('p1', 1), session.fight('p2', ai.moveSlot)]);
   turns += 1;
   resolved = session.resolvedState();
 }
@@ -168,6 +183,7 @@ console.log(JSON.stringify({
   showdownRevision: showdown.revision,
   battleId,
   wild: { species: encounter.species, level: encounter.level, baseExp: encounter.baseExp },
+  showdownSeed: battleSeed.seed,
   turns,
   terminalResultId,
   rewardId,
