@@ -1,6 +1,41 @@
 import { cloneGameState } from './game-state.js';
 
 function result(state, events = [], effects = []) { return { state, events, effects }; }
+function exactNonnegativeInteger(value, boundary) {
+  const number = Number(value ?? 0);
+  if (!Number.isInteger(number) || number < 0) throw new Error(`${boundary} requires a non-negative integer`);
+  return number;
+}
+function stableMemberId(member) {
+  const raw = member?.id ?? member?.personalId;
+  if (raw === undefined || raw === null || String(raw) === '') throw new Error('reward EXP requires stable party member ids');
+  return String(raw);
+}
+function diagnosticsArray(state, key) {
+  state.diagnostics ??= {};
+  state.diagnostics[key] ??= [];
+  if (!Array.isArray(state.diagnostics[key])) throw new Error(`New Core diagnostics.${key} must be an array`);
+  return state.diagnostics[key];
+}
+function applyPartyExp(party, gains = []) {
+  if (!Array.isArray(gains)) throw new Error('partyExp must be an array');
+  const gainById = new Map();
+  for (const entry of gains) {
+    const memberId = String(entry?.memberId ?? '');
+    if (!memberId) throw new Error('partyExp entry requires memberId');
+    if (gainById.has(memberId)) throw new Error(`duplicate partyExp memberId: ${memberId}`);
+    gainById.set(memberId, exactNonnegativeInteger(entry.exp, `partyExp for ${memberId}`));
+  }
+  const knownIds = new Set(party.map(stableMemberId));
+  for (const memberId of gainById.keys()) if (!knownIds.has(memberId)) throw new Error(`partyExp targets unknown member: ${memberId}`);
+  return party.map((member) => {
+    const memberId = stableMemberId(member);
+    const gain = gainById.get(memberId) ?? 0;
+    if (!gain) return member;
+    const current = exactNonnegativeInteger(member.exp, `persistent EXP for ${memberId}`);
+    return { ...member, exp: current + gain };
+  });
+}
 
 export function step(inputState, command) {
   if (!inputState || !command?.type) throw new Error('state and command.type are required');
@@ -9,6 +44,7 @@ export function step(inputState, command) {
   switch (command.type) {
     case 'BOARD_GENERATED': {
       if (!Array.isArray(command.slots) || command.slots.length !== 8) throw new Error('canonical Day Board requires 8 slots');
+      if (state.activeBattle || state.pendingBattleResult) throw new Error('BOARD_GENERATED cannot replace an unresolved battle result');
       state.board = command.slots.map((slot, index) => ({ ...structuredClone(slot), slot: index, consumed: false }));
       state.boardSelectionsRemaining = 8;
       state.mode = 'board';
@@ -30,25 +66,75 @@ export function step(inputState, command) {
       ]);
     }
     case 'BATTLE_TERMINAL_RESULT': {
-      const battle = state.activeBattle;
-      if (!battle || battle.id !== command.battleId) throw new Error('terminal result does not match active battle');
       const resultId = String(command.resultId || '');
       if (!resultId) throw new Error('resultId is required for exactly-once commit');
-      if (state.diagnostics.appliedResultIds.includes(resultId)) return result(state, [{ type: 'BATTLE_RESULT_REPLAY_IGNORED', resultId }]);
+      const appliedResults = diagnosticsArray(state, 'appliedResultIds');
+      if (appliedResults.includes(resultId)) return result(state, [{ type: 'BATTLE_RESULT_REPLAY_IGNORED', resultId }]);
+      const battle = state.activeBattle;
+      if (!battle || battle.id !== command.battleId) throw new Error('terminal result does not match active battle');
+      const outcome = String(command.outcome ?? '');
+      if (!outcome) throw new Error('terminal result outcome is required');
       const slotIndex = state.activeEncounter?.slot;
       if (Number.isInteger(slotIndex) && state.board?.[slotIndex] && !state.board[slotIndex].consumed) {
         state.board[slotIndex].consumed = true;
         state.boardSelectionsRemaining = Math.max(0, state.boardSelectionsRemaining - 1);
       }
-      state.diagnostics.appliedResultIds.push(resultId);
+      appliedResults.push(resultId);
       state.activeBattle = null;
       state.activeEncounter = null;
+      if (outcome === 'win') {
+        const rewardId = `${resultId}:reward`;
+        state.pendingBattleResult = { battleId: command.battleId, resultId, rewardId, outcome };
+        state.mode = 'battle_result';
+        return result(state, [
+          { type: 'BATTLE_RESULT_COMMITTED', battleId: command.battleId, resultId, outcome },
+          { type: 'BATTLE_REWARD_REQUESTED', battleId: command.battleId, resultId, rewardId },
+        ]);
+      }
+      state.pendingBattleResult = null;
       state.mode = 'board';
       state.location = 'day_board';
       return result(state, [
-        { type: 'BATTLE_RESULT_COMMITTED', battleId: command.battleId, resultId, outcome: command.outcome },
+        { type: 'BATTLE_RESULT_COMMITTED', battleId: command.battleId, resultId, outcome },
         { type: 'BOARD_RETURNED', day: state.day },
       ], [{ type: 'REQUEST_SAVE', reason: 'battle_terminal_result' }]);
+    }
+    case 'BATTLE_REWARD_RESULT': {
+      const rewardId = String(command.rewardId || '');
+      if (!rewardId) throw new Error('rewardId is required for exactly-once reward commit');
+      const appliedRewards = diagnosticsArray(state, 'appliedRewardIds');
+      if (appliedRewards.includes(rewardId)) return result(state, [{ type: 'BATTLE_REWARD_REPLAY_IGNORED', rewardId }]);
+      const pending = state.pendingBattleResult;
+      if (!pending || pending.outcome !== 'win') throw new Error('battle reward requires a pending winning battle result');
+      if (pending.rewardId !== rewardId) throw new Error('battle reward does not match pending reward id');
+      const money = exactNonnegativeInteger(command.money, 'battle reward money');
+      state.money += money;
+      state.party = applyPartyExp(state.party, command.partyExp ?? []);
+      appliedRewards.push(rewardId);
+      state.pendingBattleResult = null;
+      state.mode = 'board';
+      state.location = 'day_board';
+      return result(state, [
+        { type: 'BATTLE_REWARD_COMMITTED', battleId: pending.battleId, resultId: pending.resultId, rewardId, money },
+        { type: 'BOARD_RETURNED', day: state.day },
+      ], [{ type: 'REQUEST_SAVE', reason: 'battle_reward_result' }]);
+    }
+    case 'ADVANCE_DAY': {
+      const transitionId = String(command.transitionId || `${state.runId}:d${state.day}:advance`);
+      const appliedTransitions = diagnosticsArray(state, 'appliedDayTransitionIds');
+      if (appliedTransitions.includes(transitionId)) return result(state, [{ type: 'DAY_ADVANCE_REPLAY_IGNORED', transitionId }]);
+      if (state.mode !== 'board' || !state.board || state.activeBattle || state.pendingBattleResult) throw new Error('ADVANCE_DAY requires a settled Day Board');
+      if (command.confirmed !== true) return result(state, [{ type: 'DAY_ADVANCE_CANCELLED', day: state.day }]);
+      appliedTransitions.push(transitionId);
+      state.day += 1;
+      state.board = null;
+      state.boardSelectionsRemaining = 0;
+      state.mode = 'board_pending';
+      state.location = 'day_board';
+      return result(state, [
+        { type: 'DAY_ADVANCED', day: state.day, transitionId },
+        { type: 'BOARD_GENERATION_REQUESTED', day: state.day },
+      ], [{ type: 'REQUEST_SAVE', reason: 'day_advanced' }]);
     }
     default:
       throw new Error(`Unsupported New Core command: ${command.type}`);
