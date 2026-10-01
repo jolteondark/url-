@@ -11,8 +11,12 @@ class FakeObserver {
   disconnect() { this.disconnected = true; }
   emit(entries) { this.callback({ getEntries: () => entries }); }
 }
+let now = 0;
 const environment = {
-  performance: { memory: { usedJSHeapSize: 10, totalJSHeapSize: 20, jsHeapSizeLimit: 30 } },
+  performance: {
+    now: () => now,
+    memory: { usedJSHeapSize: 10, totalJSHeapSize: 20, jsHeapSizeLimit: 30 },
+  },
   document: { getElementsByTagName: () => ({ length: 42 }) },
   requestAnimationFrame(callback) { const id = ++nextHandle; callbacks.set(id, callback); return id; },
   cancelAnimationFrame(id) { cancelled.push(id); callbacks.delete(id); },
@@ -28,6 +32,9 @@ callbacks.get(3)(150);
 FakeObserver.instance.emit([{ duration: 55 }, { duration: 80 }]);
 probe.markRender();
 probe.markRender(2);
+now = 100;
+probe.measureRender(() => { now = 106; });
+await probe.measureAssetLoad(async () => { now = 125; });
 probe.markAssetDecode(12);
 probe.markAssetDecode(28);
 
@@ -39,8 +46,14 @@ assert.equal(active.estimatedFps, 40);
 assert.equal(active.longTasks, 2);
 assert.equal(active.longTaskTotalMs, 135);
 assert.equal(active.maxLongTaskMs, 80);
-assert.equal(active.renders, 3);
+assert.equal(active.renders, 4);
+assert.equal(active.renderTotalMs, 6);
+assert.equal(active.averageRenderMs, 1.5);
+assert.equal(active.maxRenderMs, 6);
 assert.equal(active.probeRafActive, 1);
+assert.equal(active.assetLoads, 1);
+assert.equal(active.assetLoadTotalMs, 19);
+assert.equal(active.maxAssetLoadMs, 19);
 assert.equal(active.assetDecodes, 2);
 assert.equal(active.assetDecodeTotalMs, 40);
 assert.equal(active.maxAssetDecodeMs, 28);
@@ -64,6 +77,8 @@ assert.deepEqual(unsupported.snapshot().support, {
 assert.equal(unsupported.stop(), true);
 assert.equal(unsupported.snapshot().probeRafActive, 0);
 assert.throws(() => probe.markRender(0), /positive integer/);
+assert.throws(() => probe.markRenderDuration(-1), /non-negative finite/);
+assert.throws(() => probe.markAssetLoad(-1), /non-negative finite/);
 assert.throws(() => probe.markAssetDecode(-1), /non-negative finite/);
 
 console.log('new-core-browser-performance-probe-smoke: ok');
