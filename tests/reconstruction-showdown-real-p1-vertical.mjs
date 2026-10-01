@@ -163,9 +163,11 @@ const advanced = step(rewarded.state, {
 assert.equal(advanced.state.day, 2);
 assert.equal(advanced.state.mode, 'board_pending');
 assert.equal(advanced.events.at(-1).type, 'BOARD_GENERATION_REQUESTED');
-assert.deepEqual(advanced.effects, [{ type: 'REQUEST_SAVE', reason: 'day_advanced' }]);
+assert.deepEqual(advanced.effects, []);
 
-const day2 = step(advanced.state, { type: 'GENERATE_DAY_BOARD' }).state;
+const day2Generated = step(advanced.state, { type: 'GENERATE_DAY_BOARD' });
+assert.deepEqual(day2Generated.effects, [{ type: 'REQUEST_SAVE', reason: 'day_advanced' }]);
+const day2 = day2Generated.state;
 const restored = restoreNewCoreSave(serializeNewCoreSave(day2));
 assert.deepEqual(restored, day2, 'fresh Continue must restore the exact canonical P1 state');
 assert.equal(restored.day, 2);
