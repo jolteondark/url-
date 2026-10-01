@@ -72,6 +72,7 @@ const harnesses = [
   'tests/reconstruction-showdown-real-base-moves-persistence.mjs',
   'tests/reconstruction-showdown-real-fainted-bench-bookkeeping.mjs',
   'tests/reconstruction-showdown-real-p1-vertical.mjs',
+  'tests/reconstruction-showdown-real-individual-stats.mjs',
 ];
 
 for (const harness of harnesses) {
