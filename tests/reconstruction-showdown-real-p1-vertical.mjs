@@ -27,7 +27,7 @@ const wildPersistentTeam = [{
 }];
 const wildTeam = projectMaplessPartyToShowdown(wildPersistentTeam);
 const boardSlots = Array.from({ length: 8 }, (_, index) => index === 2
-  ? { kind: 'wild', encounter: { species: 'Magikarp', level: 50 } }
+  ? { kind: 'wild', encounter: { species: 'Magikarp', level: 50, baseExp: 40 } }
   : { kind: 'event', id: `event-${index}` });
 
 let state = createInitialGameState({
@@ -93,13 +93,13 @@ const rewardId = terminalCommit.state.pendingBattleResult.rewardId;
 const rewarded = step(terminalCommit.state, {
   type: 'BATTLE_REWARD_RESULT',
   rewardId,
-  money: 120,
-  partyExp: [{ memberId: 'starter-pikachu', exp: 33 }],
+  recipientIds: ['starter-pikachu'],
 });
 assert.equal(rewarded.state.mode, 'board');
-assert.equal(rewarded.state.money, 145);
-assert.equal(rewarded.state.party[0].exp, 133);
+assert.equal(rewarded.state.money, 25, 'ordinary wild victory must not grant trainer prize money');
+assert.equal(rewarded.state.party[0].exp, 242, 'Mapless Lv50 vs Lv50 Magikarp base Exp 40 must award 142 EXP');
 assert.equal(rewarded.state.party[1].exp, 200);
+assert.equal(rewarded.state.bag.items.POTION, 1, 'ordinary wild victory must grant the canonical Potion');
 assert.equal(rewarded.state.party[0].moves[0].pp, 1, 'reward must not overwrite Showdown-committed PP');
 assert.equal(rewarded.events.at(-1).type, 'BOARD_RETURNED');
 assert.deepEqual(rewarded.effects, [{ type: 'REQUEST_SAVE', reason: 'battle_reward_result' }]);
@@ -118,8 +118,7 @@ assert.deepEqual(coreTerminalReplay.state, rewarded.state);
 const rewardReplay = step(rewarded.state, {
   type: 'BATTLE_REWARD_RESULT',
   rewardId,
-  money: 999,
-  partyExp: [{ memberId: 'starter-pikachu', exp: 999 }],
+  recipientIds: ['starter-pikachu'],
 });
 assert.equal(rewardReplay.events[0].type, 'BATTLE_REWARD_REPLAY_IGNORED');
 assert.deepEqual(rewardReplay.state, rewarded.state);
@@ -138,8 +137,9 @@ const day2 = step(advanced.state, { type: 'BOARD_GENERATED', slots: boardSlots }
 const restored = restoreNewCoreSave(serializeNewCoreSave(day2));
 assert.deepEqual(restored, day2, 'fresh Continue must restore the exact canonical P1 state');
 assert.equal(restored.day, 2);
-assert.equal(restored.money, 145);
-assert.equal(restored.party[0].exp, 133);
+assert.equal(restored.money, 25);
+assert.equal(restored.party[0].exp, 242);
+assert.equal(restored.bag.items.POTION, 1);
 assert.equal(restored.party[0].moves[0].pp, 1);
 assert.equal(restored.party[0].heldItem, '');
 assert.deepEqual(restored.diagnostics.appliedBattleStateResultIds, [terminalResultId]);
@@ -155,6 +155,7 @@ console.log(JSON.stringify({
   rewardId,
   day: restored.day,
   money: restored.money,
+  potion: restored.bag.items.POTION,
   starterExp: restored.party[0].exp,
   starterPp: restored.party[0].moves[0].pp,
   rewardReplayRejected: rewardReplay.events[0].type === 'BATTLE_REWARD_REPLAY_IGNORED',
