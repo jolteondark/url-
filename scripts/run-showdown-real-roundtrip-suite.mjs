@@ -88,4 +88,4 @@ for (const harness of harnesses) {
   }
 }
 
-console.log('\n[showdown-real] PASS P0 real-engine suite + P1 battle/reward/day/Continue vertical');
+console.log('\n[showdown-real] PASS P0 real-engine suite + P1 canonical individual stats + playable controller vertical');
