@@ -93,25 +93,34 @@ export function createP1PlayableController({
   async function startWildBattle(slot) {
     requireState();
     if (activeBattleSession) throw new Error('Showdown session is already active');
+    const boardState = state;
     const selected = applyCore({ type: 'BOARD_SELECT', slot }, { save: false });
     const battleId = state.activeBattle?.id;
     const encounter = state.activeEncounter?.encounter;
-    if (!battleId || !encounter?.pokemon) throw new Error('prepared wild encounter Pokemon is required for Showdown start');
-    const playerTeam = createShowdownBattleSnapshot({ party: state.party }, { battleId }).party;
-    const wildTeam = projectMaplessPartyToShowdown([encounter.pokemon]);
-    const session = sessionFactory(showdown, {
-      formatid: 'gen9customgame',
-      seed: structuredClone(battleSeed),
-      p1: { name: 'Mapless', team: playerTeam },
-      p2: { name: 'Wild', team: wildTeam },
-    });
-    if (!session || typeof session.start !== 'function' || typeof session.fight !== 'function' || typeof session.resolvedState !== 'function') {
-      throw new Error('P1 Showdown session factory returned an invalid session');
+    if (!battleId || !encounter?.pokemon) {
+      state = boardState;
+      throw new Error('prepared wild encounter Pokemon is required for Showdown start');
     }
-    await session.start();
-    activeBattleSession = { battleId, session };
-    publish([{ type: 'BATTLE_STARTED', battleId }]);
-    return freezeResult({ state, battleId, resolved: session.resolvedState(), events: selected.events });
+    try {
+      const playerTeam = createShowdownBattleSnapshot({ party: state.party }, { battleId }).party;
+      const wildTeam = projectMaplessPartyToShowdown([encounter.pokemon]);
+      const session = sessionFactory(showdown, {
+        formatid: 'gen9customgame',
+        seed: structuredClone(battleSeed),
+        p1: { name: 'Mapless', team: playerTeam },
+        p2: { name: 'Wild', team: wildTeam },
+      });
+      if (!session || typeof session.start !== 'function' || typeof session.fight !== 'function' || typeof session.resolvedState !== 'function') {
+        throw new Error('P1 Showdown session factory returned an invalid session');
+      }
+      await session.start();
+      activeBattleSession = { battleId, session };
+      publish([{ type: 'BATTLE_STARTED', battleId }]);
+      return freezeResult({ state, battleId, resolved: session.resolvedState(), events: selected.events });
+    } catch (error) {
+      state = boardState;
+      throw error;
+    }
   }
 
   async function fight(moveSlot, foeMoveSlot = 1) {
@@ -124,37 +133,40 @@ export function createP1PlayableController({
         activeBattleSession.session.fight('p1', moveSlot),
         activeBattleSession.session.fight('p2', foeMoveSlot),
       ]);
+
+      const { battleId, session } = activeBattleSession;
+      const resolved = session.resolvedState();
+      if (!resolved.terminal) {
+        releaseSafariAction(actionGate, action.token);
+        return freezeResult({ accepted: true, terminal: false, state, resolved });
+      }
+
+      const committed = terminalCommit(state, { battleId, session });
+      state = committed.state;
+      const outcome = terminalOutcome(resolved);
+      const terminal = applyCore({
+        type: 'BATTLE_TERMINAL_RESULT',
+        battleId,
+        resultId: `showdown-terminal:${battleId}`,
+        outcome,
+      }, { save: outcome !== 'win' });
+      activeBattleSession = null;
       releaseSafariAction(actionGate, action.token);
+      return freezeResult({
+        accepted: true,
+        terminal: true,
+        outcome,
+        state,
+        resolved,
+        partyCommitted: committed.committed,
+        duplicatePartyCommit: committed.duplicate,
+        events: terminal.events,
+        effects: terminal.effects,
+      });
     } catch (error) {
       cancelSafariAction(actionGate, action.token);
       throw error;
     }
-
-    const { battleId, session } = activeBattleSession;
-    const resolved = session.resolvedState();
-    if (!resolved.terminal) return freezeResult({ accepted: true, terminal: false, state, resolved });
-
-    const committed = terminalCommit(state, { battleId, session });
-    state = committed.state;
-    const outcome = terminalOutcome(resolved);
-    const terminal = applyCore({
-      type: 'BATTLE_TERMINAL_RESULT',
-      battleId,
-      resultId: `showdown-terminal:${battleId}`,
-      outcome,
-    }, { save: outcome !== 'win' });
-    activeBattleSession = null;
-    return freezeResult({
-      accepted: true,
-      terminal: true,
-      outcome,
-      state,
-      resolved,
-      partyCommitted: committed.committed,
-      duplicatePartyCommit: committed.duplicate,
-      events: terminal.events,
-      effects: terminal.effects,
-    });
   }
 
   function commitReward(recipientIds) {
@@ -174,6 +186,8 @@ export function createP1PlayableController({
     if (transitionId) command.transitionId = transitionId;
     const advanced = applyCore(command, { save: false });
     if (!confirmed) return freezeResult({ ...advanced, state });
+    const generationRequested = advanced.events.some((event) => event?.type === 'BOARD_GENERATION_REQUESTED');
+    if (!generationRequested) return freezeResult({ ...advanced, state });
     const generated = applyCore({ type: 'GENERATE_DAY_BOARD' }, { save: false });
     if (storage && advanced.effects.some((effect) => effect?.type === 'REQUEST_SAVE')) saveNewCoreBrowserRun(storage, state);
     return freezeResult({
