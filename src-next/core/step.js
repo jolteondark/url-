@@ -1,5 +1,6 @@
 import { cloneGameState } from './game-state.js';
 import { resolveMaplessNormalBattleVictoryReward } from './battle/mapless-normal-battle-reward.js';
+import { generateCanonicalDayBoard } from './board/canonical-day-board.js';
 
 function result(state, events = [], effects = []) { return { state, events, effects }; }
 function exactNonnegativeInteger(value, boundary) {
@@ -61,26 +62,47 @@ function battleOutcomeEvent(outcome, battleId) {
   if (outcome === 'loss') return { type: 'BATTLE_LOST', battleId };
   return null;
 }
+function installBoard(state, slots) {
+  state.board = slots.map((slot, index) => ({ ...structuredClone(slot), slot: index, consumed: false }));
+  state.boardSelectionsRemaining = 8;
+  state.mode = 'board';
+  state.location = 'day_board';
+}
 
 export function step(inputState, command) {
   if (!inputState || !command?.type) throw new Error('state and command.type are required');
   const state = cloneGameState(inputState);
 
   switch (command.type) {
+    case 'GENERATE_DAY_BOARD': {
+      if (state.activeBattle || state.pendingBattleResult) throw new Error('GENERATE_DAY_BOARD cannot replace an unresolved battle result');
+      if (state.mode !== 'board' && state.mode !== 'board_pending') throw new Error('GENERATE_DAY_BOARD requires board or board_pending mode');
+      const generated = generateCanonicalDayBoard(state.rngState, state.day);
+      state.rngState = generated.nextRngState;
+      installBoard(state, generated.slots);
+      return result(state, [{ type: 'BOARD_READY', day: state.day }]);
+    }
     case 'BOARD_GENERATED': {
       if (!Array.isArray(command.slots) || command.slots.length !== 8) throw new Error('canonical Day Board requires 8 slots');
       if (state.activeBattle || state.pendingBattleResult) throw new Error('BOARD_GENERATED cannot replace an unresolved battle result');
-      state.board = command.slots.map((slot, index) => ({ ...structuredClone(slot), slot: index, consumed: false }));
-      state.boardSelectionsRemaining = 8;
-      state.mode = 'board';
-      state.location = 'day_board';
+      installBoard(state, command.slots);
       return result(state, [{ type: 'BOARD_READY', day: state.day }]);
+    }
+    case 'BOARD_ENCOUNTER_READY': {
+      if (state.mode !== 'board' || !state.board) throw new Error('BOARD_ENCOUNTER_READY requires an active board');
+      const slot = state.board[command.slot];
+      if (!slot || slot.consumed) throw new Error('board slot unavailable');
+      if (slot.kind !== 'wild' && slot.kind !== 'trainer') throw new Error('BOARD_ENCOUNTER_READY requires a battle slot');
+      if (!command.encounter || typeof command.encounter !== 'object' || Array.isArray(command.encounter)) throw new Error('BOARD_ENCOUNTER_READY requires encounter data');
+      slot.encounter = structuredClone(command.encounter);
+      return result(state, [{ type: 'BOARD_ENCOUNTER_READY', slot: command.slot, kind: slot.kind }]);
     }
     case 'BOARD_SELECT': {
       if (state.mode !== 'board' || !state.board) throw new Error('BOARD_SELECT requires an active board');
       const slot = state.board[command.slot];
       if (!slot || slot.consumed) throw new Error('board slot unavailable');
       if (slot.kind !== 'wild') return result(state, [{ type: 'BOARD_SELECTION_DEFERRED', slot: command.slot, kind: slot.kind }]);
+      if (!slot.encounter) throw new Error('wild board slot requires a prepared encounter before selection');
       const battleId = `${state.runId}:d${state.day}:s${command.slot}`;
       state.activeEncounter = { id: battleId, kind: 'wild', slot: command.slot, encounter: structuredClone(slot.encounter ?? null) };
       state.activeBattle = { id: battleId, status: 'requested', resultCommitted: false };
