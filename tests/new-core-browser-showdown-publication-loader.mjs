@@ -66,13 +66,15 @@ await assert.rejects(
   /SHA-256 mismatch/
 );
 
-await assert.rejects(
-  () => loadPublishedShowdownBrowserArtifact({
-    manifestUrl: 'https://example.test/vendor/showdown/browser/manifest.json',
-    fetcher: async () => ({ ok: true, async json() { return { ...manifest, entry: '../escape.js' }; } }),
-    subtle: webcrypto.subtle,
-  }),
-  /entry is unsafe/
-);
+for (const unsafeEntry of ['../escape.js', 'https://evil.example/x.js', 'battle-engine.js?x=1', 'dir\\evil.js']) {
+  await assert.rejects(
+    () => loadPublishedShowdownBrowserArtifact({
+      manifestUrl: 'https://example.test/vendor/showdown/browser/manifest.json',
+      fetcher: async () => ({ ok: true, async json() { return { ...manifest, entry: unsafeEntry }; } }),
+      subtle: webcrypto.subtle,
+    }),
+    /entry is unsafe/
+  );
+}
 
 console.log('published Showdown browser artifact loader: ok');
