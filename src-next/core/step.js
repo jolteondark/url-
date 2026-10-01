@@ -94,6 +94,18 @@ export function step(inputState, command) {
       if (!slot || slot.consumed) throw new Error('board slot unavailable');
       if (slot.kind !== 'wild' && slot.kind !== 'trainer') throw new Error('BOARD_ENCOUNTER_READY requires a battle slot');
       if (!command.encounter || typeof command.encounter !== 'object' || Array.isArray(command.encounter)) throw new Error('BOARD_ENCOUNTER_READY requires encounter data');
+      const hasRngBefore = command.rngStateBefore !== undefined;
+      const hasRngAfter = command.nextRngState !== undefined;
+      if (hasRngBefore !== hasRngAfter) throw new Error('BOARD_ENCOUNTER_READY RNG commit requires both before and after states');
+      if (hasRngBefore) {
+        const before = Number(command.rngStateBefore);
+        const after = Number(command.nextRngState);
+        if (!Number.isInteger(before) || before < 0 || before > 0xffffffff || !Number.isInteger(after) || after < 0 || after > 0xffffffff) {
+          throw new Error('BOARD_ENCOUNTER_READY RNG states must be uint32 integers');
+        }
+        if ((state.rngState >>> 0) !== (before >>> 0)) throw new Error('BOARD_ENCOUNTER_READY RNG state is stale');
+        state.rngState = after >>> 0;
+      }
       slot.encounter = structuredClone(command.encounter);
       return result(state, [{ type: 'BOARD_ENCOUNTER_READY', slot: command.slot, kind: slot.kind }]);
     }
