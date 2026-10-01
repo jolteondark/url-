@@ -189,11 +189,12 @@ export function createP1PlayableController({
     const generationRequested = advanced.events.some((event) => event?.type === 'BOARD_GENERATION_REQUESTED');
     if (!generationRequested) return freezeResult({ ...advanced, state });
     const generated = applyCore({ type: 'GENERATE_DAY_BOARD' }, { save: false });
-    if (storage && advanced.effects.some((effect) => effect?.type === 'REQUEST_SAVE')) saveNewCoreBrowserRun(storage, state);
+    const effects = [...advanced.effects, ...generated.effects];
+    if (storage && effects.some((effect) => effect?.type === 'REQUEST_SAVE')) saveNewCoreBrowserRun(storage, state);
     return freezeResult({
       state,
       events: [...advanced.events, ...generated.events],
-      effects: advanced.effects,
+      effects,
     });
   }
 
