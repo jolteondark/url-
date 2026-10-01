@@ -3,16 +3,23 @@ import { createInitialGameState } from '../src-next/core/game-state.js';
 import { serializeNewCoreSave, restoreNewCoreSave } from '../src-next/core/persistence.js';
 import { step } from '../src-next/core/step.js';
 
-const slots = Array.from({ length: 8 }, (_, index) => index === 2
-  ? { kind: 'wild', encounter: { species: 'TEST_FOE', level: 10, baseExp: 70 } }
-  : { kind: 'event' });
-let state = createInitialGameState({ runId: 'p1-vertical', seed: 108, money: 25, party: [{ id: 'starter', species: 'PIKACHU', level: 10, hp: 35, maxhp: 35, exp: 100 }] });
-state = step(state, { type: 'BOARD_GENERATED', slots }).state;
-state = step(state, { type: 'BOARD_SELECT', slot: 2 }).state;
+let state = createInitialGameState({
+  runId: 'p1-vertical',
+  seed: 108,
+  money: 25,
+  party: [{ id: 'starter', species: 'PIKACHU', level: 10, hp: 35, maxhp: 35, exp: 100 }],
+});
+state = step(state, { type: 'GENERATE_DAY_BOARD' }).state;
+assert.equal(state.board.length, 8);
+assert.equal(state.board.filter((slot) => slot.kind === 'next_day').length, 1);
+const wildSlot = state.board.findIndex((slot) => slot.kind === 'wild');
+assert.ok(wildSlot >= 0);
+state = step(state, { type: 'BOARD_ENCOUNTER_READY', slot: wildSlot, encounter: { species: 'TEST_FOE', level: 10, baseExp: 70 } }).state;
+state = step(state, { type: 'BOARD_SELECT', slot: wildSlot }).state;
 const battleId = state.activeBattle.id;
 const terminal = step(state, { type: 'BATTLE_TERMINAL_RESULT', battleId, resultId: 'battle-result-1', outcome: 'win' });
 assert.equal(terminal.state.mode, 'battle_result');
-assert.equal(terminal.state.board[2].consumed, true);
+assert.equal(terminal.state.board[wildSlot].consumed, true);
 assert.equal(terminal.events.at(-1).type, 'BATTLE_REWARD_REQUESTED');
 const rewardId = terminal.state.pendingBattleResult.rewardId;
 const reward = step(terminal.state, { type: 'BATTLE_REWARD_RESULT', rewardId, recipientIds: ['starter'] });
@@ -30,7 +37,7 @@ const advanced = step(reward.state, { type: 'ADVANCE_DAY', transitionId: 'p1-day
 assert.equal(advanced.state.day, 2);
 assert.equal(advanced.state.mode, 'board_pending');
 assert.equal(advanced.events.at(-1).type, 'BOARD_GENERATION_REQUESTED');
-const nextBoard = step(advanced.state, { type: 'BOARD_GENERATED', slots }).state;
+const nextBoard = step(advanced.state, { type: 'GENERATE_DAY_BOARD' }).state;
 const continued = restoreNewCoreSave(serializeNewCoreSave(nextBoard));
 assert.deepEqual(continued, nextBoard);
 assert.equal(continued.day, 2);
