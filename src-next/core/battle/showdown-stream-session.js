@@ -27,7 +27,11 @@ function normalizeTeamMember(member) {
   if (!member?.species) throw new Error('Showdown team member requires species');
   const moves = (member.moves ?? []).map((move) => String(move.id ?? move));
   if (!moves.length) throw new Error('Showdown team member requires at least one move');
-  return { name: String(member.name ?? member.species), species: String(member.species), level: exactLevel(member.level, 'Showdown team projection'), item: exactPersistentItem(member.heldItem ?? member.item ?? '', 'Showdown team projection held item'), ability: String(member.ability ?? ''), moves };
+  const set = { name: String(member.name ?? member.species), species: String(member.species), level: exactLevel(member.level, 'Showdown team projection'), item: exactPersistentItem(member.heldItem ?? member.item ?? '', 'Showdown team projection held item'), ability: String(member.ability ?? ''), moves };
+  if (member.nature) set.nature = String(member.nature);
+  if (member.ivs) set.ivs = structuredClone(member.ivs);
+  if (member.evs) set.evs = structuredClone(member.evs);
+  return set;
 }
 function playerCommand(side, player, packedTeam) { return `>player ${side} ${JSON.stringify({ name: String(player.name ?? side), team: packedTeam })}`; }
 function battleLocalInitialTeam(sourceTeam) {
