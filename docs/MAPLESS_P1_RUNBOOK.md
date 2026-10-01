@@ -63,11 +63,19 @@ The publication step fails closed if the extractor or mechanics pin moved. The m
 
 Serve the repository root over HTTP(S); do not open the HTML as a `file://` URL.
 
-Open:
+Open the ordinary page:
 
 ```text
 /reconstruction-p1.html
 ```
+
+For the performance pass, open the opt-in diagnostics page:
+
+```text
+/reconstruction-p1.html?perf=1
+```
+
+The ordinary page does not start the performance rAF probe.
 
 Validate on physical iPad Safari and iPhone Safari:
 
@@ -84,6 +92,25 @@ Validate on physical iPad Safari and iPhone Safari:
 
 ## 5. Performance gate
 
-Use the existing browser performance probe during the same first-playable path. Record at minimum frame/FPS trend, long tasks, DOM node count, active timers/rAF count, rerenders, and asset load/decode spikes.
+Use `?perf=1` during the same first-playable path. At each important checkpoint, read:
+
+```js
+__maplessP1Diagnostics()
+```
+
+The snapshot records:
+
+- frame cadence / estimated FPS / max frame time
+- long-task count and duration where Safari exposes the observer
+- browser engine publication load time
+- DOM render scripting time and major render count
+- sprite decode count/time
+- DOM node count
+- JS heap fields where the browser exposes them
+- presentation queue state and its single active timer count
+- the opt-in probe's own active rAF count
+- Safari action-gate accepted/rejected/completed timing
+
+The reconstruction spec gives 16.7 ms/frame as the 60 fps reference, not a universal hard threshold. Do not invent a numeric PASS rule for unsupported style/layout/paint/composite metrics. Record those with Safari Web Inspector during the physical-device pass. The structural hard failures are duplicate independent rAF loops, more than one presentation timer, gameplay polling every frame, runaway rerenders, obvious long-task/frame hitches, or increasing memory/DOM trends across repeated vertical runs.
 
 P1 must remain draft if the exact pinned engine suite, physical Safari validation, or first-playable performance gate has not passed.
