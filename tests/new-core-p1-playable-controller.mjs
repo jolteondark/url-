@@ -18,7 +18,10 @@ function memoryStorage(backing, counters) {
   };
 }
 
+let seenBattleSeed = null;
+let seenFoeMoveSlot = null;
 function fakeSessionFactory(_showdown, config) {
+  seenBattleSeed = structuredClone(config.seed);
   let started = false;
   let turn = 0;
   function resolvedPlayer() {
@@ -44,13 +47,18 @@ function fakeSessionFactory(_showdown, config) {
       status: '',
       heldItem: '',
       fainted: turn > 0,
-      moves: member.moves.map((move) => ({ id: move.id, pp: move.pp, maxpp: move.maxpp })),
+      moves: member.moves.map((move) => ({
+        id: move.id,
+        pp: turn > 0 ? Math.max(0, move.pp - 1) : move.pp,
+        maxpp: move.maxpp,
+      })),
     }));
   }
   return {
     async start() { started = true; },
-    async fight() {
+    async fight(side, moveSlot) {
       if (!started) throw new Error('not started');
+      if (side === 'p2') seenFoeMoveSlot = moveSlot;
       turn = 1;
     },
     resolvedState() {
@@ -98,7 +106,6 @@ const controller = createP1PlayableController({
   storage,
   encounterDependencies,
   sessionFactory: fakeSessionFactory,
-  battleSeed: [1, 2, 3, 4],
 });
 
 controller.freshStart({ runId: 'controller-smoke', seed: 108 });
@@ -108,11 +115,23 @@ assert.equal(state.party[0].species, 'Eevee');
 const wildSlot = state.board.findIndex((slot) => slot.kind === 'wild');
 assert.equal(wildSlot, 2);
 await controller.prepareWild(wildSlot);
-await controller.startWildBattle(wildSlot);
+const rngBeforeBattle = controller.snapshot().rngState;
+const started = await controller.startWildBattle(wildSlot);
+assert.equal(started.seed.length, 4);
+assert.deepEqual(started.seed, seenBattleSeed);
+assert.notEqual(controller.snapshot().rngState, rngBeforeBattle, 'Showdown seed derivation must advance gameplay RNG');
+assert.deepEqual(controller.activeBattle().seed, seenBattleSeed);
+
+const rngBeforeFight = controller.snapshot().rngState;
 const fight = await controller.fight(1);
 assert.equal(fight.accepted, true);
 assert.equal(fight.terminal, true);
 assert.equal(fight.outcome, 'win');
+assert.equal(fight.opponentChoice.command, 'move');
+assert.equal(fight.opponentChoice.moveSlot, 1);
+assert.equal(seenFoeMoveSlot, 1);
+assert.notEqual(controller.snapshot().rngState, rngBeforeFight, 'wild AI move selection must advance gameplay RNG');
+assert.equal(controller.activeBattle(), null);
 assert.equal(controller.snapshot().mode, 'battle_result');
 assert.equal(controller.snapshot().party[0].hp, 27);
 assert.equal(controller.snapshot().party[0].moves[0].pp, 34);
@@ -145,10 +164,18 @@ assert.equal(load.found, true);
 assert.deepEqual(continued.snapshot(), state, 'new page Continue must restore the exact settled canonical state');
 
 const queuedTypes = controller.presentationQueue.jobs.map((job) => job.event.type);
-assert.ok(queuedTypes.includes('BATTLE_STARTED'));
-assert.ok(queuedTypes.includes('BATTLE_WON'));
-assert.ok(queuedTypes.includes('EXP_GAINED'));
-assert.ok(queuedTypes.includes('ITEM_REWARDED'));
+for (const required of [
+  'BATTLE_STARTED',
+  'POKEMON_SENT_OUT',
+  'MOVE_USED',
+  'DAMAGE_APPLIED',
+  'POKEMON_FAINTED',
+  'BATTLE_WON',
+  'EXP_GAINED',
+  'ITEM_REWARDED',
+]) {
+  assert.ok(queuedTypes.includes(required), `presentation queue missing ${required}`);
+}
 assert.equal(controller.actionGate.accepted, 1);
 assert.equal(controller.actionGate.completed, 1);
 
@@ -166,10 +193,12 @@ failedStart.freshStart({ runId: 'controller-start-failure', seed: 108 });
 const failedWildSlot = failedStart.snapshot().board.findIndex((slot) => slot.kind === 'wild');
 await failedStart.prepareWild(failedWildSlot);
 const preparedBoard = failedStart.snapshot();
+const queuedBeforeFailure = failedStart.presentationQueue.jobs.length;
 await assert.rejects(
   () => failedStart.startWildBattle(failedWildSlot),
   /simulated Showdown start failure/
 );
-assert.deepEqual(failedStart.snapshot(), preparedBoard, 'failed Showdown start must roll back to the prepared Board state');
+assert.deepEqual(failedStart.snapshot(), preparedBoard, 'failed Showdown start must roll back selection and battle RNG');
+assert.equal(failedStart.presentationQueue.jobs.length, queuedBeforeFailure, 'failed Showdown start must not publish stale battle-request events');
 
 console.log('New Core P1 playable controller seam: ok');
