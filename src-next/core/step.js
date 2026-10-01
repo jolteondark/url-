@@ -1,4 +1,5 @@
 import { cloneGameState } from './game-state.js';
+import { resolveMaplessNormalBattleVictoryReward } from './battle/mapless-normal-battle-reward.js';
 
 function result(state, events = [], effects = []) { return { state, events, effects }; }
 function exactNonnegativeInteger(value, boundary) {
@@ -17,22 +18,16 @@ function diagnosticsArray(state, key) {
   if (!Array.isArray(state.diagnostics[key])) throw new Error(`New Core diagnostics.${key} must be an array`);
   return state.diagnostics[key];
 }
-function normalizePartyExp(gains = []) {
-  if (!Array.isArray(gains)) throw new Error('partyExp must be an array');
-  return gains.map((entry) => {
-    const memberId = String(entry?.memberId ?? '');
-    if (!memberId) throw new Error('partyExp entry requires memberId');
-    return { memberId, exp: exactNonnegativeInteger(entry.exp, `partyExp for ${memberId}`) };
-  });
-}
 function applyPartyExp(party, gains) {
   const gainById = new Map();
   for (const entry of gains) {
-    if (gainById.has(entry.memberId)) throw new Error(`duplicate partyExp memberId: ${entry.memberId}`);
-    gainById.set(entry.memberId, entry.exp);
+    const memberId = String(entry?.memberId ?? '');
+    if (!memberId) throw new Error('party EXP entry requires memberId');
+    if (gainById.has(memberId)) throw new Error(`duplicate party EXP memberId: ${memberId}`);
+    gainById.set(memberId, exactNonnegativeInteger(entry.exp, `party EXP for ${memberId}`));
   }
   const knownIds = new Set(party.map(stableMemberId));
-  for (const memberId of gainById.keys()) if (!knownIds.has(memberId)) throw new Error(`partyExp targets unknown member: ${memberId}`);
+  for (const memberId of gainById.keys()) if (!knownIds.has(memberId)) throw new Error(`party EXP targets unknown member: ${memberId}`);
   return party.map((member) => {
     const memberId = stableMemberId(member);
     const gain = gainById.get(memberId) ?? 0;
@@ -40,6 +35,26 @@ function applyPartyExp(party, gains) {
     const current = exactNonnegativeInteger(member.exp, `persistent EXP for ${memberId}`);
     return { ...member, exp: current + gain };
   });
+}
+function addBagRewardItems(state, items) {
+  if (!state.bag || typeof state.bag !== 'object' || Array.isArray(state.bag)) state.bag = {};
+  state.bag.items ??= {};
+  if (!state.bag.items || typeof state.bag.items !== 'object' || Array.isArray(state.bag.items)) throw new Error('New Core bag.items must be an object');
+  const maxSlots = exactNonnegativeInteger(state.bag.maxSlots ?? 20, 'bag maxSlots');
+  const maxPerSlot = exactNonnegativeInteger(state.bag.maxPerSlot ?? 99, 'bag maxPerSlot');
+  if (maxSlots < 1 || maxPerSlot < 1) throw new Error('bag capacity must be positive');
+  state.bag.maxSlots = maxSlots;
+  state.bag.maxPerSlot = maxPerSlot;
+  for (const item of items) {
+    const id = String(item?.id ?? '');
+    const quantity = exactNonnegativeInteger(item?.quantity, `reward quantity for ${id || '<missing>'}`);
+    if (!id || quantity < 1) throw new Error('battle reward item requires id and positive quantity');
+    const current = exactNonnegativeInteger(state.bag.items[id] ?? 0, `bag quantity for ${id}`);
+    const occupied = Object.values(state.bag.items).filter((value) => Number(value) > 0).length;
+    if (current === 0 && occupied >= maxSlots) throw new Error(`bag has no free slot for battle reward item: ${id}`);
+    if (current + quantity > maxPerSlot) throw new Error(`bag stack limit exceeded for battle reward item: ${id}`);
+    state.bag.items[id] = current + quantity;
+  }
 }
 function battleOutcomeEvent(outcome, battleId) {
   if (outcome === 'win') return { type: 'BATTLE_WON', battleId };
@@ -84,7 +99,8 @@ export function step(inputState, command) {
       if (!battle || battle.id !== command.battleId) throw new Error('terminal result does not match active battle');
       const outcome = String(command.outcome ?? '');
       if (!outcome) throw new Error('terminal result outcome is required');
-      const slotIndex = state.activeEncounter?.slot;
+      const completedEncounter = structuredClone(state.activeEncounter);
+      const slotIndex = completedEncounter?.slot;
       if (Number.isInteger(slotIndex) && state.board?.[slotIndex] && !state.board[slotIndex].consumed) {
         state.board[slotIndex].consumed = true;
         state.boardSelectionsRemaining = Math.max(0, state.boardSelectionsRemaining - 1);
@@ -95,7 +111,14 @@ export function step(inputState, command) {
       const outcomeEvent = battleOutcomeEvent(outcome, command.battleId);
       if (outcome === 'win') {
         const rewardId = `${resultId}:reward`;
-        state.pendingBattleResult = { battleId: command.battleId, resultId, rewardId, outcome };
+        state.pendingBattleResult = {
+          battleId: command.battleId,
+          resultId,
+          rewardId,
+          outcome,
+          kind: completedEncounter?.kind ?? null,
+          encounter: completedEncounter?.encounter ?? null,
+        };
         state.mode = 'battle_result';
         return result(state, [
           { type: 'BATTLE_RESULT_COMMITTED', battleId: command.battleId, resultId, outcome },
@@ -120,23 +143,34 @@ export function step(inputState, command) {
       const pending = state.pendingBattleResult;
       if (!pending || pending.outcome !== 'win') throw new Error('battle reward requires a pending winning battle result');
       if (pending.rewardId !== rewardId) throw new Error('battle reward does not match pending reward id');
-      const money = exactNonnegativeInteger(command.money, 'battle reward money');
-      const partyExp = normalizePartyExp(command.partyExp ?? []);
-      state.money += money;
-      state.party = applyPartyExp(state.party, partyExp);
+      const reward = resolveMaplessNormalBattleVictoryReward({
+        kind: pending.kind,
+        encounter: pending.encounter,
+        party: state.party,
+        recipientIds: command.recipientIds,
+      });
+      addBagRewardItems(state, reward.items);
+      state.party = applyPartyExp(state.party, reward.partyExp);
       appliedRewards.push(rewardId);
       state.pendingBattleResult = null;
       state.mode = 'board';
       state.location = 'day_board';
       return result(state, [
-        ...partyExp.filter((entry) => entry.exp > 0).map((entry) => ({
+        ...reward.partyExp.filter((entry) => entry.exp > 0).map((entry) => ({
           type: 'EXP_GAINED',
           memberId: entry.memberId,
           amount: entry.exp,
           battleId: pending.battleId,
           rewardId,
         })),
-        { type: 'BATTLE_REWARD_COMMITTED', battleId: pending.battleId, resultId: pending.resultId, rewardId, money },
+        ...reward.items.map((entry) => ({
+          type: 'ITEM_REWARDED',
+          itemId: entry.id,
+          quantity: entry.quantity,
+          battleId: pending.battleId,
+          rewardId,
+        })),
+        { type: 'BATTLE_REWARD_COMMITTED', battleId: pending.battleId, resultId: pending.resultId, rewardId },
         { type: 'BOARD_RETURNED', day: state.day },
       ], [{ type: 'REQUEST_SAVE', reason: 'battle_reward_result' }]);
     }
