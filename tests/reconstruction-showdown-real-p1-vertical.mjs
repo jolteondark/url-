@@ -26,10 +26,6 @@ const wildPersistentTeam = [{
   moves: [{ id: 'splash', pp: 40, maxpp: 40 }],
 }];
 const wildTeam = projectMaplessPartyToShowdown(wildPersistentTeam);
-const boardSlots = Array.from({ length: 8 }, (_, index) => index === 2
-  ? { kind: 'wild', encounter: { species: 'Magikarp', level: 50, baseExp: 40 } }
-  : { kind: 'event', id: `event-${index}` });
-
 let state = createInitialGameState({
   seed: 4242,
   runId: 'real-showdown-p1-vertical',
@@ -45,8 +41,11 @@ let state = createInitialGameState({
   }],
 });
 
-state = step(state, { type: 'BOARD_GENERATED', slots: boardSlots }).state;
-state = step(state, { type: 'BOARD_SELECT', slot: 2 }).state;
+state = step(state, { type: 'GENERATE_DAY_BOARD' }).state;
+const wildSlot = state.board.findIndex((slot) => slot.kind === 'wild');
+assert.ok(wildSlot >= 0, 'canonical Day Board must include a wild slot');
+state = step(state, { type: 'BOARD_ENCOUNTER_READY', slot: wildSlot, encounter: { species: 'Magikarp', level: 50, baseExp: 40 } }).state;
+state = step(state, { type: 'BOARD_SELECT', slot: wildSlot }).state;
 const battleId = state.activeBattle.id;
 assert.equal(state.mode, 'battle_pending');
 
@@ -84,7 +83,7 @@ const terminalCommit = step(partyCommit.state, {
   outcome: 'win',
 });
 assert.equal(terminalCommit.state.mode, 'battle_result');
-assert.equal(terminalCommit.state.board[2].consumed, true);
+assert.equal(terminalCommit.state.board[wildSlot].consumed, true);
 assert.equal(terminalCommit.state.boardSelectionsRemaining, 7);
 assert.equal(terminalCommit.events.at(-1).type, 'BATTLE_REWARD_REQUESTED');
 assert.equal(terminalCommit.effects.length, 0);
@@ -133,7 +132,7 @@ assert.equal(advanced.state.mode, 'board_pending');
 assert.equal(advanced.events.at(-1).type, 'BOARD_GENERATION_REQUESTED');
 assert.deepEqual(advanced.effects, [{ type: 'REQUEST_SAVE', reason: 'day_advanced' }]);
 
-const day2 = step(advanced.state, { type: 'BOARD_GENERATED', slots: boardSlots }).state;
+const day2 = step(advanced.state, { type: 'GENERATE_DAY_BOARD' }).state;
 const restored = restoreNewCoreSave(serializeNewCoreSave(day2));
 assert.deepEqual(restored, day2, 'fresh Continue must restore the exact canonical P1 state');
 assert.equal(restored.day, 2);
