@@ -29,7 +29,9 @@ export async function createP1BrowserApp(root, {
   performanceProbe = null,
 } = {}) {
   if (!root) throw new Error('P1 browser app requires a root element');
-  const loaded = await showdownLoader({ manifestUrl });
+  const loaded = typeof performanceProbe?.measureAssetLoad === 'function'
+    ? await performanceProbe.measureAssetLoad(() => showdownLoader({ manifestUrl }))
+    : await showdownLoader({ manifestUrl });
   const controller = controllerFactory({
     showdown: loaded.showdown,
     storage,
@@ -45,13 +47,17 @@ export async function createP1BrowserApp(root, {
 
   function render() {
     if (destroyed) return;
-    renderer.render({
+    const draw = () => renderer.render({
       state: snapshotOrNull(),
       resolved: lastResolved,
       activeBattle: controller.activeBattle(),
       canContinue: controller.hasSave(),
     });
-    performanceProbe?.markRender?.();
+    if (typeof performanceProbe?.measureRender === 'function') performanceProbe.measureRender(draw);
+    else {
+      draw();
+      performanceProbe?.markRender?.();
+    }
   }
 
   function present(job) {
