@@ -43,7 +43,7 @@ export function createShowdownBrowserPublicationPlan(extractorDir, outputDir = '
       '--platform=browser',
       '--target=safari16',
       '--tree-shaking=true',
-      '--legal-comments=linked',
+      '--legal-comments=inline',
       `--outfile=${outfile}`,
       `--metafile=${metafile}`,
     ]),
