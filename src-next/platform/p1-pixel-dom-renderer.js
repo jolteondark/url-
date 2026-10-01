@@ -135,6 +135,51 @@ export function createP1PixelDomRenderer(root, {
     message.textContent = String(text ?? '');
   }
 
+  function animateNode(node, keyframes, options) {
+    if (!node || node.hidden || typeof node.animate !== 'function') return null;
+    try {
+      return node.animate(keyframes, { duration: 220, easing: 'steps(2,end)', ...options });
+    } catch {
+      return null;
+    }
+  }
+
+  function presentEvent(event) {
+    const type = String(event?.type ?? '');
+    const side = event?.side === 'player' ? 'player' : 'foe';
+    const playerSprite = q('[data-player-sprite]');
+    const foeSprite = q('[data-foe-sprite]');
+    const target = side === 'player' ? playerSprite : foeSprite;
+    if (type === 'POKEMON_SENT_OUT') {
+      animateNode(target, [{ opacity: 0, transform: 'scale(.7)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 260 });
+    } else if (type === 'MOVE_USED') {
+      const direction = side === 'player' ? 1 : -1;
+      animateNode(target, [
+        { transform: 'translateX(0)' },
+        { transform: `translateX(${direction * 12}px)` },
+        { transform: 'translateX(0)' },
+      ], { duration: 180 });
+    } else if (type === 'DAMAGE_APPLIED') {
+      animateNode(target, [
+        { transform: 'translateX(0)', opacity: 1 },
+        { transform: 'translateX(-6px)', opacity: .55 },
+        { transform: 'translateX(6px)', opacity: 1 },
+        { transform: 'translateX(0)', opacity: 1 },
+      ], { duration: 220 });
+    } else if (type === 'POKEMON_FAINTED') {
+      animateNode(target, [
+        { transform: 'translateY(0)', opacity: 1 },
+        { transform: 'translateY(22px)', opacity: 0 },
+      ], { duration: 300, fill: 'forwards' });
+    } else if (type === 'BATTLE_WON') {
+      animateNode(playerSprite, [
+        { transform: 'translateY(0)' },
+        { transform: 'translateY(-8px)' },
+        { transform: 'translateY(0)' },
+      ], { duration: 260 });
+    }
+  }
+
   function render({ state, resolved = null, activeBattle = null, canContinue = false } = {}) {
     if (!state) {
       boardScreen.hidden = true;
@@ -191,5 +236,5 @@ export function createP1PixelDomRenderer(root, {
     setBusy(busy);
   }
 
-  return Object.freeze({ render, setBusy, setMessage, root: shell });
+  return Object.freeze({ render, setBusy, setMessage, presentEvent, root: shell });
 }
