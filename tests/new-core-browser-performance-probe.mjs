@@ -28,6 +28,8 @@ callbacks.get(3)(150);
 FakeObserver.instance.emit([{ duration: 55 }, { duration: 80 }]);
 probe.markRender();
 probe.markRender(2);
+probe.markAssetDecode(12);
+probe.markAssetDecode(28);
 
 const active = probe.snapshot();
 assert.equal(active.frames, 2);
@@ -38,6 +40,10 @@ assert.equal(active.longTasks, 2);
 assert.equal(active.longTaskTotalMs, 135);
 assert.equal(active.maxLongTaskMs, 80);
 assert.equal(active.renders, 3);
+assert.equal(active.probeRafActive, 1);
+assert.equal(active.assetDecodes, 2);
+assert.equal(active.assetDecodeTotalMs, 40);
+assert.equal(active.maxAssetDecodeMs, 28);
 assert.equal(active.domNodes, 42);
 assert.equal(active.memory.usedJSHeapSize, 10);
 assert.deepEqual(active.support, { frameCadence: true, longTaskObserver: true, memory: true, domNodes: true });
@@ -56,6 +62,8 @@ assert.deepEqual(unsupported.snapshot().support, {
   domNodes: false,
 });
 assert.equal(unsupported.stop(), true);
+assert.equal(unsupported.snapshot().probeRafActive, 0);
 assert.throws(() => probe.markRender(0), /positive integer/);
+assert.throws(() => probe.markAssetDecode(-1), /non-negative finite/);
 
 console.log('new-core-browser-performance-probe-smoke: ok');
