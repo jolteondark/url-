@@ -5,17 +5,17 @@ const source = readFileSync(new URL('../scripts/run-pinned-showdown-roundtrip-lo
 
 assert.match(source, /PKMN_PS_REVISION/);
 assert.match(source, /SHOWDOWN_REVISION/);
-assert.match(source, /ensureCommit\(workDir, PKMN_PS_REVISION, 'pkmn\/ps extractor revision'\)/,
+assert.match(source, /ensureCommit\(workDir, PKMN_PS_REVISION, 'pkmn\/ps extractor revision', pkmnPsBundle\)/,
   'local runner must detach the extractor checkout at the pinned pkmn/ps revision');
-assert.match(source, /ensureCommit\(showdownDir, SHOWDOWN_REVISION, 'Pokemon Showdown mechanics revision'\)/,
+assert.match(source, /ensureCommit\(showdownDir, SHOWDOWN_REVISION, 'Pokemon Showdown mechanics revision', showdownBundle\)/,
   'local runner must detach only vendor\/pokemon-showdown at the Mapless mechanics pin');
 assert.match(source, /git', \['checkout', '--detach', revision\]/,
   'pin helper must use detached checkout semantics');
 assert.match(source, /\['import', '--debug'\]/, 'extractor import must not update vendored submodules remotely');
 assert.match(source, /MAPLESS_SHOWDOWN_OFFLINE/,
   'cached local validation must expose an explicit fail-closed offline mode');
-assert.match(source, /offline mode requires an existing pkmn\/ps checkout/);
-assert.match(source, /offline mode requires an initialized vendor\/pokemon-showdown checkout/);
+assert.match(source, /requireBundle\(pkmnPsBundle, 'pkmn\/ps bundle'\)/);
+assert.match(source, /requireBundle\(showdownBundle, 'Pokemon Showdown bundle'\)/);
 assert.match(source, /offline mode requires cached pkmn\/ps node_modules/);
 assert.match(source, /createHash\('sha256'\)/,
   'cached real-engine artifact provenance must bind to the built entry bytes');

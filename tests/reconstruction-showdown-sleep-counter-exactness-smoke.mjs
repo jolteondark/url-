@@ -37,6 +37,7 @@ function terminalResult(statusTurns, resultId) {
     party: [{
       maplessId: 'sleepy',
       hp: 17,
+      fainted: false,
       status: 'slp',
       statusTurns,
       heldItem: '',

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const sourcePath = fileURLToPath(new URL('../src-next/core/battle/showdown-stream-session.js', import.meta.url));
 const source = readFileSync(sourcePath, 'utf8');
+const guard = readFileSync(new URL('../src-next/core/battle/showdown-start-livecount-guard.js', import.meta.url), 'utf8');
 
 // Pinned Showdown's queued `start` action executes
 // `if (side.pokemonLeft) side.pokemonLeft = side.pokemon.length`.
@@ -18,13 +19,13 @@ assert.doesNotMatch(
   'persistent faint projection must not use a zero pokemonLeft sentinel',
 );
 assert.match(
-  source,
-  /function preservePersistentLiveCountDuringStart\([\s\S]*?value\s*===\s*teamLength[\s\S]*?authoritativeStart\.call\(battle\)[\s\S]*?finally/,
+  guard,
+  /function preservePersistentLiveCountDuringStart\([\s\S]*?Number\(value\)\s*===\s*teamLength[\s\S]*?Object\.defineProperty\(side, 'pokemonLeft', \{ \.\.\.descriptor, value: finalValue \}\)/,
   'persistent faint projection must guard only the queued team-length overwrite during authoritative start',
 );
 assert.match(
   source,
-  /preservePersistentLiveCountDuringStart\(battle,\s*authoritativeStart\)[\s\S]*?reconcilePersistentSideBookkeeping\(battle,\s*0\)[\s\S]*?reconcilePersistentSideBookkeeping\(battle,\s*1\)/,
+  /runAuthoritativeStartWithPersistentLiveCounts\(battle,\s*authoritativeStart\)[\s\S]*?reconcilePersistentSideBookkeeping\(battle,\s*0\)[\s\S]*?reconcilePersistentSideBookkeeping\(battle,\s*1\)/,
   'the start-scoped guard must be followed by exact persistent live-count reconciliation',
 );
 

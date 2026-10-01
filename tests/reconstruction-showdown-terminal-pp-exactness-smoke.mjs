@@ -26,6 +26,7 @@ function result(moves) {
     party: [{
       maplessId: 'starter-1',
       hp: 20,
+      fainted: false,
       status: '',
       heldItem: '',
       moves,

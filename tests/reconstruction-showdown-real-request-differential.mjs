@@ -4,6 +4,7 @@ import { inspectExtractedShowdownArtifact } from '../scripts/showdown-browser-ar
 import { loadShowdownBrowserArtifact, REQUIRED_SHOWDOWN_REVISION } from '../src-next/core/battle/showdown-browser-artifact.js';
 import { createShowdownStreamSession } from '../src-next/core/battle/showdown-stream-session.js';
 import { createShowdownBattleSnapshot } from '../src-next/core/battle/showdown-roundtrip.js';
+import { assertPersistentRawDifferential, assertRequestRawDifferential } from './helpers/reconstruction-showdown-real-assertions.mjs';
 
 const extractorDir = process.argv[2];
 if (!extractorDir) {
@@ -20,7 +21,9 @@ const p1PersistentTeam = [{
   id: 'request-pikachu', species: 'Pikachu', name: 'Pikachu', level: 50, ability: 'Static',
   // With the projected set (no explicit EVs/IVs), pinned Showdown constructs level-50 Pikachu at 110 max HP.
   // Keep persistent maxhp identical to that authoritative generated ceiling so this harness reaches hydration.
-  hp: 17, maxhp: 110, status: 'slp', statusTurns: 3, heldItem: 'oranberry', fainted: false,
+  // An Oran Berry at this HP is correctly consumed by Showdown's initial Update.
+  // Use an inert-at-start item when asserting unchanged starting persistence.
+  hp: 17, maxhp: 110, status: 'slp', statusTurns: 3, heldItem: 'throatspray', fainted: false,
   moves: [{ id: 'thunderbolt', pp: 4, maxpp: 24 }],
 }];
 const p2PersistentTeam = [{
@@ -140,6 +143,27 @@ assertAdapterMatchesRaw('p1', 0);
 assertAdapterMatchesRaw('p2', 1);
 assertRequestMatchesRaw(0);
 assertRequestMatchesRaw(1);
+assertPersistentRawDifferential(battle.sides[0].pokemon[0], p1PersistentTeam[0], adapterStarting.p1[0], 'starting p1');
+assertPersistentRawDifferential(battle.sides[1].pokemon[0], p2PersistentTeam[0], adapterStarting.p2[0], 'starting p2');
+battle.sides.forEach((side) => assertRequestRawDifferential(side, `starting ${side.id}`));
 assert.equal(battle.sides[0].pokemon[0].statusState.time, 3, 'request regeneration must not consume persisted Sleep turns');
 
-console.log(JSON.stringify({ ok: true, showdownRevision: showdown.revision, p1Adapter: adapterStarting.p1, p2Adapter: adapterStarting.p2, p1Request: battle.sides[0].activeRequest, p2Request: battle.sides[1].activeRequest }, null, 2));
+// Prove hydration precedes engine-owned initial Update: the original failing
+// Oran fixture must really heal/consume at start, rather than be rehydrated back
+// afterward by a second Mapless start/switch-in implementation.
+const berryParty = [{ ...p1PersistentTeam[0], id: 'starting-oran', heldItem: 'oranberry' }];
+const berrySession = createShowdownStreamSession(showdown, {
+  formatid: 'gen9customgame', seed: [11, 12, 13, 14],
+  p1: { name: 'Mapless', team: projectedParty(berryParty, 'real-starting-oran') },
+  p2: { name: 'Wild', team: p2Team },
+});
+await berrySession.start();
+const berryRaw = berrySession.battleStream.battle.sides[0].pokemon[0];
+assert.equal(berryRaw.hp, 27, 'pinned Showdown must own the initial Oran heal');
+assert.equal(berryRaw.item, '', 'pinned Showdown must own initial item consumption');
+assert.equal(berryParty[0].hp, 17, 'initial Showdown Update must not mutate persistence before commit');
+assert.equal(berryParty[0].heldItem, 'oranberry');
+assertPersistentRawDifferential(berryRaw, { ...berryParty[0], hp: 27, heldItem: '' }, berrySession.resolvedState().p1[0], 'authoritative Oran start');
+berrySession.battleStream.battle.sides.forEach((side) => assertRequestRawDifferential(side, `Oran start ${side.id}`));
+
+console.log(JSON.stringify({ ok: true, showdownRevision: showdown.revision, rawRequestDifferentials: 0, initialOran: { hp: berryRaw.hp, item: berryRaw.item }, p1Adapter: adapterStarting.p1, p2Adapter: adapterStarting.p2, p1Request: battle.sides[0].activeRequest, p2Request: battle.sides[1].activeRequest }, null, 2));

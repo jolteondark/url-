@@ -24,8 +24,8 @@ const omniscient = new FakeStream(async (value) => {
     battleStream.battle = {
       ended: false, winner: '', turn: 0, started: false,
       sides: [
-        { pokemon: [makePokemon('ditto', 'transform', 16)] },
-        { pokemon: [makePokemon('pikachu', 'thunderbolt', 24)] },
+        { pokemon: [makePokemon('ditto', 'transform', 16)], pokemonLeft: 1 },
+        { pokemon: [makePokemon('pikachu', 'thunderbolt', 24)], pokemonLeft: 1 },
       ],
       start() { this.started = true; },
     };

@@ -10,7 +10,7 @@ const original = createInitialGameState({
   runId: 'showdown-spike', seed: 7,
   party: [{
     id: 'p1-a', species: 'PIKACHU', level: 50,
-    hp: 100, maxhp: 100, status: '', heldItem: 'ORANBERRY',
+    hp: 100, maxhp: 100, status: '', heldItem: 'oranberry',
     moves: [{ id: 'THUNDERBOLT', pp: 15, maxpp: 15 }],
     volatile: { confusion: 2 }, statStages: { atk: 2 },
   }],
@@ -26,7 +26,7 @@ assert.equal('statStages' in snapshot.party[0], false);
 const resolved = {
   terminal: true, resultId: 'showdown-spike:d1:s0:terminal:1',
   party: [{
-    maplessId: 'p1-a', hp: 0, status: 'brn', heldItem: '',
+    maplessId: 'p1-a', hp: 0, status: 'brn', heldItem: '', fainted: true,
     moves: [{ id: 'THUNDERBOLT', pp: 14, maxpp: 15 }],
     volatile: { confusion: 1 }, statStages: { atk: -1 },
   }],

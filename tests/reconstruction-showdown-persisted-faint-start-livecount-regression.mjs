@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const sourcePath = fileURLToPath(new URL('../src-next/core/battle/showdown-stream-session.js', import.meta.url));
 const source = readFileSync(sourcePath, 'utf8');
+const guard = readFileSync(new URL('../src-next/core/battle/showdown-start-livecount-guard.js', import.meta.url), 'utf8');
 
 // The persisted live count is mechanics-visible during authoritative start
 // (for example to format/rule onBegin hooks).  A zero sentinel avoids pinned
@@ -18,14 +19,15 @@ assert.doesNotMatch(
   'authoritative Showdown start must never observe a synthetic zero live-party count',
 );
 assert.match(
-  source,
+  guard,
   /function preservePersistentLiveCountDuringStart\(/,
   'persistent live-party count needs a start-scoped guard instead of a zero sentinel',
 );
 assert.match(
   source,
-  /preservePersistentLiveCountDuringStart\(battle,[\s\S]*?authoritativeStart\.call\(battle\)/,
+  /runAuthoritativeStartWithPersistentLiveCounts\(battle,\s*authoritativeStart\)/,
   'the live-count guard must cover the authoritative Showdown start call itself',
 );
+assert.match(guard, /preservePersistentLiveCountDuringStart\(side\)[\s\S]*?authoritativeStart\.call\(battle\)/);
 
 console.log('persisted-faint Showdown start live-count regression PASS');

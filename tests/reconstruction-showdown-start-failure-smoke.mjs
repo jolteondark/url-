@@ -22,11 +22,13 @@ const omniscient = new FakeStream(async (value) => {
   // one-shot start/player projection. Hydration must fail closed, and a caller
   // must never be able to replay >start/>player into this partially initialized
   // authoritative stream.
-  if (value.startsWith('>player p2 ')) {
+  if (value.startsWith('>player p2 ')) { battleStream.battle.start(); return; }
+  if (value.startsWith('>start ')) {
     battleStream.battle = {
       ended: false,
       winner: '',
       turn: 0,
+      start() { this.started = true; },
       sides: [
         { pokemon: [] },
         { pokemon: [{ hp: 20, maxhp: 20, status: '', item: '', fainted: false, moveSlots: [{ id: 'tackle', pp: 35, maxpp: 35 }] }] },

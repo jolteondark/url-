@@ -23,6 +23,7 @@ const omniscient = new FakeStream(async (value) => {
       ],
       start() { this.started = true; },
     };
+    for (const side of battleStream.battle.sides) { side.pokemonLeft = side.pokemon.length; for (const pokemon of side.pokemon) pokemon.baseMoveSlots = pokemon.moveSlots; }
     return;
   }
   if (value.startsWith('>player p2 ')) battleStream.battle.start();
@@ -50,6 +51,7 @@ assert.equal(await session.start(), true);
 assert.equal(await session.start(), false, 'battle start must be exactly once');
 assert.equal(session.battleStream.battle.started, true);
 assert.equal(omniscient.writes.length, 3);
+assert.equal(JSON.parse(omniscient.writes[0].slice('>start '.length)).formatid, 'gen9customgame@@@!Team Preview', 'Mapless must configure Showdown to perform initial switch-in during the guarded authoritative start');
 assert.match(omniscient.writes[1], /^>player p1 /);
 assert.match(omniscient.writes[2], /^>player p2 /);
 

@@ -53,6 +53,9 @@ const showdown = {
               moveSlots: set.moves.map((id) => ({ id, pp: 35, maxpp: 35 })),
             })),
           };
+          const side = battle.sides[sideIndex];
+          side.pokemonLeft = side.pokemon.length;
+          for (const pokemon of side.pokemon) pokemon.baseMoveSlots = pokemon.moveSlots;
           if (battle.sides.every(Boolean) && !battle.started) battle.start();
         },
       };

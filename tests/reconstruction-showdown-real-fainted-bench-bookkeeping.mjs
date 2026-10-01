@@ -4,6 +4,10 @@ import { inspectExtractedShowdownArtifact } from '../scripts/showdown-browser-ar
 import { loadShowdownBrowserArtifact, REQUIRED_SHOWDOWN_REVISION } from '../src-next/core/battle/showdown-browser-artifact.js';
 import { createShowdownStreamSession } from '../src-next/core/battle/showdown-stream-session.js';
 import { createShowdownBattleSnapshot, projectMaplessPartyToShowdown } from '../src-next/core/battle/showdown-roundtrip.js';
+import { commitShowdownStreamTerminal } from '../src-next/core/battle/showdown-terminal-handoff.js';
+import { createInitialGameState } from '../src-next/core/game-state.js';
+import { serializeNewCoreSave, restoreNewCoreSave } from '../src-next/core/persistence.js';
+import { assertPersistentRawDifferential, assertRequestRawDifferential } from './helpers/reconstruction-showdown-real-assertions.mjs';
 
 const extractorDir = process.argv[2];
 if (!extractorDir) {
@@ -59,10 +63,11 @@ assert.equal(persistedProjected.p1[0].status, 'par', 'resolved starting status m
 assert.equal(persistedProjected.p1[0].heldItem, 'oranberry', 'resolved starting held item must remain exact before FIGHT');
 assert.deepEqual(persistedProjected.p1[0].moves, [{ id: 'thunderbolt', pp: 7, maxpp: 15 }], 'resolved starting PP must remain exact before FIGHT');
 
-const benchSession = await startCase([
+const benchParty = [
   { ...healthy, id: 'healthy-lead' },
   { ...fainted, id: 'fainted-bench' },
-], 'fainted-bench-regression');
+];
+const benchSession = await startCase(benchParty, 'fainted-bench-regression');
 const benchBattle = benchSession.battleStream.battle;
 const benchSide = benchBattle.sides[0];
 const benchProjected = benchSession.resolvedState();
@@ -78,10 +83,11 @@ assert.equal(benchSide.active[0], benchSide.pokemon[0], 'healthy lead must be th
 // A persisted fainted member may occupy canonical slot 1 after a previous battle.
 // The adapter keeps canonical Mapless order but projects the first live member as the
 // battle-local Showdown lead so Showdown still owns the actual initial switch-in.
-const leadSession = await startCase([
+const leadParty = [
   { ...fainted, id: 'fainted-lead' },
   { ...healthy, id: 'healthy-bench' },
-], 'fainted-lead-regression');
+];
+const leadSession = await startCase(leadParty, 'fainted-lead-regression');
 const leadBattle = leadSession.battleStream.battle;
 const leadSide = leadBattle.sides[0];
 const leadProjected = leadSession.resolvedState();
@@ -170,9 +176,60 @@ assertRawPersistentMatch(benchSide.pokemon[1], benchProjected.p1[1], 'fainted be
 assertRawPersistentMatch(leadSide.pokemon[0], leadProjected.p1[1], 'battle-local healthy lead');
 assertRawPersistentMatch(leadSide.pokemon[1], leadProjected.p1[0], 'canonical fainted lead');
 
+// Complete the real persistent round trip in BOTH canonical party orders. The
+// raw engine order remains battle-local; Mapless commits and reprojects by ID.
+const roundTrips = [];
+for (const { session, party, label, rawOrder } of [
+  { session: benchSession, party: benchParty, label: 'healthy-lead', rawOrder: [0, 1] },
+  { session: leadSession, party: leadParty, label: 'fainted-lead', rawOrder: [1, 0] },
+]) {
+  const state = createInitialGameState({ seed: 1718, runId: `real-faint-${label}`, party });
+  const before = structuredClone(state.party);
+  const battle = session.battleStream.battle;
+  const side = battle.sides[0];
+  const initial = session.resolvedState();
+  party.forEach((member, index) => assertPersistentRawDifferential(side.pokemon[rawOrder[index]], member, initial.p1[index], `${label} start[${index}]`));
+  battle.sides.forEach((rawSide) => {
+    const descriptor = Object.getOwnPropertyDescriptor(rawSide, 'pokemonLeft');
+    assert.equal(descriptor.writable, true, 'authoritative start must restore ordinary writable live-count properties');
+    assert.equal(descriptor.get, undefined);
+    assert.equal(descriptor.set, undefined);
+    assertRequestRawDifferential(rawSide, `${label} start ${rawSide.id}`);
+  });
+  assert.equal(await session.start(), false, 'the real engine start must not be invoked again');
+  await Promise.all([session.fight('p1', 1), session.fight('p2', 1)]);
+  const terminal = session.resolvedState();
+  assert.equal(terminal.terminal, true, `${label} must complete a real FIGHT`);
+  assert.equal(battle.sides[1].pokemonLeft, 0, 'normal mechanics-owned live-count writes must work after the start guard');
+  assert.deepEqual(state.party, before, 'FIGHT must not commit or reorder persistence');
+  const battleId = `real-faint-roundtrip-${label}`;
+  const committed = commitShowdownStreamTerminal(state, { battleId, session });
+  assert.equal(committed.committed, true);
+  committed.state.party.forEach((member, index) => assertPersistentRawDifferential(side.pokemon[rawOrder[index]], member, terminal.p1[index], `${label} commit[${index}]`));
+  assert.deepEqual(committed.state.party.map(({ id }) => id), party.map(({ id }) => id), 'canonical persistent party order must survive commit');
+  assert.equal(commitShowdownStreamTerminal(committed.state, { battleId, session }).duplicate, true);
+  const restored = restoreNewCoreSave(serializeNewCoreSave(committed.state));
+  assert.deepEqual(restored.party, committed.state.party);
+  restored.party.forEach((member, index) => assertPersistentRawDifferential(side.pokemon[rawOrder[index]], member, terminal.p1[index], `${label} reload[${index}]`));
+  const replay = commitShowdownStreamTerminal(restored, { battleId, session });
+  assert.equal(replay.committed, false);
+  assert.equal(replay.duplicate, true);
+  assert.equal(replay.state, restored);
+  const next = await startCase(restored.party, `${battleId}-next`);
+  const nextBattle = next.battleStream.battle;
+  const reprojected = next.resolvedState();
+  restored.party.forEach((member, index) => assertPersistentRawDifferential(nextBattle.sides[0].pokemon[rawOrder[index]], member, reprojected.p1[index], `${label} reproject[${index}]`));
+  nextBattle.sides.forEach((rawSide) => assertRequestRawDifferential(rawSide, `${label} reproject ${rawSide.id}`));
+  assert.equal(nextBattle.sides[0].pokemonLeft, 1);
+  assert.equal(nextBattle.canSwitch(nextBattle.sides[0]), 0);
+  roundTrips.push({ case: label, fightTerminal: true, replayRejected: replay.duplicate, rawRequestDifferentials: 0 });
+}
+
 console.log(JSON.stringify({
   ok: true,
   showdownRevision: showdown.revision,
+  rawRequestDifferentials: 0,
+  roundTrips,
   healthyLead: { pokemonLeft: benchSide.pokemonLeft, canSwitch: benchBattle.canSwitch(benchSide), projectedP1: benchProjected.p1 },
   faintedLead: { pokemonLeft: leadSide.pokemonLeft, canSwitch: leadBattle.canSwitch(leadSide), projectedP1: leadProjected.p1 },
 }, null, 2));

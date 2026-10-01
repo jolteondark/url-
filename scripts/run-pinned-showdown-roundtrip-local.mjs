@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -91,6 +91,57 @@ function exactArtifactStamp(stampPath, builtEntry) {
   }
 }
 
+function extractPinnedSimulator(showdownDir, artifactStamp) {
+  // These exact pins straddle supplemental extractor-only additions. Neither
+  // input below belongs to the simulator mechanics executed by the harnesses.
+  // Keep the pinned import/build scripts and every Showdown source byte intact.
+  run('git', ['diff', '--exit-code', 'HEAD', '--', 'import', 'build'], workDir);
+  // npm refreshes package-lock's Node engine metadata; it is not engine source.
+  run('git', ['diff', '--exit-code', 'HEAD', '--', '.', ':!package-lock.json'], showdownDir);
+  const unsupportedMod = join(workDir, 'mods', 'src', 'championsregma');
+  if (existsSync(join(showdownDir, 'data', 'mods', 'championsregma'))) {
+    throw new Error('Unexpected championsregma data at the exact Showdown pin');
+  }
+  const optionalData = join(showdownDir, 'data', 'random-battles', 'gen9', 'sets-megainvasion.json');
+  const teamsSource = readFileSync(join(showdownDir, 'data', 'random-battles', 'gen9', 'teams.ts'), 'utf8');
+  if (existsSync(optionalData) || /sets-megainvasion\.json|randomMegaInvasionSets/.test(teamsSource)) {
+    throw new Error('Cannot supply an unused optional extractor input without changing pinned random-team mechanics');
+  }
+  const stage = mkdtempSync(join(tmpdir(), 'mapless-extractor-inputs-'));
+  const stagedMod = join(stage, 'championsregma');
+  let modMoved = false;
+  let dataCreated = false;
+  try {
+    // import enumerates files under sim; a previous generated provenance stamp
+    // is not an upstream source input and must be invalidated before rebuilding.
+    if (existsSync(artifactStamp)) unlinkSync(artifactStamp);
+    for (const kind of ['cjs', 'esm']) {
+      const temporaryConfig = join(workDir, 'sim', `tsconfig.${kind}.json`);
+      if (!existsSync(temporaryConfig)) continue;
+      const generated = JSON.parse(readFileSync(temporaryConfig, 'utf8'));
+      if (generated.compilerOptions?.outDir !== `build/${kind}`) throw new Error(`Unexpected temporary build config: ${temporaryConfig}`);
+      unlinkSync(temporaryConfig);
+    }
+    if (existsSync(unsupportedMod)) {
+      renameSync(unsupportedMod, stagedMod);
+      modMoved = true;
+    }
+    writeFileSync(optionalData, '{}\n');
+    dataCreated = true;
+    run('node', ['import', '--debug'], workDir);
+  } finally {
+    if (dataCreated) unlinkSync(optionalData);
+    if (modMoved) renameSync(stagedMod, unsupportedMod);
+    rmSync(stage, { recursive: true });
+  }
+  // Newer extractor declarations reject older pinned tags/rule descriptions.
+  // Emit the unmodified engine TS as JS; do not claim upstream type-check PASS.
+  const configPath = join(workDir, 'sim', 'tsconfig.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  config.compilerOptions.noCheck = true;
+  writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
+}
+
 try {
   if (!existsSync(join(workDir, '.git'))) {
     if (offline) {
@@ -111,8 +162,7 @@ try {
     }
   }
 
-  // The extractor revision predates the Mapless mechanics pin. Keep the extractor
-  // itself pinned, but deliberately move only its Showdown vendor checkout to the
+  // Keep the extractor itself pinned, but move only its Showdown vendor to the
   // exact Mapless SHOWDOWN_REVISION before regenerating @pkmn/sim. Running import
   // with --debug is essential: normal import updates submodules from remote.
   ensureCommit(showdownDir, SHOWDOWN_REVISION, 'Pokemon Showdown mechanics revision', showdownBundle);
@@ -133,12 +183,17 @@ try {
         if (!npmCache || !existsSync(npmCache)) {
           throw new Error('offline mode requires cached pkmn/ps node_modules or MAPLESS_NPM_CACHE when the built simulator artifact is missing');
         }
-        run('npm', ['install', '--offline', '--cache', npmCache], workDir);
+        run('npm', ['install', '--ignore-scripts', '--offline', '--cache', npmCache], workDir);
       }
     } else {
-      run('npm', ['install'], workDir);
+      run('npm', ['install', '--ignore-scripts'], workDir);
     }
-    run('node', ['import', '--debug'], workDir);
+    // Install only simulator/import dependencies. Upstream postinstall also
+    // installs server/client/integration packages and native SQLite databases.
+    const dependencyArgs = ['install', '--ignore-scripts', ...(offline ? ['--offline'] : []), ...(npmCache ? ['--cache', npmCache] : [])];
+    run('npm', dependencyArgs, join(workDir, 'sim'));
+    run('npm', dependencyArgs, showdownDir);
+    extractPinnedSimulator(showdownDir, artifactStamp);
     run('npm', ['run', 'build'], join(workDir, 'sim'));
     if (!existsSync(builtEntry)) throw new Error(`pinned Showdown build did not produce ${SHOWDOWN_BROWSER_ENTRY}`);
     // Build/import are allowed to generate files, but the provenance stamp must
@@ -149,6 +204,10 @@ try {
       extractorRevision: PKMN_PS_REVISION,
       showdownRevision: SHOWDOWN_REVISION,
       entrySha256: sha256(builtEntry),
+      extractorScriptSha256: sha256(join(workDir, 'import')),
+      battleSourceSha256: sha256(join(showdownDir, 'sim', 'battle.ts')),
+      pokemonSourceSha256: sha256(join(showdownDir, 'sim', 'pokemon.ts')),
+      typeCheck: false,
     }, null, 2)}\n`);
   }
 

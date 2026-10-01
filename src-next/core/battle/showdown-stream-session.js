@@ -206,7 +206,12 @@ export function createShowdownStreamSession(showdown, config) {
   const p2BattleTeam = battleLocalInitialTeam(config.p2.team);
   const p1Team = showdown.Teams.pack(p1BattleTeam.map(normalizeTeamMember));
   const p2Team = showdown.Teams.pack(p2BattleTeam.map(normalizeTeamMember));
-  const start = { formatid };
+  // Mapless has already selected its battle-local live lead. The pinned Custom
+  // Game otherwise pauses Battle#start at Team Preview, leaving the queued
+  // initial switch-in (and pokemonLeft reset) outside the start-scoped guard.
+  // Use Showdown's own rule configuration to start that queue immediately;
+  // Battle#start and all switch-in mechanics still execute inside Showdown.
+  const start = { formatid: formatid === 'gen9customgame' ? `${formatid}@@@!Team Preview` : formatid };
   if (config.seed !== undefined) start.seed = config.seed;
   const identityByPokemon = new WeakMap();
   let startAttempted = false;
@@ -259,8 +264,9 @@ export function createShowdownStreamSession(showdown, config) {
     if (!started || !battleStream.battle) throw new Error('Showdown battle state is not available');
     const sides = battleStream.battle.sides ?? [];
     const projectSide = (sideIndex, canonicalTeam) => {
-      const resolvedMembers = (sides[sideIndex]?.pokemon ?? []).map((member) => resolvedPokemon(member, identityByPokemon));
-      if (resolvedMembers.length !== canonicalTeam.length) throw new Error(`Resolved Showdown side cardinality diverged from canonical Mapless team: ${resolvedMembers.length}/${canonicalTeam.length}`);
+      const rawMembers = sides[sideIndex]?.pokemon ?? [];
+      if (rawMembers.length !== canonicalTeam.length) throw new Error(`Resolved Showdown side cardinality diverged from canonical Mapless team: ${rawMembers.length}/${canonicalTeam.length}`);
+      const resolvedMembers = rawMembers.map((member) => resolvedPokemon(member, identityByPokemon));
       const byId = new Map();
       for (const resolved of resolvedMembers) {
         if (byId.has(resolved.maplessId)) throw new Error(`Resolved Showdown side contains duplicate Mapless identity: ${resolved.maplessId}`);

@@ -47,7 +47,7 @@ const guardedSide = {
 };
 let combined;
 try {
-  runAuthoritativeStartWithPersistentLiveCounts({ sides: [guardedSide] }, () => { throw startFailure; });
+  runAuthoritativeStartWithPersistentLiveCounts({ sides: [guardedSide, { pokemon: [{ hp: 20, fainted: false }], pokemonLeft: 1 }] }, () => { throw startFailure; });
 } catch (error) {
   combined = error;
 }

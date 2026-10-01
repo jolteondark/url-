@@ -11,7 +11,8 @@ function fakeShowdown(rawAbility, rawSpecies = 'pikachu') {
       getPlayerStreams(stream) {
         const omniscient = new Stream();
         omniscient.write = async (value) => {
-          if (!value.startsWith('>player p2 ')) return;
+          if (value.startsWith('>player p2 ')) { stream.battle.start(); return; }
+          if (!value.startsWith('>start ')) return;
           stream.battle = {
             ended: false,
             winner: '',
@@ -23,7 +24,9 @@ function fakeShowdown(rawAbility, rawSpecies = 'pikachu') {
             ],
             initEffectState(initial) { return { ...initial }; },
             makeRequest() { this.requestCount += 1; },
+            start() { this.started = true; this.makeRequest(); },
           };
+          for (const side of stream.battle.sides) { side.pokemonLeft = side.pokemon.length; for (const pokemon of side.pokemon) pokemon.baseMoveSlots = pokemon.moveSlots; }
         };
         return { omniscient, p1: new Stream(), p2: new Stream() };
       },

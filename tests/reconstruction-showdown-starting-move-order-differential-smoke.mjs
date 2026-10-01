@@ -11,15 +11,17 @@ function fakeShowdown(raw) {
       getPlayerStreams(stream) {
         const omniscient = new Stream();
         omniscient.write = async (value) => {
-          if (!value.startsWith('>player p2 ')) return;
+          if (value.startsWith('>player p2 ')) { stream.battle.start(); return; }
+          if (!value.startsWith('>start ')) return;
           stream.battle = {
             ended: false,
             winner: '',
             turn: 0,
             requestCount: 0,
-            sides: [{ pokemon: [raw.p1] }, { pokemon: [raw.p2] }],
+            sides: [{ pokemon: [raw.p1], pokemonLeft: 1 }, { pokemon: [raw.p2], pokemonLeft: 1 }],
             initEffectState(initial) { return { ...initial }; },
             makeRequest() { this.requestCount += 1; },
+            start() { this.started = true; this.makeRequest(); },
           };
         };
         return { omniscient, p1: new Stream(), p2: new Stream() };

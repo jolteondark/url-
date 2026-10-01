@@ -11,14 +11,18 @@ function fakeShowdown(p1Item) {
       getPlayerStreams(stream) {
         const omniscient = new Stream();
         omniscient.write = async (value) => {
-          if (!value.startsWith('>player p2 ')) return;
-          const pika = { hp: 35, maxhp: 35, status: '', statusState: {}, item: p1Item, fainted: false, moveSlots: [{ id: 'thunderbolt', pp: 15, maxpp: 15 }] };
-          const carp = { hp: 20, maxhp: 20, status: '', statusState: {}, item: '', fainted: false, moveSlots: [{ id: 'splash', pp: 40, maxpp: 40 }] };
+          if (value.startsWith('>player p2 ')) { stream.battle.start(); return; }
+          if (!value.startsWith('>start ')) return;
+          const pika = { species: { id: 'pikachu' }, level: 1, hp: 35, maxhp: 35, status: '', statusState: {}, item: p1Item, fainted: false, moveSlots: [{ id: 'thunderbolt', pp: 15, maxpp: 15 }] };
+          const carp = { species: { id: 'magikarp' }, level: 1, hp: 20, maxhp: 20, status: '', statusState: {}, item: '', fainted: false, moveSlots: [{ id: 'splash', pp: 40, maxpp: 40 }] };
+          pika.baseMoveSlots = pika.moveSlots;
+          carp.baseMoveSlots = carp.moveSlots;
           stream.battle = {
             ended: false, winner: '', turn: 0,
-            sides: [{ pokemon: [pika] }, { pokemon: [carp] }],
+            sides: [{ pokemon: [pika], pokemonLeft: 1 }, { pokemon: [carp], pokemonLeft: 1 }],
             initEffectState(initial) { return { ...initial }; },
             makeRequest() {},
+            start() { this.started = true; this.makeRequest(); },
           };
         };
         return { omniscient, p1: new Stream(), p2: new Stream() };
@@ -29,8 +33,8 @@ function fakeShowdown(p1Item) {
 }
 
 const config = {
-  p1: { name: 'Mapless', team: [{ id: 'hero', species: 'Pikachu', hp: 17, heldItem: 'Oran Berry', moves: [{ id: 'thunderbolt', pp: 3 }] }] },
-  p2: { name: 'Wild', team: [{ id: 'wild', species: 'Magikarp', hp: 11, moves: [{ id: 'splash', pp: 9 }] }] },
+  p1: { name: 'Mapless', team: [{ id: 'hero', species: 'Pikachu', hp: 17, heldItem: 'oranberry', moves: [{ id: 'thunderbolt', pp: 3, maxpp: 15 }] }] },
+  p2: { name: 'Wild', team: [{ id: 'wild', species: 'Magikarp', hp: 11, moves: [{ id: 'splash', pp: 9, maxpp: 40 }] }] },
 };
 
 const exact = createShowdownStreamSession(fakeShowdown('oranberry'), config);

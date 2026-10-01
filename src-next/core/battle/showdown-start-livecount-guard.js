@@ -52,10 +52,10 @@ export function preservePersistentLiveCountDuringStart(side) {
     },
   });
 
-  return function restorePersistentLiveCountGuard() {
+  return function restorePersistentLiveCountGuard({ checkQueuedReset = true } = {}) {
     const finalValue = visible;
     Object.defineProperty(side, 'pokemonLeft', { ...descriptor, value: finalValue });
-    if (expectsQueuedResetSuppression && !suppressedQueuedReset) {
+    if (checkQueuedReset && expectsQueuedResetSuppression && !suppressedQueuedReset) {
       throw new Error('Pinned Showdown start did not perform the expected pokemonLeft team-length initialization');
     }
     return { persistentLive, finalValue, suppressedQueuedReset };
@@ -100,7 +100,9 @@ export function runAuthoritativeStartWithPersistentLiveCounts(battle, authoritat
   const restorationErrors = [];
   for (const restore of restorers.reverse()) {
     try {
-      restore();
+      // If installation failed, Battle#start was never called: restore the
+      // earlier side without requiring a reset from an unexecuted start queue.
+      restore({ checkQueuedReset: !installationError });
     } catch (error) {
       restorationErrors.push(error);
     }

@@ -5,7 +5,22 @@ class Stream { async write() {} }
 class BattleStream extends Stream { constructor() { super(); this.battle = null; } }
 function requestView(pokemon) { return { hp: pokemon.hp, status: pokemon.status, item: pokemon.item, fainted: pokemon.fainted, moves: (pokemon.moveSlots ?? []).map(({ id, pp }) => ({ id, pp })) }; }
 function fakeShowdown(raw) {
-  return { BattleStreams: { BattleStream, getPlayerStreams(stream) { const omniscient = new Stream(); omniscient.write = async (value) => { if (!value.startsWith('>player p2 ')) return; stream.battle = { ended: false, winner: '', turn: 0, requestSnapshots: [], sides: [{ pokemon: [raw.p1] }, { pokemon: [raw.p2] }], initEffectState(initial) { return { ...initial }; }, makeRequest() { this.requestSnapshots.push({ p1: requestView(this.sides[0].pokemon[0]), p2: requestView(this.sides[1].pokemon[0]) }); } }; }; return { omniscient, p1: new Stream(), p2: new Stream() }; } }, Teams: { pack: () => 'PACKED' } };
+  return { BattleStreams: { BattleStream, getPlayerStreams(stream) {
+    const omniscient = new Stream();
+    omniscient.write = async (value) => {
+      if (value.startsWith('>player p2 ')) { stream.battle.start(); return; }
+      if (!value.startsWith('>start ')) return;
+      for (const pokemon of [raw.p1, raw.p2]) pokemon.baseMoveSlots = pokemon.moveSlots;
+      stream.battle = {
+        ended: false, winner: '', turn: 0, requestSnapshots: [],
+        sides: [{ pokemon: [raw.p1], pokemonLeft: 1 }, { pokemon: [raw.p2], pokemonLeft: 1 }],
+        initEffectState(initial) { return { ...initial }; },
+        start() { this.started = true; this.makeRequest(); },
+        makeRequest() { this.requestSnapshots.push({ p1: requestView(this.sides[0].pokemon[0]), p2: requestView(this.sides[1].pokemon[0]) }); },
+      };
+    };
+    return { omniscient, p1: new Stream(), p2: new Stream() };
+  } }, Teams: { pack: () => 'PACKED' } };
 }
 function freshRaw() { return { p1: { species: { id: 'pikachu' }, level: 1, hp: 35, maxhp: 35, status: '', statusState: {}, item: 'oranberry', fainted: false, moveSlots: [{ id: 'thunderbolt', pp: 15, maxpp: 15 }] }, p2: { species: { id: 'magikarp' }, level: 1, hp: 20, maxhp: 20, status: '', statusState: {}, item: '', fainted: false, moveSlots: [{ id: 'splash', pp: 40, maxpp: 40 }] } }; }
 
@@ -22,8 +37,8 @@ assert.deepEqual({ hp: observed.p1[0].hp, status: observed.p1[0].status, statusT
 assert.deepEqual({ hp: observed.p2[0].hp, status: observed.p2[0].status, item: observed.p2[0].heldItem, pp: observed.p2[0].moves[0].pp, fainted: observed.p2[0].fainted }, { hp: raw.p2.hp, status: raw.p2.status, item: raw.p2.item, pp: raw.p2.moveSlots[0].pp, fainted: raw.p2.fainted });
 
 const moveRaw = freshRaw();
-const moveAliasDrift = createShowdownStreamSession(fakeShowdown(moveRaw), { p1: { name: 'Mapless', team: [{ ...persistent, moves: [{ id: 'tbolt', pp: 4 }] }] }, p2: { name: 'Wild', team: [wild] } });
-await assert.rejects(() => moveAliasDrift.start(), /Persistent move identity projection mismatch at slot 1: tbolt\/thunderbolt/, 'Showdown alias canonicalization must not silently change persistent move identity');
+const moveAliasDrift = createShowdownStreamSession(fakeShowdown(moveRaw), { p1: { name: 'Mapless', team: [{ ...persistent, moves: [{ id: 'tbolt', pp: 4, maxpp: 15 }] }] }, p2: { name: 'Wild', team: [wild] } });
+await assert.rejects(() => moveAliasDrift.start(), /Persistent move identity projection mismatch in baseMoveSlots at slot 1: tbolt\/thunderbolt/, 'Showdown alias canonicalization must not silently change persistent move identity');
 assert.equal(moveRaw.p1.moveSlots[0].pp, 15, 'move identity mismatch must fail before PP hydration');
 assert.equal(moveRaw.p1.hp, 35, 'move identity mismatch must fail before HP hydration');
 assert.equal(moveAliasDrift.battleStream.battle.requestSnapshots.length, 0, 'move identity mismatch must not emit a regenerated request');
@@ -48,8 +63,8 @@ assert.equal(contradictoryRaw.p1.hp, 35);
 assert.equal(contradictory.battleStream.battle.requestSnapshots.length, 0);
 
 const maxPpRaw = freshRaw();
-const maxPpMismatch = createShowdownStreamSession(fakeShowdown(maxPpRaw), { p1: { name: 'Mapless', team: [{ ...persistent, moves: [{ id: 'thunderbolt', pp: 4, maxpp: 14 }] }] }, p2: { name: 'Wild', team: [wild] } });
-await assert.rejects(() => maxPpMismatch.start(), /Persistent max PP projection mismatch for thunderbolt: 14\/15/);
+const maxPpMismatch = createShowdownStreamSession(fakeShowdown(maxPpRaw), { p1: { name: 'Mapless', team: [{ ...persistent, moves: [{ id: 'thunderbolt', pp: 4, maxpp: 16 }] }] }, p2: { name: 'Wild', team: [wild] } });
+await assert.rejects(() => maxPpMismatch.start(), /Persistent max PP projection is outside Showdown bounds for thunderbolt in baseMoveSlots: 16\/15/);
 assert.equal(maxPpRaw.p1.moveSlots[0].pp, 15);
 assert.equal(maxPpMismatch.battleStream.battle.requestSnapshots.length, 0);
 
