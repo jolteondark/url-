@@ -1,5 +1,4 @@
 import { GENERAL_ENCOUNTER_RULES, drawGeneralWildEncounter } from '../core/encounters/general-wild.js';
-import { buildGeneralEncounterSpeciesPool } from '../../runtime/general-encounter-species-pools.js';
 
 const ZERO_STATS = Object.freeze({ HP: 0, ATTACK: 0, DEFENSE: 0, SPECIAL_ATTACK: 0, SPECIAL_DEFENSE: 0, SPEED: 0 });
 
@@ -45,7 +44,8 @@ export async function prepareBrowserGeneralWildEncounter({
   if (typeof requiredType !== 'string' || !requiredType) throw new TypeError('requiredType is required');
 
   const band = stageBandForDay(day);
-  const speciesPool = buildGeneralEncounterSpeciesPool(requiredType, [...band.stages]);
+  const poolData = await import('../../runtime/general-encounter-species-pools.js');
+  const speciesPool = poolData.buildGeneralEncounterSpeciesPool(requiredType, [...band.stages]);
   const drawn = drawGeneralWildEncounter(rngState, { day, requiredType, speciesPool });
   const loaded = dependencies ?? await defaultDependencies();
   const canonical = loaded.encounterRuntime.resolveSafariGeneralEncounter({
