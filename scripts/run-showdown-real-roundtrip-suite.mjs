@@ -73,6 +73,7 @@ const harnesses = [
   'tests/reconstruction-showdown-real-fainted-bench-bookkeeping.mjs',
   'tests/reconstruction-showdown-real-p1-vertical.mjs',
   'tests/reconstruction-showdown-real-individual-stats.mjs',
+  'tests/reconstruction-showdown-real-browser-publication.mjs',
 ];
 
 for (const harness of harnesses) {
@@ -88,4 +89,4 @@ for (const harness of harnesses) {
   }
 }
 
-console.log('\n[showdown-real] PASS P0 real-engine suite + P1 canonical individual stats + playable controller vertical');
+console.log('\n[showdown-real] PASS P0 real-engine suite + P1 canonical individual stats + playable controller vertical + Safari16 browser publication');
