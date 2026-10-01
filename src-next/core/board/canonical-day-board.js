@@ -1,5 +1,10 @@
 import { randomInt } from '../rng.js';
 
+export const MAPLESS_GENERAL_TYPES = Object.freeze([
+  'BUG', 'DARK', 'DRAGON', 'ELECTRIC', 'FAIRY', 'FIGHTING', 'FIRE', 'FLYING', 'GHOST',
+  'GRASS', 'GROUND', 'ICE', 'NORMAL', 'POISON', 'PSYCHIC', 'ROCK', 'STEEL', 'WATER',
+]);
+
 export const MAPLESS_V108_EXTRA_EVENT_WEIGHTS = Object.freeze({
   wild: 5,
   trainer: 2,
@@ -27,6 +32,12 @@ export function weightedBoardKindV108(weights, roll) {
     if (remaining < 0) return kind;
   }
   throw new Error('weighted board selection exhausted unexpectedly');
+}
+
+export function wildTypeForDayOrdinal(day, ordinal) {
+  if (!Number.isInteger(day) || day < 1) throw new RangeError('day must be >= 1');
+  if (!Number.isInteger(ordinal) || ordinal < 0) throw new RangeError('wild ordinal must be a non-negative integer');
+  return MAPLESS_GENERAL_TYPES[((day - 1) * 2 + ordinal) % MAPLESS_GENERAL_TYPES.length];
 }
 
 function draw(state, maxExclusive) {
@@ -68,10 +79,15 @@ export function generateCanonicalDayBoard(state, day) {
   const nonRepeatable = selectedExtraKinds.filter((kind) => kind !== 'wild' && kind !== 'trainer');
   if (new Set(nonRepeatable).size !== nonRepeatable.length) throw new Error('canonical board repeated a non-repeatable optional kind');
 
+  let wildOrdinal = 0;
+  const slots = kinds.map((kind) => kind === 'wild'
+    ? Object.freeze({ kind, type: wildTypeForDayOrdinal(day, wildOrdinal++) })
+    : Object.freeze({ kind }));
+
   return Object.freeze({
     day,
     nextRngState: rngState,
-    slots: Object.freeze(kinds.map((kind) => Object.freeze({ kind }))),
+    slots: Object.freeze(slots),
     decisions: Object.freeze({
       extraRolls: Object.freeze(extraRolls),
       shuffleOrder: Object.freeze(shuffleOrder),
