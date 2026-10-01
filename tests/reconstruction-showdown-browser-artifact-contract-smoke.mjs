@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   SHOWDOWN_BROWSER_ENTRY,
   SHOWDOWN_BROWSER_PACKAGE,
@@ -23,5 +24,15 @@ const runtimePolicy = {
 };
 assert.equal(runtimePolicy.allowLegacyFallback, false);
 assert.equal(runtimePolicy.requireDifferentialFixture, true);
+
+// The build-time artifact descriptor must be directly consumable by the runtime
+// loader. Keep this static guard dependency-free so descriptor drift fails even
+// when the pinned extractor checkout is not present locally.
+const contractSource = readFileSync(new URL('../scripts/showdown-browser-artifact-contract.mjs', import.meta.url), 'utf8');
+const loaderSource = readFileSync(new URL('../src-next/core/battle/showdown-browser-artifact.js', import.meta.url), 'utf8');
+assert.match(contractSource, /showdownRevision:\s*SHOWDOWN_REVISION/);
+assert.match(contractSource, /esmEntry:\s*entryPath/);
+assert.match(loaderSource, /artifact\.showdownRevision/);
+assert.match(loaderSource, /artifact\.esmEntry/);
 
 console.log('reconstruction Showdown browser artifact contract smoke: ok');

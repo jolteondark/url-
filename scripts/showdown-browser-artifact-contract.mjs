@@ -14,6 +14,10 @@ function readJson(path) {
  * Validates the concrete artifact produced by the pinned pkmn/ps extractor.
  * This is build-time/tooling only: New Core receives an ESM simulator surface,
  * never a filesystem-backed Showdown checkout or a second mechanics owner.
+ *
+ * The returned descriptor intentionally uses the same showdownRevision/esmEntry
+ * field names consumed by loadShowdownBrowserArtifact(), so the validated build
+ * result can cross the runtime boundary without a second ad-hoc translation.
  */
 export function inspectExtractedShowdownArtifact(extractorDir) {
   const plan = createBrowserExtractionPlan(extractorDir);
@@ -38,8 +42,12 @@ export function inspectExtractedShowdownArtifact(extractorDir) {
 
   return Object.freeze({
     packageName: SHOWDOWN_BROWSER_PACKAGE,
-    entryPath,
+    showdownRevision: SHOWDOWN_REVISION,
+    esmEntry: entryPath,
+    // Keep tooling-oriented aliases for diagnostics/existing callers. Runtime
+    // consumers use showdownRevision/esmEntry above.
     revision: SHOWDOWN_REVISION,
+    entryPath,
     license: 'MIT',
     extractorRevision: plan.extractor.revision,
     policy: Object.freeze({
