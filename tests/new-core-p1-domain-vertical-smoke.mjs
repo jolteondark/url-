@@ -3,8 +3,10 @@ import { createInitialGameState } from '../src-next/core/game-state.js';
 import { serializeNewCoreSave, restoreNewCoreSave } from '../src-next/core/persistence.js';
 import { step } from '../src-next/core/step.js';
 
-const slots = Array.from({ length: 8 }, (_, index) => index === 2 ? { kind: 'wild', encounter: { species: 'RATTATA' } } : { kind: 'event' });
-let state = createInitialGameState({ runId: 'p1-vertical', seed: 108, money: 25, party: [{ id: 'starter', species: 'PIKACHU', hp: 35, maxhp: 35, exp: 100 }] });
+const slots = Array.from({ length: 8 }, (_, index) => index === 2
+  ? { kind: 'wild', encounter: { species: 'TEST_FOE', level: 10, baseExp: 70 } }
+  : { kind: 'event' });
+let state = createInitialGameState({ runId: 'p1-vertical', seed: 108, money: 25, party: [{ id: 'starter', species: 'PIKACHU', level: 10, hp: 35, maxhp: 35, exp: 100 }] });
 state = step(state, { type: 'BOARD_GENERATED', slots }).state;
 state = step(state, { type: 'BOARD_SELECT', slot: 2 }).state;
 const battleId = state.activeBattle.id;
@@ -13,12 +15,13 @@ assert.equal(terminal.state.mode, 'battle_result');
 assert.equal(terminal.state.board[2].consumed, true);
 assert.equal(terminal.events.at(-1).type, 'BATTLE_REWARD_REQUESTED');
 const rewardId = terminal.state.pendingBattleResult.rewardId;
-const reward = step(terminal.state, { type: 'BATTLE_REWARD_RESULT', rewardId, money: 120, partyExp: [{ memberId: 'starter', exp: 33 }] });
-assert.equal(reward.state.money, 145);
-assert.equal(reward.state.party[0].exp, 133);
+const reward = step(terminal.state, { type: 'BATTLE_REWARD_RESULT', rewardId, recipientIds: ['starter'] });
+assert.equal(reward.state.money, 25, 'ordinary wild victory does not grant prize money');
+assert.equal(reward.state.party[0].exp, 150);
+assert.equal(reward.state.bag.items.POTION, 1);
 assert.equal(reward.events.at(-1).type, 'BOARD_RETURNED');
 assert.deepEqual(reward.effects, [{ type: 'REQUEST_SAVE', reason: 'battle_reward_result' }]);
-const duplicateReward = step(reward.state, { type: 'BATTLE_REWARD_RESULT', rewardId, money: 120, partyExp: [{ memberId: 'starter', exp: 33 }] });
+const duplicateReward = step(reward.state, { type: 'BATTLE_REWARD_RESULT', rewardId, recipientIds: ['starter'] });
 assert.deepEqual(duplicateReward.state, reward.state);
 const cancelled = step(reward.state, { type: 'ADVANCE_DAY', transitionId: 'p1-day-1-next', confirmed: false });
 assert.equal(cancelled.state.day, 1);
@@ -31,8 +34,9 @@ const nextBoard = step(advanced.state, { type: 'BOARD_GENERATED', slots }).state
 const continued = restoreNewCoreSave(serializeNewCoreSave(nextBoard));
 assert.deepEqual(continued, nextBoard);
 assert.equal(continued.day, 2);
-assert.equal(continued.money, 145);
-assert.equal(continued.party[0].exp, 133);
+assert.equal(continued.money, 25);
+assert.equal(continued.party[0].exp, 150);
+assert.equal(continued.bag.items.POTION, 1);
 assert.equal(continued.diagnostics.appliedRewardIds.includes(rewardId), true);
 assert.equal(continued.diagnostics.appliedDayTransitionIds.includes('p1-day-1-next'), true);
 console.log('new-core-p1-domain-vertical-smoke: ok');
