@@ -2,6 +2,7 @@ import {
   beginNextPresentationJob,
   completePresentationJob,
   createPresentationJobDriver,
+  snapshotPresentationJobDriver,
 } from '../presentation/semantic-job-driver.js';
 
 export function createP1PresentationPump(queue, {
@@ -47,11 +48,20 @@ export function createP1PresentationPump(queue, {
     continuePump();
   }
 
+  function snapshot() {
+    return Object.freeze({
+      destroyed,
+      timerActive: timer !== null,
+      activeTimers: timer !== null ? 1 : 0,
+      driver: snapshotPresentationJobDriver(driver),
+    });
+  }
+
   function destroy() {
     destroyed = true;
     if (timer !== null) clearTimer(timer);
     timer = null;
   }
 
-  return Object.freeze({ kick, destroy, driver });
+  return Object.freeze({ kick, destroy, snapshot, driver });
 }
