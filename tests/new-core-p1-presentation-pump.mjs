@@ -28,6 +28,8 @@ const pump = createP1PresentationPump(queue, {
 pump.kick();
 assert.deepEqual(jobs, ['BOARD_READY', 'MOVE_USED'], 'nonvisual control event drains immediately before first timed job');
 assert.equal(timers.size, 1);
+assert.equal(pump.snapshot().activeTimers, 1);
+assert.equal(pump.snapshot().driver.activeType, 'MOVE_USED');
 let next = [...timers.entries()][0];
 assert.equal(next[1].ms, 100);
 timers.delete(next[0]);
@@ -41,10 +43,14 @@ clock += next[1].ms;
 next[1].callback();
 assert.equal(queue.jobs.length, 0);
 assert.equal(pump.driver.completed, 3);
+assert.equal(pump.snapshot().activeTimers, 0);
+assert.equal(pump.snapshot().driver.pending, 0);
 
 enqueuePresentationEvents(queue, [{ type: 'BATTLE_WON' }]);
 pump.kick();
 assert.equal(timers.size, 1);
 pump.destroy();
 assert.equal(timers.size, 0, 'destroy cancels presentation-only timer');
+assert.equal(pump.snapshot().destroyed, true);
+assert.equal(pump.snapshot().activeTimers, 0);
 console.log('P1 event-driven presentation pump: ok');
