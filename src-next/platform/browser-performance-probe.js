@@ -27,6 +27,9 @@ export function createBrowserPerformanceProbe(environment = globalThis) {
   let longTasks = 0;
   let longTaskTotalMs = 0;
   let maxLongTaskMs = 0;
+  let assetDecodes = 0;
+  let assetDecodeTotalMs = 0;
+  let maxAssetDecodeMs = 0;
 
   function onFrame(now) {
     if (!running) return;
@@ -80,6 +83,14 @@ export function createBrowserPerformanceProbe(environment = globalThis) {
     renders += value;
   }
 
+  function markAssetDecode(durationMs) {
+    const duration = Number(durationMs);
+    if (!Number.isFinite(duration) || duration < 0) throw new TypeError('asset decode duration must be a non-negative finite number');
+    assetDecodes += 1;
+    assetDecodeTotalMs += duration;
+    maxAssetDecodeMs = Math.max(maxAssetDecodeMs, duration);
+  }
+
   function snapshot() {
     const averageFrameMs = frames ? frameTotalMs / frames : null;
     const memory = perf?.memory;
@@ -93,6 +104,10 @@ export function createBrowserPerformanceProbe(environment = globalThis) {
       longTaskTotalMs,
       maxLongTaskMs: longTasks ? maxLongTaskMs : null,
       renders,
+      probeRafActive: running && frameHandle !== null ? 1 : 0,
+      assetDecodes,
+      assetDecodeTotalMs,
+      maxAssetDecodeMs: assetDecodes ? maxAssetDecodeMs : null,
       domNodes: document?.getElementsByTagName ? document.getElementsByTagName('*').length : null,
       memory: Object.freeze({
         usedJSHeapSize: finite(memory?.usedJSHeapSize),
@@ -108,5 +123,5 @@ export function createBrowserPerformanceProbe(environment = globalThis) {
     });
   }
 
-  return Object.freeze({ start, stop, markRender, snapshot });
+  return Object.freeze({ start, stop, markRender, markAssetDecode, snapshot });
 }
