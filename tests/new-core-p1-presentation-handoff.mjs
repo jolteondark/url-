@@ -7,15 +7,15 @@ import {
   snapshotPresentationQueue,
 } from '../src-next/presentation/semantic-event-queue.js';
 
-const slots = Array.from({ length: 8 }, (_, index) => index === 0
-  ? { kind: 'wild', encounter: { species: 'TEST_FOE', level: 10, baseExp: 70 } }
-  : { kind: 'event' });
 let state = createInitialGameState({
   runId: 'p1-presentation',
+  seed: 108,
   party: [{ id: 'starter', species: 'PIKACHU', level: 10, hp: 35, maxhp: 35, exp: 0 }],
 });
-state = step(state, { type: 'BOARD_GENERATED', slots }).state;
-state = step(state, { type: 'BOARD_SELECT', slot: 0 }).state;
+state = step(state, { type: 'GENERATE_DAY_BOARD' }).state;
+const wildSlot = state.board.findIndex((slot) => slot.kind === 'wild');
+state = step(state, { type: 'BOARD_ENCOUNTER_READY', slot: wildSlot, encounter: { species: 'TEST_FOE', level: 10, baseExp: 70 } }).state;
+state = step(state, { type: 'BOARD_SELECT', slot: wildSlot }).state;
 const battleId = state.activeBattle.id;
 const terminal = step(state, {
   type: 'BATTLE_TERMINAL_RESULT',
