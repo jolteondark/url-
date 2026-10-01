@@ -81,10 +81,19 @@ function statusHtml(document, member) {
   return wrap;
 }
 
-function setSprite(image, fallback, member) {
+function setSprite(image, fallback, member, onAssetDecode = () => {}) {
   const sprite = member?.sprite;
   if (sprite?.src) {
-    if (image.src !== sprite.src) image.src = sprite.src;
+    if (image.src !== sprite.src) {
+      image.src = sprite.src;
+      if (typeof image.decode === 'function') {
+        const started = globalThis.performance?.now?.() ?? Date.now();
+        image.decode().then(() => {
+          const finished = globalThis.performance?.now?.() ?? Date.now();
+          onAssetDecode(Math.max(0, finished - started), sprite);
+        }).catch(() => {});
+      }
+    }
     image.hidden = false;
     fallback.hidden = true;
   } else {
@@ -108,6 +117,7 @@ export function createP1PixelDomRenderer(root, {
   onBoardSlot = () => {},
   onMove = () => {},
   onReward = () => {},
+  onAssetDecode = () => {},
 } = {}) {
   const document = root?.ownerDocument ?? globalThis.document;
   if (!root || !document?.createElement) throw new Error('P1 pixel renderer requires a DOM root');
@@ -219,8 +229,8 @@ export function createP1PixelDomRenderer(root, {
     if (battle.visible) {
       q('[data-foe-status]').replaceChildren(statusHtml(document, battle.foe));
       q('[data-player-status]').replaceChildren(statusHtml(document, battle.player));
-      setSprite(q('[data-foe-sprite]'), q('[data-foe-fallback]'), battle.foe);
-      setSprite(q('[data-player-sprite]'), q('[data-player-fallback]'), battle.player);
+      setSprite(q('[data-foe-sprite]'), q('[data-foe-fallback]'), battle.foe, onAssetDecode);
+      setSprite(q('[data-player-sprite]'), q('[data-player-fallback]'), battle.player, onAssetDecode);
       movesRoot.replaceChildren();
       for (const [index, move] of (battle.player?.moves ?? []).entries()) {
         const button = document.createElement('button');
