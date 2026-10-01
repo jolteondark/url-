@@ -21,12 +21,20 @@ export function createBrowserPerformanceProbe(environment = globalThis) {
   let lastFrameAt = null;
   let observer = null;
   let renders = 0;
+  let renderTotalMs = 0;
+  let maxRenderMs = 0;
+  let assetLoads = 0;
+  let assetLoadTotalMs = 0;
+  let maxAssetLoadMs = 0;
   let frames = 0;
   let frameTotalMs = 0;
   let maxFrameMs = 0;
   let longTasks = 0;
   let longTaskTotalMs = 0;
   let maxLongTaskMs = 0;
+  let assetDecodes = 0;
+  let assetDecodeTotalMs = 0;
+  let maxAssetDecodeMs = 0;
 
   function onFrame(now) {
     if (!running) return;
@@ -74,10 +82,58 @@ export function createBrowserPerformanceProbe(environment = globalThis) {
     return true;
   }
 
+  function clock() {
+    return perf?.now?.() ?? Date.now();
+  }
+
   function markRender(count = 1) {
     const value = Number(count);
     if (!Number.isInteger(value) || value < 1) throw new TypeError('render count must be a positive integer');
     renders += value;
+  }
+
+  function markRenderDuration(durationMs) {
+    const duration = Number(durationMs);
+    if (!Number.isFinite(duration) || duration < 0) throw new TypeError('render duration must be a non-negative finite number');
+    renders += 1;
+    renderTotalMs += duration;
+    maxRenderMs = Math.max(maxRenderMs, duration);
+  }
+
+  function measureRender(work) {
+    if (typeof work !== 'function') throw new TypeError('render measurement requires a function');
+    const started = clock();
+    try {
+      return work();
+    } finally {
+      markRenderDuration(Math.max(0, clock() - started));
+    }
+  }
+
+  function markAssetLoad(durationMs) {
+    const duration = Number(durationMs);
+    if (!Number.isFinite(duration) || duration < 0) throw new TypeError('asset load duration must be a non-negative finite number');
+    assetLoads += 1;
+    assetLoadTotalMs += duration;
+    maxAssetLoadMs = Math.max(maxAssetLoadMs, duration);
+  }
+
+  async function measureAssetLoad(work) {
+    if (typeof work !== 'function') throw new TypeError('asset load measurement requires a function');
+    const started = clock();
+    try {
+      return await work();
+    } finally {
+      markAssetLoad(Math.max(0, clock() - started));
+    }
+  }
+
+  function markAssetDecode(durationMs) {
+    const duration = Number(durationMs);
+    if (!Number.isFinite(duration) || duration < 0) throw new TypeError('asset decode duration must be a non-negative finite number');
+    assetDecodes += 1;
+    assetDecodeTotalMs += duration;
+    maxAssetDecodeMs = Math.max(maxAssetDecodeMs, duration);
   }
 
   function snapshot() {
@@ -93,6 +149,16 @@ export function createBrowserPerformanceProbe(environment = globalThis) {
       longTaskTotalMs,
       maxLongTaskMs: longTasks ? maxLongTaskMs : null,
       renders,
+      renderTotalMs,
+      averageRenderMs: renders ? renderTotalMs / renders : null,
+      maxRenderMs: renders ? maxRenderMs : null,
+      probeRafActive: running && frameHandle !== null ? 1 : 0,
+      assetLoads,
+      assetLoadTotalMs,
+      maxAssetLoadMs: assetLoads ? maxAssetLoadMs : null,
+      assetDecodes,
+      assetDecodeTotalMs,
+      maxAssetDecodeMs: assetDecodes ? maxAssetDecodeMs : null,
       domNodes: document?.getElementsByTagName ? document.getElementsByTagName('*').length : null,
       memory: Object.freeze({
         usedJSHeapSize: finite(memory?.usedJSHeapSize),
@@ -108,5 +174,15 @@ export function createBrowserPerformanceProbe(environment = globalThis) {
     });
   }
 
-  return Object.freeze({ start, stop, markRender, snapshot });
+  return Object.freeze({
+    start,
+    stop,
+    markRender,
+    markRenderDuration,
+    measureRender,
+    markAssetLoad,
+    measureAssetLoad,
+    markAssetDecode,
+    snapshot,
+  });
 }

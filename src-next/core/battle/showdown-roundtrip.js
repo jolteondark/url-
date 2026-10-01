@@ -7,6 +7,34 @@ const PERSISTENT_MAJOR_STATUSES = new Set(['', 'brn', 'frz', 'par', 'psn', 'slp'
 
 function normalizeId(value) { return String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ''); }
 function moveId(move) { return normalizeId(move?.id ?? move?.move ?? move); }
+const SHOWDOWN_STAT_KEYS = Object.freeze({
+  hp: Object.freeze(['hp', 'HP']),
+  atk: Object.freeze(['atk', 'ATTACK']),
+  def: Object.freeze(['def', 'DEFENSE']),
+  spa: Object.freeze(['spa', 'SPECIAL_ATTACK']),
+  spd: Object.freeze(['spd', 'SPECIAL_DEFENSE']),
+  spe: Object.freeze(['spe', 'SPEED']),
+});
+function exactStatTable(value, boundary, max) {
+  if (value === undefined || value === null) return null;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${boundary} requires a stat object`);
+  const out = {};
+  for (const [showdownKey, aliases] of Object.entries(SHOWDOWN_STAT_KEYS)) {
+    const alias = aliases.find((key) => Object.prototype.hasOwnProperty.call(value, key));
+    if (!alias) throw new Error(`${boundary} requires all six stats; missing ${showdownKey}`);
+    const number = Number(value[alias]);
+    if (!Number.isInteger(number) || number < 0 || number > max) throw new Error(`${boundary} ${showdownKey} must be an integer from 0 through ${max}`);
+    out[showdownKey] = number;
+  }
+  return Object.freeze(out);
+}
+function exactNature(value) {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value !== 'string') throw new Error('Battle projection nature requires a string');
+  const nature = value.trim();
+  if (!nature) throw new Error('Battle projection nature requires a non-empty string');
+  return nature;
+}
 function exactSleepTurns(value, boundary) {
   const turns = Number(value);
   if (!Number.isInteger(turns) || turns < 1) throw new Error(`${boundary} sleep projection requires a positive integer statusTurns`);
@@ -96,6 +124,12 @@ export function projectMaplessPokemonToShowdown(member) {
     level, hp, maxhp, status, heldItem, moves: exactStartingMoves(member.moves), fainted: exactStartingFainted(member.fainted, hp),
   };
   if (member.ability !== undefined && member.ability !== null && String(member.ability) !== '') projected.ability = String(member.ability);
+  const nature = exactNature(member.nature ?? member.nature_id ?? member.natureId);
+  const ivs = exactStatTable(member.ivs ?? member.iv, 'Battle projection IV', 31);
+  const evs = exactStatTable(member.evs ?? member.ev, 'Battle projection EV', 255);
+  if (nature) projected.nature = nature;
+  if (ivs) projected.ivs = ivs;
+  if (evs) projected.evs = evs;
   if (projected.status === 'slp') projected.statusTurns = exactSleepTurns(member.statusTurns, 'Persistent');
   return Object.freeze(projected);
 }
