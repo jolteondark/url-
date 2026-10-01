@@ -130,6 +130,10 @@ assert.equal(state.day, 2);
 assert.equal(state.mode, 'board');
 assert.equal(state.board.length, 8);
 assert.equal(counters.set, 2, 'settled day transition owns one additional browser save');
+const settledDay2 = controller.snapshot();
+controller.advanceDay({ transitionId: 'controller-day-1-next', confirmed: true });
+assert.deepEqual(controller.snapshot(), settledDay2, 'replayed day transition must not regenerate the Board or consume RNG');
+assert.equal(counters.set, 2, 'replayed day transition must not write another save');
 
 const continued = createP1PlayableController({
   storage: memoryStorage(backing, counters),
@@ -147,4 +151,25 @@ assert.ok(queuedTypes.includes('EXP_GAINED'));
 assert.ok(queuedTypes.includes('ITEM_REWARDED'));
 assert.equal(controller.actionGate.accepted, 1);
 assert.equal(controller.actionGate.completed, 1);
+
+const failedStart = createP1PlayableController({
+  encounterDependencies,
+  sessionFactory() {
+    return {
+      async start() { throw new Error('simulated Showdown start failure'); },
+      async fight() {},
+      resolvedState() { return { terminal: false, winner: '', turn: 0, p1: [], p2: [] }; },
+    };
+  },
+});
+failedStart.freshStart({ runId: 'controller-start-failure', seed: 108 });
+const failedWildSlot = failedStart.snapshot().board.findIndex((slot) => slot.kind === 'wild');
+await failedStart.prepareWild(failedWildSlot);
+const preparedBoard = failedStart.snapshot();
+await assert.rejects(
+  () => failedStart.startWildBattle(failedWildSlot),
+  /simulated Showdown start failure/
+);
+assert.deepEqual(failedStart.snapshot(), preparedBoard, 'failed Showdown start must roll back to the prepared Board state');
+
 console.log('New Core P1 playable controller seam: ok');
