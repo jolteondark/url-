@@ -3,14 +3,16 @@ import { createInitialGameState } from '../src-next/core/game-state.js';
 import { step } from '../src-next/core/step.js';
 import { serializeNewCoreSave, restoreNewCoreSave } from '../src-next/core/persistence.js';
 
-const initial = createInitialGameState({
+let state = createInitialGameState({
   runId: 'save-smoke',
   seed: 108,
   party: [{ id: 'p1', species: 'PIKACHU', level: 10, hp: 20, maxhp: 35, exp: 0, moves: [{ id: 'THUNDERSHOCK', pp: 29, maxpp: 30 }] }],
 });
-const slots = Array.from({ length: 8 }, () => ({ kind: 'wild', encounter: { species: 'TEST_FOE', level: 10, baseExp: 70 } }));
-const board = step(initial, { type: 'BOARD_GENERATED', slots }).state;
-const pending = step(board, { type: 'BOARD_SELECT', slot: 0 }).state;
+state = step(state, { type: 'GENERATE_DAY_BOARD' }).state;
+const wildSlot = state.board.findIndex((slot) => slot.kind === 'wild');
+assert.ok(wildSlot >= 0);
+state = step(state, { type: 'BOARD_ENCOUNTER_READY', slot: wildSlot, encounter: { species: 'TEST_FOE', level: 10, baseExp: 70 } }).state;
+const pending = step(state, { type: 'BOARD_SELECT', slot: wildSlot }).state;
 const terminal = step(pending, {
   type: 'BATTLE_TERMINAL_RESULT',
   battleId: pending.activeBattle.id,
@@ -30,7 +32,7 @@ const advance = step(rewarded.state, { type: 'ADVANCE_DAY', transitionId: 'day-1
 assert.equal(advance.state.day, 2);
 assert.equal(advance.state.mode, 'board_pending');
 assert.equal(advance.effects.filter((effect) => effect.type === 'REQUEST_SAVE').length, 1);
-const day2 = step(advance.state, { type: 'BOARD_GENERATED', slots }).state;
+const day2 = step(advance.state, { type: 'GENERATE_DAY_BOARD' }).state;
 const serialized = serializeNewCoreSave(day2);
 const restored = restoreNewCoreSave(serialized);
 assert.deepEqual(restored, day2);
