@@ -125,6 +125,18 @@ export function step(inputState, command) {
         { type: 'BATTLE_REQUESTED', battleId, encounter: structuredClone(state.activeEncounter) },
       ]);
     }
+    case 'BATTLE_RNG_ADVANCED': {
+      const battle = state.activeBattle;
+      if (!battle || battle.id !== command.battleId) throw new Error('BATTLE_RNG_ADVANCED requires the active battle');
+      const before = Number(command.rngStateBefore);
+      const after = Number(command.nextRngState);
+      if (!Number.isInteger(before) || before < 0 || before > 0xffffffff || !Number.isInteger(after) || after < 0 || after > 0xffffffff) {
+        throw new Error('BATTLE_RNG_ADVANCED states must be uint32 integers');
+      }
+      if ((state.rngState >>> 0) !== (before >>> 0)) throw new Error('BATTLE_RNG_ADVANCED RNG state is stale');
+      state.rngState = after >>> 0;
+      return result(state, [{ type: 'BATTLE_RNG_COMMITTED', battleId: battle.id }]);
+    }
     case 'BATTLE_TERMINAL_RESULT': {
       const resultId = String(command.resultId || '');
       if (!resultId) throw new Error('resultId is required for exactly-once commit');
