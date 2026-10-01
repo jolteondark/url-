@@ -29,9 +29,14 @@ export function createInitialGameState({ runId, seed, party = [], bag = {}, mone
     villageActionsRemaining: 0,
     activeEncounter: null,
     activeBattle: null,
+    pendingBattleResult: null,
     carryover: {},
     runStatus: 'active',
-    diagnostics: { appliedResultIds: [] },
+    diagnostics: {
+      appliedResultIds: [],
+      appliedRewardIds: [],
+      appliedDayTransitionIds: [],
+    },
   };
 }
 
