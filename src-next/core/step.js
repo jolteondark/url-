@@ -77,10 +77,15 @@ export function step(inputState, command) {
     case 'GENERATE_DAY_BOARD': {
       if (state.activeBattle || state.pendingBattleResult) throw new Error('GENERATE_DAY_BOARD cannot replace an unresolved battle result');
       if (state.mode !== 'board' && state.mode !== 'board_pending') throw new Error('GENERATE_DAY_BOARD requires board or board_pending mode');
+      const completesDayAdvance = state.mode === 'board_pending';
       const generated = generateCanonicalDayBoard(state.rngState, state.day);
       state.rngState = generated.nextRngState;
       installBoard(state, generated.slots);
-      return result(state, [{ type: 'BOARD_READY', day: state.day }]);
+      return result(
+        state,
+        [{ type: 'BOARD_READY', day: state.day }],
+        completesDayAdvance ? [{ type: 'REQUEST_SAVE', reason: 'day_advanced' }] : [],
+      );
     }
     case 'BOARD_GENERATED': {
       if (!Array.isArray(command.slots) || command.slots.length !== 8) throw new Error('canonical Day Board requires 8 slots');
@@ -236,7 +241,7 @@ export function step(inputState, command) {
       return result(state, [
         { type: 'DAY_ADVANCED', day: state.day, transitionId },
         { type: 'BOARD_GENERATION_REQUESTED', day: state.day },
-      ], [{ type: 'REQUEST_SAVE', reason: 'day_advanced' }]);
+      ]);
     }
     default:
       throw new Error(`Unsupported New Core command: ${command.type}`);
