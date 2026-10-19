@@ -49,10 +49,14 @@ Mapless Web は、現在のWeb実装を継ぎ足して完成させる方針か�
 
 ## 1.1 Mapless固有仕様
 
-1. Mapless v0.9.108 canonical behavior/data
+1. Mapless v0.9.108 canonical behavior/data（原作挙動の**証拠**。既知の原作バグを無条件には正解としない）
 2. v0.9.108に基づく検証済みtest / extracted spec
 3. 旧Web版のうちcanonicalと一致する挙動
 4. それ以外の旧実装
+
+この序列は**証拠の優先順位**であり、原作コードの誤字・例外の握りつぶし・到達不能分岐・表示と実結果の矛盾まで再現する命令ではない。ゲームデザイン上の意図が原作コード・他の正規API・後続修正から裏付けられる場合は、**既知不具合の是正を明示的な Mapless override として採用**できる。実行結果と意図を混同せず、原作どおりのfixtureと修正後の期待値を区別して保持する。
+
+修正は一律の「改善」ではなく、原因と根拠の確定を前提にする。意図が不明な場合は原作を勝手に改変せず、`intent-ambiguous` として限定的に保留する。旧Webでのみ壊れていた処理は `legacy-web-regression` と分類し、原作バグとして扱わない。
 
 Mapless固有仕様には以下を含む。
 
@@ -402,6 +406,26 @@ EventDefinition = {
 resolverが返すのはdomain mutation/eventsのみ。
 
 表示用HTMLをevent mechanicsに埋め込まない。
+
+## 7.6.1 Event intent / bug audit gate
+
+通常・特殊イベントをNew Coreへ移す前に、**最終的に有効になる** v0.9.108 Ruby 実装を監査する。最初に見つかった関数で止めず、後続の再定義・alias・adjustment・interaction fix を含めて呼出経路と優先順位を確定する。
+
+各イベントのすべての選択肢・結果分岐について、以下を独立に照合する。
+
+1. 表示: 説明文・選択肢・条件・実際の結果メッセージが同じ約束をしているか。
+2. 分岐: 到達可能性、選択の取消し・失敗、RNG seed/stream/抽選順、Battle勝敗・捕獲・逃走の処理が正しいか。
+3. 報酬: money / item / EXP / Pokémon / HP 等について、**表示上の約束と実際のcommit**が一致し、Bag/Party/Storage容量や代替報酬を正しく扱うか。
+4. 終了: Board消費、Battle RESULT/RETURN、exactly-once、Save/Continue、再入場・再読込で重複や消滅が起きないか。
+
+各差分は `verified-source-as-designed` / `source-defect/approved-correction` / `legacy-web-regression` / `intent-ambiguous` / `not-yet-verified` のいずれかに分類し、原作ファイル位置、観測される実行結果、意図の根拠、採用する修正、テストfixture、レビュー判断を監査台帳に残す。既知の原作バグをgolden testで永続化する場合、**原作観測fixture** と **New Coreの意図された受入fixture** を別々にする。
+
+初期重点監査の具体例（追跡: [#1654](https://github.com/jolteondark/url-/issues/1654)）:
+
+- `photographer`: v0.9.55の `GetSpeciesCategoryTag(...)` は未定義で `rescue nil` により伝説・幻の特別報酬判定が実行されない。旧UIの「通常報酬」表記も色違い特別報酬と一致しない。意図された特殊分類は既存の種族カテゴリownerを再利用し、報酬額は現行のnormal/special値を保持する。図鑑登録など原作にない副作用は追加しない。
+- `lost_pokemon`: v0.9.99後続の `gift_roll` / `lost_encounter` 準備と表示個体の再利用が、原作の最終的な有効処理。旧Webの `rare_thanks:false` 固定、勧誘時の個体再抽選、持ち主探索の報酬プール相違は**Web移植の不具合**であり原作の仕様ではない。
+
+このゲートはイベント範囲の追加時に適用する。既存の最初のwild Battle縦切り（#1652 / PR #1653）を監査未完了という理由だけで停止しない。意図された補正はNew Core固有のオーナー/overrideに置き、Legacyに重複実装しない。
 
 ---
 
@@ -779,7 +803,9 @@ base Pokemon data
 
 ### C. Golden behavior tests
 
-旧Mapless canonicalと一致させる重要ケース。
+旧Maplessの**検証済み正常挙動**と一致させる重要ケース。既知原作バグについては原作の観測値と、根拠を付して採用した修正後の期待値を区別する。
+
+イベント追加時は全選択肢・主要分岐と、表示文/期待報酬/実際のcommitを対応づけたfixtureを必須とする。取消し・失敗・容量不足・Battle RESULT/RETURN・重複実行・Save/Continueを境界条件として検証する。
 
 ### D. End-to-end slice
 
@@ -884,7 +910,7 @@ Start
 
 - Village
 - Facilities
-- normal events
+- normal events（§7.6.1のイベント監査・意図補正fixtureを通したものから実装）
 - boundary battles
 - carryover
 - progression
